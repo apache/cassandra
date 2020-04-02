@@ -737,13 +737,13 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
                                              + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.", false);
 
-        if (conf.user_defined_function_fail_timeout < 0)
-            throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
-        if (conf.user_defined_function_warn_timeout < 0)
-            throw new ConfigurationException("user_defined_function_warn_timeout must not be negative", false);
+        if (conf.user_defined_function_fail_timeout_in_ms < 0)
+            throw new ConfigurationException("user_defined_function_fail_timeout_in_ms must not be negative", false);
+        if (conf.user_defined_function_warn_timeout_in_ms < 0)
+            throw new ConfigurationException("user_defined_function_warn_timeout_in_ms must not be negative", false);
 
-        if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
-            throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
+        if (conf.user_defined_function_fail_timeout_in_ms < conf.user_defined_function_warn_timeout_in_ms)
+            throw new ConfigurationException("user_defined_function_warn_timeout_in_ms must less than user_defined_function_fail_timeout_in_ms", false);
 
         if (conf.commitlog_segment_size_in_mb <= 0)
             throw new ConfigurationException("commitlog_segment_size_in_mb must be positive, but was "
@@ -2696,12 +2696,12 @@ public class DatabaseDescriptor
 
     public static int getTracetypeRepairTTL()
     {
-        return conf.tracetype_repair_ttl;
+        return conf.tracetype_repair_ttl_in_s;
     }
 
     public static int getTracetypeQueryTTL()
     {
-        return conf.tracetype_query_ttl;
+        return conf.tracetype_query_ttl_in_s;
     }
 
     public static int getWindowsTimerInterval()
@@ -2736,12 +2736,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionWarnTimeout()
     {
-        return conf.user_defined_function_warn_timeout;
+        return conf.user_defined_function_warn_timeout_in_ms;
     }
 
     public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
     {
-        conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
+        conf.user_defined_function_warn_timeout_in_ms = userDefinedFunctionWarnTimeout;
     }
 
     public static boolean getEnableMaterializedViews()
@@ -2776,12 +2776,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionFailTimeout()
     {
-        return conf.user_defined_function_fail_timeout;
+        return conf.user_defined_function_fail_timeout_in_ms;
     }
 
     public static void setUserDefinedFunctionFailTimeout(long userDefinedFunctionFailTimeout)
     {
-        conf.user_defined_function_fail_timeout = userDefinedFunctionFailTimeout;
+        conf.user_defined_function_fail_timeout_in_ms = userDefinedFunctionFailTimeout;
     }
 
     public static Config.UserFunctionTimeoutPolicy getUserFunctionTimeoutPolicy()

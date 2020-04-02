@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,7 +37,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
  *
@@ -56,14 +61,21 @@ public class Config
     public String authorizer;
     public String role_manager;
     public String network_authorizer;
+
+    public volatile String permissions_validity = "2000ms";
     public volatile int permissions_validity_in_ms = 2000;
     public volatile int permissions_cache_max_entries = 1000;
+    public volatile String permissions_update_interval = "-1";
     public volatile int permissions_update_interval_in_ms = -1;
+    public volatile String roles_validity = "2000ms";
     public volatile int roles_validity_in_ms = 2000;
     public volatile int roles_cache_max_entries = 1000;
+    public volatile String roles_update_interval = "-1";
     public volatile int roles_update_interval_in_ms = -1;
+    public volatile String credentials_validity = "2000ms";
     public volatile int credentials_validity_in_ms = 2000;
     public volatile int credentials_cache_max_entries = 1000;
+    public volatile String credentials_update_interval = "-1";
     public volatile int credentials_update_interval_in_ms = -1;
 
     /* Hashing strategy Random or OPHF */
@@ -72,6 +84,7 @@ public class Config
     public boolean auto_bootstrap = true;
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
+    public volatile String max_hint_window = "10800000ms";
     public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
     public String hints_directory;
 
@@ -89,29 +102,39 @@ public class Config
     /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
     public Integer allocate_tokens_for_local_replication_factor = null;
 
+    public String native_transport_idle_timeout = "0ms";
     public long native_transport_idle_timeout_in_ms = 0L;
 
+    public volatile String request_timeout = "10000ms";
     public volatile long request_timeout_in_ms = 10000L;
 
+    public volatile String read_request_timeout = "5000ms";
     public volatile long read_request_timeout_in_ms = 5000L;
 
+    public volatile String range_request_timeout = "10000ms";
     public volatile long range_request_timeout_in_ms = 10000L;
 
+    public volatile String write_request_timeout = "2000ms";
     public volatile long write_request_timeout_in_ms = 2000L;
 
+    public volatile String counter_write_request_timeout = "5000ms";
     public volatile long counter_write_request_timeout_in_ms = 5000L;
 
+    public volatile String cas_contention_timeout = "1000ms";
     public volatile long cas_contention_timeout_in_ms = 1000L;
 
+    public volatile String truncate_request_timeout = "60000ms";
     public volatile long truncate_request_timeout_in_ms = 60000L;
 
     public Integer streaming_connections_per_host = 1;
+    public String streaming_keep_alive_period = "300s";
     public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
 
     //Effective cassandra.yaml v.2.0 cross_node_timeout is renamed to internode_timeout
     //The old name is kept to keep backwards compatibility
     public boolean internode_timeout = true;
 
+    public volatile String slow_query_log_timeout = "500ms";
     public volatile long slow_query_log_timeout_in_ms = 500L;
 
     public volatile double phi_convict_threshold = 8.0;
@@ -125,13 +148,16 @@ public class Config
     public Integer concurrent_replicates = null;
 
     public int memtable_flush_writers = 0;
+    public String memtable_heap_space;
     public Integer memtable_heap_space_in_mb;
+    public String memtable_offheap_space;
     public Integer memtable_offheap_space_in_mb;
     public Float memtable_cleanup_threshold = null;
 
     // Limit the maximum depth of repair session merkle trees
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
+    public volatile String repair_session_space = null;
     public volatile Integer repair_session_space_in_mb = null;
 
     public volatile boolean use_offheap_merkle_trees = true;
@@ -158,27 +184,36 @@ public class Config
     public String broadcast_rpc_address;
     public boolean rpc_keepalive = true;
 
+    //Below parameters not presented in cassandra.yaml so no need of string representation for them
     public Integer internode_max_message_size_in_bytes;
 
     public int internode_socket_send_buffer_size_in_bytes = 0;
     public int internode_socket_receive_buffer_size_in_bytes = 0;
 
     // TODO: derive defaults from system memory settings?
+    public String internode_application_send_queue_capacity = "4194304B"; // 4MiB
     public int internode_application_send_queue_capacity_in_bytes = 1 << 22; // 4MiB
+    public String internode_application_send_queue_reserve_endpoint_capacity = "134217728B"; // 128MiB
     public int internode_application_send_queue_reserve_endpoint_capacity_in_bytes = 1 << 27; // 128MiB
+    public String internode_application_send_queue_reserve_global_capacity = "536870912B"; // 512MiB
     public int internode_application_send_queue_reserve_global_capacity_in_bytes = 1 << 29; // 512MiB
 
+    public String internode_application_receive_queue_capacity = "4194304B"; // 4MiB
     public int internode_application_receive_queue_capacity_in_bytes = 1 << 22; // 4MiB
+    public String internode_application_receive_queue_reserve_endpoint_capacity = "134217728B"; // 128MiB
     public int internode_application_receive_queue_reserve_endpoint_capacity_in_bytes = 1 << 27; // 128MiB
+    public String internode_application_receive_queue_reserve_global_capacity = "536870912B"; // 512MiB
     public int internode_application_receive_queue_reserve_global_capacity_in_bytes = 1 << 29; // 512MiB
 
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
+    public String internode_tcp_connect_timeout = "2000ms";
     public int internode_tcp_connect_timeout_in_ms = 2000;
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
+    public String internode_tcp_user_timeout = "30000ms";
     public int internode_tcp_user_timeout_in_ms = 30000;
 
     public boolean start_native_transport = true;
@@ -190,6 +225,7 @@ public class Config
     //Effective cassandra.yaml v.2.0 native_transport_max_frame_size_in_mb is renamed to
     // max_native_transport_frame_size_in_mb
     //The old name is kept to keep backwards compatibility
+    public String max_native_transport_frame_size = "256MB";
     public int max_native_transport_frame_size_in_mb = 256;
     //Effective cassandra.yaml v.2.0 native_transport_max_concurrent_connections is renamed to
     // max_native_transport_concurrent_connections
@@ -201,6 +237,7 @@ public class Config
     public volatile long max_native_transport_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
+    public String native_transport_frame_block_size = "32KB";
     public int native_transport_frame_block_size_in_kb = 32;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
@@ -212,20 +249,28 @@ public class Config
      * Default is the same as the native protocol frame limit: 256Mb.
      * See AbstractType for how it is used.
      */
+    public String max_value_size = "256MB";
     public int max_value_size_in_mb = 256;
 
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
+    public String column_index_size = "64kb";
     public int column_index_size_in_kb = 64;
+    public String column_index_cache_size = "2KB";
     public volatile int column_index_cache_size_in_kb = 2;
+    public String batch_size_warn_threshold = "5KB";
     public volatile int batch_size_warn_threshold_in_kb = 5;
+    public volatile String batch_size_fail_threshold = "50KB";
     public volatile int batch_size_fail_threshold_in_kb = 50;
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
+    public String compaction_throughput = "16Mbps";
     public volatile int compaction_throughput_mb_per_sec = 16;
+    public String compaction_large_partition_warning_threshold = "100MB";
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
+    //The below parameter is not presented in the cassandra.yaml. No need of string representation for it
     public int min_free_space_per_drive_in_mb = 50;
 
     public volatile int concurrent_validations = Integer.MAX_VALUE;
@@ -237,7 +282,9 @@ public class Config
     @Deprecated
     public int max_streaming_retries = 3;
 
+    public volatile String stream_throughput_outbound = "200Mbps";
     public volatile int stream_throughput_outbound_megabits_per_sec = 200;
+    public volatile String inter_dc_stream_throughput_outbound = "200Mbps";
     public volatile int inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories = new String[0];
@@ -246,28 +293,37 @@ public class Config
 
     // Commit Log
     public String commitlog_directory;
+    public String commitlog_total_space;
     public Integer commitlog_total_space_in_mb;
     public CommitLogSync commitlog_sync;
 
     /**
      * @deprecated since 4.0 This value was near useless, and we're not using it anymore
      */
+    public String commitlog_sync_batch_window;
     public double commitlog_sync_batch_window_in_ms = Double.NaN;
+    public String commitlog_sync_group_window;
     public double commitlog_sync_group_window_in_ms = Double.NaN;
+    public String commitlog_sync_period;
     public int commitlog_sync_period_in_ms;
+    public String commitlog_segment_size = "32mb";
     public int commitlog_segment_size_in_mb = 32;
     public ParameterizedClass commitlog_compression;
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
+    public String periodic_commitlog_sync_lag_block;
     public Integer periodic_commitlog_sync_lag_block_in_ms;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
+    public String max_mutation_size;
     public Integer max_mutation_size_in_kb;
 
     // Change-data-capture logs
     public boolean cdc_enabled = false;
     public String cdc_raw_directory;
+    public String cdc_total_space = "0MB";
     public int cdc_total_space_in_mb = 0;
+    public String cdc_free_space_check_interval = "250ms";
     public int cdc_free_space_check_interval_ms = 250;
 
     @Deprecated
@@ -275,7 +331,9 @@ public class Config
 
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
+    public String dynamic_snitch_update_interval = "100ms";
     public int dynamic_snitch_update_interval_in_ms = 100;
+    public String dynamic_snitch_reset_interval = "600000ms";
     public int dynamic_snitch_reset_interval_in_ms = 600000;
     public double dynamic_snitch_badness_threshold = 0.1;
 
@@ -284,29 +342,38 @@ public class Config
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
+    public String hinted_handoff_throttle = "1024kb";
     public int hinted_handoff_throttle_in_kb = 1024;
+    public String batchlog_replay_throttle = "1024KB";
     public int batchlog_replay_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 2;
+    public String hints_flush_period = "10000ms";
     public int hints_flush_period_in_ms = 10000;
+    public String max_hints_file_size = "128mb";
     public int max_hints_file_size_in_mb = 128;
     public ParameterizedClass hints_compression;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
+    public String trickle_fsync_interval = "10240KB";
     public int trickle_fsync_interval_in_kb = 10240;
 
+    public String sstable_preemptive_open_interval = "50MB";
     public volatile int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean key_cache_migrate_during_compaction = true;
+    public String key_cache_size = null;
     public Long key_cache_size_in_mb = null;
     public volatile int key_cache_save_period = 14400;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
+    public String row_cache_size = "0MB";
     public long row_cache_size_in_mb = 0;
     public volatile int row_cache_save_period = 0;
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
 
+    public String counter_cache_size = null;
     public Long counter_cache_size_in_mb = null;
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
@@ -314,6 +381,7 @@ public class Config
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
 
+    public String file_cache_size;
     public Integer file_cache_size_in_mb;
 
     /**
@@ -343,15 +411,21 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public String index_summary_capacity;
     public volatile Long index_summary_capacity_in_mb;
+    public volatile String index_summary_resize_interval = "60m";
     public volatile int index_summary_resize_interval_in_minutes = 60;
 
+    public String gc_log_threshold = "200ms";
     public int gc_log_threshold_in_ms = 200;
+    public String gc_warn_threshold = "1000ms";
     public int gc_warn_threshold_in_ms = 1000;
 
     // TTL for different types of trace events.
-    public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
-    public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
+    public String tracetype_query_ttl = "86400s";
+    public String tracetype_repair_ttl = "604800s";
+    public int tracetype_query_ttl_in_s = (int) TimeUnit.DAYS.toSeconds(1);
+    public int tracetype_repair_ttl_in_s = (int) TimeUnit.DAYS.toSeconds(7);
 
     /**
      * Maintain statistics on whether writes achieve the ideal consistency level
@@ -393,6 +467,7 @@ public class Config
      * Size of the CQL prepared statements cache in MB.
      * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
      */
+    public String prepared_statements_cache_size = null;
     public Long prepared_statements_cache_size_mb = null;
 
     //Effective cassandra.yaml v.2.0 enable_user_defined_functions is renamed to
@@ -437,15 +512,17 @@ public class Config
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    public long user_defined_function_warn_timeout = 500;
+    //No need of string version as this parameter is not exposed in the yaml file
+    public long user_defined_function_warn_timeout_in_ms = 500;
     /**
      * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
      * user_function_timeout_policy will take place.
      * (Only valid, if user_defined_functions_threads_enabled==true)
      */
-    public long user_defined_function_fail_timeout = 1500;
+    //No need of string version as this parameter is not exposed in the yaml file
+    public long user_defined_function_fail_timeout_in_ms = 1500;
     /**
-     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout.
+     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout_in_ms.
      * Possible options are:
      * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
      * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).
@@ -479,6 +556,7 @@ public class Config
      * block_for_peers_in_remote_dcs: controls if this node will consider remote datacenters to wait for. The default
      * is to _not_ wait on remote datacenters.
      */
+    //No need of string version as this parameter is not exposed in the yaml file
     public int block_for_peers_timeout_in_secs = 10;
     public boolean block_for_peers_in_remote_dcs = false;
 
@@ -666,6 +744,508 @@ public class Config
         add("client_encryption_options");
         add("server_encryption_options");
     }};
+
+
+    /**
+     * The Regexp used to parse the duration provided as String.
+     */
+    private static final Pattern TIME_UNITS_PATTERN =
+    Pattern.compile(
+    "(\\d+)(d|D|h|H|s|S|ms|MS|mS|Ms|us|US|uS|Us|µs|µS|ns|NS|nS|Nsm|M|m)");
+
+    /**
+     * The Regexp used to parse the memory provided as String.
+     */
+    private static final Pattern MEMORY_UNITS_PATTERN =
+    Pattern.compile(
+    "(\\d+)(kb|KB|mb|MB|gb|GB|b|B)");
+
+    /**
+     * The Regexp used to parse the rates provided as String.
+     */
+    private static final Pattern RATE_UNITS_PATTERN =
+    Pattern.compile(
+    "(\\d+)(bps|mbps|kbps|Kbps|Mbps)");
+
+    private static final Map<String, String[]> DURATION_UNITS_MAP = new HashMap<String, String[]>()
+    {
+        {
+            put("max_hint_window", new String[]{"max_hint_window_in_ms", "ms"});
+            put("native_transport_idle_timeout", new String[]{"native_transport_idle_timeout_in_ms", "ms"});
+            put("request_timeout", new String[]{"request_timeout_in_ms", "ms"});
+            put("read_request_timeout", new String[]{"read_request_timeout_in_ms", "ms"});
+            put("range_request_timeout", new String[]{"range_request_timeout_in_ms", "ms"});
+            put("write_request_timeout", new String[]{"write_request_timeout_in_ms", "ms"});
+            put("counter_write_request_timeout", new String[]{"counter_write_request_timeout_in_ms", "ms"});
+            put("cas_contention_timeout", new String[]{"cas_contention_timeout_in_ms", "ms"});
+            put("truncate_request_timeout", new String[]{"truncate_request_timeout_in_ms", "ms"});
+            put("streaming_keep_alive_period", new String[]{"streaming_keep_alive_period_in_secs", "s"});
+            put("slow_query_log_timeout", new String[]{"slow_query_log_timeout_in_ms", "ms"});
+            put("internode_tcp_connect_timeout", new String[]{"internode_tcp_connect_timeout_in_ms", "ms"});
+            put("internode_tcp_user_timeout", new String[]{"internode_tcp_user_timeout_in_ms", "ms"});
+            put("commitlog_sync_batch_window", new String[]{"commitlog_sync_batch_window_in_ms", "ms"});
+            put("commitlog_sync_group_window", new String[]{"commitlog_sync_group_window_in_ms", "ms"});
+            put("commitlog_sync_period", new String[]{"commitlog_sync_period_in_ms", "ms"});
+            put("periodic_commitlog_sync_lag_block", new String[]{"periodic_commitlog_sync_lag_block_in_ms", "ms"});
+            put("cdc_free_space_check_interval", new String[]{"cdc_free_space_check_interval_ms", "ms"});
+            put("dynamic_snitch_update_interval", new String[]{"dynamic_snitch_update_interval_in_ms", "ms"});
+            put("dynamic_snitch_reset_interval", new String[]{"dynamic_snitch_reset_interval_in_ms", "ms"});
+            put("gc_log_threshold", new String[]{"gc_log_threshold_in_ms", "ms"});
+            put("hints_flush_period", new String[]{"hints_flush_period_in_ms", "ms"});
+            put("gc_warn_threshold", new String[]{"gc_warn_threshold_in_ms", "ms"});
+            put("tracetype_query_ttl", new String[]{"tracetype_query_ttl_in_s", "s"});
+            put("tracetype_repair_ttl", new String[]{"tracetype_repair_ttl_in_s", "s"});
+            put("permissions_validity", new String[]{"permissions_validity_in_ms", "ms"});
+            put("permissions_update_interval", new String[]{"permissions_update_interval_in_ms", "ms"});
+            put("roles_validity", new String[]{"roles_validity_in_ms", "ms"});
+            put("roles_update_interval", new String[]{"roles_update_interval_in_ms", "ms"});
+            put("credentials_validity", new String[]{"credentials_validity_in_ms", "ms"});
+            put("credentials_update_interval", new String[]{"credentials_update_interval_in_ms", "ms"});
+            put("index_summary_resize_interval", new String[]{"index_summary_resize_interval_in_minutes", "m"});
+        }
+    };
+
+    private static final Map<String, String[]> MEM_UNITS_MAP = new HashMap<String, String[]>()
+    {
+        {
+            put("memtable_heap_space", new String[]{ "memtable_heap_space_in_mb", "mb" });
+            put("memtable_offheap_space", new String[]{ "memtable_offheap_space_in_mb", "mb" });
+            put("repair_session_space", new String[]{ "repair_session_space_in_mb", "mb" });
+            put("internode_application_send_queue_capacity", new String[]{ "internode_application_send_queue_capacity_in_bytes", "b" });
+            put("internode_application_send_queue_reserve_endpoint_capacity", new String[]{ "internode_application_send_queue_reserve_endpoint_capacity_in_bytes", "b" });
+            put("internode_application_send_queue_reserve_global_capacity", new String[]{ "internode_application_send_queue_reserve_global_capacity_in_bytes", "b" });
+            put("internode_application_receive_queue_capacity", new String[]{ "internode_application_receive_queue_capacity_in_bytes", "b" });
+            put("internode_application_receive_queue_reserve_endpoint_capacity", new String[]{ "internode_application_receive_queue_reserve_endpoint_capacity_in_bytes", "b" });
+            put("internode_application_receive_queue_reserve_global_capacity", new String[]{ "internode_application_receive_queue_reserve_global_capacity_in_bytes", "b" });
+            put("max_native_transport_frame_size", new String[]{ "max_native_transport_frame_size_in_mb", "mb" });
+            put("native_transport_frame_block_size", new String[]{ "native_transport_frame_block_size_in_kb", "kb" });
+            put("max_value_size", new String[]{ "max_value_size_in_mb", "mb" });
+            put("column_index_size", new String[]{ "column_index_size_in_kb", "kb" });
+            put("column_index_cache_size", new String[]{ "column_index_cache_size_in_kb", "kb" });
+            put("batch_size_warn_threshold", new String[]{ "batch_size_warn_threshold_in_kb", "kb" });
+            put("batch_size_fail_threshold", new String[]{ "batch_size_fail_threshold_in_kb", "kb" });
+            put("compaction_large_partition_warning_threshold", new String[]{ "compaction_large_partition_warning_threshold_mb", "mb" });
+            put("commitlog_total_space", new String[]{ "commitlog_total_space_in_mb", "mb" });
+            put("commitlog_segment_size", new String[]{ "commitlog_segment_size_in_mb", "mb" });
+            put("max_mutation_size", new String[]{ "max_mutation_size_in_kb", "kb" });
+            put("cdc_total_space", new String[]{ "cdc_total_space_in_mb", "mb" });
+            put("hinted_handoff_throttle", new String[]{ "hinted_handoff_throttle_in_kb", "kb" });
+            put("batchlog_replay_throttle", new String[]{ "batchlog_replay_throttle_in_kb", "kb" });
+            put("trickle_fsync_interval", new String[]{ "trickle_fsync_interval_in_kb", "kb" });
+            put("sstable_preemptive_open_interval", new String[]{ "sstable_preemptive_open_interval_in_mb", "mb" });
+            put("counter_cache_size", new String[]{ "counter_cache_size_in_mb", "mb" });
+            put("file_cache_size", new String[]{ "file_cache_size_in_mb", "mb" });
+            put("index_summary_capacity", new String[]{ "index_summary_capacity_in_mb", "mb" });
+            put("prepared_statements_cache_size", new String[]{ "prepared_statements_cache_size_mb", "mb" });
+            put("key_cache_size", new String[]{ "key_cache_size_in_mb", "mb" });
+            put("row_cache_size", new String[]{ "row_cache_size_in_mb", "mb" });
+        }
+    };
+
+    private static final Map<String, String[]> RATE_UNITS_MAP = new HashMap<String, String[]>()
+    {
+        {
+            put("compaction_throughput", new String[]{ "compaction_throughput_mb_per_sec", "mbps" });
+            put("stream_throughput_outbound", new String[]{ "stream_throughput_outbound_megabits_per_sec", "mbps" });
+            put("inter_dc_stream_throughput_outbound", new String[]{ "inter_dc_stream_throughput_outbound_megabits_per_sec", "mbps" });
+        }
+    };
+
+    public static void parseUnits(Config config) throws NoSuchFieldException, IllegalAccessException
+    {
+        Config.parseDurationUnits(config);
+        Config.parseMemUnits(config);
+        Config.parseRateUnits(config);
+    }
+
+    private static void parseDurationUnits(Config config) throws NoSuchFieldException, IllegalAccessException
+    {
+
+        for (Map.Entry<String,String[]> entry : DURATION_UNITS_MAP.entrySet())
+        {
+            //grab the string field value
+            String name = entry.getKey();
+            Field stringField = Config.class.getField(name);
+            String value;
+            try
+            {
+                // Field.get() can throw NPE if the value of the field is null
+                value = stringField.get(config).toString();
+            }
+            catch (NullPointerException | IllegalAccessException npe)
+            {
+                value = "null";
+            }
+
+            if(value.equals("null"))
+                continue;
+
+
+            if(value.equals("-1") && (name.equals("permissions_update_interval")
+                                      || name.equals("roles_update_interval")
+                                      || name.equals("credentials_update_interval")))
+            {
+                Config.class.getField(DURATION_UNITS_MAP.get(name)[0]).set(config, -1);
+                continue;
+            }
+
+            //parse the string field value
+            Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
+
+            if (!matcher.find())
+            {
+                throw new ConfigurationException("Invalid yaml. This property " + name + "=" + value + " has invalid format." +
+                                                 "Please check your units.", false);
+            }
+
+            TimeUnit sourceUnit = getCustomTimeUnit(matcher.group(2), name, value);
+
+            Field field = Config.class.getField(DURATION_UNITS_MAP.get(name)[0]);
+
+            switch(DURATION_UNITS_MAP.get(name)[1])
+            {
+                case "ms":
+                    switch(field.getGenericType().getTypeName())
+                    {
+                        case "long":
+                        case "java.lang.Long": field.set (config, sourceUnit.toMillis(Long.parseLong(matcher.group(1))));
+                            break;
+                        //Incorrectly time conversion in Integer and then  cast to double but those two conf parameters
+                        //are deprecated and not used.
+                        //So it doesn't matter really. But TimeUnit does not support double for time
+                        case "double": field.set (config, (double) sourceUnit.toMillis(Integer.parseInt(matcher.group(1))));
+                            break;
+                        case "int":
+                        case "java.lang.Integer": field.set (config, (int) sourceUnit.toMillis(Integer.parseInt(matcher.group(1))));
+                            break;
+                        default:
+                            logger.info("field.getGenericType().getTypeName() {}", field.getGenericType().getTypeName());
+                            throw new ConfigurationException("Not handled parameter type.");
+                    }
+                break;
+                case "s":
+                    switch(field.getGenericType().getTypeName())
+                    {
+                        case "long":
+                        case "java.lang.Long": field.set (config, sourceUnit.toSeconds(Long.parseLong(matcher.group(1))));
+                            break;
+                        //Incorrectly time conversion in Integer and then  cast to double but those two conf parameters
+                        //are deprecated and not used.
+                        //So it doesn't matter really. But TimeUnit does not support double for time
+                        case "double": field.set (config, (double) sourceUnit.toSeconds(Integer.parseInt(matcher.group(1))));
+                            break;
+                        case "int":
+                        case "java.lang.Integer":
+                            field.set (config, Math.toIntExact(sourceUnit.toSeconds( Integer.parseInt(matcher.group(1)))));
+                            break;
+                        default:
+                            logger.info("field.getGenericType().getTypeName() {}", field.getGenericType().getTypeName());
+                            throw new ConfigurationException("Not handled parameter type.");
+                    }
+                    break;
+                case "m":
+                    switch(field.getGenericType().getTypeName())
+                    {
+                        case "long":
+                        case "java.lang.Long": field.set (config, sourceUnit.toMinutes(Long.parseLong(matcher.group(1))));
+                            break;
+                        //Incorrectly time conversion in Integer and then  cast to double but those two conf parameters
+                        //are deprecated and not used.
+                        //So it doesn't matter really. But TimeUnit does not support double for time
+                        case "double": field.set (config, (double) sourceUnit.toMinutes(Integer.parseInt(matcher.group(1))));
+                            break;
+                        case "int":
+                        case "java.lang.Integer":
+                            field.set (config, Math.toIntExact(sourceUnit.toMinutes(Integer.parseInt(matcher.group(1)))));
+                            break;
+                        default:
+                            logger.info("field.getGenericType().getTypeName() {}", field.getGenericType().getTypeName());
+                            throw new ConfigurationException("Not handled parameter type.");
+                    }
+                    break;
+                default:
+                    logger.info("field.getGenericType().getTypeName() {}", field.getGenericType().getTypeName());
+                    throw new ConfigurationException("Invalid yaml. This property " + name + "=" + value + " has invalid format." +
+                                                     "Please check your units.", false);
+            }
+        }
+    }
+
+    private static void parseMemUnits(Config config) throws NoSuchFieldException, IllegalAccessException
+    {
+
+        for (Map.Entry<String,String[]> entry : MEM_UNITS_MAP.entrySet())
+        {
+            //grab the string field value
+            String name = entry.getKey();
+            Field stringField = Config.class.getField(name);
+            String value;
+            try
+            {
+                // Field.get() can throw NPE if the value of the field is null
+                value = stringField.get(config).toString();
+            }
+            catch (NullPointerException | IllegalAccessException npe)
+            {
+                value = "null";
+            }
+
+            if(value.equals("null"))
+                continue;
+
+            //parse the string field value
+            Matcher matcher = MEMORY_UNITS_PATTERN.matcher(value);
+
+            if (!matcher.find())
+            {
+                throw new ConfigurationException("Invalid yaml. This property " + name + "=" + value + " has invalid format." +
+                                                 "Please check your units.", false);
+            }
+
+            MemUnit sourceUnit = getCustomMemUnit(matcher.group(2), name, value);
+
+            Field field = Config.class.getField(MEM_UNITS_MAP.get(name)[0]);
+
+            switch(MEM_UNITS_MAP.get(name)[1])
+            {
+                case "b":
+                    switch(field.getGenericType().getTypeName())
+                    {
+                        case "long":
+                        case "java.lang.Long":
+                            field.set (config, sourceUnit.toBytes(Long.parseLong(matcher.group(1))));
+                            break;
+                        case "int":
+                        case "java.lang.Integer":
+                            field.set (config, Math.toIntExact(sourceUnit.toBytes(Integer.parseInt(matcher.group(1)))));
+                            break;
+                        default:
+                            throw new ConfigurationException("Not handled parameter type.");
+                    }
+                    break;
+                case "kb":
+                    switch(field.getGenericType().getTypeName())
+                    {
+                        case "long":
+                        case "Long":
+                            field.set (config, sourceUnit.toKB(Long.parseLong(matcher.group(1))));
+                            break;
+                        case "int":
+                        case "java.lang.Integer":
+                            field.set (config, (int)sourceUnit.toKB(Integer.parseInt(matcher.group(1))));
+                            break;
+                        default:
+                            logger.info("field.getGenericType().getTypeName() {}", field.getGenericType().getTypeName());
+                            throw new ConfigurationException("Not handled parameter type.");
+                    }
+                    break;
+                case "mb":
+                    switch(field.getGenericType().getTypeName())
+                    {
+                        case "long":
+                        case "java.lang.Long":
+                            field.set (config, sourceUnit.toMB(Long.parseLong(matcher.group(1))));
+                            break;
+                        case "int":
+                        case "java.lang.Integer": field.set (config, Math.toIntExact(sourceUnit.toMB(Integer.parseInt(matcher.group(1)))));
+                            break;
+                        default:
+                            logger.info("field.getGenericType().getTypeName() {}", field.getGenericType().getTypeName());
+                            throw new ConfigurationException("Not handled parameter type.");
+                    }
+                    break;
+                default:
+                    throw new ConfigurationException("Invalid yaml. This property " + name + "=" + value + " has invalid format." +
+                                                     "Please check your units.", false);
+            }
+        }
+    }
+
+    private static void parseRateUnits(Config config) throws NoSuchFieldException, IllegalAccessException
+    {
+
+        for (Map.Entry<String,String[]> entry : RATE_UNITS_MAP.entrySet())
+        {
+            //grab the string field value
+            String name = entry.getKey();
+            Field stringField = Config.class.getField(name);
+            String value;
+            try
+            {
+                // Field.get() can throw NPE if the value of the field is null
+                value = stringField.get(config).toString();
+            }
+            catch (NullPointerException | IllegalAccessException npe)
+            {
+                value = "null";
+            }
+
+            //logger.info("{} = {}", name, value);
+            if(value.equals("null"))
+                continue;
+
+            //parse the string field value
+            Matcher matcher = RATE_UNITS_PATTERN.matcher(value);
+
+            if (!matcher.find())
+            {
+                throw new ConfigurationException("Invalid yaml. This property " + name + "=" + value + " has invalid format." +
+                                                 "Please check your units.", false);
+            }
+
+            RateUnit sourceUnit = getCustomRateUnit(matcher.group(2), name, value);
+
+            Field field = Config.class.getField(RATE_UNITS_MAP.get(name)[0]);
+
+            switch(RATE_UNITS_MAP.get(name)[1])
+            {
+                case "bps":  field.set (config, Math.toIntExact(sourceUnit.toBps(Integer.parseInt(matcher.group(1))))); break;
+                case "kbps":
+                case "Kbps": field.set (config, Math.toIntExact(sourceUnit.toKbps(Integer.parseInt(matcher.group(1)))));break;
+                case "mbps":
+                case "Mbps": field.set (config, Math.toIntExact(sourceUnit.toMbps(Integer.parseInt(matcher.group(1)))));break;
+                default: throw new ConfigurationException("Invalid yaml. This property " + name + "=" + value + " has invalid format." +
+                                                          "Please check your units.", false);
+            }
+        }
+    }
+
+    private static final TimeUnit getCustomTimeUnit(String unit, String fieldName, String fieldValue)
+    {
+        TimeUnit sourceUnit;
+
+        switch (unit.toLowerCase())
+        {
+            case "ns": sourceUnit = TimeUnit.NANOSECONDS; break;
+            case "s":  sourceUnit = TimeUnit.SECONDS;     break;
+            case "m":  sourceUnit = TimeUnit.MINUTES;     break;
+            case "h":  sourceUnit = TimeUnit.HOURS;       break;
+            case "d":  sourceUnit = TimeUnit.DAYS;        break;
+            case "µs":
+            case "us": sourceUnit = TimeUnit.MICROSECONDS; break;
+            case "ms": sourceUnit = TimeUnit.MILLISECONDS; break;
+            default:
+                throw new IllegalStateException("Unexpected unit " + fieldName +":" + fieldValue );
+        }
+
+        return sourceUnit;
+    }
+
+    private static final MemUnit getCustomMemUnit(String unit, String fieldName, String fieldValue)
+    {
+        MemUnit sourceUnit;
+
+        switch (unit.toLowerCase())
+        {
+            case "b":  sourceUnit = MemUnit.BYTES;     break;
+            case "kb": sourceUnit = MemUnit.KILOBYTES; break;
+            case "mb": sourceUnit = MemUnit.MEGABYTES; break;
+            default: throw new IllegalStateException("Unexpected unit " + fieldName +":" + fieldValue );
+        }
+
+        return sourceUnit;
+
+    }
+
+    private static final RateUnit getCustomRateUnit(String unit, String fieldName, String fieldValue)
+    {
+        RateUnit sourceUnit;
+
+        switch (unit)
+        {
+            case "bps":  sourceUnit = RateUnit.BITSPERSECOND; break;
+            case "kbps":
+            case "Kbps": sourceUnit = RateUnit.KILOBITSPERSECOND;    break;
+            case "mbps":
+            case "Mbps": sourceUnit = RateUnit.MEGABITSPERSECOND;    break;
+            default:  throw new IllegalStateException("Unexpected unit " + fieldName +":" + fieldValue );
+        }
+
+        return sourceUnit;
+    }
+
+    private enum MemUnit {
+        BYTES
+        {
+            public long toBytes(long d) { return d; }
+            public long toKB(long d)    { return d / 1024; }
+            public long toMB(long d)    { return d / (1024 * 1024); }
+        },
+        KILOBYTES
+        {
+            public long toBytes(long d) { return x(d, 1024, MAX/1024); }
+            public long toKB(long d)    { return d; }
+            public long toMB(long d)    { return d / 1024; }
+        },
+        MEGABYTES
+        {
+            public long toBytes(long d) { return x(d, 1024 * 1024, MAX/(1024 * 1024)); }
+            public long toKB(long d)    { return x(d, 1024, MAX/1024); }
+            public long toMB(long d)    { return d; }
+        };
+
+        /**
+         * Scale d by m, checking for overflow.
+         * This has a short name to make above code more readable.
+         */
+        static long x(long d, long m, long over) {
+            if (d >  over) return Long.MAX_VALUE;
+            return d * m;
+        }
+
+        static final long MAX = Long.MAX_VALUE;
+
+        public long toBytes(long d) {
+            throw new AbstractMethodError();
+        }
+        public long toKB(long d) {
+            throw new AbstractMethodError();
+        }
+        public long toMB(long d) {
+            throw new AbstractMethodError();
+        }
+    }
+
+    private enum RateUnit {
+        BITSPERSECOND
+        {
+            public long toBps(long d) { return d; }
+            public long toKbps(long d) { return d / 1000; }
+            public long toMbps(long d) { return d / (1000 * 1000) ; }
+        },
+        KILOBITSPERSECOND
+        {
+            public long toBps(long d) { return x(d, 1000, MAX/1000); }
+            public long toKbps(long d) { return d; }
+            public long toMbps(long d) { return d / 1000; }
+        },
+        MEGABITSPERSECOND
+        {
+            public long toBps(long d) { return x(d, 1000 * 1000, MAX/(1000 * 1000)); }
+            public long toKbps(long d) { return x(d, 1000, MAX/(1000)); }
+            public long toMbps(long d) { return d; }
+        };
+
+        /**
+         * Scale d by m, checking for overflow.
+         * This has a short name to make above code more readable.
+         */
+        static long x(long d, long m, long over) {
+            if (d >  over) return Long.MAX_VALUE;
+            return d * m;
+        }
+        static final long MAX = Long.MAX_VALUE;
+
+        public long toBps(long d) {
+            throw new AbstractMethodError();
+        }
+        public long toKbps(long d) {
+            throw new AbstractMethodError();
+        }
+        public long toMbps(long d) {
+            throw new AbstractMethodError();
+        }
+    }
 
     public static void log(Config config)
     {
