@@ -144,7 +144,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
             catch (Exception ex)
             {
                 // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
-                Assert.assertTrue(ex.getMessage().contains("org.apache.cassandra.exceptions.ReadTimeoutException"));
+                Assert.assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
                 long actualTimeTaken = System.currentTimeMillis() - start;
                 long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
                 // Due to the delays, the actual time taken from client perspective is slighly more than the timeout value
@@ -231,14 +231,12 @@ public class SimpleReadWriteTest extends TestBaseImpl
             }
             catch (Exception e)
             {
-                Assert.assertTrue(e instanceof RuntimeException);
-                RuntimeException re = ((RuntimeException) e);
                 // for some reason, we get weird errors when trying to check class directly
                 // I suppose it has to do with some classloader manipulation going on
-                Assert.assertTrue(re.getCause().getClass().toString().contains("WriteFailureException"));
+                Assert.assertTrue(e.getClass().toString().contains("WriteFailureException"));
                 // we may see 1 or 2 failures in here, because of the fail-fast behavior of AbstractWriteResponseHandler
-                Assert.assertTrue(re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
-                                  || re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
+                Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
+                                  || e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
 
             }
         }
@@ -265,14 +263,12 @@ public class SimpleReadWriteTest extends TestBaseImpl
             }
             catch (Exception e)
             {
-                Assert.assertTrue(e instanceof RuntimeException);
-                RuntimeException re = ((RuntimeException) e);
                 // for some reason, we get weird errors when trying to check class directly
                 // I suppose it has to do with some classloader manipulation going on
-                Assert.assertTrue(re.getCause().getClass().toString().contains("ReadFailureException"));
+                Assert.assertTrue(e.getClass().toString().contains("ReadFailureException"));
                 // we may see 1 or 2 failures in here, because of the fail-fast behavior of ReadCallback
-                Assert.assertTrue(re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
-                                  || re.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
+                Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
+                                  || e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
             }
 
         }
