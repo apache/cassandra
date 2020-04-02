@@ -28,9 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -47,6 +49,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -77,8 +80,9 @@ public final class SystemDistributedKeyspace
      * gen 2: (pre-)add coordinator_port and participants_v2 columns to repair_history in 3.0, 3.11, 4.0
      * gen 3: gc_grace_seconds raised from 0 to 10 days in CASSANDRA-12954 in 3.11.0
      * gen 4: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
+     * gen 5: add ttl and TWCS to repair_history tables
      */
-    public static final long GENERATION = 4;
+    public static final long GENERATION = 5;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
@@ -105,7 +109,11 @@ public final class SystemDistributedKeyspace
                      + "status text,"
                      + "started_at timestamp,"
                      + "finished_at timestamp,"
-                     + "PRIMARY KEY ((keyspace_name, columnfamily_name), id))");
+                     + "PRIMARY KEY ((keyspace_name, columnfamily_name), id))")
+        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
+        .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
+                                                          "compaction_window_size","1")))
+        .build();
 
     private static final TableMetadata ParentRepairHistory =
         parse(PARENT_REPAIR_HISTORY,
@@ -121,7 +129,11 @@ public final class SystemDistributedKeyspace
                      + "requested_ranges set<text>,"
                      + "successful_ranges set<text>,"
                      + "options map<text, text>,"
-                     + "PRIMARY KEY (parent_id))");
+                     + "PRIMARY KEY (parent_id))")
+        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
+        .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
+                                                          "compaction_window_size","1")))
+        .build();
 
     private static final TableMetadata ViewBuildStatus =
         parse(VIEW_BUILD_STATUS,
@@ -131,14 +143,13 @@ public final class SystemDistributedKeyspace
                      + "view_name text,"
                      + "host_id uuid,"
                      + "status text,"
-                     + "PRIMARY KEY ((keyspace_name, view_name), host_id))");
+                     + "PRIMARY KEY ((keyspace_name, view_name), host_id))").build();
 
-    private static TableMetadata parse(String table, String description, String cql)
+    private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, table))
-                                   .comment(description)
-                                   .build();
+                                   .comment(description);
     }
 
     public static KeyspaceMetadata metadata()

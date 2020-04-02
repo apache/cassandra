@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Repair history tables should have TTL and TWCS (CASSANDRA-12701)
  * Fix cqlsh erroring out on Python 3.7 due to webbrowser module being absent (CASSANDRA-15572)
  * Fix IMH#acquireCapacity() to return correct Outcome when endpoint reserve runs out (CASSANDRA-15607)
  * Fix nodetool describering output (CASSANDRA-15682)
