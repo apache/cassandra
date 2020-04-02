@@ -135,7 +135,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
     // for test purpose to record received message and state transition
-    public static volatile MessageStateSink sink = new MessageStateSink();
+    public static final MessageStateSink sink = new MessageStateSink();
 
     private final StreamOperation streamOperation;
 
@@ -211,7 +211,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
 
         /**
-         * @return true if current statu is final and cannot be change to other state.
+         * @return true if current state is final, either COMPLETE OR FAILED.
          */
         public boolean isFinalState()
         {
@@ -907,6 +907,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return transferredRangesPerKeyspace.size();
     }
 
+    @VisibleForTesting
     public static class MessageStateSink
     {
         // use enum ordinal instead of enum to walk around inter-jvm class loader issue, only classes defined in
@@ -914,8 +915,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         public final Map<InetAddress, Deque<Integer>> messageSink = new ConcurrentHashMap<>();
         public final Map<InetAddress, Deque<Integer>> stateTransitions = new ConcurrentHashMap<>();
 
-        private boolean skipKeepAlive = true;
-        private boolean enabled = false;
+        private volatile boolean skipKeepAlive = true;
+        private volatile boolean enabled = false;
 
         public void enable()
         {
