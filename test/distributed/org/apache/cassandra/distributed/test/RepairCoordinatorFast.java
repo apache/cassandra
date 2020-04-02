@@ -369,13 +369,17 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
                 long repairExceptions = getRepairExceptions(CLUSTER, 1);
                 NodeToolResult result = repair(1, KEYSPACE, table);
                 result.asserts()
-                      .failure()
+                      .failure();
                       // Right now coordination doesn't propgate the first exception, so we only know "there exists a issue".
                       // With notifications on nodetool will see the error then complete, so the cmd state (what nodetool
                       // polls on) is ignored.  With notifications off or dropped, the poll await fails and queries cmd
                       // state, and that will have the below error.
                       // NOTE: this isn't desireable, would be good to propgate
-                      .errorContains("Could not create snapshot", "Some repair failed");
+                      // TODO replace with errorContainsAny once dtest api updated
+                Throwable error = result.getError();
+                Assert.assertNotNull("Error was null", error);
+                if (!(error.getMessage().contains("Could not create snapshot") || error.getMessage().contains("Some repair failed")))
+                    throw new AssertionError("Unexpected error, expected to contain 'Could not create snapshot' or 'Some repair failed'", error);
                 if (withNotifications)
                 {
                     result.asserts()
