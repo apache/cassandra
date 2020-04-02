@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.net;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -27,16 +30,13 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.OutboundMessageQueue;
-import org.apache.cassandra.net.Verb;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
+import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 // TODO: incomplete
 public class OutboundMessageQueueTest
 {
-
     @BeforeClass
     public static void init()
     {
@@ -91,4 +91,51 @@ public class OutboundMessageQueueTest
         }
     }
 
+    @Test
+    public void testExpiration() throws InterruptedException
+    {
+        List<Message> expiredMessages = new LinkedList<>();
+        long startTime = approxTime.now();
+
+        Message<?> m1 = Message.out(Verb._TEST_1, noPayload, startTime + TimeUnit.SECONDS.toNanos(7));
+        Message<?> m2 = Message.out(Verb._TEST_1, noPayload, startTime + TimeUnit.SECONDS.toNanos(3));
+
+        OutboundMessageQueue queue = new OutboundMessageQueue(m -> expiredMessages.add(m));
+        queue.add(m1);
+        queue.add(m2);
+
+        try(OutboundMessageQueue.WithLock l = queue.lockOrCallback(approxTime.now(), () -> {}))
+        {
+            // Do nothing
+        }
+        // Check next expiry time is equal to m2, and we haven't expired anything yet:
+        Assert.assertEquals(3, queue.nextExpirationIn(startTime, TimeUnit.SECONDS));
+        Assert.assertTrue(expiredMessages.isEmpty());
+
+        // Wait for m2 expiry time:
+        Thread.sleep(TimeUnit.SECONDS.toMillis(3));
+
+        try(OutboundMessageQueue.WithLock l = queue.lockOrCallback(approxTime.now(), () -> {}))
+        {
+            // Add a new message while we're iterating the queue:
+            Message<?> m3 = Message.out(Verb._TEST_1, noPayload, startTime + TimeUnit.SECONDS.toNanos(60));
+            queue.add(m3);
+        }
+        // After expiration runs following the WithLock#close(), check the expiration time is updated to m1:
+        Assert.assertEquals(7, queue.nextExpirationIn(startTime, TimeUnit.SECONDS));
+        // Also, m2 was expired and collected:
+        Assert.assertEquals(m2, expiredMessages.remove(0));
+
+        // Wait for m1 expiry time:
+        Thread.sleep(TimeUnit.SECONDS.toMillis(4));
+
+        try(OutboundMessageQueue.WithLock l = queue.lockOrCallback(approxTime.now(), () -> {}))
+        {
+            // Do nothing
+        }
+        // Check m1 was expired and collected:
+        Assert.assertEquals(m1, expiredMessages.remove(0));
+        // Check next expiry time is m3:
+        Assert.assertEquals(60, queue.nextExpirationIn(startTime, TimeUnit.SECONDS));
+    }
 }
