@@ -295,7 +295,7 @@ public class OutboundConnection
         this.reserveCapacityInBytes = reserveCapacityInBytes;
         this.callbacks = template.callbacks;
         this.debug = template.debug;
-        this.queue = new OutboundMessageQueue(this::onExpired);
+        this.queue = new OutboundMessageQueue(approxTime, this::onExpired);
         this.delivery = type == ConnectionType.LARGE_MESSAGES
                         ? new LargeMessageDelivery(template.socketFactory.synchronousWorkExecutor)
                         : new EventLoopDelivery();
@@ -571,8 +571,8 @@ public class OutboundConnection
          */
         void executeAgain()
         {
-             // if we are already executing, set EXECUTING_AGAIN and leave scheduling to the currently running one.
-             // otherwise, set ourselves unconditionally to EXECUTING and schedule ourselves immediately
+            // if we are already executing, set EXECUTING_AGAIN and leave scheduling to the currently running one.
+            // otherwise, set ourselves unconditionally to EXECUTING and schedule ourselves immediately
             if (!isExecuting(getAndUpdate(i -> !isExecuting(i) ? EXECUTING : EXECUTING_AGAIN)))
                 executor.execute(this);
         }
