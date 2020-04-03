@@ -25,9 +25,13 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
+
+import static com.google.common.collect.Iterables.filter;
 
 
 /**
@@ -76,6 +80,29 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     public ReplicationFactor getReplicationFactor()
     {
         return rf;
+    }
+
+    @Override
+    <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
+    E getWriteEndpointsForTransientReplication(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+    {
+        ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
+        contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
+        contacts.addAll(liveAndDown.pending());
+
+        int requiredNodes = consistencyLevel.blockForWrite(this, liveAndDown.pending());
+        int pending = requiredNodes - contacts.size();
+
+        for (Replica replica : filter(live.natural(), Replica::isTransient))
+        {
+            if (pending == 0)
+                break;
+
+            contacts.add(replica);
+            pending--;
+        }
+
+        return contacts.build();
     }
 
     private final static void validateOptionsInternal(Map<String, String> configOptions) throws ConfigurationException

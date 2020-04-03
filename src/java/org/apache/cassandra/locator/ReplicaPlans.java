@@ -44,6 +44,8 @@ import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.btree.UpdateFunction;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,6 +76,7 @@ public class ReplicaPlans
 
     public static boolean isSufficientLiveReplicasForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
     {
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         switch (consistencyLevel)
         {
             case ANY:
@@ -82,16 +85,16 @@ public class ReplicaPlans
             case LOCAL_ONE:
                 return countInOurDc(liveReplicas).hasAtleast(1, 1);
             case LOCAL_QUORUM:
-                return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(keyspace), 1);
+                return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(replicationStrategy), 1);
             case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                if (replicationStrategy instanceof NetworkTopologyStrategy)
                 {
                     int fullCount = 0;
-                    Collection<String> dcs = ((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getDatacenters();
+                    Collection<String> dcs = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
                     for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, liveReplicas))
                     {
                         Replicas.ReplicaCount count = entry.value;
-                        if (!count.hasAtleast(localQuorumFor(keyspace, entry.key), 0))
+                        if (!count.hasAtleast(localQuorumFor(replicationStrategy, entry.key), 0))
                             return false;
                         fullCount += count.fullReplicas();
                     }
@@ -99,7 +102,7 @@ public class ReplicaPlans
                 }
                 // Fallthough on purpose for SimpleStrategy
             default:
-                return liveReplicas.size() >= consistencyLevel.blockFor(keyspace)
+                return liveReplicas.size() >= consistencyLevel.blockFor(replicationStrategy)
                         && Replicas.countFull(liveReplicas) > 0;
         }
     }
@@ -148,7 +151,7 @@ public class ReplicaPlans
                     Collection<String> dcs = ((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getDatacenters();
                     for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, allLive))
                     {
-                        int dcBlockFor = localQuorumFor(keyspace, entry.key);
+                        int dcBlockFor = localQuorumFor(keyspace.getReplicationStrategy(), entry.key);
                         Replicas.ReplicaCount dcCount = entry.value;
                         if (!dcCount.hasAtleast(dcBlockFor, 0))
                             throw UnavailableException.create(consistencyLevel, entry.key, dcBlockFor, dcCount.allReplicas(), 0, dcCount.fullReplicas());
@@ -392,32 +395,7 @@ public class ReplicaPlans
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
         E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
-            if (!any(liveAndDown.all(), Replica::isTransient))
-                return liveAndDown.all();
-
-            ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
-            contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
-            contacts.addAll(liveAndDown.pending());
-
-            /**
-             * Per CASSANDRA-14768, we ensure we write to at least a QUORUM of nodes in every DC,
-             * regardless of how many responses we need to wait for and our requested consistencyLevel.
-             * This is to minimally surprise users with transient replication; with normal writes, we
-             * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
-             * even if we don't wait for ACK, we have in both cases sent sufficient messages.
-              */
-            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
-            addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
-            addToCountPerDc(requiredPerDc, live.pending(), -1);
-
-            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-            for (Replica replica : filter(live.natural(), Replica::isTransient))
-            {
-                String dc = snitch.getDatacenter(replica);
-                if (requiredPerDc.addTo(dc, -1) >= 0)
-                    contacts.add(replica);
-            }
-            return contacts.build();
+            return keyspace.getReplicationStrategy().getWriteEndpoints(consistencyLevel, liveAndDown, live);
         }
     };
 
@@ -462,7 +440,7 @@ public class ReplicaPlans
                 }
                 else
                 {
-                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace.getReplicationStrategy(), liveAndDown.pending());
                     addToCountPerDc(requiredPerDc, contacts.snapshot(), -1);
                     IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
                     for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
@@ -530,7 +508,7 @@ public class ReplicaPlans
     private static <E extends Endpoints<E>> E contactForEachQuorumRead(Keyspace keyspace, E candidates)
     {
         assert keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy;
-        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace.getReplicationStrategy());
 
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {

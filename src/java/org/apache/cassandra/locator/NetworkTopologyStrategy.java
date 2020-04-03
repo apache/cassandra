@@ -20,6 +20,10 @@ package org.apache.cassandra.locator;
 import java.util.*;
 import java.util.Map.Entry;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +38,10 @@ import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+
+import static com.google.common.collect.Iterables.filter;
+import static org.apache.cassandra.db.ConsistencyLevel.eachQuorumForWrite;
+import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
 
 /**
  * <p>
@@ -242,6 +250,35 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         // only valid options are valid DC names.
         return Datacenters.getValidDatacenters();
+    }
+
+    <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>> E getWriteEndpointsForTransientReplication(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+    {
+
+        ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
+        contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
+        contacts.addAll(liveAndDown.pending());
+
+        /**
+         * Per CASSANDRA-14768, we ensure we write to at least a QUORUM of nodes in every DC,
+         * regardless of how many responses we need to wait for and our requested consistencyLevel.
+         * This is to minimally surprise users with transient replication; with normal writes, we
+         * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
+         * even if we don't wait for ACK, we have in both cases sent sufficient messages.
+         */
+        ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(this, liveAndDown.pending());
+        addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
+        addToCountPerDc(requiredPerDc, live.pending(), -1);
+
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        for (Replica replica : filter(live.natural(), Replica::isTransient))
+        {
+            String dc = snitch.getDatacenter(replica);
+            if (requiredPerDc.addTo(dc, -1) >= 0)
+                contacts.add(replica);
+        }
+
+        return contacts.build();
     }
 
     /**

@@ -272,6 +272,11 @@ public abstract  class AbstractReadRepairTest
         return repairPlan(readPlan, readPlan.candidates());
     }
 
+    static ReplicaPlan.ForTokenWrite repairPlan(ReplicaPlan.ForRangeRead readPlan, Keyspace keyspace)
+    {
+        return repairPlan(readPlan, readPlan.candidates(), keyspace);
+    }
+
     static ReplicaPlan.ForTokenWrite repairPlan(EndpointsForRange liveAndDown, EndpointsForRange targets)
     {
         return repairPlan(replicaPlan(liveAndDown, targets), liveAndDown);
@@ -279,10 +284,16 @@ public abstract  class AbstractReadRepairTest
 
     static ReplicaPlan.ForTokenWrite repairPlan(ReplicaPlan.ForRangeRead readPlan, EndpointsForRange liveAndDown)
     {
+        return repairPlan(readPlan, liveAndDown, ks);
+    }
+
+    static ReplicaPlan.ForTokenWrite repairPlan(ReplicaPlan.ForRangeRead readPlan, EndpointsForRange liveAndDown, Keyspace keyspace)
+    {
         Token token = readPlan.range().left.getToken();
         EndpointsForToken pending = EndpointsForToken.empty(token);
-        return ReplicaPlans.forWrite(ks, ConsistencyLevel.TWO, liveAndDown.forToken(token), pending, Predicates.alwaysTrue(), ReplicaPlans.writeReadRepair(readPlan));
+        return ReplicaPlans.forWrite(keyspace, ConsistencyLevel.TWO, liveAndDown.forToken(token), pending, Predicates.alwaysTrue(), ReplicaPlans.writeReadRepair(readPlan));
     }
+
     static ReplicaPlan.ForRangeRead replicaPlan(EndpointsForRange replicas, EndpointsForRange targets)
     {
         return replicaPlan(ks, ConsistencyLevel.QUORUM, replicas, targets);

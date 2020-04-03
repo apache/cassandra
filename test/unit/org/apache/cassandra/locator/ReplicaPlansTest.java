@@ -27,6 +27,9 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Map;
@@ -38,9 +41,17 @@ import static org.apache.cassandra.locator.ReplicaUtils.*;
 public class ReplicaPlansTest
 {
 
-    static
+    @BeforeClass
+    public static void setUp()
     {
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(false);
     }
 
     static class Snitch extends AbstractNetworkTopologySnitch
@@ -73,9 +84,18 @@ public class ReplicaPlansTest
         return keyspace;
     }
 
+    private static Keyspace ksSimpleStrategy(String replicationFactor)
+    {
+        Map<String, String> replication = ImmutableMap.<String, String>builder()
+                                                      .put("replication_factor", replicationFactor)
+                                                      .put("class", "SimpleStrategy")
+                                                      .build();
+
+        Keyspace keyspace = Keyspace.mockKS(KeyspaceMetadata.create("blah", KeyspaceParams.create(false, replication)));
+        return keyspace;
+    }
+
     private static Replica full(InetAddressAndPort ep) { return fullReplica(ep, R1); }
-
-
 
     @Test
     public void testWriteEachQuorum()
@@ -96,7 +116,7 @@ public class ReplicaPlansTest
             }
             {
                 // all natural and up, one transient in each DC
-                Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
+                Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "2/1", "DC2", "2/1"));
                 EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
                 EndpointsForToken pending = EndpointsForToken.empty(token);
                 ReplicaPlan.ForTokenWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
@@ -110,11 +130,43 @@ public class ReplicaPlansTest
         {
             DatabaseDescriptor.setEndpointSnitch(stash);
         }
-
-        {
-            // test simple
-
-        }
     }
 
+    @Test
+    public void testWriteSimpleStrategy()
+    {
+        final Token token = tk(1L);
+        {
+            // all full natural
+            Keyspace ks = ksSimpleStrategy("3");
+            EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), full(EP3));
+            EndpointsForToken pending = EndpointsForToken.empty(token);
+            ReplicaPlan.ForTokenWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+            assertEquals(natural, plan.liveAndDown);
+            assertEquals(natural, plan.live);
+            assertEquals(natural, plan.contacts());
+        }
+        {
+            // two natural and 1 transient
+            Keyspace ks = ksSimpleStrategy("3/1");
+            EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), trans(EP3));
+            EndpointsForToken pending = EndpointsForToken.empty(token);
+            ReplicaPlan.ForTokenWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+            assertEquals(natural, plan.liveAndDown);
+            assertEquals(natural, plan.live);
+            EndpointsForToken expectContacts = EndpointsForToken.of(token, full(EP1), full(EP2));
+            assertEquals(expectContacts, plan.contacts());
+        }
+        {
+            // 1 natural and 1 transient live
+            Keyspace ks = ksSimpleStrategy("3/1");
+            EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), trans(EP3));
+            EndpointsForToken pending = EndpointsForToken.empty(token);
+            ReplicaPlan.ForTokenWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+            assertEquals(natural, plan.liveAndDown);
+            assertEquals(natural, plan.live);
+            EndpointsForToken expectContacts = EndpointsForToken.of(token, full(EP1), trans(EP3));
+            assertEquals(expectContacts, plan.contacts());
+        }
+    }
 }

@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
@@ -63,6 +64,11 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public ReplicationFactor getReplicationFactor()
     {
         return RF;
+    }
+
+    <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>> E getWriteEndpointsForTransientReplication(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+    {
+        return liveAndDown.all();
     }
 
     public void validateOptions() throws ConfigurationException

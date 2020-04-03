@@ -224,6 +224,18 @@ public abstract class AbstractReplicationStrategy
         return getReplicationFactor().hasTransientReplicas();
     }
 
+    public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
+    E getWriteEndpoints(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+    {
+        if (!hasTransientReplicas())
+            return liveAndDown.all();
+
+        return getWriteEndpointsForTransientReplication(consistencyLevel, liveAndDown, live);
+    }
+
+    abstract  <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
+    E getWriteEndpointsForTransientReplication(ConsistencyLevel consistencyLevel, L liveAndDown, L live);
+
     /*
      * NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
      * this is fine as long as we don't use this on any critical path.

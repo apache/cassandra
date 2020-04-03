@@ -81,40 +81,45 @@ public enum ConsistencyLevel
         return codeIdx[code];
     }
 
-    public static int quorumFor(Keyspace keyspace)
+    public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
     {
-        return (keyspace.getReplicationStrategy().getReplicationFactor().allReplicas / 2) + 1;
+        return (replicationStrategy.getReplicationFactor().allReplicas / 2) + 1;
     }
 
-    public static int localQuorumFor(Keyspace keyspace, String dc)
+    public static int localQuorumFor(AbstractReplicationStrategy replicationStrategy, String dc)
     {
-        return (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-             ? (((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getReplicationFactor(dc).allReplicas / 2) + 1
-             : quorumFor(keyspace);
+        return (replicationStrategy instanceof NetworkTopologyStrategy)
+               ? (((NetworkTopologyStrategy) replicationStrategy).getReplicationFactor(dc).allReplicas / 2) + 1
+               : quorumFor(replicationStrategy);
     }
 
-    public static int localQuorumForOurDc(Keyspace keyspace)
+    public static int localQuorumForOurDc(AbstractReplicationStrategy replicationStrategy)
     {
-        return localQuorumFor(keyspace, DatabaseDescriptor.getLocalDataCenter());
+        return localQuorumFor(replicationStrategy, DatabaseDescriptor.getLocalDataCenter());
     }
 
-    public static ObjectIntHashMap<String> eachQuorumForRead(Keyspace keyspace)
+    public static ObjectIntHashMap<String> eachQuorumForRead(AbstractReplicationStrategy replicationStrategy)
     {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicationStrategy;
         ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(((strategy.getDatacenters().size() + 1) * 4) / 3);
         for (String dc : strategy.getDatacenters())
-            perDc.put(dc, ConsistencyLevel.localQuorumFor(keyspace, dc));
+            perDc.put(dc, ConsistencyLevel.localQuorumFor(replicationStrategy, dc));
         return perDc;
     }
 
-    public static ObjectIntHashMap<String> eachQuorumForWrite(Keyspace keyspace, Endpoints<?> pendingWithDown)
+    public static ObjectIntHashMap<String> eachQuorumForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
     {
-        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
         addToCountPerDc(perDc, pendingWithDown, 1);
         return perDc;
     }
 
     public int blockFor(Keyspace keyspace)
+    {
+        return blockFor(keyspace.getReplicationStrategy());
+    }
+
+    public int blockFor(AbstractReplicationStrategy replicationStrategy)
     {
         switch (this)
         {
@@ -129,24 +134,24 @@ public enum ConsistencyLevel
                 return 3;
             case QUORUM:
             case SERIAL:
-                return quorumFor(keyspace);
+                return quorumFor(replicationStrategy);
             case ALL:
-                return keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+                return replicationStrategy.getReplicationFactor().allReplicas;
             case LOCAL_QUORUM:
             case LOCAL_SERIAL:
-                return localQuorumForOurDc(keyspace);
+                return localQuorumForOurDc(replicationStrategy);
             case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                if (replicationStrategy instanceof NetworkTopologyStrategy)
                 {
-                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicationStrategy;
                     int n = 0;
                     for (String dc : strategy.getDatacenters())
-                        n += localQuorumFor(keyspace, dc);
+                        n += localQuorumFor(replicationStrategy, dc);
                     return n;
                 }
                 else
                 {
-                    return quorumFor(keyspace);
+                    return quorumFor(replicationStrategy);
                 }
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
@@ -157,15 +162,22 @@ public enum ConsistencyLevel
     {
         assert pending != null;
 
-        int blockFor = blockFor(keyspace);
+        return blockForWrite(keyspace.getReplicationStrategy(), pending);
+    }
+
+    public int blockForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pending)
+    {
+        assert pending != null;
+
+        int blockFor = blockFor(replicationStrategy);
         switch (this)
         {
             case ANY:
                 break;
             case LOCAL_ONE: case LOCAL_QUORUM: case LOCAL_SERIAL:
-                // we will only count local replicas towards our response count, as these queries only care about local guarantees
-                blockFor += countInOurDc(pending).allReplicas();
-                break;
+            // we will only count local replicas towards our response count, as these queries only care about local guarantees
+            blockFor += countInOurDc(pending).allReplicas();
+            break;
             case ONE: case TWO: case THREE:
             case QUORUM: case EACH_QUORUM:
             case SERIAL:
