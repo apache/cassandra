@@ -167,8 +167,8 @@ public class CasWriteTest extends TestBaseImpl
                            failure ->
                                failure.get() != null &&
                                failure.get()
-                                      .getMessage()
-                                      .contains(CasWriteTimeoutException.class.getCanonicalName()),
+                                      .getClass().getCanonicalName()
+                                      .equals(CasWriteTimeoutException.class.getCanonicalName()),
                            "Expecting cause to be CasWriteTimeoutException");
     }
 
@@ -217,8 +217,7 @@ public class CasWriteTest extends TestBaseImpl
 
     private void expectCasWriteTimeout()
     {
-        thrown.expect(RuntimeException.class);
-        thrown.expectCause(new BaseMatcher<Throwable>()
+        thrown.expect(new BaseMatcher<Throwable>()
         {
             public boolean matches(Object item)
             {
@@ -232,7 +231,18 @@ public class CasWriteTest extends TestBaseImpl
         });
         // unable to assert on class becuase the exception thrown was loaded by a differnet classloader, InstanceClassLoader
         // therefor asserts the FQCN name present in the message as a workaround
-        thrown.expectMessage(containsString(CasWriteTimeoutException.class.getCanonicalName()));
+        thrown.expect(new BaseMatcher<Throwable>()
+        {
+            public boolean matches(Object item)
+            {
+                return item.getClass().getCanonicalName().equals(CasWriteTimeoutException.class.getCanonicalName());
+            }
+
+            public void describeTo(Description description)
+            {
+                description.appendText("Class was expected to be " + CasWriteTimeoutException.class.getCanonicalName() + " but was not");
+            }
+        });
         thrown.expectMessage(containsString("CAS operation timed out"));
     }
 
@@ -256,8 +266,8 @@ public class CasWriteTest extends TestBaseImpl
             }
             catch (Throwable t)
             {
-                Assert.assertTrue("Expecting cause to be CasWriteUncertainException",
-                                  t.getMessage().contains(CasWriteUnknownResultException.class.getCanonicalName()));
+                Assert.assertEquals("Expecting cause to be CasWriteUncertainException",
+                                    CasWriteUnknownResultException.class.getCanonicalName(), t.getClass().getCanonicalName());
                 return;
             }
         }
