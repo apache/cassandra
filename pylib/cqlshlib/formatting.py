@@ -202,6 +202,12 @@ class CqlType(object):
 
         return [CqlType(r, ksmeta) for r in ret]
 
+class BlobType(object):
+    def __init__(self, val):
+        self.val = val
+
+    def __str__(self):
+        return str(self.val)
 
 def format_value_default(val, colormap, **_):
     val = str(val)
@@ -237,7 +243,7 @@ def formatter_for(typname):
     return registrator
 
 
-@formatter_for('bytearray')
+@formatter_for('BlobType')
 def format_value_blob(val, colormap, **_):
     bval = '0x' + binascii.hexlify(val)
     return colorme(bval, colormap, 'blob')
