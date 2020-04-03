@@ -1,4 +1,8 @@
 4.0-alpha4
+ * Fix force compaction of wrapping ranges (CASSANDRA-15664)
+ * Expose repair streaming metrics (CASSANDRA-15656)
+ * Set now in seconds in the future for validation repairs (CASSANDRA-15655)
+ * Emit metric on preview repair failure (CASSANDRA-15654)
  * Use more appropriate logging levels (CASSANDRA-15661)
  * Added production recommendations and improved compaction doc organization
  * Document usage of EC2Snitch with intra-region VPC peering (CASSANDRA-15337)

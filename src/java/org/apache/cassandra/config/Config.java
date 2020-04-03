@@ -471,6 +471,13 @@ public class Config
     public volatile boolean report_unconfirmed_repaired_data_mismatches = false;
 
     /**
+     * number of seconds to set nowInSec into the future when performing validation previews against repaired data
+     * this (attempts) to prevent a race where validations on different machines are started on different sides of
+     * a tombstone being compacted away
+     */
+    public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
+
+    /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
     @Deprecated

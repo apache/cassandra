@@ -58,6 +58,7 @@ import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -142,6 +143,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                                  new NamedThreadFactory("Repair-Task"),
                                                                  "internal",
                                                                  new ThreadPoolExecutor.AbortPolicy());
+        RepairMetrics.init();
     }
 
     private final IFailureDetector failureDetector;

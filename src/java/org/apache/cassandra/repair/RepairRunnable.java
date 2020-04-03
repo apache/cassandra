@@ -53,6 +53,7 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -527,6 +528,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     else
                     {
                         message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
+                        RepairMetrics.previewFailures.inc();
                     }
                     notification(message);
 
