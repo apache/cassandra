@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Use more appropriate logging levels (CASSANDRA-15661)
  * Added production recommendations and improved compaction doc organization
  * Document usage of EC2Snitch with intra-region VPC peering (CASSANDRA-15337)
  * Fixed flakey test in SASIIndexTest by shutting down its ExecutorService (CASSANDRA-15528)
@@ -495,6 +496,35 @@ Merged from 3.0:
  * Multi-version in-JVM dtests (CASSANDRA-14937)
  * Allow instance class loaders to be garbage collected for inJVM dtest (CASSANDRA-15170)
 
+3.11.6
+ * Fix bad UDT sstable metadata serialization headers written by C* 3.0 on upgrade and in sstablescrub (CASSANDRA-15035)
+ * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
+ * Fix SELECT JSON formatting for the "duration" type (CASSANDRA-15075)
+ * Fix LegacyLayout to have same behavior as 2.x when handling unknown column names (CASSANDRA-15081)
+ * Update nodetool help stop output (CASSANDRA-15401)
+Merged from 3.0:
+ * Run in-jvm upgrade dtests in circleci (CASSANDRA-15506)
+ * Include updates to static column in mutation size calculations (CASSANDRA-15293)
+ * Fix point-in-time recoevery ignoring timestamp of updates to static columns (CASSANDRA-15292)
+ * GC logs are also put under $CASSANDRA_LOG_DIR (CASSANDRA-14306)
+ * Fix sstabledump's position key value when partitions have multiple rows (CASSANDRA-14721)
+ * Avoid over-scanning data directories in LogFile.verify() (CASSANDRA-15364)
+ * Bump generations and document changes to system_distributed and system_traces in 3.0, 3.11
+   (CASSANDRA-15441)
+ * Fix system_traces creation timestamp; optimise system keyspace upgrades (CASSANDRA-15398)
+ * Fix various data directory prefix matching issues (CASSANDRA-13974)
+ * Minimize clustering values in metadata collector (CASSANDRA-15400)
+ * Avoid over-trimming of results in mixed mode clusters (CASSANDRA-15405)
+ * validate value sizes in LegacyLayout (CASSANDRA-15373)
+ * Ensure that tracing doesn't break connections in 3.x/4.0 mixed mode by default (CASSANDRA-15385)
+ * Make sure index summary redistribution does not start when compactions are paused (CASSANDRA-15265)
+ * Ensure legacy rows have primary key livenessinfo when they contain illegal cells (CASSANDRA-15365)
+ * Fix race condition when setting bootstrap flags (CASSANDRA-14878)
+Merged from 2.2:
+ * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
+ * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
+ * In-JVM DTest: Support NodeTool in dtest (CASSANDRA-15429)
+ * Fix NativeLibrary.tryOpenDirectory callers for Windows (CASSANDRA-15426)
 
 3.11.5
  * Fix cassandra-env.sh to use $CASSANDRA_CONF to find cassandra-jaas.config (CASSANDRA-14305)

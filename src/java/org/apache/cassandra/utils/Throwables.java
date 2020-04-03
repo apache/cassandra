@@ -231,6 +231,16 @@ public final class Throwables
     }
 
     /**
+     * throw the exception as a unchecked exception, wrapping if a checked exception, else rethroing as is.
+     */
+    public static RuntimeException throwAsUncheckedException(Throwable t)
+    {
+        if (t instanceof Error)
+            throw (Error) t;
+        throw unchecked(t);
+    }
+
+    /**
      * A shortcut for {@code unchecked(unwrapped(t))}. This is called "cleaned" because this basically removes the annoying
      * cruft surrounding an exception :).
      */
