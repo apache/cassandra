@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +51,7 @@ import io.netty.channel.Channel;
 import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import net.openhft.chronicle.core.util.ThrowingRunnable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -249,6 +251,9 @@ public class ConnectionBurnTest
             return result;
         }
 
+        /**
+         * Test connections with broken messages, live in-flight bytes updates, reconnect
+         */
         public void run() throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
         {
             Reporters reporters = new Reporters(endpoints, connections);
@@ -642,7 +647,15 @@ public class ConnectionBurnTest
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
     {
+        setup();
         new ConnectionBurnTest().test();
+    }
+
+    @BeforeClass
+    public static void setup()
+    {
+        // since CASSANDRA-15295, commitlog needs to be manually started.
+        CommitLog.instance.start();
     }
 
     @org.junit.Test
@@ -659,5 +672,4 @@ public class ConnectionBurnTest
                               .withTcpUserTimeoutInMS(0));
         MessagingService.instance().socketFactory.shutdownNow();
     }
-
 }
