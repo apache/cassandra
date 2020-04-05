@@ -19,15 +19,39 @@
 Installing Cassandra
 --------------------
 
+These are the instructions for deploying the supported releases of Apache Cassandra on Linux servers.
+
+Cassandra runs on a wide array of Linux distributions including (but not limited to):
+
+- Ubuntu, most notably LTS releases 14.04 to 18.04
+- CentOS & RedHat Enterprise Linux (RHEL) including 6.6 to 7.7
+- Amazon Linux AMIs including 2016.09 through to Linux 2
+- Debian versions 8 & 9
+- SUSE Enterprise Linux 12
+
+This is not an exhaustive list of operating system platforms, nor is it prescriptive. However users will be
+well-advised to conduct exhaustive tests of their own particularly for less-popular distributions of Linux.
+Deploying on older versions is not recommended unless you have previous experience with the older distribution
+in a production environment.
+
 Prerequisites
 ^^^^^^^^^^^^^
 
-- The latest version of Java 8, either the `Oracle Java Standard Edition 8
+- Install the latest version of Java 8, either the `Oracle Java Standard Edition 8
   <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`__ or `OpenJDK 8 <http://openjdk.java.net/>`__. To
   verify that you have the correct version of java installed, type ``java -version``.
-
+- **NOTE**: *Experimental* support for Java 11 was added in Cassandra 4.0 (`CASSANDRA-9608<https://issues.apache.org/jira/browse/CASSANDRA-9608>`__).
+  Running Cassandra on Java 11 is *experimental*. Do so at your own risk. For more information, see
+  `NEWS.txt<https://github.com/apache/cassandra/blob/trunk/NEWS.txt>`__.
 - For using cqlsh, the latest version of `Python 2.7 <https://www.python.org/downloads/>`__. To verify that you have
   the correct version of Python installed, type ``python --version``.
+
+Choosing an installation method
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For most users, installing the binary tarball is the simplest choice. The tarball unpacks all its contents into a single location with binaries and configuration files located in their own subdirectories. The most obvious attribute of the tarball installation is it does not require ``root`` permissions and can be installed on any Linux distribution.
+
+Packaged installations require ``root`` permissions. Install the RPM build on CentOS and RHEL-based distributions if you want to install Cassandra using YUM. Install the Debian build on Ubuntu and other Debian-based distributions if you want to install Cassandra using APT. Note that both the YUM and APT methods required ``root`` permissions and will install the binaries and configuration files as the ``cassandra`` OS user.
 
 Installation from binary tarball files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
