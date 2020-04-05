@@ -34,7 +34,7 @@ export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
 
 if [ -z "$CASSANDRA_USE_JDK11" ]; then
-    export CASSANDRA_USE_JDK11=true
+    export CASSANDRA_USE_JDK11=false
 fi
 
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
@@ -53,7 +53,7 @@ fi
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-virtualenv --python=$PYTHON_VERSION --no-site-packages venv
+virtualenv --python=$PYTHON_VERSION venv
 source venv/bin/activate
 
 pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
