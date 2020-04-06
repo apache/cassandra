@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +57,7 @@ public class StreamTransferTask extends StreamTask
     private final Map<Integer, ScheduledFuture> timeoutTasks = new HashMap<>();
 
     private long totalSize;
+    private int totalFiles;
 
     public StreamTransferTask(StreamSession session, TableId tableId)
     {
@@ -123,9 +128,17 @@ public class StreamTransferTask extends StreamTask
             Throwables.propagate(fail);
     }
 
+    public void setTotalNumberOfFiles(int files)
+    {
+        totalFiles = files;
+    }
+
     public synchronized int getTotalNumberOfFiles()
     {
-        return streams.size();
+        if (totalFiles == 0)
+            return streams.size();
+        else
+            return totalFiles;
     }
 
     public long getTotalSize()

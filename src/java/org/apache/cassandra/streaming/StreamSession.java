@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -393,6 +394,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 if (task == null)
                     task = newTask;
             }
+
+            // used shouldStreamEntireSStable field instead of method call shouldStreamEntireSStable()
+            // so we are not computing what is already computed in CassandraOutgoingFile constructor
+            if (stream instanceof CassandraOutgoingFile && ((CassandraOutgoingFile) stream).shouldStreamEntireSStable)
+            {
+                int manifestSize = ((CassandraOutgoingFile) stream).getManifestSize();
+                task.setTotalNumberOfFiles(manifestSize);
+            }
+
             task.addTransferStream(stream);
         }
     }

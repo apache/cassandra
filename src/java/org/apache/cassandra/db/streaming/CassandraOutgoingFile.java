@@ -59,7 +59,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final boolean keepSSTableLevel;
     private final ComponentManifest manifest;
 
-    private final boolean shouldStreamEntireSStable;
+    public final boolean shouldStreamEntireSStable;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
@@ -146,6 +146,11 @@ public class CassandraOutgoingFile implements OutgoingStream
     public UUID getPendingRepair()
     {
         return ref.get().getPendingRepair();
+    }
+
+    public int getManifestSize()
+    {
+        return manifest.components().size();
     }
 
     @Override
