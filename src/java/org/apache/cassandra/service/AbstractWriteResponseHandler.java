@@ -74,6 +74,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private AbstractWriteResponseHandler idealCLDelegate;
 
     /**
+     * We don't want to increment the writeFailedIdealCL if we didn't achieve the original requested CL
+     */
+    private boolean requestedCLAchieved = false;
+
+    /**
      * @param callback           A callback to be called when the write is successful.
      * @param queryStartNanoTime
      */
@@ -232,6 +237,13 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     protected void signal()
     {
+        //The ideal CL should only count as a strike if the requested CL was achieved.
+        //If the requested CL is not achieved it's fine for the ideal CL to also not be achieved.
+        if (idealCLDelegate != null)
+        {
+            idealCLDelegate.requestedCLAchieved = true;
+        }
+
         condition.signalAll();
         if (callback != null)
             callback.run();
@@ -279,8 +291,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         int decrementedValue = responsesAndExpirations.decrementAndGet();
         if (decrementedValue == 0)
         {
-            //The condition being signaled is a valid proxy for the CL being achieved
-            if (!condition.isSignaled())
+            // The condition being signaled is a valid proxy for the CL being achieved
+            // Only mark it as failed if the requested CL was achieved.
+            if (!condition.isSignaled() && requestedCLAchieved)
             {
                 replicaPlan.keyspace().metric.writeFailedIdealCL.inc();
             }
