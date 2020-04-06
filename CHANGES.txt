@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix IMH#acquireCapacity() to return correct Outcome when endpoint reserve runs out (CASSANDRA-15607)
  * Fix nodetool describering output (CASSANDRA-15682)
  * Only track ideal CL failure when request CL met (CASSANDRA-15696)
  * Fix flaky CoordinatorMessagingTest and docstring in OutboundSink and ConsistentSession (CASSANDRA-15672)
