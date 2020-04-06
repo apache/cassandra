@@ -41,5 +41,6 @@ public interface IncomingStream
 
     String getName();
     long getSize();
+    int getNumFiles();
     TableId getTableId();
 }
