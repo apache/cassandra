@@ -578,7 +578,7 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
         {
             globalReserve.release(allocatedExcess);
             globalWaitQueue.signal();
-            return ResourceLimits.Outcome.INSUFFICIENT_GLOBAL;
+            return ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
         }
 
         long newQueueSize = queueSizeUpdater.addAndGet(this, bytes);
