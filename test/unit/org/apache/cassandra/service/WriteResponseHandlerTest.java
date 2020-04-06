@@ -232,6 +232,32 @@ public class WriteResponseHandlerTest
         assertEquals(0, ks.metric.idealCLWriteLatency.totalLatency.getCount());
     }
 
+    /**
+     * Validate that failing to achieve ideal CL doesn't increase the failure counter when not meeting CL
+     * @throws Throwable
+     */
+    @Test
+    public void failedIdealCLDoesNotIncrementsStatOnQueryFailure() throws Throwable
+    {
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+
+        long startingCount = ks.metric.writeFailedIdealCL.getCount();
+
+        // Failure in local DC
+        awr.onResponse(createDummyMessage(0));
+        
+        awr.expired();
+        awr.expired();
+
+        //Fail in remote DC
+        awr.expired();
+        awr.expired();
+        awr.expired();
+
+        assertEquals(startingCount, ks.metric.writeFailedIdealCL.getCount());
+    }
+
+
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
     {
         return createWriteResponseHandler(cl, ideal, System.nanoTime());
