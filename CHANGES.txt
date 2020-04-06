@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix output for describering by fixing toString method of TokenRange (CASSANDRA-15682)
  * Fix flaky CoordinatorMessagingTest and docstring in OutboundSink and ConsistentSession (CASSANDRA-15672)
  * Fix force compaction of wrapping ranges (CASSANDRA-15664)
  * Expose repair streaming metrics (CASSANDRA-15656)
