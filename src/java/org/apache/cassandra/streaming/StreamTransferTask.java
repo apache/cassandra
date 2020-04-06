@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +56,8 @@ public class StreamTransferTask extends StreamTask
     protected final Map<Integer, OutgoingStreamMessage> streams = new HashMap<>();
     private final Map<Integer, ScheduledFuture> timeoutTasks = new HashMap<>();
 
-    private long totalSize;
+    private long totalSize = 0;
+    private int totalFiles = 0;
 
     public StreamTransferTask(StreamSession session, TableId tableId)
     {
@@ -66,6 +71,7 @@ public class StreamTransferTask extends StreamTask
         message = StreamHook.instance.reportOutgoingStream(session, stream, message);
         streams.put(message.header.sequenceNumber, message);
         totalSize += message.stream.getSize();
+        totalFiles += message.stream.getNumFiles();
     }
 
     /**
@@ -125,7 +131,7 @@ public class StreamTransferTask extends StreamTask
 
     public synchronized int getTotalNumberOfFiles()
     {
-        return streams.size();
+        return totalFiles;
     }
 
     public long getTotalSize()

@@ -59,7 +59,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final boolean keepSSTableLevel;
     private final ComponentManifest manifest;
 
-    private final boolean shouldStreamEntireSStable;
+    private final boolean shouldStreamEntireSSTable;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
@@ -72,7 +72,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.sections = sections;
         this.filename = ref.get().getFilename();
         this.manifest = getComponentManifest(ref.get());
-        this.shouldStreamEntireSStable = shouldStreamEntireSSTable();
+        this.shouldStreamEntireSSTable = computeShouldStreamEntireSSTables();
 
         SSTableReader sstable = ref.get();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
@@ -85,7 +85,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                  .withSections(sections)
                                  .withCompressionMetadata(sstable.compression ? sstable.getCompressionMetadata() : null)
                                  .withSerializationHeader(sstable.header.toComponent())
-                                 .isEntireSSTable(shouldStreamEntireSStable)
+                                 .isEntireSSTable(shouldStreamEntireSSTable)
                                  .withComponentManifest(manifest)
                                  .withFirstKey(sstable.first)
                                  .withTableId(sstable.metadata().id)
@@ -137,6 +137,12 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @Override
+    public int getNumFiles()
+    {
+        return shouldStreamEntireSSTable ? getManifestSize() : 1;
+    }
+
+    @Override
     public long getRepairedAt()
     {
         return ref.get().getRepairedAt();
@@ -148,6 +154,11 @@ public class CassandraOutgoingFile implements OutgoingStream
         return ref.get().getPendingRepair();
     }
 
+    public int getManifestSize()
+    {
+        return manifest.components().size();
+    }
+
     @Override
     public void write(StreamSession session, DataOutputStreamPlus out, int version) throws IOException
     {
@@ -155,7 +166,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
-        if (shouldStreamEntireSStable && out instanceof AsyncStreamingOutputPlus)
+        if (shouldStreamEntireSSTable && out instanceof AsyncStreamingOutputPlus)
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, manifest);
             writer.write((AsyncStreamingOutputPlus) out);
@@ -171,7 +182,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @VisibleForTesting
-    public boolean shouldStreamEntireSSTable()
+    public boolean computeShouldStreamEntireSSTables()
     {
         // don't stream if full sstable transfers are disabled or legacy counter shards are present
         if (!DatabaseDescriptor.streamEntireSSTables() || ref.get().getSSTableMetadata().hasLegacyCounterShards)

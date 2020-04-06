@@ -95,7 +95,7 @@ public class StreamTransferTaskTest
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.selfRef(), sstable.getPositionsForRanges(ranges), ranges, 1));
         }
-        assertEquals(2, task.getTotalNumberOfFiles());
+        assertEquals(14, task.getTotalNumberOfFiles());
 
         // if file sending completes before timeout then the task should be canceled.
         Future f = task.scheduleTimeout(0, 0, TimeUnit.NANOSECONDS);
@@ -147,7 +147,7 @@ public class StreamTransferTaskTest
             refs.add(ref);
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, ref, sstable.getPositionsForRanges(ranges), ranges, 1));
         }
-        assertEquals(2, task.getTotalNumberOfFiles());
+        assertEquals(14, task.getTotalNumberOfFiles());
 
         //add task to stream session, so it is aborted when stream session fails
         session.transfers.put(TableId.generate(), task);
