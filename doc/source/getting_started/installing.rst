@@ -60,31 +60,119 @@ Debian-based distributions if you want to install Cassandra using APT. Note that
 methods required ``root`` permissions and will install the binaries and configuration files as the
 ``cassandra`` OS user.
 
-Installation from binary tarball files
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Installing the binary tarball
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Download the latest stable release from the `Apache Cassandra downloads website <http://cassandra.apache.org/download/>`__.
-
-- Untar the file somewhere, for example:
+#. Verify the version of Java installed. For example:
 
 ::
+   $ java -version
+   openjdk version "1.8.0_222"
+   OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~16.04.1-b10)
+   OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 
-    tar -xzvf apache-cassandra-3.6-bin.tar.gz
+#. Download the binary tarball from one of the mirrors on the `Apache Cassandra Downloadi <http://cassandra.apache.org/download/>`__
+   site. For example, to download 3.11.6:
 
-The files will be extracted into ``apache-cassandra-3.6``, you need to substitute 3.6 with the release number that you
-have downloaded.
+::
+   $ curl -OL http://apache.mirror.digitalpacific.com.au/cassandra/3.11.6/apache-cassandra-3.11.6-bin.tar.gz
 
-- Optionally add ``apache-cassandra-3.6\bin`` to your path.
-- Start Cassandra in the foreground by invoking ``bin/cassandra -f`` from the command line. Press "Control-C" to stop
-  Cassandra. Start Cassandra in the background by invoking ``bin/cassandra`` from the command line. Invoke ``kill pid``
-  or ``pkill -f CassandraDaemon`` to stop Cassandra, where pid is the Cassandra process id, which you can find for
-  example by invoking ``pgrep -f CassandraDaemon``.
-- Verify that Cassandra is running by invoking ``bin/nodetool status`` from the command line.
-- Configuration files are located in the ``conf`` sub-directory.
-- Since Cassandra 2.1, log and data directories are located in the ``logs`` and ``data`` sub-directories respectively.
-  Older versions defaulted to ``/var/log/cassandra`` and ``/var/lib/cassandra``. Due to this, it is necessary to either
-  start Cassandra with root privileges or change ``conf/cassandra.yaml`` to use directories owned by the current user,
-  as explained below in the section on changing the location of directories.
+.. note:: Earlier versions
+   The mirrors only host the latest versions of each major supported release. To download an earlier
+   version of Cassandra, visit the `Apache Archives <http://archive.apache.org/dist/cassandra/>`__.
+
+#. OPTIONAL: Verify the integrity of the downloaded tarball using one of the methods `here <https://www.apache.org/dyn/closer.cgi#verify>`__.
+   For example, to verify the hash of the downloaded file using GPG:
+
+::
+   $ gpg --print-md SHA256 apache-cassandra-3.11.6-bin.tar.gz 
+   apache-cassandra-3.11.6-bin.tar.gz: CE34EDEB D1B6BB35 216AE97B D06D3EFC 338C05B2
+                                       73B78267 556A99F8 5D30E45B
+
+Compare the signature with the SHA256 file from the Downloads site:
+
+::
+   $ curl -L https://downloads.apache.org/cassandra/3.11.6/apache-cassandra-3.11.6-bin.tar.gz.sha256
+   ce34edebd1b6bb35216ae97bd06d3efc338c05b273b78267556a99f85d30e45b
+
+#. Unpack the tarball:
+
+::
+   $ tar xzvf apache-cassandra-3.11.6-bin.tar.gz
+
+The files will be extracted to the ``apache-cassandra-3.11.6/`` directory. This is the tarball installation
+location.
+
+#. Configure Cassandra by updating the file ``conf/cassandra.yaml``.
+
+If this is your first time installing Cassandra, the following are the recommended properties to set
+to get you started:
+
+::
+   cluster_name: 'My First Cluster'
+   num_tokens: 16
+   listen_address: private_IP
+   native_transport_port: public_IP
+
+.. note:: Addresses 
+   If the server only has 1 IP address, use the same IP for both listen_address and rpc_address.
+
+Also set the seeds list. See `the FAQ section </doc/latest/faq/index.html?highlight=seeds#what-are-seeds>`__
+for more details. For now, just use the private IP of the node:
+
+::
+   - seeds: "private_IP"
+
+For more information, see `Configuring Cassandra </doc/latest/getting_started/configuring.html>`__.
+
+#. From Apache Cassandra 2.1, the default ``data``, ``commitlog``, ``saved_caches`` and ``hints`` directories
+   are in ``installation_location/data``.
+
+OPTIONAL: To change the location, set the following properties in ``conf/cassandra.yaml``:
+
+::
+   data_file_directories:
+       - /path/to/data
+   commitlog_directory: /path/to/commitlog
+   saved_caches_directory: /path/to/saved_caches
+   hints_directory: /path/to/hints
+
+#. From Apache Cassandra 2.1, the default logs directory is ``installation_location/logs``.
+
+OPTIONAL: To change the location of the logs, update the ``CASSANDRA_LOG_DIR`` variable in this section of
+the script to the path to the logs directory:
+
+::
+   if [ -z "$CASSANDRA_LOG_DIR" ]; then
+     CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
+   fi
+
+#. Start Cassandra:
+
+::
+   $ bin/cassandra
+
+You can monitor the progress of the startup with:
+
+::
+   $ tail -f logs/system.log
+
+Cassandra is ready when you see an entry like this in the system.log:
+
+::
+   INFO  [main] 2019-12-17 03:03:37,526 Server.java:156 - Starting listening for CQL clients on /x.x.x.x:9042 (unencrypted)...
+
+#. Check the status of Cassandra:
+
+::
+   $ bin/nodetool status
+
+The status column in the output should report UN which stands for "Up/Normal".
+
+Alternatively, connect to the database with:
+
+::
+   $ bin/cqlsh <private_IP>
 
 Installation from Debian packages
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
