@@ -89,18 +89,10 @@ public class TokenRange
             endpointDetails.add(ep.toString(withPorts));
         }
 
-        if (withPorts)
-        {
-            sb.append(", endpoints:").append(hosts);
-            sb.append(", rpc_endpoints:").append(rpcs);
-            sb.append(", endpoint_details:").append(endpointDetails);
-        }
-        else
-        {
-            sb.append("endpoints:").append(hosts);
-            sb.append("rpc_endpoints:").append(rpcs);
-            sb.append("endpoint_details:").append(endpointDetails);
-        }
+        sb.append(", endpoints:").append(hosts);
+        sb.append(", rpc_endpoints:").append(rpcs);
+        sb.append(", endpoint_details:").append(endpointDetails);
+
         sb.append(")");
         return sb.toString();
     }

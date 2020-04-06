@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix nodetool describering output (CASSANDRA-15682)
  * Only track ideal CL failure when request CL met (CASSANDRA-15696)
  * Fix flaky CoordinatorMessagingTest and docstring in OutboundSink and ConsistentSession (CASSANDRA-15672)
  * Fix force compaction of wrapping ranges (CASSANDRA-15664)
