@@ -416,6 +416,7 @@ public class Server implements CassandraDaemon.Server
         private static final Frame.Encoder frameEncoder = new Frame.Encoder();
         private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
         private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
+        private static final ClientRequestSizeMetricsHandler clientRequestSizeMetricsHandler = new ClientRequestSizeMetricsHandler();
 
         private final Server server;
 
@@ -451,6 +452,10 @@ public class Server implements CassandraDaemon.Server
             }
 
             //pipeline.addLast("debug", new LoggingHandler());
+
+            // Handler to log size of client requests and responses
+            // we need this to come after the connection limit handler so it can drop connections first
+            pipeline.addLast("requestMetricsHandler", clientRequestSizeMetricsHandler);
 
             pipeline.addLast("frameDecoder", new Frame.Decoder(server.connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
