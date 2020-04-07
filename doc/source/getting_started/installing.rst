@@ -72,7 +72,7 @@ Installing the binary tarball
    OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~16.04.1-b10)
    OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 
-1. Download the binary tarball from one of the mirrors on the `Apache Cassandra Downloadi <http://cassandra.apache.org/download/>`__
+2. Download the binary tarball from one of the mirrors on the `Apache Cassandra Downloadi <http://cassandra.apache.org/download/>`__
    site. For example, to download 3.11.6:
 
 ::
@@ -82,7 +82,7 @@ Installing the binary tarball
 NOTE: The mirrors only host the latest versions of each major supported release. To download an earlier
 version of Cassandra, visit the `Apache Archives <http://archive.apache.org/dist/cassandra/>`__.
 
-2. OPTIONAL: Verify the integrity of the downloaded tarball using one of the methods `here <https://www.apache.org/dyn/closer.cgi#verify>`__.
+3. OPTIONAL: Verify the integrity of the downloaded tarball using one of the methods `here <https://www.apache.org/dyn/closer.cgi#verify>`__.
    For example, to verify the hash of the downloaded file using GPG:
 
 ::
@@ -98,7 +98,7 @@ Compare the signature with the SHA256 file from the Downloads site:
    $ curl -L https://downloads.apache.org/cassandra/3.11.6/apache-cassandra-3.11.6-bin.tar.gz.sha256
    ce34edebd1b6bb35216ae97bd06d3efc338c05b273b78267556a99f85d30e45b
 
-3. Unpack the tarball:
+4. Unpack the tarball:
 
 ::
 
@@ -107,58 +107,33 @@ Compare the signature with the SHA256 file from the Downloads site:
 The files will be extracted to the ``apache-cassandra-3.11.6/`` directory. This is the tarball installation
 location.
 
-4. Configure Cassandra by updating the file ``conf/cassandra.yaml``.
-
-If this is your first time installing Cassandra, the following are the recommended properties to set
-to get you started:
+5. Located in the tarball installation location are the directories for the scripts, binaries, utilities, configuration, data and log files:
 
 ::
 
-   cluster_name: 'My First Cluster'
-   num_tokens: 16
-   listen_address: private_IP
-   native_transport_port: public_IP
+   <tarball_installation>/
+       bin/
+       conf/
+       data/
+       doc/
+       interface/
+       javadoc/
+       lib/
+       logs/
+       pylib/
+       tools/
+       
+For information on how to configure your installation, see
+`Configuring Cassandra <http://cassandra.apache.org/doc/latest/getting_started/configuring.html>`__.
 
-NOTE: If the server only has 1 IP address, use the same IP for both listen_address and rpc_address.
-
-Also set the seeds list. See `the FAQ section <http://cassandra.apache.org/doc/latest/faq/index.html?highlight=seeds#what-are-seeds>`__
-for more details. For now, just use the private IP of the node:
-
-::
-
-   - seeds: "private_IP"
-
-For more information, see `Configuring Cassandra <http://cassandra.apache.org/doc/latest/getting_started/configuring.html>`__.
-
-5. The tarball instllation default ``data``, ``commitlog``, ``saved_caches`` and ``hints`` directories
-   are in ``installation_location/data``.
-
-OPTIONAL: To change the location, set the following properties in ``conf/cassandra.yaml``:
+6. Start Cassandra:
 
 ::
 
-   data_file_directories:
-       - /path/to/data
-   commitlog_directory: /path/to/commitlog
-   saved_caches_directory: /path/to/saved_caches
-   hints_directory: /path/to/hints
-
-6. The tarball installation default logs directory is ``installation_location/logs``.
-
-OPTIONAL: To change the location of the logs, update the ``CASSANDRA_LOG_DIR`` variable in this section of
-the script to the path to the logs directory:
-
-::
-
-   if [ -z "$CASSANDRA_LOG_DIR" ]; then
-     CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
-   fi
-
-7. Start Cassandra:
-
-::
-
+   $ cd apache-cassandra-3.11.6/
    $ bin/cassandra
+
+NOTE: This will run Cassandra as the authenticated Linux user.
 
 You can monitor the progress of the startup with:
 
@@ -172,7 +147,7 @@ Cassandra is ready when you see an entry like this in the system.log:
 
    INFO  [main] 2019-12-17 03:03:37,526 Server.java:156 - Starting listening for CQL clients on /x.x.x.x:9042 (unencrypted)...
 
-8. Check the status of Cassandra:
+7. Check the status of Cassandra:
 
 ::
 
@@ -184,54 +159,83 @@ Alternatively, connect to the database with:
 
 ::
 
-   $ bin/cqlsh <private_IP>
+   $ bin/cqlsh
 
-Installation from Debian packages
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Installing the Debian packages
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Add the Apache repository of Cassandra to ``/etc/apt/sources.list.d/cassandra.sources.list``, for example for version
-  3.6:
-
-::
-
-    echo "deb https://downloads.apache.org/cassandra/debian 36x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
-
-- Add the Apache Cassandra repository keys:
+1. Verify the version of Java installed. For example:
 
 ::
 
-    curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
+   $ java -version
+   openjdk version "1.8.0_222"
+   OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~16.04.1-b10)
+   OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 
-- Update the repositories:
-
-::
-
-    sudo apt-get update
-
-- If you encounter this error:
-
-::
-
-    GPG error: http://www.apache.org 36x InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY A278B781FE4B2BDA
-
-Then add the public key A278B781FE4B2BDA as follows:
+2. Add the Apache repository of Cassandra to the file ``cassandra.sources.list``. The latest supported
+   major version is 3.11 and the corresponding distribution name is ``311x`` (with an "x" as the suffix).
+   For older releases use ``30x`` for C* 3.0 series, ``22x`` for 2.2 and ``21x`` for 2.1.  For example, 
+   to add the repository for version 3.11 (``311x``):
 
 ::
 
-    sudo apt-key adv --keyserver pool.sks-keyservers.net --recv-key A278B781FE4B2BDA
+   $ echo "deb http://www.apache.org/dist/cassandra/debian 311x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+   deb http://www.apache.org/dist/cassandra/debian 311x main
 
-and repeat ``sudo apt-get update``. The actual key may be different, you get it from the error message itself. For a
-full list of Apache contributors public keys, you can refer to `this link <https://downloads.apache.org/cassandra/KEYS>`__.
-
-- Install Cassandra:
+3. Add the Apache Cassandra repository keys to the list of trusted keys on the server:
 
 ::
 
-    sudo apt-get install cassandra
+   $ curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                    Dload  Upload   Total   Spent    Left  Speed
+   100  266k  100  266k    0     0   320k      0 --:--:-- --:--:-- --:--:--  320k
+   OK
 
-- You can start Cassandra with ``sudo service cassandra start`` and stop it with ``sudo service cassandra stop``.
-  However, normally the service will start automatically. For this reason be sure to stop it if you need to make any
-  configuration changes.
-- Verify that Cassandra is running by invoking ``nodetool status`` from the command line.
-- The default location of configuration files is ``/etc/cassandra``.
-- The default location of log and data directories is ``/var/log/cassandra/`` and ``/var/lib/cassandra``.
+4. Update the package index from sources:
+
+::
+
+   $ sudo apt-get update
+
+5. Install Cassandra with APT:
+
+::
+
+   $ sudo apt-get install cassandra
+
+
+NOTE: A new Linux user ``cassandra`` will get created as part of the installation. The Cassandra service
+will also be run as this user.
+   
+6. The Cassandra service gets started automatically after installation. You can monitor the progress of
+   the startup with:
+
+::
+
+   $ tail -f /var/log/cassandra/system.log
+
+Cassandra is ready when you see an entry like this in the system.log:
+
+::
+
+   INFO  [main] 2019-12-17 03:03:37,526 Server.java:156 - Starting listening for CQL clients on localhost/127.0.0.1:9042 (unencrypted)...
+
+NOTE: For information on how to configure your installation, see
+`Configuring Cassandra <http://cassandra.apache.org/doc/latest/getting_started/configuring.html>`__.
+
+7. Check the status of Cassandra:
+
+::
+
+   $ nodetool status
+
+The status column in the output should report ``UN`` which stands for "Up/Normal".
+
+Alternatively, connect to the database with:
+
+::
+
+   $ cqlsh
+
