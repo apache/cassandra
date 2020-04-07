@@ -163,8 +163,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         RowUpdater updater = new RowUpdater(this, allocator, writeOp, indexer);
         try
         {
-            boolean shouldLock = usePessimisticLocking();
-
+            boolean shouldLock = shouldLock(writeOp);
             indexer.start();
 
             while (true)
@@ -184,11 +183,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
                     if (result != null)
                         return result;
 
-                    shouldLock = usePessimisticLocking();
-                    if (!shouldLock)
-                    {
-                        shouldLock = updateWastedAllocationTracker(updater.heapSize);
-                    }
+                    shouldLock = shouldLock(updater.heapSize, writeOp);
                 }
             }
         }
@@ -258,7 +253,35 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         return allocator.ensureOnHeap().applyToPartition(super.iterator());
     }
 
-    public boolean usePessimisticLocking()
+    private boolean shouldLock(OpOrder.Group writeOp)
+    {
+        if (!useLock())
+            return false;
+
+        return lockIfOldest(writeOp);
+    }
+
+    private boolean shouldLock(long addWaste, OpOrder.Group writeOp)
+    {
+        if (!updateWastedAllocationTracker(addWaste))
+            return false;
+
+        return lockIfOldest(writeOp);
+    }
+
+    private boolean lockIfOldest(OpOrder.Group writeOp)
+    {
+        if (!writeOp.isOldestLiveGroup())
+        {
+            Thread.yield();
+            if (!writeOp.isOldestLiveGroup())
+                return false;
+        }
+
+        return true;
+    }
+
+    public boolean useLock()
     {
         return wasteTracker == TRACKER_PESSIMISTIC_LOCKING;
     }

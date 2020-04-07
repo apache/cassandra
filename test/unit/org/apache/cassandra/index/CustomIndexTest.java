@@ -684,7 +684,7 @@ public class CustomIndexTest extends CQLTester
         assertTrue(index.writeGroups.size() > 1);
         assertFalse(index.readOrderingAtFinish.isBlocking());
         index.writeGroups.forEach(group -> assertFalse(group.isBlocking()));
-        index.barriers.forEach(OpOrder.Barrier::allPriorOpsAreFinished);
+        index.barriers.forEach(b -> assertTrue(b.getSyncPoint().isFinished()));
     }
 
     @Test
