@@ -239,7 +239,6 @@ public class WriteResponseHandlerTest
     @Test
     public void failedIdealCLDoesNotIncrementsStatOnQueryFailure() throws Throwable
     {
-        ks.metric.idealCLWriteLatency.totalLatency.dec(ks.metric.idealCLWriteLatency.totalLatency.getCount());
         AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
 
         long startingCount = ks.metric.writeFailedIdealCL.getCount();
