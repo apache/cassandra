@@ -30,6 +30,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.management.Notification;
+
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
@@ -41,9 +43,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.LongTokenRange;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.RepairResult;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -62,6 +67,8 @@ import static org.junit.Assert.assertTrue;
 
 public class PreviewRepairTest extends TestBaseImpl
 {
+    private static final String TABLE = "tbl";
+
     /**
      * makes sure that the repaired sstables are not matching on the two
      * nodes by disabling autocompaction on node2 and then running an
@@ -72,10 +79,11 @@ public class PreviewRepairTest extends TestBaseImpl
     {
         try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
         {
-            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
+            cluster.schemaChange("create table " + KEYSPACE + "." + TABLE + " (id int primary key, t int)");
             insert(cluster.coordinator(1), 0, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
-            cluster.get(1).callOnInstance(repair(options(false)));
+            IInvokableInstance instance = cluster.get(1);
+            repair(cluster.get(1), options(false));
             insert(cluster.coordinator(1), 100, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
 
@@ -86,14 +94,14 @@ public class PreviewRepairTest extends TestBaseImpl
                 FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
                 cfs.disableAutoCompaction();
             }));
-            cluster.get(1).callOnInstance(repair(options(false)));
+            repair(cluster.get(1), options(false));
             // now re-enable autocompaction on node1, this moves the sstables for the new repair to repaired
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
                 cfs.enableAutoCompaction();
                 FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
             });
-            RepairResult rs = cluster.get(1).callOnInstance(repair(options(true)));
+            RepairResult rs = repair(cluster.get(1), options(true));
             assertTrue(rs.success); // preview repair should succeed
             assertFalse(rs.wasInconsistent); // and we should see no mismatches
         }
@@ -119,11 +127,11 @@ public class PreviewRepairTest extends TestBaseImpl
         ExecutorService es = Executors.newSingleThreadExecutor();
         try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
         {
-            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
+            cluster.schemaChange("create table " + KEYSPACE + "." + TABLE + " (id int primary key, t int)");
 
             insert(cluster.coordinator(1), 0, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
-            cluster.get(1).callOnInstance(repair(options(false)));
+            repair(cluster.get(1), options(false));
 
             insert(cluster.coordinator(1), 100, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
@@ -133,10 +141,10 @@ public class PreviewRepairTest extends TestBaseImpl
             // this pauses the validation request sent from node1 to node2 until we have run a full inc repair below
             cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
-            Future<RepairResult> rsFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true))));
+            Future<RepairResult> rsFuture = es.submit(() -> repair(cluster.get(1), options(true)));
             Thread.sleep(1000);
             // this needs to finish before the preview repair is unpaused on node2
-            cluster.get(1).callOnInstance(repair(options(false)));
+            repair(cluster.get(1), options(false));
             continuePreviewRepair.signalAll();
             RepairResult rs = rsFuture.get();
             assertFalse(rs.success); // preview repair should have failed
@@ -158,11 +166,11 @@ public class PreviewRepairTest extends TestBaseImpl
         ExecutorService es = Executors.newSingleThreadExecutor();
         try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
         {
-            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
+            cluster.schemaChange("create table " + KEYSPACE + "." + TABLE + " (id int primary key, t int)");
 
             insert(cluster.coordinator(1), 0, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
-            assertTrue(cluster.get(1).callOnInstance(repair(options(false))).success);
+            assertTrue(repair(cluster.get(1), options(false)).success);
 
             insert(cluster.coordinator(1), 100, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
@@ -173,18 +181,18 @@ public class PreviewRepairTest extends TestBaseImpl
             cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
             // get local ranges to repair two separate ranges:
-            List<String> localRanges = cluster.get(1).callOnInstance(() -> {
-                List<String> res = new ArrayList<>();
+            List<LongTokenRange> localRanges = cluster.get(1).callOnInstance(() -> {
+                List<LongTokenRange> res = new ArrayList<>();
                 for (Range<Token> r : StorageService.instance.getLocalReplicas(KEYSPACE).ranges())
-                    res.add(r.left.getTokenValue()+ ":"+ r.right.getTokenValue());
+                    res.add(new LongTokenRange((Long) r.left.getTokenValue(), (Long) r.right.getTokenValue()));
                 return res;
             });
 
             assertEquals(2, localRanges.size());
-            Future<RepairResult> repairStatusFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true, localRanges.get(0)))));
+            Future<RepairResult> repairStatusFuture = es.submit(() -> repair(cluster.get(1), options(true, localRanges.get(0))));
             Thread.sleep(1000); // wait for node1 to start validation compaction
             // this needs to finish before the preview repair is unpaused on node2
-            assertTrue(cluster.get(1).callOnInstance(repair(options(false, localRanges.get(1)))).success);
+            assertTrue(repair(cluster.get(1), options(false, localRanges.get(1))).success);
 
             continuePreviewRepair.signalAll();
             RepairResult rs = repairStatusFuture.get();
@@ -231,51 +239,50 @@ public class PreviewRepairTest extends TestBaseImpl
     /**
      * returns a pair with [repair success, was inconsistent]
      */
-    private static IIsolatedExecutor.SerializableCallable<RepairResult> repair(Map<String, String> options)
+    private static RepairResult repair(IInvokableInstance instance, List<String> args)
     {
-        return () -> {
-            SimpleCondition await = new SimpleCondition();
-            AtomicBoolean success = new AtomicBoolean(true);
-            AtomicBoolean wasInconsistent = new AtomicBoolean(false);
-            StorageService.instance.repair(KEYSPACE, options, ImmutableList.of((tag, event) -> {
-                if (event.getType() == ProgressEventType.ERROR)
-                {
-                    success.set(false);
-                    await.signalAll();
-                }
-                else if (event.getType() == ProgressEventType.NOTIFICATION && event.getMessage().contains("Repaired data is inconsistent"))
-                {
-                    wasInconsistent.set(true);
-                }
-                else if (event.getType() == ProgressEventType.COMPLETE)
-                    await.signalAll();
-            }));
-            try
-            {
-                await.await(1, TimeUnit.MINUTES);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-            return new RepairResult(success.get(), wasInconsistent.get());
-        };
+        String[] command = new String[args.size() + 1];
+        command[0] = "repair";
+        System.arraycopy(args.stream().toArray(String[]::new), 0, command, 1, args.size());
+        NodeToolResult result = instance.nodetoolResult(command);
+        return new RepairResult(result.getRc() == 0, extractWasInconsistent(result));
     }
 
-    private static Map<String, String> options(boolean preview)
+    private static boolean extractWasInconsistent(NodeToolResult result)
     {
-        Map<String, String> config = new HashMap<>();
-        config.put(RepairOption.INCREMENTAL_KEY, "true");
-        config.put(RepairOption.PARALLELISM_KEY, RepairParallelism.PARALLEL.toString());
+        //NOTE this is flaky since notifications are lossy.  Ideally the completion messsage would have this since that
+        // can be recovered by polling.  One negative of the current APIs is that this would only be exposed to stdout
+        boolean wasInconsistent = false;
+        int targetOrdinal = NodeToolResult.ProgressEventType.NOTIFICATION.ordinal();
+        for (Notification notification : result.getNotifications())
+        {
+            int type = ((Map<String, Integer>) notification.getUserData()).get("type");
+            if (type == targetOrdinal)
+            {
+                wasInconsistent |= notification.getMessage().contains("Repaired data is inconsistent");
+            }
+        }
+        return wasInconsistent;
+    }
+
+    private static List<String> options(boolean preview)
+    {
+        List<String> options = new ArrayList<>();
+        options.add(KEYSPACE);
+        options.add(TABLE);
+        // defaults are IR + parallel, so don't need to add to options list
         if (preview)
-            config.put(RepairOption.PREVIEW, PreviewKind.REPAIRED.toString());
-        return config;
+            options.add("--validate");
+        return options;
     }
 
-    private static Map<String, String> options(boolean preview, String range)
+    private static List<String> options(boolean preview, LongTokenRange range)
     {
-        Map<String, String> options = options(preview);
-        options.put(RepairOption.RANGES_KEY, range);
+        List<String> options = options(preview);
+        options.add("--start-token");
+        options.add(Long.toString(range.minExclusive));
+        options.add("--end-token");
+        options.add(Long.toString(range.maxInclusive));
         return options;
     }
 }
