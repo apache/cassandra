@@ -32,6 +32,7 @@ import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.util.Attribute;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.transport.frame.FrameBodyTransformer;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 
@@ -222,6 +223,9 @@ public class Frame
             if (buffer.readableBytes() < frameLength)
                 return null;
 
+            ClientRequestSizeMetrics.totalBytesRead.inc(frameLength);
+            ClientRequestSizeMetrics.bytesRecievedPerFrame.update(frameLength);
+
             // extract body
             ByteBuf body = buffer.slice(idx, (int) bodyLength);
             body.retain();
@@ -298,6 +302,10 @@ public class Frame
 
             header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
+
+            int messageSize = header.readableBytes() + frame.body.readableBytes();
+            ClientRequestSizeMetrics.totalBytesWritten.inc(messageSize);
+            ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(messageSize);
 
             results.add(header);
             results.add(frame.body);
