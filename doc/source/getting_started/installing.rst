@@ -141,7 +141,7 @@ You can monitor the progress of the startup with:
 
    $ tail -f logs/system.log
 
-Cassandra is ready when you see an entry like this in the system.log:
+Cassandra is ready when you see an entry like this in the ``system.log``:
 
 ::
 
@@ -175,7 +175,7 @@ Installing the Debian packages
 
 2. Add the Apache repository of Cassandra to the file ``cassandra.sources.list``. The latest supported
    major version is 3.11 and the corresponding distribution name is ``311x`` (with an "x" as the suffix).
-   For older releases use ``30x`` for C* 3.0 series, ``22x`` for 2.2 and ``21x`` for 2.1.  For example, 
+   For older releases use ``30x`` for C* 3.0 series, ``22x`` for 2.2 and ``21x`` for 2.1.  For example,
    to add the repository for version 3.11 (``311x``):
 
 ::
@@ -208,15 +208,15 @@ Installing the Debian packages
 
 NOTE: A new Linux user ``cassandra`` will get created as part of the installation. The Cassandra service
 will also be run as this user.
-   
-6. The Cassandra service gets started automatically after installation. You can monitor the progress of
+
+6. The Cassandra service gets started automatically after installation. Monitor the progress of
    the startup with:
 
 ::
 
    $ tail -f /var/log/cassandra/system.log
 
-Cassandra is ready when you see an entry like this in the system.log:
+Cassandra is ready when you see an entry like this in the ``system.log``:
 
 ::
 
@@ -238,4 +238,87 @@ Alternatively, connect to the database with:
 ::
 
    $ cqlsh
+   
+Installing the RPM packages
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Verify the version of Java installed. For example:
+
+::
+
+   $ java -version
+   openjdk version "1.8.0_222"
+   OpenJDK Runtime Environment (build 1.8.0_232-b09)
+   OpenJDK 64-Bit Server VM (build 25.232-b09, mixed mode)
+
+2. Add the Apache repository of Cassandra to the file ``/etc/yum.repos.d/cassandra.repo`` (as the ``root`` user). The latest supported
+   major version is 3.11 and the corresponding distribution name is ``311x`` (with an "x" as the suffix).
+   For older releases use ``30x`` for C* 3.0 series, ``22x`` for 2.2 and ``21x`` for 2.1.  For example, 
+   to add the repository for version 3.11 (``311x``):
+
+::
+
+   [cassandra]
+   name=Apache Cassandra
+   baseurl=https://downloads.apache.org/cassandra/redhat/311x/
+   gpgcheck=1
+   repo_gpgcheck=1
+   gpgkey=https://downloads.apache.org/cassandra/KEYS
+
+3. Update the package index from sources:
+
+::
+
+   $ sudo yum update
+
+4. Install Cassandra with YUM:
+
+::
+
+   $ sudo yum install cassandra
+
+
+NOTE: A new Linux user ``cassandra`` will get created as part of the installation. The Cassandra service
+will also be run as this user.
+
+5. Start the Cassandra service:
+
+::
+
+   $ sudo service cassandra start
+
+6. Monitor the progress of the startup with:
+
+::
+
+   $ tail -f /var/log/cassandra/system.log
+
+Cassandra is ready when you see an entry like this in the ``system.log``:
+
+::
+
+   INFO  [main] 2019-12-17 03:03:37,526 Server.java:156 - Starting listening for CQL clients on localhost/127.0.0.1:9042 (unencrypted)...
+
+NOTE: For information on how to configure your installation, see
+`Configuring Cassandra <http://cassandra.apache.org/doc/latest/getting_started/configuring.html>`__.
+
+7. Check the status of Cassandra:
+
+::
+
+   $ nodetool status
+
+The status column in the output should report ``UN`` which stands for "Up/Normal".
+
+Alternatively, connect to the database with:
+
+::
+
+   $ cqlsh
+
+Further installation info
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For help with installation issues, see the `Troubleshooting <http://cassandra.apache.org/doc/latest/troubleshooting/index.html>`__ section.
+
 
