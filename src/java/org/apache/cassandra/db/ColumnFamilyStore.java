@@ -635,7 +635,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 cleanedDirectories.add(directory);
                 for (File tmpFile : desc.getTemporaryFiles())
+                {
+                    logger.info("Removing unfinished temporary file {}", tmpFile);
                     tmpFile.delete();
+                }
             }
 
             File dataFile = new File(desc.filenameFor(Component.DATA));

@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Add additional logging around FileUtils and compaction leftover cleanup (CASSANDRA-15705)
  * Mark system_views/system_virtual_schema as non-alterable keyspaces in cqlsh (CASSANDRA-15711)
  * Fail incremental repair if an old version sstable is involved (CASSANDRA-15612)
  * Fix overflows on StreamingTombstoneHistogramBuilder produced by large deletion times (CASSANDRA-14773)
