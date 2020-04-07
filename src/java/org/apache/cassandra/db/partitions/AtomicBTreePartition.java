@@ -114,12 +114,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         boolean monitorOwned = false;
         try
         {
-            if (usePessimisticLocking())
-            {
-                Locks.monitorEnterUnsafe(this);
-                monitorOwned = true;
-            }
-
+            monitorOwned = maybeLock(writeOp);
             indexer.start();
 
             while (true)
@@ -163,16 +158,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
                 }
                 else if (!monitorOwned)
                 {
-                    boolean shouldLock = usePessimisticLocking();
-                    if (!shouldLock)
-                    {
-                        shouldLock = updateWastedAllocationTracker(updater.heapSize);
-                    }
-                    if (shouldLock)
-                    {
-                        Locks.monitorEnterUnsafe(this);
-                        monitorOwned = true;
-                    }
+                    monitorOwned = maybeLock(updater.heapSize, writeOp);
                 }
             }
         }
@@ -244,7 +230,36 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         return allocator.ensureOnHeap().applyToPartition(super.iterator());
     }
 
-    public boolean usePessimisticLocking()
+    private boolean maybeLock(OpOrder.Group writeOp)
+    {
+        if (!useLock())
+            return false;
+
+        return lockIfOldest(writeOp);
+    }
+
+    private boolean maybeLock(long addWaste, OpOrder.Group writeOp)
+    {
+        if (!updateWastedAllocationTracker(addWaste))
+            return false;
+
+        return lockIfOldest(writeOp);
+    }
+
+    private boolean lockIfOldest(OpOrder.Group writeOp)
+    {
+        if (!writeOp.isOldestLiveGroup())
+        {
+            Thread.yield();
+            if (!writeOp.isOldestLiveGroup())
+                return false;
+        }
+
+        Locks.monitorEnterUnsafe(this);
+        return true;
+    }
+
+    public boolean useLock()
     {
         return wasteTracker == TRACKER_PESSIMISTIC_LOCKING;
     }
