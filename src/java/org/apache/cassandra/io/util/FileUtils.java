@@ -43,16 +43,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.utils.SyncUtil;
-
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.memory.MemoryUtil;
+import org.apache.cassandra.utils.SyncUtil;
 
 import static com.google.common.base.Throwables.propagate;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -192,6 +191,9 @@ public final class FileUtils
     {
         try
         {
+            if (!StorageService.instance.isDaemonSetupCompleted())
+                logger.info("Deleting file during startup: {}", file);
+
             Files.delete(file.toPath());
         }
         catch (Throwable t)
@@ -442,6 +444,9 @@ public final class FileUtils
 
     public static boolean delete(String file)
     {
+        if (!StorageService.instance.isDaemonSetupCompleted())
+            logger.info("Deleting file during startup: {}", file);
+
         File f = new File(file);
         return f.delete();
     }
@@ -450,6 +455,9 @@ public final class FileUtils
     {
         for ( File file : files )
         {
+            if (!StorageService.instance.isDaemonSetupCompleted())
+                logger.info("Deleting file during startup: {}", file);
+
             file.delete();
         }
     }

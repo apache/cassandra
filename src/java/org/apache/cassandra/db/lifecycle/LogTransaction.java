@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
+import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -214,7 +215,9 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     {
         try
         {
-            if (logger.isTraceEnabled())
+            if (!StorageService.instance.isDaemonSetupCompleted())
+                logger.info("Unfinished transaction log, deleting {} ", file);
+            else if (logger.isTraceEnabled())
                 logger.trace("Deleting {}", file);
 
             Files.delete(file.toPath());
@@ -479,6 +482,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         {
             try(LogFile txn = LogFile.make(entry.getKey(), entry.getValue()))
             {
+                logger.info("Verifying logfile transaction {}", txn);
                 if (txn.verify())
                 {
                     Throwable failure = txn.removeUnfinishedLeftovers(null);
