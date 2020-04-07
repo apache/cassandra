@@ -293,7 +293,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         {
             // The condition being signaled is a valid proxy for the CL being achieved
             // Only mark it as failed if the requested CL was achieved.
-            if (!condition.isSignaled() & requestedCLAchieved)
+            if (!condition.isSignaled() && requestedCLAchieved)
             {
                 replicaPlan.keyspace().metric.writeFailedIdealCL.inc();
             }
