@@ -547,11 +547,11 @@ public class DatabaseDescriptor
             {
                 // use 1/4 of available space.  See discussion on #10013 and #10199
                 final long totalSpaceInBytes = guessFileStore(conf.commitlog_directory).getTotalSpace();
-                conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
-                                                                       conf.commitlog_directory,
-                                                                       "commitlog_total_space_in_mb",
-                                                                       preferredSizeInMB,
-                                                                       totalSpaceInBytes, 1, 4);
+                conf.commitlog_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
+                                                                             conf.commitlog_directory,
+                                                                             "commitlog_total_space_in_mb",
+                                                                             preferredSizeInMB,
+                                                                             totalSpaceInBytes, 1, 4);
 
             }
             catch (IOException e)
