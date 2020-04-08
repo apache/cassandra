@@ -657,20 +657,20 @@ class TestCqlshOutput(BaseTestCase):
                 uuidcol uuid,
                 varcharcol text,
                 varintcol varint
-            ) WITH bloom_filter_fp_chance = 0.01
+            ) WITH additional_write_policy = '99p'
+                AND bloom_filter_fp_chance = 0.01
                 AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
                 AND cdc = false
                 AND comment = ''
                 AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
                 AND crc_check_chance = 1.0
-                AND dclocal_read_repair_chance = 0.0
                 AND default_time_to_live = 0
                 AND gc_grace_seconds = 864000
                 AND max_index_interval = 2048
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
-                AND read_repair_chance = 0.0
+                AND read_repair = 'BLOCKING'
                 AND speculative_retry = '99p';
             """ % quote_name(get_keyspace()))
 
@@ -762,10 +762,11 @@ class TestCqlshOutput(BaseTestCase):
             for semicolon in ('', ';'):
                 output = c.cmd_and_response('desc full schema' + semicolon)
                 self.assertNoHasColors(output)
-                self.assertRegex(output, '^\nCREATE KEYSPACE')
-                self.assertIn("\nCREATE KEYSPACE system WITH replication = {'class': 'LocalStrategy'}  AND durable_writes = true;\n",
+                # Since CASSANDRA-7622 'DESC FULL SCHEMA' also shows all VIRTUAL keyspaces
+                self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
+                self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;\n",
                               output)
-                self.assertRegex(output, ';\s*$')
+                self.assertRegex(output, '.*\s*$')
 
     def test_show_output(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
