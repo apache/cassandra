@@ -52,15 +52,6 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
     {
         return new Builder<IUpgradeableInstance, UpgradeableCluster>(UpgradeableCluster::new)
         {
-            {
-                withVersion(CURRENT_VERSION);
-            }
-
-            protected void setupLogging(File file)
-            {
-                setupLogging(file);
-            }
-
             protected IInstanceConfig generateConfig(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
             {
                 return InstanceConfig.generate(nodeNum, ipAddress, networkTopology, root, token, seedIp);
