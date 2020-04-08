@@ -415,7 +415,7 @@ def insert_driver_hooks():
 
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
-    if custom_prompt is not '':
+    if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "cqlsh> "
     continue_prompt = "   ... "
@@ -2235,7 +2235,7 @@ def should_use_color():
 
 
 def read_options(cmdlineargs, environment):
-    configs = configparser.SafeConfigParser()
+    configs = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
     configs.read(CONFIG_FILE)
 
     rawconfigs = configparser.RawConfigParser()
