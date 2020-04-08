@@ -592,7 +592,11 @@
           <dependency groupId="net.openhft" artifactId="chronicle-core" version="${chronicle-core.version}"/>
           <dependency groupId="net.openhft" artifactId="chronicle-bytes" version="${chronicle-bytes.version}"/>
           <dependency groupId="net.openhft" artifactId="chronicle-wire" version="${chronicle-wire.version}"/>
-          <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
+	  <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}">
+		  <!-- Exclude JNA here, as we want to avoid breaking consumers of the cassandra-all jar -->
+		  <exclusion groupId="net.java.dev.jna" artifactId="jna" />
+		  <exclusion groupId="net.java.dev.jna" artifactId="jna-platform" />
+	  </dependency>
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
           <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.6.0" classifier="shaded">
