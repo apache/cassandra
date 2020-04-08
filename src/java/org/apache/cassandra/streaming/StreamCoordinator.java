@@ -285,7 +285,7 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(streamOperation, peer, factory, streamSessions.size(),
+                StreamSession session = new StreamSession(streamOperation, peer, factory, isFollower(), streamSessions.size(),
                                                           pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
                 return session;
@@ -318,7 +318,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(streamOperation, peer, factory, id, pendingRepair, previewKind);
+                session = new StreamSession(streamOperation, peer, factory, isFollower(), id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
             }
             return session;

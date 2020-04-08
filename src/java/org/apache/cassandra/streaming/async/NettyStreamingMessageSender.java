@@ -190,6 +190,8 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private Channel createChannel() throws IOException
     {
         Channel channel = factory.createConnection(template, streamingVersion);
+        session.attachOutbound(channel);
+
         ChannelPipeline pipeline = channel.pipeline();
         pipeline.addLast("stream", new StreamingInboundHandler(template.to, streamingVersion, session));
         channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);

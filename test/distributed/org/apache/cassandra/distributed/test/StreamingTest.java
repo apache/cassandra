@@ -118,8 +118,8 @@ public class StreamingTest extends TestBaseImpl
 
             // verify on follower's stream session
             MessageStateSinkImpl followerSink = new MessageStateSinkImpl();
-            followerSink.messages(initiator, Arrays.asList(STREAM_INIT, PREPARE_SYN, PREPARE_ACK, RECEIVED, StreamMessage.Type.COMPLETE));
-            followerSink.states(initiator,  Arrays.asList(PREPARING, STREAMING, WAIT_COMPLETE, StreamSession.State.COMPLETE));
+            followerSink.messages(initiator, Arrays.asList(STREAM_INIT, PREPARE_SYN, PREPARE_ACK, RECEIVED));
+            followerSink.states(initiator,  Arrays.asList(PREPARING, STREAMING, StreamSession.State.COMPLETE));
             followerNode.runOnInstance(() -> StreamSession.sink = followerSink);
         }
 

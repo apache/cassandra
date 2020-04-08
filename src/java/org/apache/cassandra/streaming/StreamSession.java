@@ -100,10 +100,10 @@ import static org.apache.cassandra.net.MessagingService.current_version;
  *
  * 4. Completion phase
  *
- *   (a) When a node enters the completion phase, it sends a {@link CompleteMessage} to the peer, and then enter the
- *       {@link StreamSession.State#WAIT_COMPLETE} state. If it has already received a {@link CompleteMessage}
- *       from the peer, session is complete and is then closed ({@link #closeSession(State)}). Otherwise, the node
- *       switch to the {@link StreamSession.State#WAIT_COMPLETE} state and send a {@link CompleteMessage} to the other side.
+ *   (a) When the initiator finishes streaming, it enters the {@link StreamSession.State#WAIT_COMPLETE} state, and waits
+ *       for the follower to send a {@link CompleteMessage} once it finishes streaming too. Once the {@link CompleteMessage}
+ *       is received, initiator sets its own state to {@link StreamSession.State#COMPLETE} and closes all channels attached
+ *       to this session.
  *
  * </pre>
  *
@@ -119,7 +119,7 @@ import static org.apache.cassandra.net.MessagingService.current_version;
  * I: OutgoingStreamMessage
  * F: ReceivedMessage
  * (completion)
- * I/F: CompleteMessage
+ * F: CompleteMessage
  *</pre>
  *
  * All messages which derive from {@link StreamMessage} are sent by the standard internode messaging
@@ -159,8 +159,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace = new HashMap<>();
 
+    private final boolean isFollower;
     private final NettyStreamingMessageSender messageSender;
-    private final ConcurrentMap<ChannelId, Channel> incomingChannels = new ConcurrentHashMap<>();
+    // contains both inbound and outbound channels
+    private final ConcurrentMap<ChannelId, Channel> channels = new ConcurrentHashMap<>();
 
     // "maybeCompleted()" should be executed at most once. Because it can be executed asynchronously by IO
     // threads(serialization/deserialization) and stream messaging processing thread, causing connection closed before
@@ -175,16 +177,19 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * State Transition:
      *
      * <pre>
-     *
-     *  +------------------+----------> FAILED <------------------+
-     *  |                  |              ^                       |
-     *  |                  |              |                       |
-     *  INITIALIZED --> PREPARING --> STREAMING ----------> WAIT_COMPLETE ----> COMPLETED
-     *  |                  |                                      ^                 ^
-     *  |                  |         if preview                   |                 |
-     *  |                  +--------------------------------------+                 |
-     *  |               nothing to request or to transfer                           |
-     *  +---------------------------------------------------------------------------+
+     * FIXME
+     *  +------------------+----------> FAILED <--------------------+
+     *  |                  |              ^                         |
+     *  |                  |              |       initiator         |
+     *  INITIALIZED --> PREPARING --> STREAMING ------------> WAIT_COMPLETE ----> COMPLETED
+     *  |                  |              |                         ^                 ^
+     *  |                  |              |       follower          |                 |
+     *  |                  |              +-------------------------)-----------------+
+     *  |                  |                                        |                 |
+     *  |                  |         if preview                     |                 |
+     *  |                  +----------------------------------------+                 |
+     *  |               nothing to request or to transfer                             |
+     *  +-----------------------------------------------------------------------------+
      *                  nothing to request or to transfer
      *
      *  </pre>
@@ -215,17 +220,17 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     private volatile State state = State.INITIALIZED;
-    private volatile boolean completeSent = false;
 
     /**
      * Create new streaming session with the peer.
      */
     public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamConnectionFactory factory,
-                         int index, UUID pendingRepair, PreviewKind previewKind)
+                         boolean isFollower, int index, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.peer = peer;
         this.template = new OutboundConnectionSettings(peer);
+        this.isFollower = isFollower;
         this.index = index;
 
         this.messageSender = new NettyStreamingMessageSender(this, template, factory, current_version, previewKind.isPreview());
@@ -233,7 +238,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
 
-        logger.debug("Creating stream session to {}", template);
+        logger.debug("Creating stream session to {} as {}", template, isFollower ? "follower" : "initiator");
     }
 
     public UUID planId()
@@ -295,11 +300,39 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param channel The channel to attach.
      * @return False if the channel was already attached, true otherwise.
      */
-    public boolean attachInbound(Channel channel)
+    public synchronized boolean attachInbound(Channel channel)
     {
+        failIfFinished();
+
         if (!messageSender.hasControlChannel())
             messageSender.injectControlMessageChannel(channel);
-        return incomingChannels.putIfAbsent(channel.id(), channel) == null;
+
+        channel.closeFuture().addListener(ignored -> onChannelClose(channel));
+        return channels.putIfAbsent(channel.id(), channel) == null;
+    }
+
+    /**
+     * Attach a channel to this session upon sending the first outbound message.
+     *
+     * @param channel The channel to attach.
+     * @return False if the channel was already attached, true otherwise.
+     */
+    public synchronized boolean attachOutbound(Channel channel)
+    {
+        failIfFinished();
+
+        channel.closeFuture().addListener(ignored -> onChannelClose(channel));
+        return channels.putIfAbsent(channel.id(), channel) == null;
+    }
+
+    /**
+     * On channel closing, if no channels are left just close the message sender; this must be closed last to ensure
+     * keep alive messages are sent until the very end of the streaming session.
+     */
+    private void onChannelClose(Channel channel)
+    {
+        if (channels.remove(channel.id()) != null && channels.isEmpty())
+            messageSender.close();
     }
 
     /**
@@ -454,11 +487,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (finalState == State.FAILED)
             futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
 
-        logger.debug("[Stream #{}] Will close attached inbound channels {}", planId(), incomingChannels);
-        incomingChannels.values().forEach(channel -> futures.add(channel.close()));
-        messageSender.close();
-        sink.onClose(peer);
+        // Channels should only be closed by the initiator; but, if this session closed
+        // due to failure, channels should be always closed regardless, even if this is not the initator.
+        if (!isFollower || state != State.COMPLETE)
+        {
+            logger.debug("[Stream #{}] Will close attached channels {}", planId(), channels);
+            channels.values().forEach(channel -> futures.add(channel.close()));
+        }
 
+        sink.onClose(peer);
         streamResult.handleSessionComplete(this);
         closeFuture = FBUtilities.allOf(futures);
 
@@ -545,6 +582,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 received(received.tableId, received.sequenceNumber);
                 break;
             case COMPLETE:
+                // at initiator
                 complete();
                 break;
             case KEEP_ALIVE:
@@ -729,19 +767,19 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized void complete()
     {
-        logger.debug("[Stream #{}] handling Complete message, state = {}, completeSent = {}", planId(), state, completeSent);
-        if (state == State.WAIT_COMPLETE)
+        logger.debug("[Stream #{}] handling Complete message, state = {}", planId(), state);
+
+        if (!isFollower)
         {
-            if (!completeSent)
-            {
-                messageSender.sendMessage(new CompleteMessage());
-                completeSent = true;
-            }
-            closeSession(State.COMPLETE);
+            if (state == State.WAIT_COMPLETE)
+                closeSession(State.COMPLETE);
+            else
+                state(State.WAIT_COMPLETE);
         }
         else
         {
-            state(State.WAIT_COMPLETE);
+            // pre-4.0 nodes should not be connected via streaming, see {@link MessagingService#accept_streaming}
+            throw new IllegalStateException(String.format("[Stream #%s] Complete message can be only received by the initiator!", planId()));
         }
     }
 
@@ -758,22 +796,19 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             return true;
 
         maybeCompleted = true;
-        if (state == State.WAIT_COMPLETE)
+        if (!isFollower)
         {
-            if (!completeSent)
-            {
-                messageSender.sendMessage(new CompleteMessage());
-                completeSent = true;
-            }
-            closeSession(State.COMPLETE);
+            if (state == State.WAIT_COMPLETE)
+                closeSession(State.COMPLETE);
+            else
+                state(State.WAIT_COMPLETE);
         }
         else
         {
-            // notify peer that this session is completed
             messageSender.sendMessage(new CompleteMessage());
-            completeSent = true;
-            state(State.WAIT_COMPLETE);
+            closeSession(State.COMPLETE);
         }
+
         return true;
     }
 
