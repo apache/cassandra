@@ -239,8 +239,8 @@ public class InboundConnectionInitiator
             if (sslHandler != null)
             {
                 SSLSession session = sslHandler.engine().getSession();
-                logger.info("connection from peer {}, protocol = {}, cipher suite = {}",
-                            ctx.channel().remoteAddress(), session.getProtocol(), session.getCipherSuite());
+                logger.info("connection from peer {} to {}, protocol = {}, cipher suite = {}",
+                            ctx.channel().remoteAddress(), ctx.channel().localAddress(), session.getProtocol(), session.getCipherSuite());
             }
         }
 

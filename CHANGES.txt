@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Update port when reconnecting to pre-4.0 SSL storage (CASSANDRA-15727)
  * Only calculate dynamicBadnessThreshold once per loop in DynamicEndpointSnitch (CASSANDRA-15798)
  * Cleanup redundant nodetool commands added in 4.0 (CASSANDRA-15256)
  * Update to Python driver 3.23 for cqlsh (CASSANDRA-15793)

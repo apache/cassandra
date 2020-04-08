@@ -1084,7 +1084,25 @@ public class OutboundConnection
                 if (hasPending())
                 {
                     Promise<Result<MessagingSuccess>> result = new AsyncPromise<>(eventLoop);
-                    state = new Connecting(state.disconnected(), result, eventLoop.schedule(() -> attempt(result), max(100, retryRateMillis), MILLISECONDS));
+                    state = new Connecting(state.disconnected(),
+                                           result,
+                                           eventLoop.schedule(() ->
+                                           {
+                                               // Re-evaluate messagingVersion before re-attempting the connection in case
+                                               // endpointToVersion were updated. This happens if the outbound connection
+                                               // is made before the endpointToVersion table is initially constructed or out
+                                               // of date (e.g. if outbound connections are established for gossip
+                                               // as a result of an inbound connection) and can result in the wrong outbound
+                                               // port being selected if configured with enable_legacy_ssl_storage_port=true.
+                                               int maybeUpdatedVersion = template.endpointToVersion().get(template.to);
+                                               if (maybeUpdatedVersion != messagingVersion)
+                                               {
+                                                   logger.trace("Endpoint version changed from {} to {} since connection initialized, updating.",
+                                                                messagingVersion, maybeUpdatedVersion);
+                                                   messagingVersion = maybeUpdatedVersion;
+                                               }
+                                               attempt(result);
+                                           }, max(100, retryRateMillis), MILLISECONDS));
                     retryRateMillis = min(1000, retryRateMillis * 2);
                 }
                 else

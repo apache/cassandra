@@ -187,10 +187,23 @@ class InboundSockets
 
     private static void addBindings(InboundConnectionSettings template, ImmutableList.Builder<InboundSocket> out)
     {
-        InboundConnectionSettings settings = template.withDefaults();
-        out.add(new InboundSocket(settings));
+        InboundConnectionSettings       settings = template.withDefaults();
+        InboundConnectionSettings legacySettings = template.withLegacyDefaults();
+
         if (settings.encryption.enable_legacy_ssl_storage_port && settings.encryption.enabled)
-            out.add(new InboundSocket(template.withLegacyDefaults()));
+        {
+            out.add(new InboundSocket(legacySettings));
+
+            /*
+             * If the legacy ssl storage port and storage port match, only bind to the
+             * legacy ssl port. This makes it possible to configure a 4.0 node like a 3.0
+             * node with only the ssl_storage_port if required.
+             */
+            if (settings.bindAddress.equals(legacySettings.bindAddress))
+                return;
+        }
+
+        out.add(new InboundSocket(settings));
     }
 
     public Future<Void> open(Consumer<ChannelPipeline> pipelineInjector)
