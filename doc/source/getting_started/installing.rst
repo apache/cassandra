@@ -72,12 +72,12 @@ Installing the binary tarball
    OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~16.04.1-b10)
    OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 
-2. Download the binary tarball from one of the mirrors on the `Apache Cassandra Downloadi <http://cassandra.apache.org/download/>`__
-   site. For example, to download 3.11.6:
+2. Download the binary tarball from one of the mirrors on the `Apache Cassandra Download <http://cassandra.apache.org/download/>`__
+   site. For example, to download 4.0:
 
 ::
 
-   $ curl -OL http://apache.mirror.digitalpacific.com.au/cassandra/3.11.6/apache-cassandra-3.11.6-bin.tar.gz
+   $ curl -OL http://apache.mirror.digitalpacific.com.au/cassandra/4.0.0/apache-cassandra-4.0.0-bin.tar.gz
 
 NOTE: The mirrors only host the latest versions of each major supported release. To download an earlier
 version of Cassandra, visit the `Apache Archives <http://archive.apache.org/dist/cassandra/>`__.
@@ -87,24 +87,24 @@ version of Cassandra, visit the `Apache Archives <http://archive.apache.org/dist
 
 ::
 
-   $ gpg --print-md SHA256 apache-cassandra-3.11.6-bin.tar.gz 
-   apache-cassandra-3.11.6-bin.tar.gz: CE34EDEB D1B6BB35 216AE97B D06D3EFC 338C05B2
-                                       73B78267 556A99F8 5D30E45B
+   $ gpg --print-md SHA256 apache-cassandra-4.0.0-bin.tar.gz 
+   apache-cassandra-4.0.0-bin.tar.gz: 28757DDE 589F7041 0F9A6A95 C39EE7E6
+                                      CDE63440 E2B06B91 AE6B2006 14FA364D
 
 Compare the signature with the SHA256 file from the Downloads site:
 
 ::
 
-   $ curl -L https://downloads.apache.org/cassandra/3.11.6/apache-cassandra-3.11.6-bin.tar.gz.sha256
-   ce34edebd1b6bb35216ae97bd06d3efc338c05b273b78267556a99f85d30e45b
+   $ curl -L https://downloads.apache.org/cassandra/4.0.0/apache-cassandra-4.0.0-bin.tar.gz.sha256
+   28757dde589f70410f9a6a95c39ee7e6cde63440e2b06b91ae6b200614fa364d
 
 4. Unpack the tarball:
 
 ::
 
-   $ tar xzvf apache-cassandra-3.11.6-bin.tar.gz
+   $ tar xzvf apache-cassandra-4.0.0-bin.tar.gz
 
-The files will be extracted to the ``apache-cassandra-3.11.6/`` directory. This is the tarball installation
+The files will be extracted to the ``apache-cassandra-4.0.0/`` directory. This is the tarball installation
 location.
 
 5. Located in the tarball installation location are the directories for the scripts, binaries, utilities, configuration, data and log files:
@@ -130,7 +130,7 @@ For information on how to configure your installation, see
 
 ::
 
-   $ cd apache-cassandra-3.11.6/
+   $ cd apache-cassandra-4.0.0/
    $ bin/cassandra
 
 NOTE: This will run Cassandra as the authenticated Linux user.
@@ -145,7 +145,7 @@ Cassandra is ready when you see an entry like this in the ``system.log``:
 
 ::
 
-   INFO  [main] 2019-12-17 03:03:37,526 Server.java:156 - Starting listening for CQL clients on /x.x.x.x:9042 (unencrypted)...
+   INFO  [main] 2019-12-17 03:03:37,526 Server.java:156 - Starting listening for CQL clients on localhost/127.0.0.1:9042 (unencrypted)...
 
 7. Check the status of Cassandra:
 
@@ -173,15 +173,15 @@ Installing the Debian packages
    OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~16.04.1-b10)
    OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 
-2. Add the Apache repository of Cassandra to the file ``cassandra.sources.list``. The latest supported
-   major version is 3.11 and the corresponding distribution name is ``311x`` (with an "x" as the suffix).
-   For older releases use ``30x`` for C* 3.0 series, ``22x`` for 2.2 and ``21x`` for 2.1.  For example,
-   to add the repository for version 3.11 (``311x``):
+2. Add the Apache repository of Cassandra to the file ``cassandra.sources.list``. The latest major version
+   is 4.0 and the corresponding distribution name is ``40x`` (with an "x" as the suffix).
+   For older releases use ``311x`` for C* 3.11 series, ``30x`` for 3.0, ``22x`` for 2.2 and ``21x`` for 2.1.
+   For example, to add the repository for version 4.0 (``40x``):
 
 ::
 
-   $ echo "deb http://www.apache.org/dist/cassandra/debian 311x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
-   deb http://www.apache.org/dist/cassandra/debian 311x main
+   $ echo "deb http://www.apache.org/dist/cassandra/debian 40x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+   deb http://www.apache.org/dist/cassandra/debian 40x main
 
 3. Add the Apache Cassandra repository keys to the list of trusted keys on the server:
 
@@ -251,16 +251,16 @@ Installing the RPM packages
    OpenJDK Runtime Environment (build 1.8.0_232-b09)
    OpenJDK 64-Bit Server VM (build 25.232-b09, mixed mode)
 
-2. Add the Apache repository of Cassandra to the file ``/etc/yum.repos.d/cassandra.repo`` (as the ``root`` user). The latest supported
-   major version is 3.11 and the corresponding distribution name is ``311x`` (with an "x" as the suffix).
-   For older releases use ``30x`` for C* 3.0 series, ``22x`` for 2.2 and ``21x`` for 2.1.  For example, 
-   to add the repository for version 3.11 (``311x``):
+2. Add the Apache repository of Cassandra to the file ``/etc/yum.repos.d/cassandra.repo`` (as the ``root``
+   user). The latest major version is 4.0 and the corresponding distribution name is ``40x`` (with an "x" as the suffix).
+   For older releases use ``311x`` for C* 3.11 series, ``30x`` for 3.0, ``22x`` for 2.2 and ``21x`` for 2.1.
+   For example, to add the repository for version 4.0 (``40x``):
 
 ::
 
    [cassandra]
    name=Apache Cassandra
-   baseurl=https://downloads.apache.org/cassandra/redhat/311x/
+   baseurl=https://downloads.apache.org/cassandra/redhat/40x/
    gpgcheck=1
    repo_gpgcheck=1
    gpgkey=https://downloads.apache.org/cassandra/KEYS
