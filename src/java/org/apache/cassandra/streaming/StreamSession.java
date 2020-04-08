@@ -17,16 +17,12 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -135,7 +131,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
     // for test purpose to record received message and state transition
-    public static final MessageStateSink sink = new MessageStateSink();
+    public volatile static MessageStateSink sink = MessageStateSink.NONE;
 
     private final StreamOperation streamOperation;
 
@@ -169,8 +165,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     // "maybeCompleted()" should be executed at most once. Because it can be executed asynchronously by IO
     // threads(serialization/deserialization) and stream messaging processing thread, causing connection closed before
     // receiving peer's CompleteMessage.
-    private final AtomicBoolean maybeCompleted = new AtomicBoolean(false);
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private boolean maybeCompleted = false;
     private Future closeFuture;
 
     private final UUID pendingRepair;
@@ -446,25 +441,28 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private synchronized Future closeSession(State finalState)
     {
-        if (isClosed.compareAndSet(false, true))
-        {
-            state(finalState);
+        // it's session is already closed
+        if (closeFuture != null)
+            return closeFuture;
 
-            List<Future> futures = new ArrayList<>();
+        state(finalState);
 
-            // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
-            // as we don't want any blocking disk IO to stop the network thread
-            if (finalState == State.FAILED)
-                futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
+        List<Future> futures = new ArrayList<>();
 
-            logger.debug("[Stream #{}] Will close attached inbound channels {}", planId(), incomingChannels);
-            incomingChannels.values().forEach(channel -> futures.add(channel.close()));
-            messageSender.close();
+        // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
+        // as we don't want any blocking disk IO to stop the network thread
+        if (finalState == State.FAILED)
+            futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
 
-            streamResult.handleSessionComplete(this);
-            closeFuture = FBUtilities.allOf(futures);
-        }
-        return closeFuture != null ? closeFuture : Futures.immediateFuture(null);
+        logger.debug("[Stream #{}] Will close attached inbound channels {}", planId(), incomingChannels);
+        incomingChannels.values().forEach(channel -> futures.add(channel.close()));
+        messageSender.close();
+        sink.onClose(peer);
+
+        streamResult.handleSessionComplete(this);
+        closeFuture = FBUtilities.allOf(futures);
+
+        return closeFuture;
     }
 
     private void abortTasks()
@@ -756,9 +754,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             return false;
 
         // if already executed once, skip it
-        if (!maybeCompleted.compareAndSet(false, true))
+        if (maybeCompleted)
             return true;
 
+        maybeCompleted = true;
         if (state == State.WAIT_COMPLETE)
         {
             if (!completeSent)
@@ -908,55 +907,41 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     @VisibleForTesting
-    public static class MessageStateSink
+    public static interface MessageStateSink
     {
-        // use enum ordinal instead of enum to walk around inter-jvm class loader issue, only classes defined in
-        // InstanceClassLoader#sharedClassNames are shareable between server jvm and test jvm
-        public final Map<InetAddress, Deque<Integer>> messageSink = new ConcurrentHashMap<>();
-        public final Map<InetAddress, Deque<Integer>> stateTransitions = new ConcurrentHashMap<>();
+        static final MessageStateSink NONE = new MessageStateSink() {
+            @Override
+            public void recordState(InetAddressAndPort from, State state)
+            {
+            }
 
-        private volatile boolean skipKeepAlive = true;
-        private volatile boolean enabled = false;
+            @Override
+            public void recordMessage(InetAddressAndPort from, StreamMessage.Type message)
+            {
+            }
 
-        public void enable()
-        {
-            this.enabled = true;
-        }
+            @Override
+            public void onClose(InetAddressAndPort from)
+            {
+            }
+        };
 
-        public void disable()
-        {
-            this.enabled = false;
-        }
+        /**
+         * @param from peer that is connected in the stream session
+         * @param state new state to change to
+         */
+        public void recordState(InetAddressAndPort from, StreamSession.State state);
 
-        public void recordState(InetAddressAndPort from, StreamSession.State state)
-        {
-            if (!enabled)
-                return;
+        /**
+         * @param from peer that sends the given message
+         * @param message stream message sent by peer
+         */
+        public void recordMessage(InetAddressAndPort from, StreamMessage.Type message);
 
-            stateTransitions.computeIfAbsent(from.address, k -> new ConcurrentLinkedDeque<>())
-                            .add(state.ordinal());
-        }
-
-        public void recordMessage(InetAddressAndPort from, StreamMessage.Type message)
-        {
-            if (!enabled)
-                return;
-
-            if (skipKeepAlive && message == StreamMessage.Type.KEEP_ALIVE)
-                return;
-
-            messageSink.computeIfAbsent(from.address, k -> new ConcurrentLinkedDeque<>())
-                       .add(message.ordinal());
-        }
-
-        public Deque<Integer> getMessages(InetAddress from)
-        {
-            return messageSink.get(from);
-        }
-
-        public Deque<Integer> getStates(InetAddress from)
-        {
-            return stateTransitions.get(from);
-        }
+        /**
+         *
+         * @param from peer that is being disconnected
+         */
+        public void onClose(InetAddressAndPort from);
     }
 }

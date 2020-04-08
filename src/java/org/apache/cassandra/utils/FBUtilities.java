@@ -501,7 +501,7 @@ public class FBUtilities
             @SuppressWarnings("unchecked")
             public List get() throws InterruptedException, ExecutionException
             {
-                List result = new LinkedList<>();
+                List result = new ArrayList<>(futures.size());
                 for (Future current : futures)
                 {
                     result.add(current.get());
@@ -513,7 +513,7 @@ public class FBUtilities
             @SuppressWarnings("unchecked")
             public List get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
             {
-                List result = new LinkedList<>();
+                List result = new ArrayList<>(futures.size());
                 long deadline = System.nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, unit);
                 for (Future current : futures)
                 {
