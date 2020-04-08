@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.impl;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -585,18 +584,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         instances.clear();
         instanceMap.clear();
+        // Make sure to only delete directory when threads are stopped
         if (root.exists())
-        {
-            try
-            {
-                // Make sure to only delete directory when threads are stopped
-                FileUtils.deleteRecursive(root);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException("Unable to cleanup cluster root directory '" + root + "'", ex);
-            }
-        }
+            FileUtils.deleteRecursive(root);
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
         previousHandler = null;
 
