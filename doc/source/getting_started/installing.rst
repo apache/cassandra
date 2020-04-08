@@ -23,7 +23,7 @@ These are the instructions for deploying the supported releases of Apache Cassan
 
 Cassandra runs on a wide array of Linux distributions including (but not limited to):
 
-- Ubuntu, most notably LTS releases 14.04 to 18.04
+- Ubuntu, most notably LTS releases 16.04 to 18.04
 - CentOS & RedHat Enterprise Linux (RHEL) including 6.6 to 7.7
 - Amazon Linux AMIs including 2016.09 through to Linux 2
 - Debian versions 8 & 9
