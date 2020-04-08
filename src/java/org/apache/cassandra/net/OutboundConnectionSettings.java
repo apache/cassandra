@@ -449,6 +449,15 @@ public class OutboundConnectionSettings
         return connectTo;
     }
 
+    public String connectToId()
+    {
+        String str = this.to.toString();
+        InetAddressAndPort connectTo = connectTo();
+        if (!this.to.equals(connectTo))
+            str += '(' + connectTo.toString() + ')';
+        return str;
+    }
+
     public Framing framing(ConnectionCategory category)
     {
         if (framing != null)

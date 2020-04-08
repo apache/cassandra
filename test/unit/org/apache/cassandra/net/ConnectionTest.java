@@ -70,6 +70,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -559,6 +560,85 @@ public class ConnectionTest
                      Assert.assertTrue(done.await(1, MINUTES));
                      Assert.assertTrue(outbound.isConnected());
                  });
+        }
+        finally
+        {
+            MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
+                                                     current_version);
+        }
+    }
+
+    @Test
+    public void testPendingOutboundConnectionUpdatesMessageVersionOnReconnectAttempt() throws Throwable
+    {
+        try
+        {
+            final Settings settings = Settings.LARGE;
+            final InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
+
+            MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
+                                                     MessagingService.VERSION_40);
+            final InetAddressAndPort legacySSLAddrsAndPort = endpoint.withPort(7011);
+            InboundConnectionSettings inboundSettings = settings.inbound.apply(new InboundConnectionSettings().withEncryption(encryptionOptions))
+                                                                        .withBindAddress(legacySSLAddrsAndPort)
+                                                                        .withAcceptMessaging(new AcceptVersions(VERSION_30, VERSION_3014))
+                                                                        .withSocketFactory(factory);
+            InboundSockets inbound = new InboundSockets(Collections.singletonList(inboundSettings));
+            OutboundConnectionSettings outboundTemplate = settings.outbound.apply(new OutboundConnectionSettings(endpoint).withEncryption(encryptionOptions))
+                                                                           .withDefaultReserveLimits()
+                                                                           .withSocketFactory(factory)
+                                                                           .withDefaults(ConnectionCategory.MESSAGING);
+            ResourceLimits.EndpointAndGlobal reserveCapacityInBytes = new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Concurrent(outboundTemplate.applicationSendQueueReserveEndpointCapacityInBytes), outboundTemplate.applicationSendQueueReserveGlobalCapacityInBytes);
+            OutboundConnection outbound = new OutboundConnection(settings.type, outboundTemplate, reserveCapacityInBytes);
+            try
+            {
+                logger.info("Running {} {} -> {}", outbound.messagingVersion(), outbound.settings(), inboundSettings);
+                inbound.open().sync();
+
+                CountDownLatch done = new CountDownLatch(1);
+                unsafeSetHandler(Verb._TEST_1,
+                                 () -> (msg) -> done.countDown());
+
+                // Enqueuing outbound message will initiate an outbound
+                // connection with pending data in the pipeline
+                Message<?> message = Message.out(Verb._TEST_1, noPayload);
+                outbound.enqueue(message);
+
+                // Wait until the first connection attempt has taken place
+                // before updating the endpoint messaging version so that the
+                // connection takes place to a 4.0 node.
+                int attempts = 0;
+                final long waitForAttemptMillis = TimeUnit.SECONDS.toMillis(15);
+                while (outbound.connectionAttempts() == 0 && attempts < waitForAttemptMillis / 10)
+                {
+                    Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+                    attempts++;
+                }
+
+                // Now that the connection is being attempted, set the endpoint version so
+                // that on the reconnect attempt the messaging version is rechecked and the
+                // legacy ssl logic picks the storage port instead.  This should trigger a
+                // TRACE level log message "Endpoint version changed from 12 to 10 since
+                // connection initialized, updating."
+                outbound.settings().endpointToVersion.set(endpoint, VERSION_30);
+
+                // The connection should have successfully connected and delivered the _TEST_1
+                // message within the timout.
+                Assert.assertTrue(done.await(15, SECONDS));
+                Assert.assertTrue(outbound.isConnected());
+                Assert.assertTrue(String.format("expect less successful connections (%d) than attempts (%d)",
+                                                outbound.successfulConnections(), outbound.connectionAttempts()),
+                                  outbound.successfulConnections() < outbound.connectionAttempts());
+
+            }
+            finally
+            {
+                outbound.close(false);
+                inbound.close().get(30L, SECONDS);
+                outbound.close(false).get(30L, SECONDS);
+                resetVerbs();
+                MessagingService.instance().messageHandlers.clear();
+            }
         }
         finally
         {

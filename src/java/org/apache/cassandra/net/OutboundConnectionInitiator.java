@@ -131,7 +131,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         {
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
-            return new FailedFuture<>(eventLoop, new IOException("authentication failed to " + settings.to));
+            return new FailedFuture<>(eventLoop, new IOException("authentication failed to " + settings.connectToId()));
         }
 
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
@@ -146,7 +146,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                              if (future.isCancelled() && !timedout.get())
                                                  resultPromise.cancel(true);
                                              else if (future.isCancelled())
-                                                 resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectTo));
+                                                 resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
                                              else
                                                  resultPromise.tryFailure(future.cause());
                                          }
@@ -229,7 +229,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         public void channelActive(final ChannelHandlerContext ctx)
         {
             Initiate msg = new Initiate(requestMessagingVersion, settings.acceptVersions, type, settings.framing, settings.from);
-            logger.trace("starting handshake with peer {}, msg = {}", settings.connectTo, msg);
+            logger.trace("starting handshake with peer {}, msg = {}", settings.connectToId(), msg);
             AsyncChannelPromise.writeAndFlush(ctx, msg.encode(),
                   future -> { if (!future.isSuccess()) exceptionCaught(ctx, future.cause()); });
 
@@ -368,9 +368,9 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 JVMStabilityInspector.inspectThrowable(cause, false);
                 resultPromise.tryFailure(cause);
                 if (isCausedByConnectionReset(cause))
-                    logger.info("Failed to connect to peer {}", settings.to, cause);
+                    logger.info("Failed to connect to peer {}", settings.connectToId(), cause);
                 else
-                    logger.error("Failed to handshake with peer {}", settings.to, cause);
+                    logger.error("Failed to handshake with peer {}", settings.connectToId(), cause);
                 ctx.close();
             }
             catch (Throwable t)
