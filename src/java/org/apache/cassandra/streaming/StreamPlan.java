@@ -64,7 +64,7 @@ public class StreamPlan
     {
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, new DefaultConnectionFactory(),
-                                                 true, connectSequentially, pendingRepair, previewKind);
+                                                 false, connectSequentially, pendingRepair, previewKind);
     }
 
     /**

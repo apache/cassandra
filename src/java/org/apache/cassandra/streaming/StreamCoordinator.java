@@ -42,19 +42,19 @@ public class StreamCoordinator
     private final Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
     private final StreamOperation streamOperation;
     private final int connectionsPerHost;
-    private final boolean initiator;
+    private final boolean follower;
     private StreamConnectionFactory factory;
     private Iterator<StreamSession> sessionsToConnect = null;
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
 
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamConnectionFactory factory,
-                             boolean initiator, boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
+                             boolean follower, boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
         this.factory = factory;
-        this.initiator = initiator;
+        this.follower = follower;
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
@@ -90,7 +90,7 @@ public class StreamCoordinator
 
     public boolean isFollower()
     {
-        return !initiator;
+        return follower;
     }
 
     public void connect(StreamResultFuture future)
