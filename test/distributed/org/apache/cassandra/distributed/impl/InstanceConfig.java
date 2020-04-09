@@ -30,6 +30,9 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -40,6 +43,7 @@ import org.apache.cassandra.locator.SimpleSeedProvider;
 public class InstanceConfig implements IInstanceConfig
 {
     private static final Object NULL = new Object();
+    private static final Logger logger = LoggerFactory.getLogger(InstanceConfig.class);
 
     public final int num;
     public int num() { return num; }
@@ -222,6 +226,7 @@ public class InstanceConfig implements IInstanceConfig
         }
         catch (NoSuchFieldException e)
         {
+            logger.warn("No such field: {} in config class {}", fieldName, configClass);
             return;
         }
 
