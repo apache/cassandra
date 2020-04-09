@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Mark system_views/system_virtual_schema as non-alterable keyspaces in cqlsh (CASSANDRA-15711)
  * Avoid unnecessary collection/iterator allocations during btree construction (CASSANDRA-15390)
  * Repair history tables should have TTL and TWCS (CASSANDRA-12701)
  * Fix cqlsh erroring out on Python 3.7 due to webbrowser module being absent (CASSANDRA-15572)
