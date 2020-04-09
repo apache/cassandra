@@ -60,7 +60,7 @@ from cqlshlib.util import profile_on, profile_off
 
 from cqlshlib.cql3handling import CqlRuleSet
 from cqlshlib.displaying import NO_COLOR_MAP
-from cqlshlib.formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter
+from cqlshlib.formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter, BlobType
 from cqlshlib.sslhandling import ssl_settings
 
 PROFILE_ON = False
@@ -1933,7 +1933,10 @@ class ImportConversion(object):
             return converters.get(t.typename, convert_unknown)(v, ct=t)
 
         def convert_blob(v, **_):
-            return bytearray.fromhex(v[2:])
+            if sys.version_info.major >= 3:
+                return bytes.fromhex(v[2:])
+            else:
+                return BlobType(v[2:].decode("hex"))
 
         def convert_text(v, **_):
             return ensure_str(v)
