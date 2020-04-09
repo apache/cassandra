@@ -314,7 +314,7 @@ public class OutboundConnection
         this.reserveCapacityInBytes = reserveCapacityInBytes;
         this.callbacks = template.callbacks;
         this.debug = template.debug;
-        this.queue = new OutboundMessageQueue(this::onExpired);
+        this.queue = new OutboundMessageQueue(approxTime, this::onExpired);
         this.delivery = type == ConnectionType.LARGE_MESSAGES
                         ? new LargeMessageDelivery(template.socketFactory.synchronousWorkExecutor)
                         : new EventLoopDelivery();
