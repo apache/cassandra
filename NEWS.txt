@@ -111,7 +111,7 @@ New features
       datacenter. This auto-expansion will _only add_ datacenters for safety.
       See CASSANDRA-14303 for more details.
     - Added Python 3 support so cqlsh and cqlshlib is now compatible with Python 2.7 and Python 3.6.
-      Add --python option to cqlsh so users can specify the path to their chosen Python interpreter.
+      Added --python option to cqlsh so users can specify the path to their chosen Python interpreter.
       See CASSANDRA-10190 for details.
 
 Upgrading
