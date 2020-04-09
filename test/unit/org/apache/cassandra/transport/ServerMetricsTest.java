@@ -31,9 +31,9 @@ import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Ensures we properly account for bytes read from and to clients
+ * Ensures we properly account for metrics tracked in the native protocol
  */
-public class ClientRequestSizeMetricsHandlerTest extends CQLTester
+public class ServerMetricsTest extends CQLTester
 {
     private long totalBytesReadStart;
     private long totalBytesWrittenStart;
