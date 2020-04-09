@@ -24,6 +24,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.BeforeClass;
+
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -38,6 +41,20 @@ import static org.apache.cassandra.distributed.shared.Versions.find;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
+    @After
+    public void afterEach()
+    {
+        System.runFinalization();
+        System.gc();
+    }
+
+    @BeforeClass
+    public static void beforeClass() throws Throwable
+    {
+        ICluster.setup();
+    }
+
+
     public <I extends IInstance, C extends ICluster> Builder<I, C> builder()
     {
         return (Builder<I, C>) UpgradeableCluster.build();

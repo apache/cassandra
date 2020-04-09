@@ -220,7 +220,7 @@ public class InstanceConfig implements IInstanceConfig
         }
         catch (NoSuchFieldException e)
         {
-            throw new IllegalStateException(e);
+            return;
         }
 
         if (valueField.getType().isEnum() && value instanceof String)
