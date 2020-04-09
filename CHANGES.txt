@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Mark system_views/system_virtual_schema as non-alterable keyspaces in cqlsh (CASSANDRA-15711)
  * Fail incremental repair if an old version sstable is involved (CASSANDRA-15612)
  * Fix overflows on StreamingTombstoneHistogramBuilder produced by large deletion times (CASSANDRA-14773)
  * Mark system_views/system_virtual_schema as system keyspaces in cqlsh (CASSANDRA-15706)
@@ -56,8 +57,6 @@
 Merged from 3.11:
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:
-=======
-3.0.21
  * Memtable memory allocations may deadlock (CASSANDRA-15367)
  * Run evictFromMembership in GossipStage (CASSANDRA-15592)
 Merged from 2.2:
