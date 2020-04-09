@@ -1,5 +1,7 @@
 2.2.18
  * Disable JMX rebinding (CASSANDRA-15653)
+Merged from 2.1:
+  * Fix parse error in cqlsh COPY FROM and formatting for map of blobs (CASSANDRA-15679)
 
 2.2.17
  * Fix Commit log replays when static column clustering keys are collections (CASSANDRA-14365)
