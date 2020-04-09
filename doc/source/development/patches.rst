@@ -108,7 +108,7 @@ So you've finished coding and the great moment arrives: it's time to submit your
    a. Attach a patch to JIRA with a single squashed commit in it (per branch), or
    b. Squash the commits in-place in your branches into one
 
- 6. Include a CHANGES.txt entry (put it at the top of the list), and format the commit message appropriately in your patch as below.
+ 6. Include a CHANGES.txt entry (put it at the top of the list), and format the commit message appropriately in your patch as below. Please note that only user-impacting items `should <https://lists.apache.org/thread.html/rde1128131a621e43b0a9c88778398c053a234da0f4c654b82dcbbe0e%40%3Cdev.cassandra.apache.org%3E>`_ be listed in CHANGES.txt. If you fix a test that does not affect users and does not require changes in runtime code, then no CHANGES.txt entry is necessary.
  
     ::
 
