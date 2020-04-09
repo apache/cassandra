@@ -900,6 +900,8 @@ public class TokenMetadata
                 if (currentReplicas.endpoints().contains(newReplica.endpoint()))
                     continue;
 
+                // we calculate pending replicas for leave- and move- affected ranges in the same way to avoid
+                // a possible conflict when 2 pending replicas have the same endpoint and different ranges.
                 for (Replica pendingReplica : newReplica.subtractSameReplication(addressRanges.get(newReplica.endpoint())))
                     newPendingRanges.addPendingRange(range, pendingReplica);
             }
