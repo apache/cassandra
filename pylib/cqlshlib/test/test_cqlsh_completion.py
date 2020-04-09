@@ -820,3 +820,11 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_drop_index(self):
         pass
+
+    def test_complete_in_alter_keyspace(self):
+        self.trycompletions('ALTER KEY', 'SPACE ')
+        self.trycompletions('ALTER KEYSPACE ', '', choices=[self.cqlsh.keyspace, 'system_auth',
+                                                            'system_distributed', 'system_traces'])
+        self.trycompletions('ALTER KEYSPACE system_trac', "es WITH replication = {'class': '")
+        self.trycompletions("ALTER KEYSPACE system_traces WITH replication = {'class': '", '',
+                            choices=['NetworkTopologyStrategy', 'SimpleStrategy'])
