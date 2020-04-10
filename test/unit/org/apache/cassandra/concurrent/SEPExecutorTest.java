@@ -136,8 +136,9 @@ public class SEPExecutorTest
         finally
         {
             stayBusy.set(false);
-            makeBusy.join(TimeUnit.SECONDS.toNanos(5));
-            Assert.assertFalse(makeBusy.isAlive());
+            makeBusy.join(TimeUnit.SECONDS.toMillis(5));
+            Assert.assertFalse("makeBusy thread should have checked stayBusy and exited",
+                               makeBusy.isAlive());
             sharedPool.shutdownAndWait(1L, MINUTES);
         }
     }
@@ -191,9 +192,10 @@ public class SEPExecutorTest
         CountDownLatch concurrencyGoal = new CountDownLatch(concurrency);
         for (int i = 0; i < concurrency; i++)
         {
-            executor.execute(new LatchWaiter(concurrencyGoal, 5000L, TimeUnit.MILLISECONDS));
+            executor.execute(new LatchWaiter(concurrencyGoal, 5L, TimeUnit.SECONDS));
         }
         // Will return true if all of the LatchWaiters count down before the timeout
-        Assert.assertEquals(true, concurrencyGoal.await(3000L, TimeUnit.MILLISECONDS));
+        Assert.assertEquals("Test tasks did not hit max concurrency goal",
+                            true, concurrencyGoal.await(3L, TimeUnit.SECONDS));
     }
 }
