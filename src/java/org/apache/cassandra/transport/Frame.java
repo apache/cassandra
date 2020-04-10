@@ -303,12 +303,12 @@ public class Frame
             header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
 
-            results.add(header);
-            results.add(frame.body);
-
-            int messageSize = header.writerIndex() + frame.body.writerIndex();
+            int messageSize = header.readableBytes() + frame.body.readableBytes();
             ClientRequestSizeMetrics.totalBytesWritten.inc(messageSize);
             ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(messageSize);
+
+            results.add(header);
+            results.add(frame.body);
         }
     }
 
