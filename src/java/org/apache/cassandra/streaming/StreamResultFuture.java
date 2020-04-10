@@ -141,7 +141,6 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     {
         StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
         session.init(this);
-        session.attachInbound(channel);
     }
 
     public void addEventListener(StreamEventHandler listener)

@@ -41,7 +41,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
-import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -199,10 +198,6 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
                     session.messageReceived(message);
                 }
-            }
-            catch (InputTimeoutException | EOFException e)
-            {
-                // ignore
             }
             catch (Throwable t)
             {

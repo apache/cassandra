@@ -62,7 +62,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
         long totalSize = totalSize();
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
-        try (ChannelProxy fc = sstable.getDataChannel().sharedCopy())
+        try (ChannelProxy fc = sstable.getDataChannel().newChannel())
         {
             long progress = 0L;
 

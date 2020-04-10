@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.io.EOFException;
 import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -623,10 +624,32 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     /**
-     * Call back for handling exception during streaming.
+     * Signal an error to this stream session: if it's an EOF exception, it tries to understand if the socket was closed
+     * after completion or because the peer was down, otherwise sends a {@link SessionFailedMessage} and closes
+     * the session as {@link State#FAILED}.
      */
-    public Future onError(Throwable e)
+    public synchronized Future onError(Throwable e)
     {
+        boolean isEofException = e instanceof EOFException;
+        if (isEofException)
+        {
+            if (state.finalState)
+            {
+                logger.debug("[Stream #{}] Socket closed after session completed with state {}", planId(), state);
+
+                return null;
+            }
+            else
+            {
+                logger.error("[Stream #{}] Socket closed before session completion, peer {} is probably down.",
+                             planId(),
+                             peer.address.getHostAddress(),
+                             e);
+
+                return closeSession(State.FAILED);
+            }
+        }
+
         logError(e);
         // send session failure message
         if (messageSender.connected())
