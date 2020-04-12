@@ -706,7 +706,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         messageSender.sendMessage(prepareSynAck);
 
         streamResult.handleSessionPrepared(this);
-        maybeCompleted();
+
+        if (isPreview())
+            completePreview();
+        else
+            maybeCompleted();
     }
 
     private void prepareSynAck(PrepareSynAckMessage msg)
@@ -717,7 +721,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 prepareReceiving(summary);
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
-            messageSender.sendMessage(new PrepareAckMessage());
+            if (!isPreview())
+                messageSender.sendMessage(new PrepareAckMessage());
         }
 
         if (isPreview())
@@ -729,9 +734,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private void prepareAck(PrepareAckMessage msg)
     {
         if (isPreview())
-            completePreview();
-        else
-            startStreamingFiles(true);
+            throw new RuntimeException(String.format("[Stream #%s] Cannot receive PrepareAckMessage for preview session", planId()));
+        startStreamingFiles(true);
     }
 
     /**
@@ -761,7 +765,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         if (isPreview())
         {
-            throw new RuntimeException("Cannot receive files for preview session");
+            throw new RuntimeException(String.format("[Stream #%s] Cannot receive files for preview session", planId()));
         }
 
         long headerSize = message.stream.getSize();
