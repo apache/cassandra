@@ -19,7 +19,11 @@
 package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 
 import com.google.common.collect.*;
 import org.junit.BeforeClass;
@@ -30,9 +34,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.Generate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.integers;
 
 public class PendingRangesTest
 {
@@ -246,6 +254,164 @@ public class PendingRangesTest
                                tm.getPendingRanges(KEYSPACE, node4));
     }
 
+    @Test
+    public void qtTest()
+    {
+        int maxRf = 5;
+        int nodes = 20;
+        int maxTokensPerNode = 5;
+
+        Gen<Integer> rfs = rf(maxRf);
+        Gen<Input> inputs = rfs.flatMap(rf -> input(rf, nodes, maxTokensPerNode));
+
+        qt().forAll(inputs.flatMap(this::clustersWithChangedTopology))
+            .checkAssert(Cluster::calculateAndGetPendingRanges);
+    }
+
+    private Gen<Integer> rf(int maxRf)
+    {
+        return integers().between(1, maxRf);
+    }
+
+    private Gen<Input> input(int rf, int maxNodes, int maxTokensPerNode)
+    {
+        Gen<Integer> tokensPerNode = integers().between(1, maxTokensPerNode);
+        return integers().between(rf, maxNodes)
+                         .zip(tokensPerNode, (n, tokens) -> new Input(rf, n, tokens));
+    }
+
+    private Gen<Integer> bootstrappedNodes(Input input)
+    {
+        // at most double in size
+        return integers().between(0, input.nodes);
+    }
+
+    private Gen<Integer> leftNodes(Input input)
+    {
+        return integers().between(0, input.nodes - input.rf);
+    }
+
+    private Gen<Integer> movedNodes(Input input)
+    {
+        return integers().between(0, input.nodes);
+    }
+
+    private Gen<Cluster> clusters(Input input)
+    {
+        return Generate.constant(() -> new Cluster(input.nodes, input.tokensPerNode));
+    }
+
+    private Gen<Cluster> clustersWithChangedTopology(Input input)
+    {
+        Gen<Cluster> clusters = clusters(input);
+        Gen<Integer> leftNodes = leftNodes(input);
+        Gen<Integer> bootstrapedNodes = bootstrappedNodes(input);
+        Gen<Integer> movedNodes = movedNodes(input);
+        return clusters.zip(leftNodes, bootstrapedNodes, movedNodes,
+                            (cluster, left, bootstraped, moved) -> cluster.decommissionNodes(left)
+                                                                          .bootstrapNodes(bootstraped)
+                                                                          .moveNodes(moved));
+    }
+
+    static class Input
+    {
+        final int rf;
+        final int nodes;
+        final int tokensPerNode;
+
+        Input(int rf, int nodes, int tokensPerNode)
+        {
+            this.rf = rf;
+            this.nodes = nodes;
+            this.tokensPerNode = tokensPerNode;
+        }
+
+        public String toString()
+        {
+            return String.format("Input(rf=%s, nodes=%s, tokensPerNode=%s)", rf, nodes, tokensPerNode);
+        }
+    }
+
+    private static class Cluster
+    {
+        private final TokenMetadata tm;
+        private final AbstractReplicationStrategy strategy;
+        private final int tokensPerNode;
+
+        private final List<InetAddressAndPort> nodes;
+        Random random = new Random();
+
+        Cluster(int initialNodes, int tokensPerNode)
+        {
+            this.tm = new TokenMetadata();
+            this.strategy = simpleStrategy(tm, 2);
+            this.tokensPerNode = tokensPerNode;
+
+            this.nodes = new ArrayList<>(initialNodes);
+            for (int i = 0; i < initialNodes; i++)
+                addInitialNode();
+        }
+
+        private void addInitialNode()
+        {
+            InetAddressAndPort node = peer(nodes.size() + 1);
+            tm.updateHostId(UUID.randomUUID(), node);
+            tm.updateNormalToken(token(random.nextLong()), node);
+            nodes.add(node);
+        }
+
+        private void bootstrapNode()
+        {
+            InetAddressAndPort node = peer(nodes.size() + 1);
+            tm.updateHostId(UUID.randomUUID(), node);
+            List<Token> tokens = new ArrayList<>(tokensPerNode);
+            for (int i = 0; i < tokensPerNode; i++)
+                tokens.add(token(random.nextLong()));
+            tm.addBootstrapTokens(tokens, node);
+            nodes.add(node);
+        }
+
+        void calculateAndGetPendingRanges()
+        {
+            // test that it does not crash
+            tm.calculatePendingRanges(strategy, KEYSPACE);
+            for (InetAddressAndPort node : nodes)
+                tm.getPendingRanges(KEYSPACE, node);
+        }
+
+        Cluster decommissionNodes(int cnt)
+        {
+            for (int i = 0; i < cnt; i++)
+                tm.addLeavingEndpoint(nodes.get(random.nextInt(nodes.size())));
+            return this;
+        }
+
+        Cluster bootstrapNodes(int cnt)
+        {
+            for (int i = 0; i < cnt; i++)
+            {
+                bootstrapNode();
+            }
+            return this;
+        }
+
+        Cluster moveNodes(int cnt)
+        {
+            for (int i = 0; i < cnt; i++)
+            {
+                tm.addMovingEndpoint(token(random.nextLong()), nodes.get(random.nextInt(nodes.size())));
+            }
+            return this;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("Nodes: %s\n" +
+                                 "Tokens per Node: %s\n" +
+                                 "Metadata: %s", nodes.size(), tokensPerNode, tm.toString());
+        }
+    }
 
     private void assertPendingRanges(PendingRangeMaps pending, RangesByEndpoint expected)
     {
