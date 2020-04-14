@@ -19,7 +19,9 @@
 package org.apache.cassandra.distributed;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
@@ -67,6 +69,11 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
     public static UpgradeableCluster create(int nodeCount) throws Throwable
     {
         return build(nodeCount).start();
+    }
+
+    public static UpgradeableCluster create(int nodeCount, Versions.Version version, Consumer<IInstanceConfig> configUpdater) throws IOException
+    {
+        return build(nodeCount).withConfig(configUpdater).withVersion(version).start();
     }
 
     public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws Throwable
