@@ -438,65 +438,81 @@ public class BufferPool
 
         private <T> void removeIf(BiPredicate<Chunk, T> predicate, T value)
         {
-            switch (count)
+            // do not release matching chunks before we move null chunks to the back of the queue;
+            // because, with current buffer release from another thread, "chunk#release()" may eventually come back to
+            // "removeIf" causing NPE as null chunks are not at the back of the queue.
+            Chunk toRelease0 = null, toRelease1 = null, toRelease2 = null;
+
+            try
             {
-                case 3:
-                    if (predicate.test(chunk2, value))
-                    {
-                        --count;
-                        Chunk chunk = chunk2;
-                        chunk2 = null;
-                        chunk.release();
-                    }
-                case 2:
-                    if (predicate.test(chunk1, value))
-                    {
-                        --count;
-                        Chunk chunk = chunk1;
-                        chunk1 = null;
-                        chunk.release();
-                    }
-                case 1:
-                    if (predicate.test(chunk0, value))
-                    {
-                        --count;
-                        Chunk chunk = chunk0;
-                        chunk0 = null;
-                        chunk.release();
-                    }
-                    break;
-                case 0:
-                    return;
+                switch (count)
+                {
+                    case 3:
+                        if (predicate.test(chunk2, value))
+                        {
+                            --count;
+                            toRelease2 = chunk2;
+                            chunk2 = null;
+                        }
+                    case 2:
+                        if (predicate.test(chunk1, value))
+                        {
+                            --count;
+                            toRelease1 = chunk1;
+                            chunk1 = null;
+                        }
+                    case 1:
+                        if (predicate.test(chunk0, value))
+                        {
+                            --count;
+                            toRelease0 = chunk0;
+                            chunk0 = null;
+                        }
+                        break;
+                    case 0:
+                        return;
+                }
+                switch (count)
+                {
+                    case 2:
+                        // Find the only null item, and shift non-null so that null is at chunk2
+                        if (chunk0 == null)
+                        {
+                            chunk0 = chunk1;
+                            chunk1 = chunk2;
+                            chunk2 = null;
+                        }
+                        else if (chunk1 == null)
+                        {
+                            chunk1 = chunk2;
+                            chunk2 = null;
+                        }
+                        break;
+                    case 1:
+                        // Find the only non-null item, and shift it to chunk0
+                        if (chunk1 != null)
+                        {
+                            chunk0 = chunk1;
+                            chunk1 = null;
+                        }
+                        else if (chunk2 != null)
+                        {
+                            chunk0 = chunk2;
+                            chunk2 = null;
+                        }
+                        break;
+                }
             }
-            switch (count)
+            finally
             {
-                case 2:
-                    // Find the only null item, and shift non-null so that null is at chunk2
-                    if (chunk0 == null)
-                    {
-                        chunk0 = chunk1;
-                        chunk1 = chunk2;
-                        chunk2 = null;
-                    }
-                    else if (chunk1 == null)
-                    {
-                        chunk1 = chunk2;
-                        chunk2 = null;
-                    }
-                    break;
-                case 1:
-                    // Find the only non-null item, and shift it to chunk0
-                    if (chunk1 != null)
-                    {
-                        chunk0 = chunk1;
-                        chunk1 = null;
-                    }
-                    else if (chunk2 != null)
-                    {
-                        chunk0 = chunk2;
-                        chunk2 = null;
-                    }
-                    break;
+                if (toRelease0 != null)
+                    toRelease0.release();
+
+                if (toRelease1 != null)
+                    toRelease1.release();
+
+                if (toRelease2 != null)
+                    toRelease2.release();
             }
         }
 
