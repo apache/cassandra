@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.streaming.async;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -254,7 +253,9 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             if (streamSession == null)
                 throw new IllegalStateException(createLogTag(null, channel) + " no session found for message " + message);
 
-            streamSession.attachInbound(channel);
+            // Attach this channel to the session: this only happens upon receiving the first init message as a follower;
+            // in all other cases, no new control channel will be added, as the proper control channel will be already attached.
+            streamSession.attachInbound(channel, message instanceof StreamInitMessage);
             return streamSession;
         }
     }

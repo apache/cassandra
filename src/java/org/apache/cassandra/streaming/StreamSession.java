@@ -298,13 +298,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * Attach a channel to this session upon receiving the first inbound message.
      *
      * @param channel The channel to attach.
+     * @param isControlChannel If the channel is the one to send control messages to.
      * @return False if the channel was already attached, true otherwise.
      */
-    public synchronized boolean attachInbound(Channel channel)
+    public synchronized boolean attachInbound(Channel channel, boolean isControlChannel)
     {
         failIfFinished();
 
-        if (!messageSender.hasControlChannel())
+        if (!messageSender.hasControlChannel() && isControlChannel)
             messageSender.injectControlMessageChannel(channel);
 
         channel.closeFuture().addListener(ignored -> onChannelClose(channel));
