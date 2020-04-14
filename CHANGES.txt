@@ -1,4 +1,5 @@
 2.2.18
+ * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)
  * Disable JMX rebinding (CASSANDRA-15653)
 Merged from 2.1:
   * Fix parse error in cqlsh COPY FROM and formatting for map of blobs (CASSANDRA-15679)
