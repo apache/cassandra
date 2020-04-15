@@ -25,18 +25,15 @@ import java.util.stream.IntStream;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.shared.Builder;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.distributed.shared.DistributedTestBase.KEYSPACE;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class BootstrapTest extends TestBaseImpl
@@ -47,19 +44,18 @@ public class BootstrapTest extends TestBaseImpl
     {
         int originalNodeCount = 2;
         int expandedNodeCount = originalNodeCount + 1;
-        Builder<IInstance, ICluster> builder = builder().withNodes(originalNodeCount)
-                                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
-                                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(originalNodeCount, "dc0", "rack0"))
-                                                        .withConfig(config -> config.with(NETWORK, GOSSIP));
+        Cluster.Builder builder = builder().withNodes(originalNodeCount)
+                                           .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP));
 
         Map<Integer, Long> withBootstrap = null;
         Map<Integer, Long> naturally = null;
-        try (ICluster<IInvokableInstance> cluster = builder.withNodes(originalNodeCount).start())
+        try (Cluster cluster = builder.withNodes(originalNodeCount).start())
         {
             populate(cluster);
 
-            IInstanceConfig config = builder.withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                            .newInstanceConfig(cluster);
+            IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
 
             cluster.bootstrap(config).startup();

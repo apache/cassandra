@@ -70,6 +70,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -158,17 +159,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public InetSocketAddress broadcastAddress() { return config.broadcastAddress(); }
 
     @Override
-    public Object[][] executeInternal(String query, Object... args)
+    public SimpleQueryResult executeInternalWithResult(String query, Object... args)
     {
         return sync(() -> {
             ParsedStatement.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeInternal(QueryProcessor.internalQueryState(),
                                                                       QueryProcessor.makeInternalOptions(prepared, args));
 
-            if (result instanceof ResultMessage.Rows)
-                return RowUtil.toObjects((ResultMessage.Rows)result);
-            else
-                return null;
+            return RowUtil.toQueryResult(result);
         }).call();
     }
 
