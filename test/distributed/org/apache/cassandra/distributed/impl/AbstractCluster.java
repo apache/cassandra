@@ -55,6 +55,8 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -96,10 +98,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
     // before we instantiate any for a new instance
     private static final Logger logger = LoggerFactory.getLogger(AbstractCluster.class);
-    private static final AtomicInteger generation = new AtomicInteger();
+    private static final AtomicInteger GENERATION = new AtomicInteger();
 
     private final File root;
     private final ClassLoader sharedClassLoader;
+    private final int subnet;
+    private final TokenSupplier tokenSupplier;
+    private final Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
+    private final Consumer<IInstanceConfig> configUpdater;
+    private final int broadcastPort;
 
     // mutated by starting/stopping a node
     private final List<I> instances;
@@ -241,18 +248,26 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    protected AbstractCluster(File root, Versions.Version initialVersion, List<IInstanceConfig> configs,
-                              ClassLoader sharedClassLoader)
+    protected AbstractCluster(AbstractBuilder<I, ? extends ICluster<I>, ?> builder)
     {
-        this.root = root;
-        this.sharedClassLoader = sharedClassLoader;
+        this.root = builder.getRoot();
+        this.sharedClassLoader = builder.getSharedClassLoader();
+        this.subnet = builder.getSubnet();
+        this.tokenSupplier = builder.getTokenSupplier();
+        this.nodeIdTopology = builder.getNodeIdTopology();
+        this.configUpdater = builder.getConfigUpdater();
+        this.broadcastPort = builder.getBroadcastPort();
         this.instances = new ArrayList<>();
         this.instanceMap = new HashMap<>();
-        this.initialVersion = initialVersion;
-        int generation = AbstractCluster.generation.incrementAndGet();
+        this.initialVersion = builder.getVersion();
+        this.filters = new MessageFilters();
 
-        for (IInstanceConfig config : configs)
+        int generation = GENERATION.incrementAndGet();
+        for (int i = 0; i < builder.getNodeCount(); ++i)
         {
+            int nodeNum = i + 1;
+            InstanceConfig config = createInstanceConfig(nodeNum);
+
             I instance = newInstanceWrapperInternal(generation, initialVersion, config);
             instances.add(instance);
             // we use the config().broadcastAddressAndPort() here because we have not initialised the Instance
@@ -260,7 +275,27 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             if (null != prev)
                 throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddress() + " vs " + prev.broadcastAddress());
         }
-        this.filters = new MessageFilters();
+    }
+
+    public InstanceConfig newInstanceConfig()
+    {
+        return createInstanceConfig(size() + 1);
+    }
+
+    private InstanceConfig createInstanceConfig(int nodeNum)
+    {
+        String ipPrefix = "127.0." + subnet + ".";
+        String seedIp = ipPrefix + "1";
+        String ipAddress = ipPrefix + nodeNum;
+        long token = tokenSupplier.token(nodeNum);
+
+        NetworkTopology topology = NetworkTopology.build(ipPrefix, broadcastPort, nodeIdTopology);
+
+        InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp);
+        if (configUpdater != null)
+            configUpdater.accept(config);
+
+        return config;
     }
 
     protected abstract I newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config);
