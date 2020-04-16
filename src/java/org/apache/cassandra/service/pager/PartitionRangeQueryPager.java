@@ -72,7 +72,10 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
         else
         {
             // We want to include the last returned key only if we haven't achieved our per-partition limit, otherwise, don't bother.
-            boolean includeLastKey = remainingInPartition() > 0 && lastReturnedRow != null;
+            // note that the distinct check should only be hit when getting queries in a mixed mode cluster where a 2.1/2.2-serialized
+            // PagingState is sent to a 3.0 node - in that case we get remainingInPartition = Integer.MAX_VALUE and we include
+            // duplicate keys. For standard non-mixed operation remainingInPartition will always be 0 for DISTINCT queries.
+            boolean includeLastKey = remainingInPartition() > 0 && lastReturnedRow != null && !command.limits().isDistinct();
             AbstractBounds<PartitionPosition> bounds = makeKeyBounds(lastReturnedKey, includeLastKey);
             if (includeLastKey)
             {
