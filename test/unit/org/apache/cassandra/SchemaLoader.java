@@ -135,15 +135,8 @@ public class SchemaLoader
                 standardCFMD(ks1, "StandardGCGS0").gcGraceSeconds(0).build(),
                 standardCFMD(ks1, "StandardLong1").build(),
                 standardCFMD(ks1, "StandardLong2").build(),
-                superCFMD(ks1, "Super1", LongType.instance).build(),
-                superCFMD(ks1, "Super2", LongType.instance).build(),
-                superCFMD(ks1, "Super3", LongType.instance).build(),
-                superCFMD(ks1, "Super4", UTF8Type.instance).build(),
-                superCFMD(ks1, "Super5", bytes).build(),
-                superCFMD(ks1, "Super6", LexicalUUIDType.instance, UTF8Type.instance).build(),
                 keysIndexCFMD(ks1, "Indexed1", true).build(),
                 keysIndexCFMD(ks1, "Indexed2", false).build(),
-                superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0).build(),
                 jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).addColumn(utf8Column(ks1, "JdbcUtf8")).build(),
                 jdbcCFMD(ks1, "JdbcLong", LongType.instance).build(),
                 jdbcCFMD(ks1, "JdbcBytes", bytes).build(),
@@ -162,8 +155,6 @@ public class SchemaLoader
                 // Column Families
                 standardCFMD(ks2, "Standard1").build(),
                 standardCFMD(ks2, "Standard3").build(),
-                superCFMD(ks2, "Super3", bytes).build(),
-                superCFMD(ks2, "Super4", TimeUUIDType.instance).build(),
                 keysIndexCFMD(ks2, "Indexed1", true).build(),
                 compositeIndexCFMD(ks2, "Indexed2", true).build(),
                 compositeIndexCFMD(ks2, "Indexed3", true).gcGraceSeconds(0).build())));
@@ -180,10 +171,7 @@ public class SchemaLoader
                 KeyspaceParams.simple(3),
                 Tables.of(
                 standardCFMD(ks4, "Standard1").build(),
-                standardCFMD(ks4, "Standard3").build(),
-                superCFMD(ks4, "Super3", bytes).build(),
-                superCFMD(ks4, "Super4", TimeUUIDType.instance).build(),
-                superCFMD(ks4, "Super5", TimeUUIDType.instance, BytesType.instance).build())));
+                standardCFMD(ks4, "Standard3").build())));
 
         // Keyspace 5
         schema.add(KeyspaceMetadata.create(ks5,
@@ -192,8 +180,8 @@ public class SchemaLoader
 
         // Keyspace 6
         schema.add(KeyspaceMetadata.create(ks6,
-                KeyspaceParams.simple(1),
-                Tables.of(keysIndexCFMD(ks6, "Indexed1", true).build())));
+                                           KeyspaceParams.simple(1),
+                                           Tables.of(keysIndexCFMD(ks6, "Indexed1", true).build())));
 
         // Keyspace 7
         schema.add(KeyspaceMetadata.create(ks7,
@@ -399,44 +387,6 @@ public class SchemaLoader
                                  .addRegularColumn("val2", AsciiType.instance);
     }
 
-
-    public static TableMetadata.Builder denseCFMD(String ksName, String cfName)
-    {
-        return denseCFMD(ksName, cfName, AsciiType.instance);
-    }
-    public static TableMetadata.Builder denseCFMD(String ksName, String cfName, AbstractType cc)
-    {
-        return denseCFMD(ksName, cfName, cc, null);
-    }
-    public static TableMetadata.Builder denseCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
-    {
-        AbstractType comp = cc;
-        if (subcc != null)
-            comp = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{cc, subcc}));
-
-        return TableMetadata.builder(ksName, cfName)
-                            .isDense(true)
-                            .isCompound(subcc != null)
-                            .addPartitionKeyColumn("key", AsciiType.instance)
-                            .addClusteringColumn("cols", comp)
-                            .addRegularColumn("val", AsciiType.instance)
-                            .compression(getCompressionParameters());
-    }
-
-    // TODO: Fix superCFMD failing on legacy table creation. Seems to be applying composite comparator to partition key
-    public static TableMetadata.Builder superCFMD(String ksName, String cfName, AbstractType subcc)
-    {
-        return superCFMD(ksName, cfName, BytesType.instance, subcc);
-    }
-    public static TableMetadata.Builder superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
-    {
-        return superCFMD(ksName, cfName, "cols", cc, subcc);
-    }
-    public static TableMetadata.Builder superCFMD(String ksName, String cfName, String ccName, AbstractType cc, AbstractType subcc)
-    {
-        return standardCFMD(ksName, cfName);
-
-    }
     public static TableMetadata.Builder compositeIndexCFMD(String ksName, String cfName, boolean withRegularIndex) throws ConfigurationException
     {
         return compositeIndexCFMD(ksName, cfName, withRegularIndex, false);
@@ -514,25 +464,23 @@ public class SchemaLoader
     public static TableMetadata.Builder keysIndexCFMD(String ksName, String cfName, boolean withIndex)
     {
         TableMetadata.Builder builder =
-            TableMetadata.builder(ksName, cfName)
-                         .isCompound(false)
-                         .isDense(true)
-                         .addPartitionKeyColumn("key", AsciiType.instance)
-                         .addClusteringColumn("c1", AsciiType.instance)
-                         .addStaticColumn("birthdate", LongType.instance)
-                         .addStaticColumn("notbirthdate", LongType.instance)
-                         .addRegularColumn("value", LongType.instance)
-                         .compression(getCompressionParameters());
+        TableMetadata.builder(ksName, cfName)
+                     .addPartitionKeyColumn("key", AsciiType.instance)
+                     .addClusteringColumn("c1", AsciiType.instance)
+                     .addStaticColumn("birthdate", LongType.instance)
+                     .addStaticColumn("notbirthdate", LongType.instance)
+                     .addRegularColumn("value", LongType.instance)
+                     .compression(getCompressionParameters());
 
         if (withIndex)
         {
             IndexMetadata index =
-                IndexMetadata.fromIndexTargets(
-                Collections.singletonList(new IndexTarget(new ColumnIdentifier("birthdate", true),
-                                                                                         IndexTarget.Type.VALUES)),
-                                                                                         cfName + "_birthdate_composite_index",
-                                                                                         IndexMetadata.Kind.KEYS,
-                                                                                         Collections.EMPTY_MAP);
+            IndexMetadata.fromIndexTargets(
+            Collections.singletonList(new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                      IndexTarget.Type.VALUES)),
+            cfName + "_birthdate_composite_index",
+            IndexMetadata.Kind.KEYS,
+            Collections.EMPTY_MAP);
             builder.indexes(Indexes.builder().add(index).build());
         }
 
@@ -543,8 +491,6 @@ public class SchemaLoader
     {
         TableMetadata.Builder builder  =
             TableMetadata.builder(ksName, cfName)
-                         .isCompound(false)
-                         .isDense(true)
                          .addPartitionKeyColumn("key", AsciiType.instance)
                          .addClusteringColumn("c1", AsciiType.instance)
                          .addRegularColumn("value", LongType.instance)

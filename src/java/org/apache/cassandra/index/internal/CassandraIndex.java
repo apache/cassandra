@@ -45,7 +45,6 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
@@ -303,6 +302,7 @@ public abstract class CassandraIndex implements Index
                     return new CompositesSearcher(command, target.get(), this);
                 case KEYS:
                     return new KeysSearcher(command, target.get(), this);
+
                 default:
                     throw new IllegalStateException(String.format("Unsupported index type %s for index %s on %s",
                                                                   metadata.kind,
@@ -741,27 +741,12 @@ public abstract class CassandraIndex implements Index
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
                          .kind(TableMetadata.Kind.INDEX)
-                         // tables for legacy KEYS indexes are non-compound and dense
-                         .isDense(indexMetadata.isKeys())
-                         .isCompound(!indexMetadata.isKeys())
                          .partitioner(new LocalPartitioner(indexedValueType))
                          .addPartitionKeyColumn(indexedColumn.name, indexedColumn.type)
                          .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
 
-        if (indexMetadata.isKeys())
-        {
-            // A dense, compact table for KEYS indexes must have a compact
-            // value column defined, even though it is never used
-            CompactTables.DefaultNames names =
-                CompactTables.defaultNameGenerator(ImmutableSet.of(indexedColumn.name.toString(), "partition_key"));
-            builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
-        }
-        else
-        {
-            // The clustering columns for a table backing a COMPOSITES index are dependent
-            // on the specific type of index (there are specializations for indexes on collections)
-            utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
-        }
+        // Adding clustering columns, which depends on the index type.
+        builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
 
         return builder.build().updateIndexTableMetadata(baseCfsMetadata.params);
     }

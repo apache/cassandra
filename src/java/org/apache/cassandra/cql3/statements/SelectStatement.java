@@ -811,9 +811,7 @@ public class SelectStatement implements CQLStatement
         // The general rational is that if some rows are specifically selected by the query (have clustering or
         // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
         // query, then we include that content.
-        // We make an exception for "static compact" table are from a CQL standpoint we always want to show their static
-        // content for backward compatiblity.
-        return queriesFullPartitions() || table.isStaticCompactTable();
+        return queriesFullPartitions();
     }
 
     // Used by ModificationStatement for CAS operations
@@ -1043,7 +1041,7 @@ public class SelectStatement implements CQLStatement
          */
         private boolean selectOnlyStaticColumns(TableMetadata table, List<Selectable> selectables)
         {
-            if (table.isStaticCompactTable() || !table.hasStaticColumns() || selectables.isEmpty())
+            if (!table.hasStaticColumns() || selectables.isEmpty())
                 return false;
 
             return Selectable.selectColumns(selectables, (column) -> column.isStatic())
@@ -1060,9 +1058,9 @@ public class SelectStatement implements CQLStatement
                 return Collections.emptyMap();
 
             Map<ColumnMetadata, Boolean> orderingColumns = new LinkedHashMap<>();
-            for (Map.Entry<ColumnMetadata.Raw, Boolean> entry : parameters.orderings.entrySet())
+            for (Map.Entry<ColumnIdentifier, Boolean> entry : parameters.orderings.entrySet())
             {
-                orderingColumns.put(entry.getKey().prepare(table), entry.getValue());
+                orderingColumns.put(table.getExistingColumn(entry.getKey()), entry.getValue());
             }
             return orderingColumns;
         }
@@ -1154,9 +1152,9 @@ public class SelectStatement implements CQLStatement
             int clusteringPrefixSize = 0;
 
             Iterator<ColumnMetadata> pkColumns = metadata.primaryKeyColumns().iterator();
-            for (ColumnMetadata.Raw raw : parameters.groups)
+            for (ColumnIdentifier id : parameters.groups)
             {
-                ColumnMetadata def = raw.prepare(metadata);
+                ColumnMetadata def = metadata.getExistingColumn(id);
 
                 checkTrue(def.isPartitionKey() || def.isClusteringColumn(),
                           "Group by is currently only supported on the columns of the PRIMARY KEY, got %s", def.name);
@@ -1288,14 +1286,14 @@ public class SelectStatement implements CQLStatement
     public static class Parameters
     {
         // Public because CASSANDRA-9858
-        public final Map<ColumnMetadata.Raw, Boolean> orderings;
-        public final List<ColumnMetadata.Raw> groups;
+        public final Map<ColumnIdentifier, Boolean> orderings;
+        public final List<ColumnIdentifier> groups;
         public final boolean isDistinct;
         public final boolean allowFiltering;
         public final boolean isJson;
 
-        public Parameters(Map<ColumnMetadata.Raw, Boolean> orderings,
-                          List<ColumnMetadata.Raw> groups,
+        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+                          List<ColumnIdentifier> groups,
                           boolean isDistinct,
                           boolean allowFiltering,
                           boolean isJson)

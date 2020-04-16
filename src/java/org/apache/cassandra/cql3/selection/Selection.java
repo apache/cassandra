@@ -86,7 +86,7 @@ public abstract class Selection
      */
     public boolean containsStaticColumns()
     {
-        if (table.isStaticCompactTable() || !table.hasStaticColumns())
+        if (!table.hasStaticColumns())
             return false;
 
         if (isWildcard())
