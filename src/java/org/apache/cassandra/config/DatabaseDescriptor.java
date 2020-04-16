@@ -2995,6 +2995,16 @@ public class DatabaseDescriptor
         conf.repaired_data_tracking_for_partition_reads_enabled = enabled;
     }
 
+    public static boolean snapshotOnRepairedDataMismatch()
+    {
+        return conf.snapshot_on_repaired_data_mismatch;
+    }
+
+    public static void setSnapshotOnRepairedDataMismatch(boolean enabled)
+    {
+        conf.snapshot_on_repaired_data_mismatch = enabled;
+    }
+
     public static boolean reportUnconfirmedRepairedDataMismatches()
     {
         return conf.report_unconfirmed_repaired_data_mismatches;
