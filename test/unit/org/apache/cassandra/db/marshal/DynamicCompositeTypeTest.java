@@ -72,7 +72,11 @@ public class DynamicCompositeTypeTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDDYNCOMPOSITE, dynamicComposite));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDDYNCOMPOSITE,
+                                                              0,
+                                                              AsciiType.instance, // key
+                                                              AsciiType.instance, // value
+                                                              dynamicComposite)); // clustering
     }
 
     @Test

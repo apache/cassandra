@@ -88,7 +88,6 @@ public class ScrubTest
     public static final String CF_INDEX2 = "Indexed2";
     public static final String CF_INDEX1_BYTEORDERED = "Indexed1_ordered";
     public static final String CF_INDEX2_BYTEORDERED = "Indexed2_ordered";
-
     public static final String COL_INDEX = "birthdate";
     public static final String COL_NON_INDEX = "notbirthdate";
 
@@ -521,7 +520,6 @@ public class ScrubTest
         CompactionManager.instance.performScrub(cfs2, false, false, 2);
     }
 
-
     @Test /* CASSANDRA-5174 */
     public void testScrubKeysIndex_preserveOrder() throws IOException, ExecutionException, InterruptedException
     {
@@ -563,7 +561,7 @@ public class ScrubTest
     @Test /* CASSANDRA-5174 */
     public void testScrubTwice() throws IOException, ExecutionException, InterruptedException
     {
-        testScrubIndex(CF_INDEX1, COL_INDEX, false, true, true);
+        testScrubIndex(CF_INDEX2, COL_INDEX, true, true, true);
     }
 
     private void testScrubIndex(String cfName, String colName, boolean composite, boolean ... scrubs)

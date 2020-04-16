@@ -1,4 +1,5 @@
 4.0-beta2
+ * Remove COMPACT STORAGE internals (CASSANDRA-13994)
  * Make TimestampSerializer accept fractional seconds of varying precision (CASSANDRA-15976)
  * Improve cassandra-stress logging when using a profile file that doesn't exist (CASSANDRA-14425)
  * Improve logging for socket connection/disconnection (CASSANDRA-15980)

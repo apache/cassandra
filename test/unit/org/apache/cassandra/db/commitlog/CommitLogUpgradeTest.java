@@ -79,8 +79,6 @@ public class CommitLogUpgradeTest
 
     static TableMetadata metadata =
         TableMetadata.builder(KEYSPACE, TABLE)
-                     .isCompound(false)
-                     .isDense(true)
                      .addPartitionKeyColumn("key", AsciiType.instance)
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("val", BytesType.instance)

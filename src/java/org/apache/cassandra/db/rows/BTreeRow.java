@@ -18,7 +18,16 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+
+import java.util.AbstractCollection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -28,14 +37,25 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.DroppedColumn;
-import org.apache.cassandra.utils.*;
+
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.BiLongAccumulator;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LongAccumulator;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -548,7 +568,7 @@ public class BTreeRow extends AbstractRow
 
         private CellInLegacyOrderIterator(TableMetadata metadata, boolean reversed)
         {
-            AbstractType<?> nameComparator = metadata.columnDefinitionNameComparator(isStatic() ? ColumnMetadata.Kind.STATIC : ColumnMetadata.Kind.REGULAR);
+            AbstractType<?> nameComparator = UTF8Type.instance;
             this.comparator = reversed ? Collections.reverseOrder(nameComparator) : nameComparator;
             this.reversed = reversed;
 

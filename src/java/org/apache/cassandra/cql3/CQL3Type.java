@@ -138,6 +138,7 @@ public interface CQL3Type
             return type;
         }
 
+        @Override
         public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             // *always* use the 'blob' syntax to express custom types in CQL
@@ -186,6 +187,7 @@ public interface CQL3Type
             return true;
         }
 
+        @Override
         public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             if (buffer == null)
@@ -318,6 +320,7 @@ public interface CQL3Type
             return type;
         }
 
+        @Override
         public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             if (buffer == null)

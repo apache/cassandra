@@ -69,9 +69,12 @@ public class PartitionRangeReadTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDINT, IntegerType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDINT,
+                                                              0,
+                                                              AsciiType.instance,
+                                                              AsciiType.instance,
+                                                              IntegerType.instance),
                                     TableMetadata.builder(KEYSPACE1, CF_COMPACT1)
-                                                 .isCompound(false)
                                                  .addPartitionKeyColumn("key", AsciiType.instance)
                                                  .addClusteringColumn("column1", AsciiType.instance)
                                                  .addRegularColumn("value", AsciiType.instance)

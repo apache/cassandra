@@ -166,21 +166,9 @@ public class ViewUpdateGenerator
         assert !mergedBaseRow.isEmpty();
 
         // Note that none of the base PK columns will differ since we're intrinsically dealing
-        // with the same base row. So we have to check 3 things:
-        //   1) that the clustering doesn't have a null, which can happen for compact tables. If that's the case,
-        //      there is no corresponding entries.
-        //   2) if there is a column not part of the base PK in the view PK, whether it is changed by the update.
-        //   3) whether mergedBaseRow actually match the view SELECT filter
-
-        if (baseMetadata.isCompactTable())
-        {
-            Clustering clustering = mergedBaseRow.clustering();
-            for (int i = 0; i < clustering.size(); i++)
-            {
-                if (clustering.get(i) == null)
-                    return UpdateAction.NONE;
-            }
-        }
+        // with the same base row. So we have to check 2 things:
+        //   1) if there is a column not part of the base PK in the view PK, whether it is changed by the update.
+        //   2) whether mergedBaseRow actually match the view SELECT filter
 
         assert view.baseNonPKColumnsInViewPK.size() <= 1 : "We currently only support one base non-PK column in the view PK";
 
@@ -404,13 +392,13 @@ public class ViewUpdateGenerator
         // If computed deletion timestamp is from row deletion, we only need row deletion itself
         if (timestamp > rowDeletion)
         {
-            /**
-              * We use an expired liveness instead of a row tombstone to allow a shadowed MV
-              * entry to co-exist with a row tombstone, see ViewComplexTest#testCommutativeRowDeletion.
-              *
-              * TODO This is a dirty overload of LivenessInfo and we should modify
-              * the storage engine to properly support this on CASSANDRA-13826.
-              */
+            /*
+             * We use an expired liveness instead of a row tombstone to allow a shadowed MV
+             * entry to co-exist with a row tombstone, see ViewComplexTest#testCommutativeRowDeletion.
+             *
+             * TODO This is a dirty overload of LivenessInfo and we should modify
+             * the storage engine to properly support this on CASSANDRA-13826.
+             */
             LivenessInfo info = LivenessInfo.withExpirationTime(timestamp, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSec);
             currentViewEntryBuilder.addPrimaryKeyLivenessInfo(info);
         }

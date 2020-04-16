@@ -61,14 +61,10 @@ public class CompactionControllerTest extends SchemaLoader
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     TableMetadata.builder(KEYSPACE, CF1)
-                                                 .isCompound(false)
-                                                 .isDense(true)
                                                  .addPartitionKeyColumn("pk", AsciiType.instance)
                                                  .addClusteringColumn("ck", AsciiType.instance)
                                                  .addRegularColumn("val", AsciiType.instance),
                                     TableMetadata.builder(KEYSPACE, CF2)
-                                                 .isCompound(false)
-                                                 .isDense(true)
                                                  .addPartitionKeyColumn("pk", AsciiType.instance)
                                                  .addClusteringColumn("ck", AsciiType.instance)
                                                  .addRegularColumn("val", AsciiType.instance));

@@ -142,14 +142,10 @@ public final class ViewMetadata implements SchemaElement
 
     public ViewMetadata withRenamedPrimaryKeyColumn(ColumnIdentifier from, ColumnIdentifier to)
     {
-        // convert whereClause to Relations, rename ids in Relations, then convert back to whereClause
-        ColumnMetadata.Raw rawFrom = ColumnMetadata.Raw.forQuoted(from.toString());
-        ColumnMetadata.Raw rawTo = ColumnMetadata.Raw.forQuoted(to.toString());
-
         return new ViewMetadata(baseTableId,
                                 baseTableName,
                                 includeAllColumns,
-                                whereClause.renameIdentifier(rawFrom, rawTo),
+                                whereClause.renameIdentifier(from, to),
                                 metadata.unbuild().renamePrimaryKeyColumn(from, to).build());
     }
 

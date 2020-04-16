@@ -534,7 +534,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 Operator operator = Operator.readFrom(in);
                 ColumnMetadata column = metadata.getColumn(name);
 
-                if (!metadata.isCompactTable() && column == null)
+                if (column == null)
                     throw new RuntimeException("Unknown (or dropped) column " + UTF8Type.instance.getString(name) + " during deserialization");
 
                 switch (kind)

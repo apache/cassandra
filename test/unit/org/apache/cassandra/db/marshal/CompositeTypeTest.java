@@ -69,7 +69,11 @@ public class CompositeTypeTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDCOMPOSITE, composite));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDCOMPOSITE,
+                                                              0,
+                                                              AsciiType.instance, // key
+                                                              AsciiType.instance, // value
+                                                              composite)); // clustering
     }
 
     @Test
