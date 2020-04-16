@@ -38,6 +38,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 public abstract class DelegatingInvokableInstance implements IInvokableInstance
 {
     protected abstract IInvokableInstance delegate();
+    protected abstract IInvokableInstance delegateForStartup();
     
     @Override
     public <E extends Serializable> E transfer(E object)
@@ -124,7 +125,7 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     @Override
     public void startup(ICluster cluster)
     {
-        delegate().startup(cluster);
+        delegateForStartup().startup(cluster);
     }
 
     @Override
