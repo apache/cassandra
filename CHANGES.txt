@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix batch statement preparation when multiple tables and parameters are used (CASSANDRA-15730)
  * Ensure repaired data tracking reads a consistent amount of data across replicas (CASSANDRA-15601)
  * Fix CQLSH to avoid arguments being evaluated (CASSANDRA-15660)
  * Correct Visibility and Improve Safety of Methods in LatencyMetrics (CASSANDRA-15597)

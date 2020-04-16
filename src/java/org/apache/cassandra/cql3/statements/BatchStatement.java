@@ -141,7 +141,7 @@ public class BatchStatement implements CQLStatement
     public short[] getPartitionKeyBindVariableIndexes()
     {
         boolean affectsMultipleTables =
-            !statements.isEmpty() && statements.stream().map(s -> s.metadata().id).allMatch(isEqual(statements.get(0).metadata().id));
+            !statements.isEmpty() && !statements.stream().map(s -> s.metadata().id).allMatch(isEqual(statements.get(0).metadata().id));
 
         // Use the TableMetadata of the first statement for partition key bind indexes.  If the statements affect
         // multiple tables, we won't send partition key bind indexes.
