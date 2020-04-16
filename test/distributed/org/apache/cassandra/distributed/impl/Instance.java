@@ -254,7 +254,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 int toNum = to.config().num();
                 return cluster.filters().permitOutbound(fromNum, toNum, serializeMessage(message, id,
                                                                                  broadcastAddress(),
-                                                                                 to.broadcastAddress()));
+                                                                                 to.config().broadcastAddress()));
             }
 
             public boolean allowIncomingMessage(MessageIn message, int id)
