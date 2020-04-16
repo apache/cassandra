@@ -30,6 +30,7 @@ import com.datastax.driver.core.BatchStatement;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.RatioDistributionFactory;
 import org.apache.cassandra.stress.util.ResultLogger;
+import org.apache.cassandra.db.ConsistencyLevel;
 
 public class SettingsInsert implements Serializable
 {
@@ -40,6 +41,8 @@ public class SettingsInsert implements Serializable
     public final RatioDistributionFactory selectRatio;
     public final RatioDistributionFactory rowPopulationRatio;
     public final BatchStatement.Type batchType;
+    public final ConsistencyLevel consistencyLevel;
+    public final ConsistencyLevel serialConsistencyLevel;
 
     private SettingsInsert(InsertOptions options)
     {
@@ -48,9 +51,14 @@ public class SettingsInsert implements Serializable
         this.batchsize = options.partitions.get();
         this.selectRatio = options.selectRatio.get();
         this.rowPopulationRatio = options.rowPopulationRatio.get();
-
-
-
+        if (options.consistencyLevel.present())
+            this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
+        else
+            this.consistencyLevel = null;
+        if (options.serialConsistencyLevel.present())
+            this.serialConsistencyLevel = ConsistencyLevel.valueOf(options.serialConsistencyLevel.value().toUpperCase());
+        else
+            this.serialConsistencyLevel = null;
         this.batchType = !options.batchType.setByUser() ? null : BatchStatement.Type.valueOf(options.batchType.value());
     }
 
@@ -64,6 +72,8 @@ public class SettingsInsert implements Serializable
         final OptionSimple batchType = new OptionSimple("batchtype=", "unlogged|logged|counter", null, "Specify the type of batch statement (LOGGED, UNLOGGED or COUNTER)", false);
         final OptionRatioDistribution selectRatio = new OptionRatioDistribution("select-ratio=", null, "The uniform probability of visiting any CQL row in the generated partition", false);
         final OptionRatioDistribution rowPopulationRatio = new OptionRatioDistribution("row-population-ratio=", "fixed(1)/1", "The percent of a given rows columns to populate", false);
+        final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY|TWO|THREE|LOCAL_ONE|SERIAL|LOCAL_SERIAL", null, "Consistency level to use", false);
+        final OptionSimple serialConsistencyLevel = new OptionSimple("serial-cl=", "SERIAL|LOCAL_SERIAL", null, "Serial consistency level to use", false);
 
         @Override
         public List<? extends Option> options()
@@ -95,6 +105,14 @@ public class SettingsInsert implements Serializable
         if (rowPopulationRatio != null)
         {
             out.println("  Row Population Ratio: " +rowPopulationRatio.getConfigAsString());
+        }
+        if (consistencyLevel != null)
+        {
+            out.printf("  Consistency Level: %s%n", consistencyLevel.toString());
+        }
+        if (serialConsistencyLevel != null)
+        {
+            out.printf("  Serial Consistency Level: %s%n", serialConsistencyLevel.toString());
         }
         if (batchType != null)
         {

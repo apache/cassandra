@@ -60,6 +60,8 @@ import org.apache.cassandra.stress.util.ResultLogger;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
+import org.apache.cassandra.db.ConsistencyLevel;
+
 
 public class StressProfile implements Serializable
 {
@@ -156,9 +158,12 @@ public class StressProfile implements Serializable
         assert tableName != null : "table name is required in yaml file";
         assert queries != null : "queries map is required in yaml file";
 
-        for (String query : queries.keySet())
+        for (String query : queries.keySet()) {
             assert !tokenRangeQueries.containsKey(query) :
-                String.format("Found %s in both queries and token_range_queries, please use different names", query);
+                    String.format("Found %s in both queries and token_range_queries, please use different names", query);
+            assert query != "insert" :
+                    String.format("Found 'insert' in queries, this name is reserved, please use different name");
+        }
 
         if (keyspaceCql != null && keyspaceCql.length() > 0)
         {
@@ -372,11 +377,28 @@ public class StressProfile implements Serializable
                     Map<String, SchemaStatement.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
-                        stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
-                        args.put(e.getKey().toLowerCase(), e.getValue().fields == null
+                        StressYaml.QueryDef query = e.getValue();
+                        PreparedStatement stmt = jclient.prepare(query.cql);
+                        String queryName = e.getKey().toLowerCase();
+
+                        if (query.consistencyLevel != null) {
+                            stmt.setConsistencyLevel(JavaDriverClient.from(ConsistencyLevel.valueOf(query.consistencyLevel.toUpperCase())));
+                        } else {
+                            stmt.setConsistencyLevel(JavaDriverClient.from(settings.command.consistencyLevel));
+                        }
+
+                        if (query.serialConsistencyLevel != null) {
+                            stmt.setSerialConsistencyLevel(JavaDriverClient.from(ConsistencyLevel.valueOf(query.serialConsistencyLevel.toUpperCase())));
+                        } else {
+                            stmt.setSerialConsistencyLevel(JavaDriverClient.from(settings.command.serialConsistencyLevel));
+                        }
+
+                        stmts.put(queryName, stmt);
+                        args.put(queryName, query.fields == null
                                 ? SchemaStatement.ArgSelect.MULTIROW
-                                : SchemaStatement.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
+                                : SchemaStatement.ArgSelect.valueOf(query.fields.toUpperCase()));
                     }
+
                     queryStatements = stmts;
                     argSelects = args;
                 }
@@ -384,9 +406,9 @@ public class StressProfile implements Serializable
         }
 
         if (dynamicConditionExists(queryStatements.get(name)))
-            return new CASQuery(timer, settings, generator, seeds, queryStatements.get(name), settings.command.consistencyLevel, argSelects.get(name), tableName);
+            return new CASQuery(timer, settings, generator, seeds, queryStatements.get(name), argSelects.get(name), tableName);
 
-        return new SchemaQuery(timer, settings, generator, seeds, queryStatements.get(name), settings.command.consistencyLevel, argSelects.get(name));
+        return new SchemaQuery(timer, settings, generator, seeds, queryStatements.get(name), argSelects.get(name));
     }
 
     static boolean dynamicConditionExists(PreparedStatement statement) throws IllegalArgumentException
@@ -639,13 +661,30 @@ public class StressProfile implements Serializable
                     String query = sb.toString();
 
                     insertStatement = client.prepare(query);
+
+                    if (insert.containsKey("consistencyLevel")){
+                        insertStatement.setConsistencyLevel(JavaDriverClient.from(ConsistencyLevel.valueOf(insert.get("consistencyLevel").toUpperCase())));
+                    } else if (settings.insert.consistencyLevel != null){
+                        insertStatement.setConsistencyLevel(JavaDriverClient.from(settings.insert.consistencyLevel));
+                    } else {
+                        insertStatement.setConsistencyLevel(JavaDriverClient.from(settings.command.consistencyLevel));
+                    }
+
+                    if (insert.containsKey("serialConsistencyLevel")){
+                        insertStatement.setSerialConsistencyLevel(JavaDriverClient.from(ConsistencyLevel.valueOf(insert.get("serialConsistencyLevel").toUpperCase())));
+                    } else if (settings.insert.serialConsistencyLevel != null){
+                        insertStatement.setSerialConsistencyLevel(JavaDriverClient.from(settings.insert.serialConsistencyLevel));
+                    } else {
+                        insertStatement.setSerialConsistencyLevel(JavaDriverClient.from(settings.command.serialConsistencyLevel));
+                    }
+
                     System.out.println("Insert Statement:");
                     System.out.println("  " + query);
                 }
             }
         }
 
-        return new SchemaInsert(timer, settings, generator, seedManager, partitions.get(), selectchance.get(), rowPopulation.get(), insertStatement, settings.command.consistencyLevel, batchType);
+        return new SchemaInsert(timer, settings, generator, seedManager, partitions.get(), selectchance.get(), rowPopulation.get(), insertStatement, batchType);
     }
 
     public List<ValidatingSchemaQuery> getValidate(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
@@ -664,7 +703,7 @@ public class StressProfile implements Serializable
 
         List<ValidatingSchemaQuery> queries = new ArrayList<>();
         for (ValidatingSchemaQuery.Factory factory : validationFactories)
-            queries.add(factory.create(timer, settings, generator, seedManager, settings.command.consistencyLevel));
+            queries.add(factory.create(timer, settings, generator, seedManager, settings.command.consistencyLevel, settings.command.serialConsistencyLevel));
         return queries;
     }
 

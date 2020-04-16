@@ -186,24 +186,32 @@ public class JavaDriverClient
     public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency)
     {
         SimpleStatement stmt = new SimpleStatement(query);
+        stmt.setConsistencyLevel(JavaDriverClient.from(consistency));
+        return getSession().execute(stmt);
+    }
 
-        if (consistency.isSerialConsistency())
-            stmt.setSerialConsistencyLevel(from(consistency));
-        else
-            stmt.setConsistencyLevel(from(consistency));
+    public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency, org.apache.cassandra.db.ConsistencyLevel serialConsistency)
+    {
+        SimpleStatement stmt = new SimpleStatement(query);
+        stmt.setConsistencyLevel(JavaDriverClient.from(consistency));
+        stmt.setSerialConsistencyLevel(JavaDriverClient.from(serialConsistency));
         return getSession().execute(stmt);
     }
 
     public ResultSet executePrepared(PreparedStatement stmt, List<Object> queryParams, org.apache.cassandra.db.ConsistencyLevel consistency)
     {
-        if (consistency.isSerialConsistency())
-        {
-            stmt.setSerialConsistencyLevel(from(consistency));
-        }
-        else
-        {
-            stmt.setConsistencyLevel(from(consistency));
-        }
+        if(stmt.getConsistencyLevel() == null)
+            stmt.setConsistencyLevel(JavaDriverClient.from(consistency));
+        BoundStatement bstmt = stmt.bind((Object[]) queryParams.toArray(new Object[queryParams.size()]));
+        return getSession().execute(bstmt);
+    }
+
+    public ResultSet executePrepared(PreparedStatement stmt, List<Object> queryParams, org.apache.cassandra.db.ConsistencyLevel consistency, org.apache.cassandra.db.ConsistencyLevel serialConsistency)
+    {
+        if(stmt.getConsistencyLevel() == null)
+            stmt.setConsistencyLevel(JavaDriverClient.from(consistency));
+        if(stmt.getSerialConsistencyLevel() == null)
+            stmt.setSerialConsistencyLevel(JavaDriverClient.from(serialConsistency));
         BoundStatement bstmt = stmt.bind((Object[]) queryParams.toArray(new Object[queryParams.size()]));
         return getSession().execute(bstmt);
     }

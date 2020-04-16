@@ -62,10 +62,10 @@ public class CASQuery extends SchemaStatement
 
     private PreparedStatement casReadConditionStatement;
 
-    public CASQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect, final String tableName)
+    public CASQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ArgSelect argSelect, final String tableName)
     {
         super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), settings.insert.rowPopulationRatio.get(), argSelect == SchemaStatement.ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement,
-              statement.getVariables().asList().stream().map(ColumnDefinitions.Definition::getName).collect(Collectors.toList()), cl);
+              statement.getVariables().asList().stream().map(ColumnDefinitions.Definition::getName).collect(Collectors.toList()));
 
         if (argSelect != SchemaStatement.ArgSelect.SAMEROW)
             throw new IllegalArgumentException("CAS is supported only for type 'samerow'");

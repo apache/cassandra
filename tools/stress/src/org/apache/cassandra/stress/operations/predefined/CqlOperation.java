@@ -277,7 +277,11 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         public <V> V execute(String query, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
         {
             String formattedQuery = formatCqlQuery(query, queryParams);
-            return handler.javaDriverHandler().apply(client.execute(formattedQuery, settings.command.consistencyLevel));
+            return handler.javaDriverHandler().apply(
+                    client.execute(
+                            formattedQuery,
+                            settings.command.consistencyLevel,
+                            settings.command.serialConsistencyLevel));
         }
 
         @Override
@@ -287,7 +291,8 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                     client.executePrepared(
                             (PreparedStatement) preparedStatement,
                             queryParams,
-                            settings.command.consistencyLevel));
+                            settings.command.consistencyLevel,
+                            settings.command.serialConsistencyLevel));
         }
 
         @Override

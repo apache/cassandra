@@ -43,9 +43,17 @@ public class StressYaml
     {
         public String cql;
         public String fields;
+        public String consistencyLevel;
+        public String serialConsistencyLevel;
         public String getConfigAsString()
         {
-            return String.format("CQL:%s;Fields:%s;", cql, fields);
+            String output = String.format("CQL:%s;Fields:%s;",
+                    cql, fields, consistencyLevel, serialConsistencyLevel);
+            if (consistencyLevel != null)
+                output += String.format("consistencyLevel:%s;", consistencyLevel);
+            if (serialConsistencyLevel != null)
+                output += String.format("serialConsistencyLevel:%s;", serialConsistencyLevel);
+            return output;
         }
     }
 

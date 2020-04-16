@@ -40,10 +40,10 @@ public class SchemaQuery extends SchemaStatement
     final Object[][] randomBuffer;
     final Random random = new Random();
 
-    public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect)
+    public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ArgSelect argSelect)
     {
         super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), settings.insert.rowPopulationRatio.get(), argSelect == SchemaStatement.ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement,
-              statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), cl);
+              statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()));
         this.argSelect = argSelect;
         randomBuffer = new Object[argumentIndex.length][argumentIndex.length];
     }

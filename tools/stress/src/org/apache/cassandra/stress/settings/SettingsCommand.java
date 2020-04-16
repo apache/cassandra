@@ -50,6 +50,7 @@ public abstract class SettingsCommand implements Serializable
     public final boolean noWarmup;
     public final TruncateWhen truncate;
     public final ConsistencyLevel consistencyLevel;
+    public final ConsistencyLevel serialConsistencyLevel;
     public final double targetUncertainty;
     public final int minimumUncertaintyMeasurements;
     public final int maximumUncertaintyMeasurements;
@@ -69,6 +70,7 @@ public abstract class SettingsCommand implements Serializable
     {
         this.type = type;
         this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
+        this.serialConsistencyLevel = ConsistencyLevel.valueOf(options.serialConsistencyLevel.value().toUpperCase());
         this.noWarmup = options.noWarmup.setByUser();
         this.truncate = TruncateWhen.valueOf(options.truncate.value().toUpperCase());
 
@@ -124,6 +126,7 @@ public abstract class SettingsCommand implements Serializable
         final OptionSimple noWarmup = new OptionSimple("no-warmup", "", null, "Do not warmup the process", false);
         final OptionSimple truncate = new OptionSimple("truncate=", "never|once|always", "never", "Truncate the table: never, before performing any work, or before each iteration", false);
         final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY|TWO|THREE|LOCAL_ONE|SERIAL|LOCAL_SERIAL", "LOCAL_ONE", "Consistency level to use", false);
+        final OptionSimple serialConsistencyLevel = new OptionSimple("serial-cl=", "SERIAL|LOCAL_SERIAL", "SERIAL", "Serial consistency level to use", false);
     }
 
     static class Count extends Options
@@ -132,7 +135,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(count, noWarmup, truncate, consistencyLevel);
+            return Arrays.asList(count, noWarmup, truncate, consistencyLevel, serialConsistencyLevel);
         }
     }
 
@@ -142,7 +145,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(duration, noWarmup, truncate, consistencyLevel);
+            return Arrays.asList(duration, noWarmup, truncate, consistencyLevel, serialConsistencyLevel);
         }
     }
 
@@ -154,7 +157,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, noWarmup, truncate, consistencyLevel);
+            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, noWarmup, truncate, consistencyLevel, serialConsistencyLevel);
         }
     }
 
@@ -186,6 +189,7 @@ public abstract class SettingsCommand implements Serializable
         }
         out.printf("  No Warmup: %s%n", noWarmup);
         out.printf("  Consistency Level: %s%n", consistencyLevel.toString());
+        out.printf("  Serial Consistency Level: %s%n", serialConsistencyLevel.toString());
         if (targetUncertainty != -1)
         {
             out.printf("  Target Uncertainty: %.3f%n", targetUncertainty);
