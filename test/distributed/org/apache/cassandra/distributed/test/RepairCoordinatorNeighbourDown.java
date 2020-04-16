@@ -74,8 +74,8 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
         String table = tableName("neighbourdown");
         assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-            Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
             String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().toString());
+            Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
             try
             {
                 // wait for the node to stop

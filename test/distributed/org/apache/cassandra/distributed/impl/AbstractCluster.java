@@ -122,6 +122,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         protected IInvokableInstance delegate()
         {
             if (delegate == null)
+                throw new IllegalStateException("Can't use shut down instances, delegate is null");
+            return delegate;
+        }
+
+        protected IInvokableInstance delegateForStartup()
+        {
+            if (delegate == null)
                 delegate = newInstance(generation);
             return delegate;
         }
@@ -164,7 +171,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 throw new IllegalArgumentException("Only the owning cluster can be used for startup");
             if (!isShutdown)
                 throw new IllegalStateException();
-            delegate().startup(cluster);
+            delegateForStartup().startup(cluster);
             isShutdown = false;
             updateMessagingVersions();
         }
@@ -256,7 +263,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             I instance = newInstanceWrapperInternal(generation, initialVersion, config);
             instances.add(instance);
             // we use the config().broadcastAddressAndPort() here because we have not initialised the Instance
-            I prev = instanceMap.put(instance.broadcastAddress(), instance);
+            I prev = instanceMap.put(instance.config().broadcastAddress(), instance);
             if (null != prev)
                 throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddress() + " vs " + prev.broadcastAddress());
         }
