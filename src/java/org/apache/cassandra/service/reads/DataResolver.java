@@ -130,7 +130,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     protected RepairedDataVerifier getRepairedDataVerifier(ReadCommand command)
     {
-        return RepairedDataVerifier.simple(command);
+        return RepairedDataVerifier.verifier(command);
     }
 
     private UnfilteredPartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results,

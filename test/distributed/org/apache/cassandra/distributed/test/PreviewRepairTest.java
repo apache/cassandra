@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +30,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -41,13 +44,16 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.shared.RepairResult;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
@@ -197,7 +203,98 @@ public class PreviewRepairTest extends TestBaseImpl
         }
     }
 
-    private static class DelayMessageFilter implements IMessageFilters.Matcher
+    @Test
+    public void snapshotTest() throws IOException, InterruptedException
+    {
+        try(Cluster cluster = init(Cluster.build(3).withConfig(config ->
+                                                               config.set("snapshot_on_repaired_data_mismatch", true)
+                                                                     .with(GOSSIP)
+                                                                     .with(NETWORK))
+                                          .start()))
+        {
+            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
+            cluster.schemaChange("create table " + KEYSPACE + ".tbl2 (id int primary key, t int)");
+            Thread.sleep(1000);
+
+            // populate 2 tables
+            insert(cluster.coordinator(1), 0, 100, "tbl");
+            insert(cluster.coordinator(1), 0, 100, "tbl2");
+            cluster.forEach((n) -> n.flush(KEYSPACE));
+
+            // make sure everything is marked repaired
+            cluster.get(1).callOnInstance(repair(options(false)));
+            waitMarkedRepaired(cluster);
+            // make node2 mismatch
+            unmarkRepaired(cluster.get(2), "tbl");
+            verifySnapshots(cluster, "tbl", true);
+            verifySnapshots(cluster, "tbl2", true);
+
+            AtomicInteger snapshotMessageCounter = new AtomicInteger();
+            cluster.filters().verbs(Verb.SNAPSHOT_REQ.id).messagesMatching((from, to, message) -> {
+                snapshotMessageCounter.incrementAndGet();
+                return false;
+            }).drop();
+            cluster.get(1).callOnInstance(repair(options(true)));
+            verifySnapshots(cluster, "tbl", false);
+            // tbl2 should not have a mismatch, so the snapshots should be empty here
+            verifySnapshots(cluster, "tbl2", true);
+            assertEquals(3, snapshotMessageCounter.get());
+
+            // and make sure that we don't try to snapshot again
+            snapshotMessageCounter.set(0);
+            cluster.get(3).callOnInstance(repair(options(true)));
+            assertEquals(0, snapshotMessageCounter.get());
+        }
+    }
+
+    private void waitMarkedRepaired(Cluster cluster)
+    {
+        cluster.forEach(node -> node.runOnInstance(() -> {
+            for (String table : Arrays.asList("tbl", "tbl2"))
+            {
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
+                while (true)
+                {
+                    if (cfs.getLiveSSTables().stream().allMatch(SSTableReader::isRepaired))
+                        return;
+                    Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                }
+            }
+        }));
+    }
+
+    private void unmarkRepaired(IInvokableInstance instance, String table)
+    {
+        instance.runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
+            try
+            {
+                cfs.getCompactionStrategyManager().mutateRepaired(cfs.getLiveSSTables(), ActiveRepairService.UNREPAIRED_SSTABLE, null, false);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void verifySnapshots(Cluster cluster, String table, boolean shouldBeEmpty)
+    {
+        cluster.forEach(node -> node.runOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
+            if(shouldBeEmpty)
+            {
+                assertTrue(cfs.getSnapshotDetails().isEmpty());
+            }
+            else
+            {
+                while (cfs.getSnapshotDetails().isEmpty())
+                    Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+            }
+        }));
+    }
+
+    static class DelayMessageFilter implements IMessageFilters.Matcher
     {
         private final SimpleCondition condition;
         private final AtomicBoolean waitForRepair = new AtomicBoolean(true);
@@ -224,8 +321,13 @@ public class PreviewRepairTest extends TestBaseImpl
 
     private static void insert(ICoordinator coordinator, int start, int count)
     {
+        insert(coordinator, start, count, "tbl");
+    }
+
+    static void insert(ICoordinator coordinator, int start, int count, String table)
+    {
         for (int i = start; i < start + count; i++)
-            coordinator.execute("insert into " + KEYSPACE + ".tbl (id, t) values (?, ?)", ConsistencyLevel.ALL, i, i);
+            coordinator.execute("insert into " + KEYSPACE + "." + table + " (id, t) values (?, ?)", ConsistencyLevel.ALL, i, i);
     }
 
     /**
