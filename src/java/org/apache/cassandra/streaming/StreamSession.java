@@ -553,8 +553,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return state == State.COMPLETE;
     }
 
-    public void messageReceived(StreamMessage message)
+    public synchronized void messageReceived(StreamMessage message)
     {
+        if (message.type != StreamMessage.Type.KEEP_ALIVE)
+            failIfFinished();
+
         sink.recordMessage(peer, message.type);
 
         switch (message.type)
