@@ -98,5 +98,6 @@ class Py38SaferScanner(SaferScannerBase):
         self.p = p
         self.scanner = re.sre_compile.compile(p)
 
+
 SaferScanner = Py36SaferScanner if six.PY3 else Py2SaferScanner
 SaferScanner = Py38SaferScanner if version_info >= (3, 8) else SaferScanner
