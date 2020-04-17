@@ -2136,6 +2136,13 @@
                    match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)&quot;"
                    replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}&quot;"
                    byline="true"/>
+
+      <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" />
+  </component>
+</project>]]></echo>
   </target>
 
   <!-- Generate IDEA project description files -->
