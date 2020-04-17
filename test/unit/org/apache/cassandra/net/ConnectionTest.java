@@ -55,6 +55,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -571,14 +572,21 @@ public class ConnectionTest
     @Test
     public void testPendingOutboundConnectionUpdatesMessageVersionOnReconnectAttempt() throws Throwable
     {
+        final String storagePortProperty = Config.PROPERTY_PREFIX + "ssl_storage_port";
+        final String originalStoragePort = System.getProperty(storagePortProperty);
         try
         {
+            // Set up an inbound connection listening *only* on the SSL storage port to
+            // replicate a 3.x node.  Force the messaging version to be incorrectly set to 4.0
+            // before the outbound connection attempt.
             final Settings settings = Settings.LARGE;
             final InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
 
             MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
                                                      MessagingService.VERSION_40);
-            final InetAddressAndPort legacySSLAddrsAndPort = endpoint.withPort(7011);
+
+            System.setProperty(storagePortProperty, "7011");
+            final InetAddressAndPort legacySSLAddrsAndPort = endpoint.withPort(DatabaseDescriptor.getSSLStoragePort());
             InboundConnectionSettings inboundSettings = settings.inbound.apply(new InboundConnectionSettings().withEncryption(encryptionOptions))
                                                                         .withBindAddress(legacySSLAddrsAndPort)
                                                                         .withAcceptMessaging(new AcceptVersions(VERSION_30, VERSION_3014))
@@ -644,6 +652,10 @@ public class ConnectionTest
         {
             MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
                                                      current_version);
+            if (originalStoragePort != null)
+                System.setProperty(storagePortProperty, originalStoragePort);
+            else
+                System.clearProperty(storagePortProperty);
         }
     }
 
