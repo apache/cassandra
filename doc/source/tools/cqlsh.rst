@@ -100,6 +100,9 @@ Options:
 ``--connect-timeout``
   Specify the connection timeout in seconds (defaults to 2s)
 
+``--python /path/to/python``
+  Specify the full path to Python interpreter to override default on systems with multiple interpreters installed
+
 ``--request-timeout``
   Specify the request timeout in seconds (defaults to 10s)
 
