@@ -1,4 +1,5 @@
 3.0.21
+ * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
  * Don't skip sstables in slice queries based only on local min/max/deletion timestamp (CASSANDRA-15690)
  * Memtable memory allocations may deadlock (CASSANDRA-15367)
  * Run evictFromMembership in GossipStage (CASSANDRA-15592)

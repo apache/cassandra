@@ -814,6 +814,10 @@ class Shell(cmd.Cmd):
         self.single_statement = single_statement
 
     @property
+    def batch_mode(self):
+        return not self.tty
+
+    @property
     def is_using_utf8(self):
         # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
         return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8', CP65001]
@@ -2681,8 +2685,8 @@ def main(options, hostname, port):
 
     shell.cmdloop()
     save_history()
-    batch_mode = options.file or options.execute
-    if batch_mode and shell.statement_error:
+
+    if shell.batch_mode and shell.statement_error:
         sys.exit(2)
 
 
