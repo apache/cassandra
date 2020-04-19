@@ -860,9 +860,9 @@ class Shell(cmd.Cmd):
     def get_input_line(self, prompt=''):
         if self.tty:
             self.lastcmd = input(prompt)
-            line = self.lastcmd + '\n'
+            line = ensure_text(self.lastcmd) + '\n'
         else:
-            self.lastcmd = self.stdin.readline()
+            self.lastcmd = ensure_text(self.stdin.readline())
             line = self.lastcmd
             if not len(line):
                 raise EOFError
@@ -911,7 +911,7 @@ class Shell(cmd.Cmd):
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
-
+        statementtext = ensure_text(statementtext)
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError as e:
@@ -1007,7 +1007,7 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
-        statement = ensure_str(statement)
+        statement = ensure_text(statement)
 
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         success, future = self.perform_simple_statement(stmt)

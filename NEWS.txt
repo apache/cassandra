@@ -248,6 +248,8 @@ Upgrading
       passed will now need to conform to java.time.format.DateTimeFormatter.
       Most notably, days and months must be two digits, and years exceeding
       four digits need to be prefixed with a plus or minus sign.
+    - cqlsh now returns a non-zero code in case of errors. This is a backward incompatible change so it may
+      break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
 
 
 Materialized Views
