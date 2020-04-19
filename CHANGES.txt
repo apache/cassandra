@@ -1,4 +1,5 @@
 4.0-alpha4
+ * Fix CQLSH UTF-8 encoding issue for Python 2/3 compatibility (CASSANDRA-15739)
  * Fix batch statement preparation when multiple tables and parameters are used (CASSANDRA-15730)
  * Fix regression with traceOutgoingMessage printing message size (CASSANDRA-15687)
  * Ensure repaired data tracking reads a consistent amount of data across replicas (CASSANDRA-15601)
