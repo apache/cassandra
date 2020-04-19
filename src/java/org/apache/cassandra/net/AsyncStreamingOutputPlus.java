@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.WriteBufferWaterMark;
+import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.SharedDefaultFileRegion.SharedFileChannel;
@@ -171,10 +172,40 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
     {
         // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
         // the data is never brought in process and is gated by the wire anyway
-        return writeFileToChannel(file, limiter, 1 << 20, 1 << 20, 2 << 20);
+        if (channel.pipeline().get(SslHandler.class) != null)
+            return writeFileToChannel(file, limiter, 1 << 20, 1 << 20, 2 << 20);
+        else
+            return writeFileToChannelZeroCopy(file, limiter, 1 << 20, 1 << 20, 2 << 20);
     }
 
-    public long writeFileToChannel(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    public long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    {
+        final long length = fc.size();
+        long bytesTransferred = 0;
+        while (bytesTransferred < length)
+        {
+            int toWrite = (int) min(batchSize, length - bytesTransferred);
+            final long position = bytesTransferred;
+
+            writeToChannel(bufferSupplier -> {
+                ByteBuffer outBuffer = bufferSupplier.get(toWrite);
+                long read = fc.read(outBuffer, position);
+                if (read != toWrite)
+                    throw new IOException(String.format("could not read required number of bytes from " +
+                                                        "file to be streamed: read %d bytes, wanted %d bytes",
+                                                        read, toWrite));
+                outBuffer.flip();
+            }, limiter);
+
+            if (logger.isTraceEnabled())
+                logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
+            bytesTransferred += toWrite;
+        }
+
+        return bytesTransferred;
+    }
+
+    public long writeFileToChannelZeroCopy(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
         final long length = file.size();
         long bytesTransferred = 0;
