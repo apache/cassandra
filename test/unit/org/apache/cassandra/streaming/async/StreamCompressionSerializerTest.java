@@ -34,7 +34,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
@@ -48,7 +48,7 @@ public class StreamCompressionSerializerTest
     private final ByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
     private final StreamCompressionSerializer serializer = new StreamCompressionSerializer(allocator);
     private final LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
-    private final LZ4FastDecompressor decompressor = LZ4Factory.fastestInstance().fastDecompressor();
+    private final LZ4SafeDecompressor decompressor = LZ4Factory.fastestInstance().safeDecompressor();
 
     private ByteBuffer input;
     private ByteBuffer compressed;

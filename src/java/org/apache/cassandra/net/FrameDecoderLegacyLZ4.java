@@ -28,7 +28,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.compression.Lz4FrameDecoder;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import net.jpountz.xxhash.XXHash32;
 import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.utils.memory.BufferPool;
@@ -101,8 +101,8 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
         private static final XXHash32 xxhash =
             XXHashFactory.fastestInstance().hash32();
 
-        private static final LZ4FastDecompressor decompressor =
-            LZ4Factory.fastestInstance().fastDecompressor();
+        private static final LZ4SafeDecompressor decompressor =
+            LZ4Factory.fastestInstance().safeDecompressor();
 
         private final BufferPoolAllocator allocator;
 
@@ -245,7 +245,8 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             ByteBuffer out = allocator.get(header.uncompressedLength);
             try
             {
-                decompressor.decompress(buf, begin + HEADER_LENGTH, out, 0, header.uncompressedLength);
+                int sourceLength = end - (begin + HEADER_LENGTH);
+                decompressor.decompress(buf, begin + HEADER_LENGTH, sourceLength, out, 0, header.uncompressedLength);
                 validateChecksum(out, 0, header);
                 return ShareableBytes.wrap(out);
             }
