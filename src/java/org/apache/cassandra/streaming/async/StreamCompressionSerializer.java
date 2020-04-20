@@ -25,7 +25,7 @@ import java.nio.channels.ReadableByteChannel;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 
@@ -73,7 +73,7 @@ public class StreamCompressionSerializer
     /**
      * @return A buffer with decompressed data.
      */
-    public ByteBuf deserialize(LZ4FastDecompressor decompressor, DataInputPlus in, int version) throws IOException
+    public ByteBuf deserialize(LZ4SafeDecompressor decompressor, DataInputPlus in, int version) throws IOException
     {
         final int compressedLength = in.readInt();
         final int uncompressedLength = in.readInt();
