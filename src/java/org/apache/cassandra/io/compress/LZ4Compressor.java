@@ -72,7 +72,7 @@ public class LZ4Compressor implements ICompressor
     }
 
     private final net.jpountz.lz4.LZ4Compressor compressor;
-    private final net.jpountz.lz4.LZ4FastDecompressor decompressor;
+    private final net.jpountz.lz4.LZ4SafeDecompressor decompressor;
     @VisibleForTesting
     final String compressorType;
     @VisibleForTesting
@@ -97,7 +97,7 @@ public class LZ4Compressor implements ICompressor
             }
         }
 
-        decompressor = lz4Factory.fastDecompressor();
+        decompressor = lz4Factory.safeDecompressor();
     }
 
     public int initialCompressedBufferLength(int chunkLength)
@@ -131,20 +131,24 @@ public class LZ4Compressor implements ICompressor
                 | ((input[inputOffset + 2] & 0xFF) << 16)
                 | ((input[inputOffset + 3] & 0xFF) << 24);
 
-        final int compressedLength;
+        final int writtenLength;
         try
         {
-            compressedLength = decompressor.decompress(input, inputOffset + INTEGER_BYTES,
-                                                       output, outputOffset, decompressedLength);
+            writtenLength = decompressor.decompress(input,
+                                                    inputOffset + INTEGER_BYTES,
+                                                    inputLength - INTEGER_BYTES,
+                                                    output,
+                                                    outputOffset,
+                                                    decompressedLength);
         }
         catch (LZ4Exception e)
         {
             throw new IOException(e);
         }
 
-        if (compressedLength != inputLength - INTEGER_BYTES)
+        if (writtenLength != decompressedLength)
         {
-            throw new IOException("Compressed lengths mismatch");
+            throw new IOException("Decompressed lengths mismatch");
         }
 
         return decompressedLength;
@@ -159,7 +163,8 @@ public class LZ4Compressor implements ICompressor
 
         try
         {
-            int compressedLength = decompressor.decompress(input, input.position(), output, output.position(), decompressedLength);
+            int compressedLength = input.remaining();
+            decompressor.decompress(input, input.position(), input.remaining(), output, output.position(), decompressedLength);
             input.position(input.position() + compressedLength);
             output.position(output.position() + decompressedLength);
         }
