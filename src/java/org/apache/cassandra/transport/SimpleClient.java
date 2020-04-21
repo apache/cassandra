@@ -248,11 +248,9 @@ public class SimpleClient implements Closeable
     }
 
     // Stateless handlers
-    private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
-    private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder();
-    private static final Frame.Decompressor frameDecompressor = new Frame.Decompressor();
-    private static final Frame.Compressor frameCompressor = new Frame.Compressor();
-    private static final Frame.Encoder frameEncoder = new Frame.Encoder();
+    private static final Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
+    private static final Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
+    private static final Frame.Encoder frameEncoder = Frame.Encoder.instance;
 
     private static class ConnectionTracker implements Connection.Tracker
     {
@@ -272,16 +270,18 @@ public class SimpleClient implements Closeable
             channel.attr(Connection.attributeKey).set(connection);
 
             ChannelPipeline pipeline = channel.pipeline();
-            pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
-            pipeline.addLast("frameEncoder", frameEncoder);
-
-            pipeline.addLast("frameDecompressor", frameDecompressor);
-            pipeline.addLast("frameCompressor", frameCompressor);
-
-            pipeline.addLast("messageDecoder", messageDecoder);
-            pipeline.addLast("messageEncoder", messageEncoder);
-
-            pipeline.addLast("handler", responseHandler);
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            {
+                logger.info("Setting up protocol V5");
+            }
+            else
+            {
+                pipeline.addLast("frameDecoder", new Frame.Decoder());
+                pipeline.addLast("frameEncoder", frameEncoder);
+                pipeline.addLast("messageDecoder", messageDecoder);
+                pipeline.addLast("messageEncoder", messageEncoder);
+                pipeline.addLast("handler", responseHandler);
+            }
         }
     }
 

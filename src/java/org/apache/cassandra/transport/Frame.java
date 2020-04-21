@@ -144,13 +144,6 @@ public class Frame
         private long bytesToDiscard;
         private int tooLongStreamId;
 
-        private final Connection.Factory factory;
-
-        public Decoder(Connection.Factory factory)
-        {
-            this.factory = factory;
-        }
-
         @VisibleForTesting
         Frame decodeFrame(ByteBuf buffer)
         throws Exception
@@ -239,24 +232,9 @@ public class Frame
         throws Exception
         {
             Frame frame = decodeFrame(buffer);
-            if (frame == null) return;
+            if (frame == null)
+                return;
 
-            Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
-            Connection connection = attrConn.get();
-            if (connection == null)
-            {
-                // First message seen on this channel, attach the connection object
-                connection = factory.newConnection(ctx.channel(), frame.header.version);
-                attrConn.set(connection);
-            }
-            else if (connection.getVersion() != frame.header.version)
-            {
-                throw ErrorMessage.wrap(
-                        new ProtocolException(String.format(
-                                "Invalid message version. Got %s but previous messages on this connection had version %s",
-                                frame.header.version, connection.getVersion())),
-                        frame.header.streamId);
-            }
             results.add(frame);
         }
 
@@ -282,6 +260,9 @@ public class Frame
     @ChannelHandler.Sharable
     public static class Encoder extends MessageToMessageEncoder<Frame>
     {
+        public static final Encoder instance = new Frame.Encoder();
+        private Encoder(){};
+
         public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {

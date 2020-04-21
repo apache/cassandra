@@ -44,9 +44,9 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.util.Attribute;
 import io.netty.util.Version;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -57,6 +57,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -409,12 +410,6 @@ public class Server implements CassandraDaemon.Server
     private static class Initializer extends ChannelInitializer<Channel>
     {
         // Stateless handlers
-        private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
-        private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder();
-        private static final Frame.Decompressor frameDecompressor = new Frame.Decompressor();
-        private static final Frame.Compressor frameCompressor = new Frame.Compressor();
-        private static final Frame.Encoder frameEncoder = new Frame.Encoder();
-        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
         private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
 
         private final Server server;
@@ -452,25 +447,7 @@ public class Server implements CassandraDaemon.Server
 
             //pipeline.addLast("debug", new LoggingHandler());
 
-            pipeline.addLast("frameDecoder", new Frame.Decoder(server.connectionFactory));
-            pipeline.addLast("frameEncoder", frameEncoder);
-
-            pipeline.addLast("frameDecompressor", frameDecompressor);
-            pipeline.addLast("frameCompressor", frameCompressor);
-
-            pipeline.addLast("messageDecoder", messageDecoder);
-            pipeline.addLast("messageEncoder", messageEncoder);
-
-            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                                EndpointPayloadTracker.get(((InetSocketAddress) channel.remoteAddress()).getAddress())));
-
-            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
-            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
-            // eventExecutorGroup may not enforce strict ordering for channel events.
-            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
-            // correctly handled before the handler itself is removed.
-            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
-            pipeline.addLast("exceptionHandler", exceptionHandler);
+            pipeline.addLast("initial", new InitialHandler(new Frame.Decoder(), server.connectionFactory));
         }
     }
 
@@ -543,6 +520,81 @@ public class Server implements CassandraDaemon.Server
             super.initChannel(channel);
             channel.pipeline().addFirst("ssl", sslHandler);
         }
+    }
+
+    static class InitialHandler extends ByteToMessageDecoder
+    {
+        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
+        final Frame.Decoder decoder;
+        final Connection.Factory factory;
+
+        InitialHandler(Frame.Decoder decoder, Connection.Factory factory)
+        {
+            this.decoder = decoder;
+            this.factory = factory;
+        }
+
+        protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> list) throws Exception
+        {
+            Frame frame = decoder.decodeFrame(buffer);
+            if (frame == null)
+                return;
+
+            Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
+            Connection connection = attrConn.get();
+            if (connection == null)
+            {
+                // First message seen on this channel, attach the connection object
+                connection = factory.newConnection(ctx.channel(), frame.header.version);
+                attrConn.set(connection);
+                logger.info("Configuring pipeline for {}", frame.header.version);
+                if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    configureModernPipeline(ctx.channel(), decoder);
+                else
+                    configureLegacyPipeline(ctx.channel(), decoder);
+
+                ctx.pipeline().remove(this);
+                logger.info("Configured pipeline: {}", ctx.pipeline());
+                list.add(frame);
+            }
+            else
+            {
+                logger.error("Connection was already set on channel, initial handler should have configured pipeline");
+                throw new ServerError("Connection initialization error.");
+            }
+        }
+
+        void configureModernPipeline(Channel channel, Frame.Decoder frameDecoder)
+        {
+            logger.info("Configuring V5 pipeline");
+            configureLegacyPipeline(channel, frameDecoder);
+        }
+
+        void configureLegacyPipeline(Channel channel, Frame.Decoder frameDecoder)
+        {
+            logger.info("Configuring legacy pipeline");
+            ChannelPipeline pipeline = channel.pipeline();
+            pipeline.addBefore("initial", "frameDecoder", frameDecoder);
+            pipeline.addBefore("initial", "frameEncoder", Frame.Encoder.instance);
+            pipeline.addLast("messageDecoder", Message.ProtocolDecoder.instance);
+            pipeline.addLast("messageEncoder", Message.ProtocolEncoder.instance);
+
+            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
+                                                                EndpointPayloadTracker.get(((InetSocketAddress) channel.remoteAddress()).getAddress())));
+            addExceptionHandler(pipeline);
+        }
+
+        void addExceptionHandler(ChannelPipeline pipeline)
+        {
+            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
+            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
+            // eventExecutorGroup may not enforce strict ordering for channel events.
+            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
+            // correctly handled before the handler itself is removed.
+            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
+            pipeline.addLast("exceptionHandler", exceptionHandler);
+        }
+
     }
 
     private static class LatestEvent

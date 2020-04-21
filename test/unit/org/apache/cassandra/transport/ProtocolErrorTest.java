@@ -52,7 +52,7 @@ public class ProtocolErrorTest {
 
     public void testInvalidProtocolVersion(int version) throws Exception
     {
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder();
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
@@ -80,7 +80,7 @@ public class ProtocolErrorTest {
     public void testInvalidProtocolVersionShortFrame() throws Exception
     {
         // test for CASSANDRA-11464
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder();
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
@@ -102,7 +102,7 @@ public class ProtocolErrorTest {
     @Test
     public void testInvalidDirection() throws Exception
     {
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder();
 
         List<Object> results = new ArrayList<>();
         // should generate a protocol exception for using a response frame with
@@ -133,7 +133,7 @@ public class ProtocolErrorTest {
     @Test
     public void testBodyLengthOverLimit() throws Exception
     {
-        Frame.Decoder dec = new Frame.Decoder(null);
+        Frame.Decoder dec = new Frame.Decoder();
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
@@ -185,7 +185,7 @@ public class ProtocolErrorTest {
         };
         byte[] body = new byte[0x10];
         ByteBuf buf = Unpooled.wrappedBuffer(incomingFrame, body);
-        Frame decodedFrame = new Frame.Decoder(null).decodeFrame(buf);
+        Frame decodedFrame = new Frame.Decoder().decodeFrame(buf);
         try {
             decodedFrame.header.type.codec.decode(decodedFrame.body, decodedFrame.header.version);
             Assert.fail("Expected protocol error");

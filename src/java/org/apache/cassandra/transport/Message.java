@@ -314,6 +314,9 @@ public abstract class Message
     @ChannelHandler.Sharable
     public static class ProtocolDecoder extends MessageToMessageDecoder<Frame>
     {
+        public static final ProtocolDecoder instance = new ProtocolDecoder();
+        private ProtocolDecoder() {}
+
         public void decode(ChannelHandlerContext ctx, Frame frame, List results)
         {
             boolean isRequest = frame.header.type.direction == Direction.REQUEST;
@@ -367,6 +370,9 @@ public abstract class Message
     @ChannelHandler.Sharable
     public static class ProtocolEncoder extends MessageToMessageEncoder<Message>
     {
+        public static final ProtocolEncoder instance = new ProtocolEncoder();
+        private ProtocolEncoder(){}
+
         public void encode(ChannelHandlerContext ctx, Message message, List results)
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
