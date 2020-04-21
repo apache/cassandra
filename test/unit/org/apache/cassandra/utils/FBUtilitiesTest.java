@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -140,30 +141,41 @@ public class FBUtilitiesTest
     @Test
     public void testWaitFirstFuture() throws ExecutionException, InterruptedException
     {
-
-        ExecutorService executor = Executors.newFixedThreadPool(4);
-        FBUtilities.reset();
-        List<Future<?>> futures = new ArrayList<>();
-        for (int i = 4; i >= 1; i--)
+        final int threadCount = 10;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        try
         {
-            final int sleep = i * 10;
-            futures.add(executor.submit(() -> { TimeUnit.MILLISECONDS.sleep(sleep); return sleep; }));
+            List<Future<?>> futures = new ArrayList<>(threadCount);
+            List<CountDownLatch> latches = new ArrayList<>(threadCount);
+
+            for (int i = 0; i < threadCount; i++)
+            {
+                CountDownLatch latch = new CountDownLatch(1);
+                latches.add(latch);
+                int finalI = i;
+                futures.add(executor.submit(() -> {
+                    latch.await(10, TimeUnit.SECONDS);
+                    // Sleep to emulate "work" done by the future to make it not return immediately
+                    // after counting down the latch in order to test for delay and spinning done
+                    // in FBUtilities#waitOnFirstFuture.
+                    TimeUnit.MILLISECONDS.sleep(10);
+                    return latch.getCount() == 0 ? finalI : -1;
+                }));
+            }
+
+            for (int i = 0; i < threadCount; i++)
+            {
+                latches.get(i).countDown();
+                Future<?> fut = FBUtilities.waitOnFirstFuture(futures, 3);
+                int futSleep = (Integer) fut.get();
+                assertEquals(futSleep, i);
+                futures.remove(fut);
+            }
         }
-        Future<?> fut = FBUtilities.waitOnFirstFuture(futures, 3);
-        int futSleep = (Integer) fut.get();
-        assertEquals(futSleep, 10);
-        futures.remove(fut);
-        fut = FBUtilities.waitOnFirstFuture(futures, 3);
-        futSleep = (Integer) fut.get();
-        assertEquals(futSleep, 20);
-        futures.remove(fut);
-        fut = FBUtilities.waitOnFirstFuture(futures, 3);
-        futSleep = (Integer) fut.get();
-        assertEquals(futSleep, 30);
-        futures.remove(fut);
-        fut = FBUtilities.waitOnFirstFuture(futures, 3);
-        futSleep = (Integer) fut.get();
-        assertEquals(futSleep, 40);
+        finally
+        {
+            executor.shutdown();
+        }
     }
 
 }
