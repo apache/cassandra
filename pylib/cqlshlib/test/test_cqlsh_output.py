@@ -599,6 +599,7 @@ class TestCqlshOutput(BaseTestCase):
                              "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
     def test_describe(self):
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             for cmd in ('DESC SCHEMA',
                         'DESC SCHEMA;',
                         'dEsC sChEmA',
