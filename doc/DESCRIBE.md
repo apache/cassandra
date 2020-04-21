@@ -43,6 +43,16 @@ The correct way to re-construct the DDL script for a `DESCRIBE` statement looks 
 ```
 
 
+Paging
+------
+
+Paging should be, as mentioned in the above, enabled and set to a reasonable value.
+
+In case the schema changes between two result pages, the request will fail with an "invalid request" (see
+section about `Error Codes` in the native-protocol spec, error code for `Invalid`). It is safe to retry the
+whole statement in that case.
+
+
 `cqlsh`
 -------
 
