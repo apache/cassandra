@@ -19,7 +19,6 @@ package org.apache.cassandra.transport;
 
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
-import org.apache.cassandra.transport.frame.FrameBodyTransformer;
 
 public class Connection
 {
@@ -29,8 +28,8 @@ public class Connection
     private final ProtocolVersion version;
     private final Tracker tracker;
 
-    private volatile FrameBodyTransformer transformer;
     private boolean throwOnOverload;
+    private volatile FrameCompressor frameCompressor;
 
     public Connection(Channel channel, ProtocolVersion version, Tracker tracker)
     {
@@ -41,14 +40,14 @@ public class Connection
         tracker.addConnection(channel, this);
     }
 
-    public void setTransformer(FrameBodyTransformer transformer)
+    public void setCompressor(FrameCompressor compressor)
     {
-        this.transformer = transformer;
+        this.frameCompressor = compressor;
     }
 
-    public FrameBodyTransformer getTransformer()
+    public FrameCompressor getCompressor()
     {
-        return transformer;
+        return frameCompressor;
     }
 
     public void setThrowOnOverload(boolean throwOnOverload)

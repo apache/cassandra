@@ -80,7 +80,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
         try
         {
-            client.connect(false, false, true);
+            client.connect(false, true);
             QueryOptions queryOptions = QueryOptions.create(
             QueryOptions.DEFAULT.getConsistency(),
             QueryOptions.DEFAULT.getValues(),
@@ -112,7 +112,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
         try
         {
-            client.connect(false, false, false);
+            client.connect(false, false);
             QueryOptions queryOptions = QueryOptions.create(
             QueryOptions.DEFAULT.getConsistency(),
             QueryOptions.DEFAULT.getValues(),
@@ -147,7 +147,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
         try
         {
-            client.connect(false, false, false);
+            client.connect(false, false);
             QueryOptions queryOptions = QueryOptions.create(
             QueryOptions.DEFAULT.getConsistency(),
             QueryOptions.DEFAULT.getValues(),
@@ -183,7 +183,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
         try
         {
-            client.connect(false, false, true);
+            client.connect(false, true);
             QueryOptions queryOptions = QueryOptions.create(
             QueryOptions.DEFAULT.getConsistency(),
             QueryOptions.DEFAULT.getValues(),
@@ -227,7 +227,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
         try
         {
-            client.connect(false, false, true);
+            client.connect(false, true);
             QueryOptions queryOptions = QueryOptions.create(
             QueryOptions.DEFAULT.getConsistency(),
             QueryOptions.DEFAULT.getValues(),
@@ -268,7 +268,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
                                                ProtocolVersion.V5,
                                                true,
                                                new EncryptionOptions());
-        client.connect(false, true, true);
+        client.connect(false, true);
 
         QueryOptions queryOptions = QueryOptions.create(
         QueryOptions.DEFAULT.getConsistency(),
@@ -332,7 +332,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
                                        ProtocolVersion.V5,
                                        true,
                                        new EncryptionOptions());
-            client.connect(false, true, true);
+            client.connect(false, true);
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
                                             queryOptions);
@@ -379,7 +379,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
                                       ProtocolVersion.V5,
                                       true,
                                       new EncryptionOptions());
-            client.connect(false, true, true);
+            client.connect(false, true);
 
             queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
                                             queryOptions);

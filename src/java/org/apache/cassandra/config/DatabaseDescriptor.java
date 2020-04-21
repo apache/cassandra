@@ -513,9 +513,6 @@ public class DatabaseDescriptor
         checkValidForByteConversion(conf.batch_size_warn_threshold_in_kb,
                                     "batch_size_warn_threshold_in_kb", ByteUnit.KIBI_BYTES);
 
-        checkValidForByteConversion(conf.native_transport_frame_block_size_in_kb,
-                                    "native_transport_frame_block_size_in_kb", ByteUnit.KIBI_BYTES);
-
         if (conf.native_transport_max_negotiable_protocol_version != null)
             logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
                         "and should be removed from cassandra.yaml as it has no longer has any effect.");
@@ -2158,11 +2155,6 @@ public class DatabaseDescriptor
     public static void setNativeTransportAllowOlderProtocols(boolean isEnabled)
     {
         conf.native_transport_allow_older_protocols = isEnabled;
-    }
-
-    public static int getNativeTransportFrameBlockSize()
-    {
-        return (int) ByteUnit.KIBI_BYTES.toBytes(conf.native_transport_frame_block_size_in_kb);
     }
 
     public static double getCommitLogSyncGroupWindow()

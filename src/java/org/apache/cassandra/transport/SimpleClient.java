@@ -45,10 +45,6 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.transport.frame.checksum.ChecksummingTransformer;
-import org.apache.cassandra.transport.frame.compress.CompressingTransformer;
-import org.apache.cassandra.transport.frame.compress.Compressor;
-import org.apache.cassandra.transport.frame.compress.LZ4Compressor;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
@@ -60,7 +56,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
-import org.apache.cassandra.utils.ChecksumType;
 
 public class SimpleClient implements Closeable
 {
@@ -122,12 +117,12 @@ public class SimpleClient implements Closeable
         this(host, port, new EncryptionOptions());
     }
 
-    public SimpleClient connect(boolean useCompression, boolean useChecksums) throws IOException
+    public SimpleClient connect(boolean useCompression) throws IOException
     {
-        return connect(useCompression, useChecksums, false);
+        return connect(useCompression, false);
     }
 
-    public SimpleClient connect(boolean useCompression, boolean useChecksums, boolean throwOnOverload) throws IOException
+    public SimpleClient connect(boolean useCompression, boolean throwOnOverload) throws IOException
     {
         establishConnection();
 
@@ -137,20 +132,13 @@ public class SimpleClient implements Closeable
             options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
         connection.setThrowOnOverload(throwOnOverload);
 
-        if (useChecksums)
+        if (useCompression)
         {
-            Compressor compressor = useCompression ? LZ4Compressor.INSTANCE : null;
-            connection.setTransformer(ChecksummingTransformer.getTransformer(ChecksumType.CRC32, compressor));
-            options.put(StartupMessage.CHECKSUM, "crc32");
-            options.put(StartupMessage.COMPRESSION, "lz4");
+            options.put(StartupMessage.COMPRESSION, "snappy");
+            connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
         }
-        else if (useCompression)
-        {
-            connection.setTransformer(CompressingTransformer.getTransformer(LZ4Compressor.INSTANCE));
-            options.put(StartupMessage.COMPRESSION, "lz4");
-        }
-
         execute(new StartupMessage(options));
+
         return this;
     }
 
@@ -262,8 +250,8 @@ public class SimpleClient implements Closeable
     // Stateless handlers
     private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
     private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder();
-    private static final Frame.InboundBodyTransformer inboundFrameTransformer = new Frame.InboundBodyTransformer();
-    private static final Frame.OutboundBodyTransformer outboundFrameTransformer = new Frame.OutboundBodyTransformer();
+    private static final Frame.Decompressor frameDecompressor = new Frame.Decompressor();
+    private static final Frame.Compressor frameCompressor = new Frame.Compressor();
     private static final Frame.Encoder frameEncoder = new Frame.Encoder();
 
     private static class ConnectionTracker implements Connection.Tracker
@@ -287,8 +275,8 @@ public class SimpleClient implements Closeable
             pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
 
-            pipeline.addLast("inboundFrameTransformer", inboundFrameTransformer);
-            pipeline.addLast("outboundFrameTransformer", outboundFrameTransformer);
+            pipeline.addLast("frameDecompressor", frameDecompressor);
+            pipeline.addLast("frameCompressor", frameCompressor);
 
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
