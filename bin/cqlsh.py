@@ -1371,7 +1371,7 @@ class Shell(cmd.Cmd):
             # result has a single column
             for row in result:
                 self.query_out.write(row['schema_part'])
-        except CQL_ERRORS, err:
+        except CQL_ERRORS as err:
             self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
         except Exception:
             import traceback
