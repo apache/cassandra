@@ -120,7 +120,8 @@ The audit logger is set with the ``logger`` option.
 
 ::
 
- logger: BinAuditLogger
+ logger:
+ - class_name: BinAuditLogger
 
 Two types of audit loggers are supported: ``FileAuditLogger`` and ``BinAuditLogger``.
 ``BinAuditLogger`` is the default setting.  The ``BinAuditLogger`` is an efficient way to log events to file in a binary format.
@@ -128,6 +129,18 @@ Two types of audit loggers are supported: ``FileAuditLogger`` and ``BinAuditLogg
 ``FileAuditLogger`` is synchronous, file-based audit logger; just uses the standard logging mechanism. ``FileAuditLogger`` logs events to ``audit/audit.log`` file using ``slf4j`` logger.
 
 The ``NoOpAuditLogger`` is a No-Op implementation of the audit logger to be used as a default audit logger when audit logging is disabled.
+
+It is possible to configure your custom logger implementation by injecting a map of property keys and their respective values. Default `IAuditLogger`
+implementations shipped with Cassandra do not react on these properties but your custom logger might. They would be present as
+a parameter of logger constructor (as `Map<String, String>`). In ``cassandra.yaml`` file, you may configure it like this:
+
+::
+
+ logger:
+ - class_name: MyCustomAuditLogger
+   parameters:
+   - key1: value1
+     key2: value2
 
 Setting the Audit Logs Directory
 ********************************
@@ -344,7 +357,8 @@ To demonstrate audit logging enable and configure audit logs with following sett
 
  audit_logging_options:
     enabled: true
-    logger: BinAuditLogger
+    logger:
+    - class_name: BinAuditLogger
     audit_logs_dir: "/cassandra/audit/logs/hourly"
     # included_keyspaces:
     # excluded_keyspaces: system, system_schema, system_virtual_schema
