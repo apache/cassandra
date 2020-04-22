@@ -20,6 +20,8 @@ package org.apache.cassandra.schema;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
 
@@ -27,6 +29,7 @@ import com.google.common.collect.*;
 
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -84,6 +87,11 @@ public final class Types implements Iterable<UserType>
     public Iterator<UserType> iterator()
     {
         return types.values().iterator();
+    }
+
+    public Stream<UserType> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     public Iterable<UserType> referencingUserType(ByteBuffer name)

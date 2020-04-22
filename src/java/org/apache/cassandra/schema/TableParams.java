@@ -19,19 +19,23 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.BloomCalculations;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toMap;
 
 public final class TableParams
 {
@@ -251,6 +255,45 @@ public final class TableParams
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
                           .toString();
+    }
+
+    public void appendCqlTo(CqlBuilder builder)
+    {
+        builder.append("bloom_filter_fp_chance = ").append(bloomFilterFpChance)
+               .newLine()
+               .append("AND caching = ").append(caching.asMap())
+               .newLine()
+               .append("AND cdc = ").append(cdc)
+               .newLine()
+               .append("AND comment = ").appendWithSingleQuotes(comment)
+               .newLine()
+               .append("AND compaction = ").append(compaction.asMap())
+               .newLine()
+               .append("AND compression = ").append(compression.asMap())
+               .newLine()
+               .append("AND crc_check_chance = ").append(crcCheckChance)
+               .newLine()
+               .append("AND default_time_to_live = ").append(defaultTimeToLive)
+               .newLine()
+               .append("AND extensions = ").append(extensions.entrySet()
+                                                             .stream()
+                                                             .collect(toMap(Entry::getKey,
+                                                                             e -> "0x" + ByteBufferUtil.bytesToHex(e.getValue()))),
+                                                   false)
+               .newLine()
+               .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
+               .newLine()
+               .append("AND max_index_interval = ").append(maxIndexInterval)
+               .newLine()
+               .append("AND memtable_flush_period_in_ms = ").append(memtableFlushPeriodInMs)
+               .newLine()
+               .append("AND min_index_interval = ").append(minIndexInterval)
+               .newLine()
+               .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
+               .newLine()
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
+               .newLine()
+               .append("AND additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString());
     }
 
     public static final class Builder

@@ -19,53 +19,28 @@ package org.apache.cassandra.cql3.statements;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
-import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QualifiedName;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.UTName;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.UDAggregate;
-import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
@@ -73,9 +48,13 @@ import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotEmpty;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * Implements the foundations for all concrete {@code DESCRIBE} statement implementations.
@@ -209,10 +188,8 @@ import static java.lang.String.format;
  *           "cluster", "table", etc.
  * </code></pre>
  */
-public abstract class DescribeStatement extends CQLStatement.Raw implements CQLStatement
+public abstract class DescribeStatement<T> extends CQLStatement.Raw implements CQLStatement
 {
-    private static final int LINE_WIDTH = 80;
-
     private static final String KS = "system";
     private static final String CF = "describe";
     private static final List<ColumnSpecification> metadata =
@@ -226,49 +203,35 @@ public abstract class DescribeStatement extends CQLStatement.Raw implements CQLS
     static final String SCHEMA_CHANGED_WHILE_PAGING_MESSAGE = "The schema has changed since the previous page of the DESCRIBE statement result. " +
                                                               "Please retry the DESCRIBE statement.";
 
-    /**
-     * Helper functionality for unit tests to inject a "mocked" schema.
-     * Delegates to {@link DefaultSchemaAccess} in production.
-     */
-    @VisibleForTesting
-    static volatile SchemaAccess schema = new DefaultSchemaAccess();
+    private boolean includeInternalDetails;
 
-    protected final SchemaSnapshot snapshot;
-
-    protected boolean includeInternalDetails;
-
-    protected DescribeStatement()
-    {
-        this.snapshot = schema.snapshot();
-    }
-
-    public void withInternalDetails()
+    public final void withInternalDetails()
     {
         this.includeInternalDetails = true;
     }
 
     @Override
-    public CQLStatement prepare(ClientState clientState) throws RequestValidationException
+    public final CQLStatement prepare(ClientState clientState) throws RequestValidationException
     {
         return this;
     }
 
-    public List<ColumnSpecification> getBindVariables()
+    public final List<ColumnSpecification> getBindVariables()
     {
         return Collections.emptyList();
     }
 
     @Override
-    public void authorize(ClientState state)
+    public final void authorize(ClientState state)
     {
     }
 
     @Override
-    public void validate(ClientState state)
+    public final void validate(ClientState state)
     {
     }
 
-    public AuditLogContext getAuditLogContext()
+    public final AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.DESCRIBE);
     }
@@ -282,6 +245,14 @@ public abstract class DescribeStatement extends CQLStatement.Raw implements CQLS
     @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
+        Keyspaces keyspaces = Schema.instance.snapshot();
+        UUID schemaVersion = Schema.instance.getVersion();
+
+        keyspaces = Keyspaces.builder()
+                             .add(keyspaces)
+                             .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
+                             .build();
+
         PagingState pagingState = options.getPagingState();
 
         // The paging implemented here uses some arbitray row number as the partition-key for paging,
@@ -298,971 +269,477 @@ public abstract class DescribeStatement extends CQLStatement.Raw implements CQLS
         //   (vint bytes) serialized schema hash (currently the result of Keyspaces.hashCode())
         //
 
-        long offset = -1L;
-
-        if (pagingState != null)
-        {
-            try (DataInputBuffer dib = new DataInputBuffer(pagingState.partitionKey, false))
-            {
-                if (dib.readShort() != PAGING_STATE_VERSION)
-                {
-                    // DESCRIBE paging state version number
-                    throw new InvalidRequestException("Incompatible paging state");
-                }
-                offset = dib.readLong();
-                ByteBuffer hash = ByteBufferUtil.readWithVIntLength(dib);
-                if (!snapshot.schemaHash().equals(hash))
-                {
-                    // The schema has changed since the received paging state has been generated.
-                    throw new InvalidRequestException(SCHEMA_CHANGED_WHILE_PAGING_MESSAGE);
-                }
-            }
-            catch (IOException e)
-            {
-                throw new InvalidRequestException("Invalid paging state.", e);
-            }
-        }
-
+        long offset = getOffset(pagingState, schemaVersion);
         int pageSize = options.getPageSize();
 
-        // Create the actual stream of strings that represents the output of the DESCRIBE command.
-        // Each individual String in the stream represents a row in the result set.
-        Stream<String> stringStream = describe(state.getClientState());
+        Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
 
         if (offset > 0L)
-            stringStream = stringStream.skip(offset);
+            stream = stream.skip(offset);
         if (pageSize > 0)
-            stringStream = stringStream.limit(pageSize);
+            stream = stream.limit(pageSize);
 
-        // make sure that offset+pageSize are not negative
-        offset = Math.max(0L, offset);
-        pageSize = Math.max(0, pageSize);
+        List<List<ByteBuffer>> rows = stream.map(e -> toRow(e, includeInternalDetails))
+                                            .collect(Collectors.toList());
 
-        List<List<ByteBuffer>> rows = stringStream.map(str -> str + "\n")
-                                                  .map(UTF8Type.instance::decompose)
-                                                  // map to a single-column row
-                                                  .map(Collections::singletonList)
-                                                  // collect the rows for the result set
-                                                  .collect(Collectors.toList());
-
-        if (offset == 0L && rows.isEmpty())
-        {
-            // Some implementations need to be "informed" that the name pattern resolved to no object (i.e. "object not found").
-            onEmpty();
-        }
-
-        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata, pagingState);
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata);
         ResultSet result = new ResultSet(resultMetadata, rows);
 
-        if (pageSize > 0 && rows.size() >= pageSize)
+        if (pageSize > 0 && rows.size() == pageSize)
         {
-            ByteBuffer pagingData;
-            try (DataOutputBuffer dob = new DataOutputBuffer())
-            {
-                dob.writeShort(PAGING_STATE_VERSION);
-                dob.writeLong(offset + pageSize);
-                ByteBufferUtil.writeWithVIntLength(snapshot.schemaHash(), dob);
-                pagingData = dob.asNewBuffer();
-            }
-            catch (IOException e)
-            {
-                throw new InvalidRequestException("Invalid paging state.", e);
-            }
-
-            // set paging result w/ paging state
-            result.metadata.setHasMorePages(new PagingState(pagingData,
-                                          null,
-                                          1, // we actually don't know
-                                          0));
+            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
         }
 
         return new ResultMessage.Rows(result);
     }
 
-    /**
-     * Some entity types, UDFs and UDAs, that can resolve a name to multiple entities need a special callback
-     * to handle the not-found-case and emit a proper error.
-     *
-     * So instread of doing an expensive test before invocation of {@link #describe(ClientState)}, we just invoke
-     * this method when {@link #describe(ClientState)} returned no data so implementations can act accordingly in
-     * a way that is compatible to what cqlsh (or the python driver) did in earlier versions.
-     */
-    protected void onEmpty()
+    private PagingState getPagingState(long nextPageOffset, UUID schemaVersion)
     {
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            out.writeShort(PAGING_STATE_VERSION);
+            out.writeUTF(FBUtilities.getReleaseVersionString());
+            out.write(UUIDGen.decompose(schemaVersion));
+            out.writeLong(nextPageOffset);
+
+            return new PagingState(out.asNewBuffer(),
+                                   null,
+                                   Integer.MAX_VALUE,
+                                   Integer.MAX_VALUE);
+        }
+        catch (IOException e)
+        {
+            throw new InvalidRequestException("Invalid paging state.", e);
+        }
     }
 
-    /**
-     * Execute the actual DESCRIBE implementation. It is up to the implementation how many elements are returned
-     * in the stream and how long the individual strings are. The implementation must however respect the usual
-     * protocol limitations - and be gentle and do not return super big strings.
-     *
-     * A newline character is appended to each {@code String} from the result stream.
-     *
-     * Note: Paging via {@link Stream#limit(long) Stream.limit()}/{@link Stream#skip(long) Stream.skip()} is
-     * pretty efficient.
-     */
-    protected abstract Stream<String> describe(ClientState state);
-
-    /**
-     * Helper function that returns either the given {@code keyspace}, if it is not {@code null}, or the keyspace
-     * in {@link QueryState#getClientState() QueryState.getClientState().getRawKeyspace()}.
-     *
-     * Intentionally {@code protected} to allow future implementations that are not implemented in this class or
-     * package.
-     */
-    protected final String keyspaceOrClientKeyspace(String keyspace, ClientState state)
+    private long getOffset(PagingState pagingState, UUID schemaVersion)
     {
-        return keyspace != null ? keyspace : state.getRawKeyspace();
+        if (pagingState == null)
+            return 0L;
+
+        try (DataInputBuffer in = new DataInputBuffer(pagingState.partitionKey, false))
+        {
+            checkTrue(in.readShort() == PAGING_STATE_VERSION, "Incompatible paging state");
+            checkTrue(in.readUTF().equals(FBUtilities.getReleaseVersionString()),
+                      "The server version of the paging state is different from the one of the server");
+
+            byte[] bytes = new byte[UUIDGen.UUID_LEN];
+            in.read(bytes);
+            UUID version = UUIDGen.getUUID(ByteBuffer.wrap(bytes));
+            checkTrue(schemaVersion.equals(version), SCHEMA_CHANGED_WHILE_PAGING_MESSAGE);
+
+            return in.readLong();
+        }
+        catch (IOException e)
+        {
+            throw new InvalidRequestException("Invalid paging state.", e);
+        }
     }
 
-    /**
-     * Helper function to retrieve a stream with the "effective" keyspaces. If a keyspace is "used" in
-     * {@link QueryState#getClientState() QueryState.getClientState()}, only that one will be returned. Otherwise
-     * the function returns all keyspaces.
-     *
-     * The result is sorted to be deterministic, which is important for paging.
-     *
-     * Intentionally {@code protected} to allow future implementations that are not implemented in this class or
-     * package.
-     */
-    @SuppressWarnings("WeakerAccess")
-    protected final Stream<String> keyspaceNames(ClientState state)
-    {
-        String keyspace = keyspaceOrClientKeyspace(null, state);
+    protected abstract List<ByteBuffer> toRow(T element, boolean withInternals);
 
-        return (keyspace == null ? snapshot.rawKeyspaceNames()
-                                 : Stream.of(keyspace))
-                .sorted();
-    }
+    /**
+     * Returns the schema elements that must be part of the output.
+     */
+    protected abstract Stream<? extends T> describe(ClientState state, Keyspaces keyspaces);
 
     /**
      * Returns the metadata for the given keyspace or throws a {@link KeyspaceNotDefinedException} exception.
-     *
-     * Intentionally {@code protected} to allow future implementations that are not implemented in this class or
-     * package.
      */
-    @SuppressWarnings("WeakerAccess")
-    protected KeyspaceMetadata validateKeyspace(String ks)
+    private static KeyspaceMetadata validateKeyspace(String ks, Keyspaces keyspaces)
     {
-        KeyspaceMetadata ksm = snapshot.keyspaceMetadata(ks);
-
-        if (ksm == null)
-            throw new KeyspaceNotDefinedException(format("Keyspace '%s' not found", ks));
-
-        return ksm;
+        return keyspaces.get(ks)
+                        .orElseThrow(() -> new KeyspaceNotDefinedException(format("Keyspace '%s' not found", ks)));
     }
 
-    /**
-     * Returns the metadata for the given table or throws a {@link InvalidRequestException} exception.
-     *
-     * Intentionally {@code protected} to allow future implementations that are not implemented in this class or
-     * package.
-     */
-    protected TableMetadata validateTable(String ks, String tab)
+    public static class Elements extends DescribeStatement<SchemaElement>
     {
-        if (tab.isEmpty())
-            throw new InvalidRequestException("Non-empty table name is required");
+        private final String keyspace;
 
-        KeyspaceMetadata ksm = validateKeyspace(ks);
+        private final String name;
 
-        TableMetadata tm = ksm.getTableOrViewNullable(tab);
-        if (tm == null)
-            throw new InvalidRequestException(format("Table '%s' not found in keyspace '%s'", tab, ksm.name));
+        private final BiFunction<KeyspaceMetadata, String, Stream<? extends SchemaElement>> elementsProvider;
 
-        return tm;
-    }
-
-    /**
-     * Abstracted access to schema to allow querying both the in-memory schema and the schema as persisted on disk
-     * for support case investigation (not implemented yet).
-     *
-     * An implementation to describe the schema on disk would need to make {@link org.apache.cassandra.schema.SchemaKeyspace#fetchNonSystemKeyspaces}
-     * public, use the returned {@link org.apache.cassandra.schema.Keyspaces} object to implement the methods of this
-     * interface.
-     *
-     * Also used for tests.
-     */
-    interface SchemaAccess
-    {
-        SchemaSnapshot snapshot();
-    }
-
-    /**
-     * Retrieves an immutable snapshot of the schema.
-     * In production code, the underlying data structure is {@link Keyspace}, which is immutable.
-     */
-    interface SchemaSnapshot
-    {
-        /**
-         * Used to check whether the schema changed between to native-protocol-pages of a DESCRIBE statement.
-         * If the schema changed between two pages, the output of the whole DESCRIBE statement would be broken,
-         * therefore we error out if the schema changes.
-         */
-        ByteBuffer schemaHash();
-
-        /**
-         * Retrieve all keyspace names, including virtual keyspaces.
-         */
-        Stream<String> rawKeyspaceNames();
-
-        KeyspaceMetadata keyspaceMetadata(String ks);
-    }
-
-    /**
-     * Production implementation that delegates to {@link org.apache.cassandra.schema.Schema#instance Schema.instance}.
-     */
-    private static class DefaultSchemaAccess implements SchemaAccess
-    {
-        public SchemaSnapshot snapshot()
+        public Elements(String keyspace, String name, BiFunction<KeyspaceMetadata, String, Stream<? extends SchemaElement>> elementsProvider)
         {
-            return new DefaultSchemaSnapshot(Schema.instance.snapshot(), Schema.instance.getVersion());
+            this.keyspace = keyspace;
+            this.name = name;
+            this.elementsProvider = elementsProvider;
         }
 
-        private static final class DefaultSchemaSnapshot implements SchemaSnapshot
+        @Override
+        protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
         {
-            private final Keyspaces keyspaces;
-            private final UUID schemaVersion;
+            String ks = keyspace == null ? checkNotNull(state.getRawKeyspace(), "No keyspace specified and no current keyspace")
+                                         : keyspace;
 
-            private DefaultSchemaSnapshot(Keyspaces keyspaces, UUID schemaVersion)
+            return elementsProvider.apply(validateKeyspace(ks, keyspaces), name);
+        }
+
+        @Override
+        protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
+        {
+            return Collections.singletonList(UTF8Type.instance.decompose(element.toCqlString(withInternals)));
+        }
+    }
+
+    public static final class Listing extends DescribeStatement<SchemaElement>
+    {
+        private final java.util.function.Function<KeyspaceMetadata, Stream<? extends SchemaElement>> elementsProvider;
+
+        public Listing(java.util.function.Function<KeyspaceMetadata, Stream<? extends SchemaElement>> elementsProvider)
+        {
+            this.elementsProvider = elementsProvider;
+        }
+
+        @Override
+        protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
+        {
+            String keyspace = state.getRawKeyspace();
+            Stream<KeyspaceMetadata> stream = keyspace == null ? keyspaces.stream().sorted(SchemaElement.NAME_COMPARATOR)
+                                                               : Stream.of(keyspaces.getNullable(keyspace));
+
+            return stream.flatMap(k -> elementsProvider.apply(k));
+        }
+
+        @Override
+        protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
+        {
+            return Collections.singletonList(UTF8Type.instance.decompose(ColumnIdentifier.maybeQuote(element.getElementName())));
+        }
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE KEYSPACES}.
+     */
+    public static DescribeStatement<SchemaElement> keyspaces()
+    {
+        return new Listing(ks -> Stream.of(ks));
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE TABLES}.
+     */
+    public static DescribeStatement<SchemaElement> tables()
+    {
+        return new Listing(ks -> ks.tables.stream().sorted(SchemaElement.NAME_COMPARATOR));
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE TYPES}.
+     */
+    public static DescribeStatement<SchemaElement> types()
+    {
+        return new Listing(ks -> ks.types.stream());
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE FUNCTIONS}.
+     */
+    public static DescribeStatement<SchemaElement> functions()
+    {
+        return new Listing(ks -> ks.functions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE AGGREGATES}.
+     */
+    public static DescribeStatement<SchemaElement> aggregates()
+    {
+        return new Listing(ks -> ks.functions.udas().sorted(SchemaElement.NAME_COMPARATOR));
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE [FULL] SCHEMA}.
+     */
+    public static DescribeStatement<SchemaElement> schema(boolean includeSystemKeyspaces)
+    {
+        return new DescribeStatement<SchemaElement>()
+        {
+            @Override
+            protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
             {
-                this.keyspaces = keyspaces;
-                this.schemaVersion = schemaVersion;
+                return keyspaces.stream()
+                                .filter(ks -> includeSystemKeyspaces || !SchemaConstants.isSystemKeyspace(ks.name))
+                                .sorted(SchemaElement.NAME_COMPARATOR)
+                                .flatMap(ks -> getKeyspaceElements(ks, false));
             }
 
             @Override
-            public ByteBuffer schemaHash()
+            protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
             {
-                // Virtual keyspaces are setup during startup, so we probably do not need to care about
-                // including the virtual keyspaces here.
-                String prodVersion = FBUtilities.getReleaseVersionString();
-                ByteBuffer bb = ByteBuffer.allocate(16 + prodVersion.length());
-                bb.putLong(schemaVersion.getMostSignificantBits());
-                bb.putLong(schemaVersion.getLeastSignificantBits());
-                bb.put(prodVersion.getBytes(StandardCharsets.UTF_8));
-                bb.flip();
-                return bb;
+                return Collections.singletonList(UTF8Type.instance.decompose(element.toCqlString(withInternals)));
             }
-
-            public Stream<String> rawKeyspaceNames()
-            {
-                return Stream.concat(keyspaces.stream().map(ksm -> ksm.name),
-                                     Iterables.toList(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata()).stream().map(ksm -> ksm.name));
-            }
-
-            public KeyspaceMetadata keyspaceMetadata(String ks)
-            {
-                KeyspaceMetadata ksm = keyspaces.getNullable(ks);
-                if (ksm != null)
-                    return ksm;
-                // virtual keyspaces
-                return Schema.instance.getKeyspaceMetadata(ks);
-            }
-        }
-    }
-
-    public static abstract class NamedDescribeStatement<NT> extends DescribeStatement
-    {
-        protected NT name;
-
-        protected NamedDescribeStatement(NT name)
-        {
-            this.name = name;
-        }
-    }
-
-    public static abstract class QualifiedNameDescribeStatement extends NamedDescribeStatement<QualifiedName>
-    {
-        protected QualifiedNameDescribeStatement(QualifiedName name)
-        {
-            super(name);
-        }
-
-        protected void ensureExplicitOrClientKeyspace(ClientState state)
-        {
-            if (!name.hasKeyspace())
-            {
-                QualifiedName n = new QualifiedName();
-                String ks = keyspaceOrClientKeyspace(null, state);
-                if (ks == null)
-                    throw new InvalidRequestException("No keyspace specified and no current keyspace");
-                n.setKeyspace(ks, true);
-                n.setName(name.getName(), true);
-                name = n;
-            }
-        }
+        };
     }
 
     /**
-     * Implementation of {@code DESCRIBE KEYSPACES}, list all (accessible) keyspace names.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     *
-     * Named {@code TheKeyspaces} to avoid the name clash with the schema's {@link Keyspaces} class.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE KEYSPACE}.
      */
-    public static class TheKeyspaces extends DescribeStatement
+    public static DescribeStatement<SchemaElement> keyspace(String keyspace, boolean onlyKeyspaceDefinition)
     {
-        @Override
-        public void authorize(ClientState state)
+        return new Elements(keyspace, null, (ks, t) -> getKeyspaceElements(ks, onlyKeyspaceDefinition));
+    }
+
+    private static Stream<? extends SchemaElement> getKeyspaceElements(KeyspaceMetadata ks, boolean onlyKeyspace)
+    {
+        Stream<? extends SchemaElement> s = Stream.of(ks);
+
+        if (!onlyKeyspace)
         {
-            // We iterate over the whole schema and filter out stuff that the caller has no access to. So no need
-            // to check access here.
+            s = Stream.concat(s, ks.types.stream());
+            s = Stream.concat(s, ks.functions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
+            s = Stream.concat(s, ks.functions.udas().sorted(SchemaElement.NAME_COMPARATOR));
+            s = Stream.concat(s, ks.tables.stream().sorted(SchemaElement.NAME_COMPARATOR)
+                                                   .flatMap(tm -> getTableElements(ks, tm)));
         }
 
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            Stream<String> resultStream = keyspaceNames(state)
-                    .sorted()
-                    .map(ColumnIdentifier::maybeQuote);
+        return s;
+    }
 
-            resultStream = FBUtilities.columnize(resultStream, LINE_WIDTH);
-
-            resultStream = Stream.concat(Stream.of(""),
-                                         resultStream);
-
-            return resultStream;
-        }
+    private static Stream<? extends SchemaElement> getTableElements(KeyspaceMetadata ks, TableMetadata table)
+    {
+        Stream<? extends SchemaElement> s = Stream.of(table);
+        s = Stream.concat(s, table.indexes.stream()
+                                          .map(i -> toDescribable(table, i))
+                                          .sorted(SchemaElement.NAME_COMPARATOR));
+        s = Stream.concat(s, ks.views.stream(table.id)
+                                     .sorted(SchemaElement.NAME_COMPARATOR));
+        return s;
     }
 
     /**
-     * Base implementation for all {@code DESCRIBE} statements that list element names per keyspaces,
-     * like {@code DESCRIBE TABLES}, {@code DESCRIBE TYPES}, {@code DESCRIBE FUNCTIONS}, {@code DESCRIBE AGGREGATES}.
-     *
-     * {@link Listing} does the common per-keyspace part and delegates the specific describe-operation via
-     * {@link #perKeyspace(KeyspaceMetadata)} to the implementation.
-     *
-     * The output is columnized using a line width of {@link #LINE_WIDTH} (= {@value LINE_WIDTH}).
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE TABLE}.
      */
-    public static abstract class Listing extends DescribeStatement
+    public static DescribeStatement<SchemaElement> table(String keyspace, String name)
     {
-        @Override
-        public void authorize(ClientState state)
-        {
-            // We iterate over the whole schema and filter out stuff that the caller has no access to. So no need
-            // to check access here.
-        }
+        return new Elements(keyspace, name, (ks, t) -> {
 
-        protected abstract Stream<String> perKeyspace(KeyspaceMetadata ksm);
+            TableMetadata table = checkNotNull(ks.getTableOrViewNullable(t),
+                                               "Table '%s' not found in keyspace '%s'", t, ks.name);
 
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-
-            Stream<KeyspaceMetadata> result = keyspaceNames(state).map(snapshot::keyspaceMetadata)
-                                                                  .filter(Objects::nonNull);
-
-            // For the "all keyspaces" case (i.e. when there is no "USE"d keyspace), create a header for
-            // each keyspace that looks like the following.
-            //
-            // Keyspace some_keyspace_name
-            // ---------------------------
-            //
-            String rawKeyspace = state.getRawKeyspace();
-
-            return result.flatMap(ksm ->
-                                  {
-                                      Stream<String> resultStream = FBUtilities.columnize(perKeyspace(ksm), LINE_WIDTH);
-
-                                      String header = rawKeyspace == null
-                                                      ? perKeyspaceHeader(ksm)
-                                                      : "";
-
-                                      return Stream.concat(Stream.of(header),
-                                                           resultStream);
-                                  });
-        }
-
-        private String perKeyspaceHeader(KeyspaceMetadata ksm)
-        {
-            String h = "Keyspace " + ColumnIdentifier.maybeQuote(ksm.name);
-            return "\n" +
-                   h + "\n" +
-                   Strings.repeat("-", h.length());
-        }
+            return Stream.concat(Stream.of(table), table.indexes.stream()
+                                                                .map(index -> toDescribable(table, index))
+                                                                .sorted(SchemaElement.NAME_COMPARATOR));
+        });
     }
 
     /**
-     * Implementation of {@code DESCRIBE TABLES}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE INDEX}.
      */
-    public static class Tables extends Listing
+    public static DescribeStatement<SchemaElement> index(String keyspace, String name)
     {
-        @Override
-        protected Stream<String> perKeyspace(KeyspaceMetadata ksm)
-        {
-            return StreamSupport.stream(ksm.tables.spliterator(), false)
-                                .map(tm -> tm.name)
-                                .sorted()
-                                .map(ColumnIdentifier::maybeQuote);
-        }
-    }
+        return new Elements(keyspace, name, (ks, index) -> {
 
-    /**
-     * Implementation of {@code DESCRIBE TYPES}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Types extends Listing
-    {
-        @Override
-        protected Stream<String> perKeyspace(KeyspaceMetadata ksm)
-        {
-            return StreamSupport.stream(ksm.types.spliterator(), false)
-                                .map(UserType::getNameAsString)
-                                .sorted()
-                                .map(ColumnIdentifier::maybeQuote);
-        }
-    }
-
-    /**
-     * Implementation of {@code DESCRIBE FUNCTIONS}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Functions extends Listing
-    {
-        @Override
-        protected Stream<String> perKeyspace(KeyspaceMetadata ksm)
-        {
-            return ksm.functions.udfs()
-                                .map(UDFunction::toCQLString)
-                                .sorted();
-        }
-    }
-
-    /**
-     * Implementation of {@code DESCRIBE AGGREGATES}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Aggregates extends Listing
-    {
-        @Override
-        protected Stream<String> perKeyspace(KeyspaceMetadata ksm)
-        {
-            return ksm.functions.udas()
-                                .map(UDAggregate::toCQLString)
-                                .sorted();
-        }
-    }
-
-    /**
-     * Implementation of {@code DESCRIBE [FULL] SCHEMA}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     *
-     * Named {@code TheSchema} to avoid the name clash with the schema's {@link Schema} class.
-     */
-    public static class TheSchema extends Keyspace
-    {
-        // include system keyspaces
-        private final boolean includeSystemKeyspaces;
-
-        public TheSchema(boolean includeSystemKeyspaces)
-        {
-            super();
-            this.includeSystemKeyspaces = includeSystemKeyspaces;
-        }
-
-        @Override
-        public void authorize(ClientState state)
-        {
-            // We iterate over the whole schema and filter out stuff that the caller has no access to. So no need
-            // to check access here.
-        }
-
-        @Override
-        protected Stream<KeyspaceMetadata> keyspaces(ClientState state)
-        {
-            return snapshot.rawKeyspaceNames()
-                           .filter(ks -> includeSystemKeyspaces || (!SchemaConstants.isLocalSystemKeyspace(ks) && !SchemaConstants.isReplicatedSystemKeyspace(ks)))
-                           .sorted()
-                           .map(snapshot::keyspaceMetadata)
-                           .filter(Objects::nonNull);
-        }
-    }
-
-    /**
-     * Implementation of {@code DESCRIBE KEYSPACE}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Keyspace extends NamedDescribeStatement<String>
-    {
-        private final boolean onlyKeyspaceDefinition;
-
-        protected Keyspace()
-        {
-            super(null);
-            this.onlyKeyspaceDefinition = false;
-        }
-
-        public Keyspace(String name, boolean onlyKeyspaceDefinition)
-        {
-            super(name);
-            this.onlyKeyspaceDefinition = onlyKeyspaceDefinition;
-        }
-
-        @Override
-        public void authorize(ClientState state)
-        {
-            name = keyspaceOrClientKeyspace(name, state);
-            if (name == null)
-                throw new InvalidRequestException("No keyspace specified and no current keyspace");
-        }
-
-        protected Stream<KeyspaceMetadata> keyspaces(ClientState state)
-        {
-            KeyspaceMetadata ksm = validateKeyspace(name);
-            return Stream.of(ksm);
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            return keyspaces(state).flatMap(this::describe);
-        }
-
-        private Stream<String> describe(KeyspaceMetadata object)
-        {
-            // CREATE KEYSPACE
-
-            Stream<String> s = Stream.of("",
-                                         SchemaCQLHelper.getKeyspaceMetadataAsCQL(object));
-
-            if (!onlyKeyspaceDefinition)
-            {
-                // CREATE TYPE
-                s = Stream.concat(s, Stream.of(""));
-                LinkedHashSet<ByteBuffer> types = new LinkedHashSet<>();
-                StreamSupport.stream(object.types.spliterator(), false)
-                             .sorted(Comparator.comparing(UserType::toCQLString))
-                             .forEach(udt -> SchemaCQLHelper.findUserType(udt, types));
-                s = Stream.concat(s, types.stream()
-                                          .map(name -> {
-                                              Optional<UserType> type = object.types.get(name);
-                                              if (type.isPresent())
-                                                  return SchemaCQLHelper.toCQL(type.get()) + '\n';
-
-                                              String typeName = UTF8Type.instance.getString(name);
-                                              // This really shouldn't happen, but if it does (a bug), we can at least dump what we know about and
-                                              // log an error to tell users they will have to fill the gaps. We also include the error as a CQL
-                                              // comment in the output of this method (in place of the missing statement) in case the user see it
-                                              // more there.
-                                              return String.format("// ERROR: user type %s is part of keyspace %s definition but its "
-                                                                   + "definition was missing", typeName, object.name);
-                                          }));
-
-                // CREATE FUNCTION
-                s = Stream.concat(s, object.functions
-                        .udfs()
-                        .sorted(Comparator.comparing(UDFunction::toString))
-                        .map(udf -> SchemaCQLHelper.getFunctionAsCQL(udf) + '\n'));
-
-                // CREATE AGGREGATE
-                s = Stream.concat(s, object.functions
-                        .udas()
-                        .sorted(Comparator.comparing(UDAggregate::toString))
-                        .map(uda -> SchemaCQLHelper.getAggregateAsCQL(uda) + '\n'));
-
-                // CREATE TABLE
-                s = Stream.concat(s, StreamSupport.stream(object.tables.spliterator(), false)
-                                                  .sorted(Comparator.comparing(tm -> tm.name))
-                                                  .flatMap(tm -> {
-
-                                                      // CREATE TABLE
-                                                      // includes CREATE TYPE/DROP TYPE for dropped columns with UDTs
-                                                      Stream<String> r = SchemaCQLHelper.reCreateStatements(tm,
-                                                                                                            object.types,
-                                                                                                            includeInternalDetails,
-                                                                                                            includeInternalDetails,
-                                                                                                            false,
-                                                                                                            false);
-
-                                                      // CREATE INDEX
-                                                      r = Stream.concat(r, SchemaCQLHelper.getIndexesAsCQL(tm));
-
-                                                      // CREATE MATERIALIZED VIEW
-                                                      r = Stream.concat(r, StreamSupport.stream(object.views.spliterator(), false)
-                                                                                        .filter(v -> v.baseTableId.equals(tm.id))
-                                                                                        .sorted(Comparator.comparing(v -> v.name()))
-                                                                                        .flatMap(v -> SchemaCQLHelper.reCreateStatements(v.metadata,
-                                                                                                                                         object.types,
-                                                                                                                                         includeInternalDetails,
-                                                                                                                                         includeInternalDetails,
-                                                                                                                                         false,
-                                                                                                                                         false)));
-
-                                                      return r;
-                                                  }));
-            }
-
-            return s;
-        }
-    }
-
-    /**
-     * Implementation of {@code DESCRIBE TABLE}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Table extends QualifiedNameDescribeStatement
-    {
-        public Table(QualifiedName name)
-        {
-            super(name);
-        }
-
-        @Override
-        public void authorize(ClientState state)
-        {
-            ensureExplicitOrClientKeyspace(state);
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            TableMetadata tableMetadata = validateTable(name.getKeyspace(), name.getName());
-
-            return Stream.concat(Stream.of(""),
-                                 Stream.of(tableMetadata)
-                                       .flatMap(tm -> SchemaCQLHelper.reCreateStatements(tm,
-                                                                                         validateKeyspace(name.getKeyspace()).types,
-                                                                                         includeInternalDetails,
-                                                                                         includeInternalDetails,
-                                                                                         false,
-                                                                                         true)));
-        }
-    }
-
-    /**
-     * Implementation of {@code DESCRIBE INDEX}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Index extends QualifiedNameDescribeStatement
-    {
-        public Index(QualifiedName name)
-        {
-            super(name);
-        }
-
-        @Override
-        public void authorize(ClientState state)
-        {
-            ensureExplicitOrClientKeyspace(state);
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            KeyspaceMetadata ksm = validateKeyspace(name.getKeyspace());
-            TableMetadata tm = ksm.findIndexedTable(name.getName())
-                                  .orElseThrow(() -> new InvalidRequestException(format("Table for existing index '%s' not found in '%s'", name.getName(), name.getKeyspace())));
-            return tm.indexes.get(name.getName())
-                             .map(idx -> Pair.create(tm, idx))
+            TableMetadata tm = ks.findIndexedTable(index)
+                                 .orElseThrow(() -> invalidRequest("Table for existing index '%s' not found in '%s'",
+                                                                   index,
+                                                                   ks.name));
+            return tm.indexes.get(index)
+                             .map(i -> toDescribable(tm, i))
                              .map(Stream::of)
-                             .orElseThrow(() -> new InvalidRequestException(format("Index '%s' not found in '%s'", name.getName(), name.getKeyspace())))
-                             .flatMap(tableIndex -> Stream.of("",
-                                                              SchemaCQLHelper.toCQL(tableIndex.left, tableIndex.right)));
-        }
+                             .orElseThrow(() -> invalidRequest("Index '%s' not found in '%s'", index, ks.name));
+        });
     }
 
     /**
-     * Implementation of {@code DESCRIBE MATERIALIZED VIEW}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE MATERIALIZED VIEW}.
      */
-    public static class View extends QualifiedNameDescribeStatement
+    public static DescribeStatement<SchemaElement> view(String keyspace, String name)
     {
-        public View(QualifiedName name)
-        {
-            super(name);
-        }
+        return new Elements(keyspace, name, (ks, view) -> {
 
-        @Override
-        public void authorize(ClientState state)
-        {
-            ensureExplicitOrClientKeyspace(state);
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            KeyspaceMetadata ksm = validateKeyspace(name.getKeyspace());
-            return ksm.views.get(name.getName())
-                            .map(Stream::of)
-                            .orElseThrow(() -> new InvalidRequestException(format("Materialized view '%s' not found in '%s'", name.getName(), name.getKeyspace())))
-                            .flatMap(view -> Stream.concat(Stream.of(""),
-                                                           Stream.of(view)
-                                                                 .flatMap(vtm -> SchemaCQLHelper.reCreateStatements(vtm.metadata,
-                                                                                                                    ksm.types,
-                                                                                                                    includeInternalDetails,
-                                                                                                                    includeInternalDetails,
-                                                                                                                    false,
-                                                                                                                    true))));
-        }
+            return ks.views.get(view)
+                           .map(Stream::of)
+                           .orElseThrow(() -> invalidRequest("Materialized view '%s' not found in '%s'", view, ks.name));
+        });
     }
 
     /**
-     * Implementation of {@code DESCRIBE TYPE}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE TYPE}.
      */
-    public static class Type extends NamedDescribeStatement<UTName>
+    public static DescribeStatement<SchemaElement> type(String keyspace, String name)
     {
-        public Type(UTName name)
-        {
-            super(name);
-        }
+        return new Elements(keyspace, name, (ks, type) -> {
 
-        @Override
-        public void authorize(ClientState state)
-        {
-            if (!name.hasKeyspace()) {
-                String ks = state.getRawKeyspace();
-                if (ks == null)
-                    throw new InvalidRequestException("No keyspace specified and no current keyspace");
-                name = new UTName(ColumnIdentifier.getInterned(ks, true),
-                                  ColumnIdentifier.getInterned(name.getStringTypeName(), true));
-            }
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            KeyspaceMetadata ksm = validateKeyspace(name.getKeyspace());
-            return ksm.types.get(name.getUserTypeName())
-                            .map(Stream::of)
-                            .orElseThrow(() -> new InvalidRequestException(format("User defined type '%s' not found in '%s'", name.getStringTypeName(), name.getKeyspace())))
-                            .flatMap(udt -> Stream.of("",
-                                                      SchemaCQLHelper.toCQL(udt)));
-        }
+            return ks.types.get(ByteBufferUtil.bytes(type))
+                           .map(Stream::of)
+                           .orElseThrow(() -> invalidRequest("User defined type '%s' not found in '%s'",
+                                                             type,
+                                                             ks.name));
+        });
     }
 
     /**
-     * Implementation of {@code DESCRIBE FUNCTION}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE FUNCTION}.
      */
-    protected abstract static class AbstractFunction extends NamedDescribeStatement<FunctionName>
+    public static DescribeStatement<SchemaElement> function(String keyspace, String name)
     {
-        protected AbstractFunction(FunctionName name)
-        {
-            super(name);
-        }
+        return new Elements(keyspace, name, (ks, n) -> {
 
-        @Override
-        public void authorize(ClientState state)
-        {
-            if (!name.hasKeyspace())
-            {
-                String ks = state.getRawKeyspace();
-                if (ks == null)
-                    throw new InvalidRequestException("No keyspace specified and no current keyspace");
-                name = new FunctionName(ks, name.name);
-            }
-        }
+            return checkNotEmpty(ks.functions.getUdfs(new FunctionName(ks.name, n)),
+                                 "User defined function '%s' not found in '%s'", n, ks.name).stream()
+                                                                                             .sorted(SchemaElement.NAME_COMPARATOR);
+        });
     }
 
     /**
-     * Implementation of {@code DESCRIBE FUNCTION}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE FUNCTION}.
      */
-    public static class Function extends AbstractFunction
+    public static DescribeStatement<SchemaElement> aggregate(String keyspace, String name)
     {
-        public Function(FunctionName name)
-        {
-            super(name);
-        }
+        return new Elements(keyspace, name, (ks, n) -> {
 
-        @Override
-        protected void onEmpty()
-        {
-            throw new InvalidRequestException(format("User defined function '%s' not found in '%s'", name.name, name.keyspace));
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            return validateKeyspace(name.keyspace).functions.udfs()
-                                                            .filter(udf -> udf.name().equals(name))
-                                                            .flatMap(udf -> Stream.of("",
-                                                                                      SchemaCQLHelper.getFunctionAsCQL(udf)));
-        }
+            return checkNotEmpty(ks.functions.getUdas(new FunctionName(ks.name, n)),
+                                 "User defined aggregate '%s' not found in '%s'", n, ks.name).stream()
+                                                                                              .sorted(SchemaElement.NAME_COMPARATOR);
+        });
     }
 
-    /**
-     * Implementation of {@code DESCRIBE AGGREGATE}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Aggregate extends AbstractFunction
+    private static SchemaElement toDescribable(TableMetadata table, IndexMetadata index)
     {
-        public Aggregate(FunctionName name)
-        {
-            super(name);
-        }
-
-        @Override
-        protected void onEmpty()
-        {
-            throw new InvalidRequestException(format("User defined aggregate '%s' not found in '%s'", name.name, name.keyspace));
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            return validateKeyspace(name.keyspace).functions.udas()
-                                                            .filter(uda -> uda.name().equals(name))
-                                                            .flatMap(uda -> Stream.of("",
-                                                                                      SchemaCQLHelper.getAggregateAsCQL(uda)));
-        }
-    }
-
-    /**
-     * Implementation of the generic {@code DESCRIBE ...}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
-     */
-    public static class Generic extends NamedDescribeStatement<QualifiedName>
-    {
-        public Generic(QualifiedName name)
-        {
-            super(name);
-        }
-
-        private DescribeStatement delegate;
-
-        private void resolve(ClientState state)
-        {
-            // from cqlsh help: "keyspace or a table or an index or a materialized view (in this order)."
-            if (!name.hasKeyspace())
-            {
-                // try name.getName() as keyspace
-                if (snapshot.keyspaceMetadata(name.getName()) != null)
+        return new SchemaElement()
                 {
-                    delegateResolved(new Keyspace(name.getName(), false), state);
-                    return;
+                    @Override
+                    public SchemaElementType getElementType()
+                    {
+                        return SchemaElementType.INDEX;
+                    }
+
+                    @Override
+                    public String getElementKeyspace()
+                    {
+                        return table.keyspace;
+                    }
+
+                    @Override
+                    public String getElementName()
+                    {
+                        return index.name;
+                    }
+
+                    @Override
+                    public String toCqlString(boolean withInternals)
+                    {
+                        return index.toCqlString(table);
+                    }
+                };
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for the generic {@code DESCRIBE ...}.
+     */
+    public static DescribeStatement<SchemaElement> generic(String keyspace, String name)
+    {
+        return new DescribeStatement<SchemaElement>()
+        {
+            private DescribeStatement<SchemaElement> delegate;
+
+            private DescribeStatement<SchemaElement> resolve(ClientState state, Keyspaces keyspaces)
+            {
+                String ks = keyspace;
+
+                // from cqlsh help: "keyspace or a table or an index or a materialized view (in this order)."
+                if (keyspace == null)
+                {
+                    if (keyspaces.containsKeyspace(name))
+                        return keyspace(name, false);
+
+                    String rawKeyspace = state.getRawKeyspace();
+                    ks = rawKeyspace == null ? name : rawKeyspace;
                 }
 
-                String ks = keyspaceOrClientKeyspace(null, state);
-                if (ks == null)
+                KeyspaceMetadata keyspaceMetadata = validateKeyspace(ks, keyspaces);
+
+                if (keyspaceMetadata.tables.getNullable(name) != null)
+                    return table(ks, name);
+
+                Optional<TableMetadata> indexed = keyspaceMetadata.findIndexedTable(name);
+                if (indexed.isPresent())
                 {
-                    delegateResolved(new Keyspace(name.getName(), false), state);
-                    return;
+                    Optional<IndexMetadata> index = indexed.get().indexes.get(name);
+                    if (index.isPresent())
+                        return index(ks, name);
                 }
-                else
-                    name.setKeyspace(ks, true);
+
+                if (keyspaceMetadata.views.getNullable(name) != null)
+                    return view(ks, name);
+
+                throw invalidRequest("'%s' not found in keyspace '%s'", name, ks);
             }
 
-            KeyspaceMetadata keyspaceMetadata = snapshot.keyspaceMetadata(name.getKeyspace());
-            if (keyspaceMetadata.tables.getNullable(name.getName()) != null)
+            @Override
+            protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
             {
-                delegateResolved(new Table(name), state);
-                return;
+                delegate = resolve(state, keyspaces);
+                return delegate.describe(state, keyspaces);
             }
 
-            Optional<TableMetadata> indexed = keyspaceMetadata.findIndexedTable(name.getName());
-            if (indexed.isPresent())
+            @Override
+            protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
             {
-                Optional<IndexMetadata> index = indexed.get().indexes.get(name.getName());
-                if (index.isPresent())
-                {
-                    delegateResolved(new Index(name), state);
-                    return;
-                }
+                return delegate.toRow(element, withInternals);
             }
-
-            if (keyspaceMetadata.views.getNullable(name.getName()) != null)
-            {
-                delegateResolved(new View(name), state);
-                return;
-            }
-
-            throw new InvalidRequestException(format("'%s' not found in keyspace '%s'", name.getName(), name.getKeyspace()));
-        }
-
-        private void delegateResolved(DescribeStatement d, ClientState state)
-        {
-            delegate = d;
-            delegate.includeInternalDetails = includeInternalDetails;
-            delegate.authorize(state);
-        }
-
-        @Override
-        public void authorize(ClientState state)
-        {
-            resolve(state);
-
-            delegate.authorize(state);
-        }
-
-        @Override
-        protected void onEmpty()
-        {
-            delegate.onEmpty();
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            return delegate.describe(state);
-        }
+        };
     }
 
     /**
-     * Implementation of the generic {@code DESCRIBE CLUSTER}.
-     *
-     * See javadoc of {@link DescribeStatement} for the syntax description.
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE CLUSTER}.
      */
-    public static class Cluster extends DescribeStatement
+    public static DescribeStatement<String> cluster()
     {
-        public Cluster()
+        return new DescribeStatement<String>()
         {
-            super();
-        }
-
-        @Override
-        public void authorize(ClientState state)
-        {
-        }
-
-        @Override
-        protected Stream<String> describe(ClientState state)
-        {
-            Stream.Builder<String> output = Stream.<String>builder()
-                    .add("")
-                    .add(format("Cluster: %s", DatabaseDescriptor.getClusterName()))
-                    .add(format("Partitioner: %s", trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht.")))
-                    .add(format("Snitch: %s", trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(), "org.apache.cassandra.locator.")))
-                    .add("");
-
-            String useKs = keyspaceOrClientKeyspace(null, state);
-            if (useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs))
+            @Override
+            protected Stream<String> describe(ClientState state, Keyspaces keyspaces)
             {
-                output.add("Range ownership:");
-                StorageService.instance.getRangeToAddressMap(useKs)
-                                       .entrySet()
-                                       .stream()
-                                       .sorted(Comparator.comparing(Map.Entry::getKey))
-                                       .map(rangeOwners -> format(" %39s  [%s]",
-                                                                  rangeOwners.getKey().right,
-                                                                  rangeOwners.getValue().stream().map(r -> r.endpoint().toString()).collect(Collectors.joining(", "))))
-                                       .forEach(output::add);
-                output.add("");
-            }
-            return output.build();
-        }
+                CqlBuilder builder = new CqlBuilder();
+                builder.append("Cluster: ")
+                       .append(DatabaseDescriptor.getClusterName())
+                       .newLine()
+                       .append("Partitioner: ")
+                       .append(trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."))
+                       .newLine()
+                       .append("Snitch: ")
+                       .append(trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
+                                             "org.apache.cassandra.locator."))
+                       .newLine();
 
-        private String trimIfPresent(String src, String begin)
-        {
-            if (src.startsWith(begin))
-                return src.substring(begin.length());
-            return src;
-        }
+                String useKs = state.getRawKeyspace();
+                if (useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs))
+                {
+                    builder.newLine()
+                           .append("Range ownership:")
+                           .newLine();
+
+                    StorageService.instance.getRangeToAddressMap(useKs)
+                                           .entrySet()
+                                           .stream()
+                                           .sorted(Comparator.comparing(Map.Entry::getKey))
+                                           .map(rangeOwners -> format(" %39s  [%s]",
+                                                                      rangeOwners.getKey().right,
+                                                                      rangeOwners.getValue()
+                                                                                 .stream()
+                                                                                 .map(r -> r.endpoint().toString())
+                                                                                 .collect(Collectors.joining(", "))))
+                                           .forEach(s -> builder.append(s).newLine());
+                }
+                return Stream.of(builder.toString());
+            }
+
+            @Override
+            protected List<ByteBuffer> toRow(String element, boolean withInternals)
+            {
+                return Collections.singletonList(UTF8Type.instance.decompose(element));
+            }
+
+            private String trimIfPresent(String src, String begin)
+            {
+                if (src.startsWith(begin))
+                    return src.substring(begin.length());
+                return src;
+            }
+        };
     }
 }

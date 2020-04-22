@@ -25,6 +25,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
 
@@ -127,5 +128,20 @@ public final class ReplicationParams
         for (Map.Entry<String, String> entry : options.entrySet())
             helper.add(entry.getKey(), entry.getValue());
         return helper.toString();
+    }
+
+    public void appendCqlTo(CqlBuilder builder)
+    {
+        builder.append("{'class': ")
+               .appendWithSingleQuotes(klass.getName());
+
+        options.forEach((k, v) -> {
+            builder.append(", ")
+                   .appendWithSingleQuotes(k)
+                   .append(": ")
+                   .appendWithSingleQuotes(v);
+        });
+
+        builder.append('}');
     }
 }

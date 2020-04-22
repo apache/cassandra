@@ -25,6 +25,7 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.commons.lang3.text.StrBuilder;
@@ -118,31 +119,26 @@ public abstract class AbstractFunction implements Function
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(name).append(" : ");
-        signaturePart(sb);
-        sb.append(" -> ").append(returnType.asCQL3Type());
-        return sb.toString();
+        return new CqlBuilder().append(name)
+                              .append(" : (")
+                              .appendWithSeparators(argTypes, ", ")
+                              .append(") -> ")
+                              .append(returnType)
+                              .toString();
     }
 
-    public String toCQLString()
+    public String getElementKeyspace()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(name().toCQLString());
-        signaturePart(sb);
-        return sb.toString();
+        return name.keyspace;
     }
 
-    private void signaturePart(StringBuilder sb)
+    public String getElementName()
     {
-        sb.append('(');
-        for (int i = 0; i < argTypes.size(); i++)
-        {
-            if (i > 0)
-                sb.append(", ");
-            sb.append(argTypes.get(i).asCQL3Type());
-        }
-        sb.append(')');
+        return new CqlBuilder().append(name)
+                               .append('(')
+                               .appendWithSeparators(argTypes, ", ")
+                               .append(')')
+                               .toString();
     }
 
     @Override
