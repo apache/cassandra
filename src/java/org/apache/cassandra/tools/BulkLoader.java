@@ -310,6 +310,23 @@ public class BulkLoader
         }
 
         /**
+         * Add option with argument and argument name that accepts being defined multiple times as a list
+         * @param opt shortcut for option name
+         * @param longOpt complete option name
+         * @param argName argument name
+         * @param description description of the option
+         * @return updated Options object
+         */
+        public Options addOptionList(String opt, String longOpt, String argName, String description)
+        {
+            Option option = new Option(opt, longOpt, true, description);
+            option.setArgName(argName);
+            option.setArgs(Option.UNLIMITED_VALUES);
+
+            return addOption(option);
+        }
+
+        /**
          * Add option without argument
          * @param opt shortcut for option name
          * @param longOpt complete option name
