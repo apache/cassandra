@@ -401,9 +401,6 @@ Function SetCassandraEnvironment
         $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseCondCardMark"
     }
 
-    # Add sigar env - see Cassandra-7838
-    $env:JVM_OPTS = "$env:JVM_OPTS -Djava.library.path=""$env:CASSANDRA_HOME\lib\sigar-bin"""
-
     # Confirm we're on high performance power plan, warn if not
     # Change to $true to suppress this warning
     $suppressPowerWarning = $false
