@@ -21,6 +21,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -36,6 +37,7 @@ import com.datastax.driver.core.exceptions.SyntaxError;
 import net.openhft.chronicle.queue.RollCycles;
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -61,7 +63,7 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = new AuditLogOptions();
         options.enabled = true;
-        options.logger = "InMemoryAuditLogger";
+        options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         DatabaseDescriptor.setAuditLoggingOptions(options);
         requireNetwork();
     }
@@ -89,7 +91,7 @@ public class AuditLoggerTest extends CQLTester
         String includedUsers = options.included_users;
         String excludedUsers = options.excluded_users;
 
-        StorageService.instance.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        StorageService.instance.enableAuditLog(loggerName, null, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
 
     private void disableAuditLogOptions()
@@ -676,7 +678,7 @@ public class AuditLoggerTest extends CQLTester
         disableAuditLogOptions();
         AuditLogOptions options = new AuditLogOptions();
         DatabaseDescriptor.setAuditLoggingOptions(options);
-        StorageService.instance.enableAuditLog(null, options.included_keyspaces, options.excluded_keyspaces, options.included_categories, options.excluded_categories, options.included_users, options.excluded_users);
+        StorageService.instance.enableAuditLog(null, null, options.included_keyspaces, options.excluded_keyspaces, options.included_categories, options.excluded_categories, options.included_users, options.excluded_users);
         try
         {
             assertEquals(1, QueryEvents.instance.listenerCount());
@@ -704,7 +706,7 @@ public class AuditLoggerTest extends CQLTester
         {
             assertEquals(1, QueryEvents.instance.listenerCount());
             assertEquals(0, AuthEvents.instance.listenerCount());
-            StorageService.instance.enableAuditLog(null, options.included_keyspaces, options.excluded_keyspaces, options.included_categories, options.excluded_categories, options.included_users, options.excluded_users);
+            StorageService.instance.enableAuditLog(null, null, options.included_keyspaces, options.excluded_keyspaces, options.included_categories, options.excluded_categories, options.included_users, options.excluded_users);
             fail("Conflicting directories - should throw exception");
         }
         catch (ConfigurationException e)

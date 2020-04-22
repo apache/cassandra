@@ -145,7 +145,7 @@ final class SettingsTable extends AbstractVirtualTable
 
         AuditLogOptions value = (AuditLogOptions) getValue(f);
         result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
-        result.row(f.getName() + "_logger").column(VALUE, value.logger);
+        result.row(f.getName() + "_logger").column(VALUE, value.logger.class_name);
         result.row(f.getName() + "_audit_logs_dir").column(VALUE, value.audit_logs_dir);
         result.row(f.getName() + "_included_keyspaces").column(VALUE, value.included_keyspaces);
         result.row(f.getName() + "_excluded_keyspaces").column(VALUE, value.excluded_keyspaces);

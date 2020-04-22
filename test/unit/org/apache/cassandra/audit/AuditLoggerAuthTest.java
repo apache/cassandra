@@ -36,6 +36,7 @@ import com.datastax.driver.core.exceptions.UnauthorizedException;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -70,7 +71,7 @@ public class AuditLoggerAuthTest
             config.role_manager = "CassandraRoleManager";
             config.authorizer = "CassandraAuthorizer";
             config.audit_logging_options.enabled = true;
-            config.audit_logging_options.logger = "InMemoryAuditLogger";
+            config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         });
         CQLTester.prepareServer();
 

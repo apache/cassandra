@@ -18,6 +18,7 @@
 package org.apache.cassandra.audit;
 
 import java.nio.file.Paths;
+import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -40,7 +41,7 @@ public class BinAuditLogger implements IAuditLogger
 
     private volatile BinLog binLog;
 
-    public BinAuditLogger()
+    public BinAuditLogger(Map<String, String> params)
     {
         AuditLogOptions auditLoggingOptions = DatabaseDescriptor.getAuditLoggingOptions();
 

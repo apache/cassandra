@@ -17,14 +17,18 @@
  */
 package org.apache.cassandra.audit;
 
+import java.util.Collections;
+import java.util.Map;
+
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
 
 public class AuditLogOptions extends BinLogOptions
 {
     public volatile boolean enabled = false;
-    public String logger = BinAuditLogger.class.getSimpleName();
+    public ParameterizedClass logger = new ParameterizedClass(BinAuditLogger.class.getSimpleName(), Collections.emptyMap());
     public String included_keyspaces = StringUtils.EMPTY;
     // CASSANDRA-14498: By default, system, system_schema and system_virtual_schema are excluded, but these can be included via cassandra.yaml
     public String excluded_keyspaces = "system,system_schema,system_virtual_schema";
