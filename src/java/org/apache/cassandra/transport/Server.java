@@ -579,7 +579,9 @@ public class Server implements CassandraDaemon.Server
             pipeline.addLast("messageDecoder", Message.ProtocolDecoder.instance);
             pipeline.addLast("messageEncoder", Message.ProtocolEncoder.instance);
 
-            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
+            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher()
+                                                                ? Message.Dispatcher.Flusher.Type.LEGACY
+                                                                : Message.Dispatcher.Flusher.Type.IMMEDIATE,
                                                                 EndpointPayloadTracker.get(((InetSocketAddress) channel.remoteAddress()).getAddress())));
             addExceptionHandler(pipeline);
         }

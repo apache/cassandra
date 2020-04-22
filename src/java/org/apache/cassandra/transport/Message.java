@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -46,6 +49,7 @@ import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
@@ -56,6 +60,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
+import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 
 /**
  * A message from the CQL binary protocol.
@@ -379,7 +384,12 @@ public abstract class Message
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
             ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
+            results.add(encodeMessage(message, version));
+        }
 
+        public Frame encodeMessage(Message message, ProtocolVersion version)
+        {
+            EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
             Codec<Message> codec = (Codec<Message>)message.type.codec;
             try
             {
@@ -456,7 +466,7 @@ public abstract class Message
                 if (responseVersion.isBeta())
                     flags.add(Frame.Header.Flag.USE_BETA);
 
-                results.add(Frame.create(message.type, message.getStreamId(), responseVersion, flags, body));
+                return Frame.create(message.type, message.getStreamId(), responseVersion, flags, body);
             }
             catch (Throwable e)
             {
@@ -487,11 +497,11 @@ public abstract class Message
         private static class FlushItem
         {
             final ChannelHandlerContext ctx;
-            final Object response;
+            final Message response;
             final Frame sourceFrame;
             final Dispatcher dispatcher;
 
-            private FlushItem(ChannelHandlerContext ctx, Object response, Frame sourceFrame, Dispatcher dispatcher)
+            private FlushItem(ChannelHandlerContext ctx, Message response, Frame sourceFrame, Dispatcher dispatcher)
             {
                 this.ctx = ctx;
                 this.sourceFrame = sourceFrame;
@@ -505,8 +515,26 @@ public abstract class Message
             }
         }
 
-        private static abstract class Flusher implements Runnable
+        static abstract class Flusher implements Runnable
         {
+            enum Type {
+
+                LEGACY(LegacyFlusher::new),
+                IMMEDIATE(ImmediateFlusher::new),
+                V5(loop -> new V5Flusher(loop, ProtocolEncoder.instance, FrameEncoder.PayloadAllocator.simple));
+
+                final Function<EventLoop, Flusher> factory;
+                Flusher flusher(EventLoop loop)
+                {
+                    return factory.apply(loop);
+                }
+
+                Type(Function<EventLoop, Flusher> fn)
+                {
+                    this.factory = fn;
+                }
+            }
+
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
             final AtomicBoolean scheduled = new AtomicBoolean(false);
@@ -617,14 +645,106 @@ public abstract class Message
             }
         }
 
+        public static final class V5Flusher extends Flusher
+        {
+            private final ProtocolEncoder messageEncoder;
+            private final FrameEncoder.PayloadAllocator allocator;
+            private Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
+            private ObjectIntHashMap<ChannelHandlerContext> messagesPerFrame = new ObjectIntHashMap<>();
+
+            public V5Flusher(EventLoop eventLoop,
+                             ProtocolEncoder messageEncoder,
+                             FrameEncoder.PayloadAllocator allocator)
+            {
+                super(eventLoop);
+                this.messageEncoder = messageEncoder;
+                this.allocator = allocator;
+            }
+
+            public void run()
+            {
+                boolean doneWork = false;
+                FlushItem flush;
+                scheduled.set(false);
+                int items = 0;
+
+                while (null != (flush = queued.poll()))
+                {
+                    channels.add(flush.ctx);
+                    FrameEncoder.Payload sending = payloads.get(flush.ctx);
+                    if (null == sending)
+                    {
+                        sending = allocator.allocate(true, LARGE_MESSAGE_THRESHOLD);
+                        payloads.put(flush.ctx, sending);
+                        messagesPerFrame.put(flush.ctx, 0);
+                    }
+
+                    org.apache.cassandra.transport.Frame outbound =
+                        messageEncoder.encodeMessage(flush.response, flush.response.connection().getVersion());
+
+                    if(sending.remaining() < org.apache.cassandra.transport.Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
+                    {
+                        sending.finish();
+                        flush.ctx.write(sending);
+                        sending.release();
+                        logger.info("XXX Packed {} messages into frame", messagesPerFrame.get(flush.ctx));
+                        sending = allocator.allocate(true, LARGE_MESSAGE_THRESHOLD);
+                        payloads.put(flush.ctx, sending);
+                    }
+
+                    ByteBuffer buf = sending.buffer;
+                    buf.put((byte)outbound.header.type.direction.addToVersion(outbound.header.version.asInt()));
+                    buf.put((byte)org.apache.cassandra.transport.Frame.Header.Flag.serialize(outbound.header.flags));
+
+                    if (outbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
+                        buf.putShort((short)outbound.header.streamId);
+                    else
+                        buf.put((byte)outbound.header.streamId);
+
+                    buf.put((byte)outbound.header.type.opcode);
+                    buf.putInt(outbound.body.readableBytes());
+                    buf.put(outbound.body.nioBuffer());
+
+                    flushed.add(flush);
+                    doneWork = true;
+                    items++;
+                    messagesPerFrame.put(flush.ctx, messagesPerFrame.get(flush.ctx) + 1);
+                }
+
+                if (doneWork)
+                {
+                    for (ChannelHandlerContext ctx : payloads.keySet())
+                    {
+                        FrameEncoder.Payload sending = payloads.get(ctx);
+                        sending.finish();
+                        ctx.write(sending);
+                        logger.info("XXX Packed {} messages into frame", messagesPerFrame.get(ctx));
+                        sending.release();
+                        payloads.remove(ctx);
+                    }
+                }
+
+                if (doneWork)
+                {
+                    for (ChannelHandlerContext ctx : channels)
+                        ctx.flush();
+                    for (FlushItem item : flushed)
+                        item.release();
+                    channels.clear();
+                    flushed.clear();
+                    logger.info("XXX Flushed {} items", items);
+                }
+            }
+        }
+
         private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
 
-        private final boolean useLegacyFlusher;
+        private final Flusher.Type flusherType;
 
-        public Dispatcher(boolean useLegacyFlusher, Server.EndpointPayloadTracker endpointPayloadTracker)
+        public Dispatcher(Flusher.Type flusherType, Server.EndpointPayloadTracker endpointPayloadTracker)
         {
             super(false);
-            this.useLegacyFlusher = useLegacyFlusher;
+            this.flusherType = flusherType;
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
@@ -768,7 +888,7 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
-                Flusher created = useLegacyFlusher ? new LegacyFlusher(loop) : new ImmediateFlusher(loop);
+                Flusher created = flusherType.flusher(loop);
                 Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;

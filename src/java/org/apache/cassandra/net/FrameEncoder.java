@@ -26,19 +26,19 @@ import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.memory.BufferPool;
 
-abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
+public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
 {
     /**
      * An abstraction useful for transparently allocating buffers that can be written to upstream
      * of the {@code FrameEncoder} without knowledge of the encoder's frame layout, while ensuring
      * enough space to write the remainder of the frame's contents is reserved.
      */
-    static class Payload
+    public static class Payload
     {
         // isSelfContained is a flag in the Frame API, indicating if the contents consists of only complete messages
         private boolean isSelfContained;
         // the buffer to write to
-        final ByteBuffer buffer;
+        public final ByteBuffer buffer;
         // the number of header bytes to reserve
         final int headerLength;
         // the number of trailer bytes to reserve
@@ -83,7 +83,7 @@ abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
         }
 
         // do not invoke after finish()
-        int remaining()
+        public int remaining()
         {
             assert !isFinished;
             return buffer.remaining();
@@ -97,7 +97,7 @@ abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
         }
 
         // may not be written to or queried, after this is invoked; must be passed straight to an encoder (or release called)
-        void finish()
+        public void finish()
         {
             assert !isFinished;
             isFinished = true;
@@ -106,13 +106,13 @@ abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
             BufferPool.putUnusedPortion(buffer);
         }
 
-        void release()
+        public void release()
         {
             BufferPool.put(buffer);
         }
     }
 
-    interface PayloadAllocator
+    public interface PayloadAllocator
     {
         public static final PayloadAllocator simple = Payload::new;
         Payload allocate(boolean isSelfContained, int capacity);
