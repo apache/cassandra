@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Provide ability to configure IAuditLogger (CASSANDRA-15748)
  * Fix nodetool enablefullquerylog blocking param parsing (CASSANDRA-15819)
  * Add isTransient to SSTableMetadataView (CASSANDRA-15806)
  * Fix tools/bin/fqltool for all shells (CASSANDRA-15820)

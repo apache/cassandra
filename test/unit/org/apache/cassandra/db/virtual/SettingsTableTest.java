@@ -34,6 +34,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 
 public class SettingsTableTest extends CQLTester
@@ -186,7 +187,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "enabled", "true");
 
         check(pre + "logger", "BinAuditLogger");
-        config.audit_logging_options.logger = "logger";
+        config.audit_logging_options.logger = new ParameterizedClass("logger", null);
         check(pre + "logger", "logger");
 
         config.audit_logging_options.audit_logs_dir = "dir";

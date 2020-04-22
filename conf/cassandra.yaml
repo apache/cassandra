@@ -1284,7 +1284,8 @@ back_pressure_strategy:
 # on audit_logging for full details about the various configuration options.
 audit_logging_options:
     enabled: false
-    logger: BinAuditLogger
+    logger:
+      - class_name: BinAuditLogger
     # audit_logs_dir:
     # included_keyspaces:
     # excluded_keyspaces: system, system_schema, system_virtual_schema
