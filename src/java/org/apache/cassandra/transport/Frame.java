@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -29,7 +30,6 @@ import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
-import io.netty.util.Attribute;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
@@ -74,6 +74,21 @@ public class Frame
     {
         Header header = new Header(version, flags, streamId, type, body.readableBytes());
         return new Frame(header, body);
+    }
+
+    public void encodeInto(ByteBuffer buf)
+    {
+        buf.put((byte)header.type.direction.addToVersion(header.version.asInt()));
+        buf.put((byte)org.apache.cassandra.transport.Frame.Header.Flag.serialize(header.flags));
+
+        if (header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
+            buf.putShort((short)header.streamId);
+        else
+            buf.put((byte)header.streamId);
+
+        buf.put((byte)header.type.opcode);
+        buf.putInt(body.readableBytes());
+        buf.put(body.nioBuffer());
     }
 
     public static class Header

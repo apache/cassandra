@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.memory.BufferPool;
  * When sharing is necessary, {@link #share()} method must be invoked by the owning thread
  * before a {@link ShareableBytes} instance can be shared with another thread.
  */
-class ShareableBytes
+public class ShareableBytes
 {
     private final ByteBuffer bytes;
     private final ShareableBytes owner;
@@ -53,18 +53,18 @@ class ShareableBytes
         this.bytes = bytes;
     }
 
-    ByteBuffer get()
+    public ByteBuffer get()
     {
         assert owner.count != 0;
         return bytes;
     }
 
-    boolean hasRemaining()
+    public boolean hasRemaining()
     {
         return bytes.hasRemaining();
     }
 
-    int remaining()
+    public int remaining()
     {
         return bytes.remaining();
     }

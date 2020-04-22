@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -50,6 +49,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
+import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
@@ -213,6 +213,11 @@ public abstract class Message
         this.customPayload = customPayload;
     }
 
+    public String debugString()
+    {
+        return String.format("(%s:%s:%s)", type, streamId, connection == null ? "null" :  connection.getVersion().asInt());
+    }
+
     public static abstract class Request extends Message
     {
         private boolean tracingRequested;
@@ -320,9 +325,27 @@ public abstract class Message
     public static class ProtocolDecoder extends MessageToMessageDecoder<Frame>
     {
         public static final ProtocolDecoder instance = new ProtocolDecoder();
-        private ProtocolDecoder() {}
+
+        private ProtocolDecoder()
+        {
+        }
 
         public void decode(ChannelHandlerContext ctx, Frame frame, List results)
+        {
+            try
+            {
+                results.add(decodeMessage(ctx.channel(), frame));
+            }
+            catch (Throwable ex)
+            {
+                frame.release();
+                // Remember the streamId
+                throw ErrorMessage.wrap(ex, frame.header.streamId);
+            }
+        }
+
+
+        public Message decodeMessage(Channel channel, Frame frame)
         {
             boolean isRequest = frame.header.type.direction == Direction.REQUEST;
             boolean isTracing = frame.header.flags.contains(Frame.Header.Flag.TRACING);
@@ -333,42 +356,32 @@ public abstract class Message
             List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(frame.body);
             Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(frame.body);
 
-            try
+            if (isCustomPayload && frame.header.version.isSmallerThan(ProtocolVersion.V4))
+                throw new ProtocolException("Received frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
+
+            Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
+            message.setStreamId(frame.header.streamId);
+            message.setSourceFrame(frame);
+            message.setCustomPayload(customPayload);
+
+            if (isRequest)
             {
-                if (isCustomPayload && frame.header.version.isSmallerThan(ProtocolVersion.V4))
-                    throw new ProtocolException("Received frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
-
-                Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
-                message.setStreamId(frame.header.streamId);
-                message.setSourceFrame(frame);
-                message.setCustomPayload(customPayload);
-
-                if (isRequest)
-                {
-                    assert message instanceof Request;
-                    Request req = (Request)message;
-                    Connection connection = ctx.channel().attr(Connection.attributeKey).get();
-                    req.attach(connection);
-                    if (isTracing)
-                        req.setTracingRequested();
-                }
-                else
-                {
-                    assert message instanceof Response;
-                    if (isTracing)
-                        ((Response)message).setTracingId(tracingId);
-                    if (hasWarning)
-                        ((Response)message).setWarnings(warnings);
-                }
-
-                results.add(message);
+                assert message instanceof Request;
+                Request req = (Request) message;
+                Connection connection = channel.attr(Connection.attributeKey).get();
+                req.attach(connection);
+                if (isTracing)
+                    req.setTracingRequested();
             }
-            catch (Throwable ex)
+            else
             {
-                frame.release();
-                // Remember the streamId
-                throw ErrorMessage.wrap(ex, frame.header.streamId);
+                assert message instanceof Response;
+                if (isTracing)
+                    ((Response) message).setTracingId(tracingId);
+                if (hasWarning)
+                    ((Response) message).setWarnings(warnings);
             }
+            return message;
         }
     }
 
@@ -383,7 +396,6 @@ public abstract class Message
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
             ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
-            EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
             results.add(encodeMessage(message, version));
         }
 
@@ -521,7 +533,7 @@ public abstract class Message
 
                 LEGACY(LegacyFlusher::new),
                 IMMEDIATE(ImmediateFlusher::new),
-                V5(loop -> new V5Flusher(loop, ProtocolEncoder.instance, FrameEncoder.PayloadAllocator.simple));
+                V5(loop -> new V5Flusher(loop, ProtocolEncoder.instance, FrameEncoderCrc.instance.allocator()));
 
                 final Function<EventLoop, Flusher> factory;
                 Flusher flusher(EventLoop loop)
@@ -650,7 +662,6 @@ public abstract class Message
             private final ProtocolEncoder messageEncoder;
             private final FrameEncoder.PayloadAllocator allocator;
             private Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
-            private ObjectIntHashMap<ChannelHandlerContext> messagesPerFrame = new ObjectIntHashMap<>();
 
             public V5Flusher(EventLoop eventLoop,
                              ProtocolEncoder messageEncoder,
@@ -666,7 +677,6 @@ public abstract class Message
                 boolean doneWork = false;
                 FlushItem flush;
                 scheduled.set(false);
-                int items = 0;
 
                 while (null != (flush = queued.poll()))
                 {
@@ -676,39 +686,27 @@ public abstract class Message
                     {
                         sending = allocator.allocate(true, LARGE_MESSAGE_THRESHOLD);
                         payloads.put(flush.ctx, sending);
-                        messagesPerFrame.put(flush.ctx, 0);
                     }
 
+                    Connection connection = flush.response.connection;
                     org.apache.cassandra.transport.Frame outbound =
-                        messageEncoder.encodeMessage(flush.response, flush.response.connection().getVersion());
+                        messageEncoder.encodeMessage(flush.response, connection == null
+                                                                     ? ProtocolVersion.CURRENT
+                                                                     : connection.getVersion());
 
                     if(sending.remaining() < org.apache.cassandra.transport.Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
                     {
                         sending.finish();
                         flush.ctx.write(sending);
                         sending.release();
-                        logger.info("XXX Packed {} messages into frame", messagesPerFrame.get(flush.ctx));
                         sending = allocator.allocate(true, LARGE_MESSAGE_THRESHOLD);
                         payloads.put(flush.ctx, sending);
                     }
 
-                    ByteBuffer buf = sending.buffer;
-                    buf.put((byte)outbound.header.type.direction.addToVersion(outbound.header.version.asInt()));
-                    buf.put((byte)org.apache.cassandra.transport.Frame.Header.Flag.serialize(outbound.header.flags));
-
-                    if (outbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
-                        buf.putShort((short)outbound.header.streamId);
-                    else
-                        buf.put((byte)outbound.header.streamId);
-
-                    buf.put((byte)outbound.header.type.opcode);
-                    buf.putInt(outbound.body.readableBytes());
-                    buf.put(outbound.body.nioBuffer());
-
+                    outbound.encodeInto(sending.buffer);
+                    outbound.release();
                     flushed.add(flush);
                     doneWork = true;
-                    items++;
-                    messagesPerFrame.put(flush.ctx, messagesPerFrame.get(flush.ctx) + 1);
                 }
 
                 if (doneWork)
@@ -718,21 +716,16 @@ public abstract class Message
                         FrameEncoder.Payload sending = payloads.get(ctx);
                         sending.finish();
                         ctx.write(sending);
-                        logger.info("XXX Packed {} messages into frame", messagesPerFrame.get(ctx));
+                        ctx.flush();
                         sending.release();
                         payloads.remove(ctx);
                     }
-                }
 
-                if (doneWork)
-                {
-                    for (ChannelHandlerContext ctx : channels)
-                        ctx.flush();
                     for (FlushItem item : flushed)
                         item.release();
+
                     channels.clear();
                     flushed.clear();
-                    logger.info("XXX Flushed {} items", items);
                 }
             }
         }
@@ -753,7 +746,12 @@ public abstract class Message
         {
             // if we decide to handle this message, process it outside of the netty event loop
             if (shouldHandleRequest(ctx, request))
-                requestExecutor.submit(() -> processRequest(ctx, request));
+                dispatch(ctx, request);
+        }
+
+        public void dispatch(ChannelHandlerContext ctx, Request request)
+        {
+            requestExecutor.submit( () -> processRequest(ctx, request));
         }
 
         /** This check for inflight payload to potentially discard the request should have been ideally in one of the

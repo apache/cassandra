@@ -118,7 +118,7 @@ public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
         Payload allocate(boolean isSelfContained, int capacity);
     }
 
-    PayloadAllocator allocator()
+    public PayloadAllocator allocator()
     {
         return PayloadAllocator.simple;
     }

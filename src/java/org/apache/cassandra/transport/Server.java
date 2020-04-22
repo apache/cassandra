@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +58,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.AsyncChannelPromise;
+import org.apache.cassandra.net.BufferPoolAllocator;
+import org.apache.cassandra.net.FrameDecoder;
+import org.apache.cassandra.net.FrameDecoderCrc;
+import org.apache.cassandra.net.FrameEncoder;
+import org.apache.cassandra.net.FrameEncoderCrc;
+import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -548,14 +554,18 @@ public class Server implements CassandraDaemon.Server
                 connection = factory.newConnection(ctx.channel(), frame.header.version);
                 attrConn.set(connection);
                 logger.info("Configuring pipeline for {}", frame.header.version);
+                InetAddress remoteAddress = ((InetSocketAddress)ctx.channel().remoteAddress()).getAddress();
+                Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
                 if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                    configureModernPipeline(ctx.channel(), decoder);
+                {
+                    configureModernPipeline(ctx, decoder, frame, payloadTracker);
+                }
                 else
-                    configureLegacyPipeline(ctx.channel(), decoder);
-
-                ctx.pipeline().remove(this);
+                {
+                    configureLegacyPipeline(ctx.channel(), decoder, payloadTracker);
+                    list.add(frame);
+                }
                 logger.info("Configured pipeline: {}", ctx.pipeline());
-                list.add(frame);
             }
             else
             {
@@ -564,13 +574,43 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
-        void configureModernPipeline(Channel channel, Frame.Decoder frameDecoder)
+        void configureModernPipeline(final ChannelHandlerContext ctx,
+                                     final Frame.Decoder frameDecoder,
+                                     final Frame frame,
+                                     final Server.EndpointPayloadTracker tracker)
         {
             logger.info("Configuring V5 pipeline");
-            configureLegacyPipeline(channel, frameDecoder);
+            BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
+            ctx.channel().config().setOption(ChannelOption.ALLOCATOR, allocator);
+
+            FrameDecoder messageFrameDecoder = new FrameDecoderCrc(allocator);
+            FrameEncoder messageFrameEncoder = FrameEncoderCrc.instance;
+
+            Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
+            Message.Dispatcher dispatcher = new Message.Dispatcher(Message.Dispatcher.Flusher.Type.V5, tracker);
+            Consumer<Message> messageConsumer = message -> {
+                dispatcher.dispatch(ctx, (Message.Request)message);
+            };
+            ChannelPipeline pipeline = ctx.channel().pipeline();
+
+            pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
+            pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
+
+            CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
+                                                                messageFrameDecoder,
+                                                                frameDecoder,
+                                                                messageDecoder,
+                                                                messageConsumer,
+                                                                tracker.endpointAndGlobalPayloadsInFlight);
+            pipeline.addBefore("initial", "cqlProcessor", processor);
+            addExceptionHandler(pipeline);
+            pipeline.remove(this);
+            tracker.endpointAndGlobalPayloadsInFlight.allocate(frame.header.bodySizeInBytes);
+            Message message = Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), frame);
+            messageConsumer.accept(message);
         }
 
-        void configureLegacyPipeline(Channel channel, Frame.Decoder frameDecoder)
+        void configureLegacyPipeline(Channel channel, Frame.Decoder frameDecoder, Server.EndpointPayloadTracker tracker)
         {
             logger.info("Configuring legacy pipeline");
             ChannelPipeline pipeline = channel.pipeline();
@@ -578,12 +618,12 @@ public class Server implements CassandraDaemon.Server
             pipeline.addBefore("initial", "frameEncoder", Frame.Encoder.instance);
             pipeline.addLast("messageDecoder", Message.ProtocolDecoder.instance);
             pipeline.addLast("messageEncoder", Message.ProtocolEncoder.instance);
-
-            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher()
-                                                                ? Message.Dispatcher.Flusher.Type.LEGACY
-                                                                : Message.Dispatcher.Flusher.Type.IMMEDIATE,
-                                                                EndpointPayloadTracker.get(((InetSocketAddress) channel.remoteAddress()).getAddress())));
+            Message.Dispatcher.Flusher.Type flusherType =  DatabaseDescriptor.useNativeTransportLegacyFlusher()
+                                                           ? Message.Dispatcher.Flusher.Type.LEGACY
+                                                           : Message.Dispatcher.Flusher.Type.IMMEDIATE;
+            pipeline.addLast("executor", new Message.Dispatcher(flusherType, tracker));
             addExceptionHandler(pipeline);
+            pipeline.remove(this);
         }
 
         void addExceptionHandler(ChannelPipeline pipeline)
