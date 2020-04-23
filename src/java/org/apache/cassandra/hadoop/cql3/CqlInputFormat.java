@@ -204,6 +204,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                         maxSplits = tokenRangeSplits.size();
                         expectedPartionsForFailedRanges = tokenRangeSplits.get(0).getLength();
                     }
+                    splits.addAll(tokenRangeSplits);
                 }
                 catch (Exception e)
                 {
