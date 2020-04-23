@@ -44,7 +44,7 @@ public class Client extends SimpleClient
 
     public Client(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
-        super(host, port, version, encryptionOptions);
+        super(host, port, version, version.isBeta(), encryptionOptions);
         setEventHandler(eventHandler);
     }
 

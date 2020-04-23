@@ -28,22 +28,34 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.net.BufferPoolAllocator;
+import org.apache.cassandra.net.FrameDecoder;
+import org.apache.cassandra.net.FrameDecoderCrc;
+import org.apache.cassandra.net.FrameEncoder;
+import org.apache.cassandra.net.FrameEncoderCrc;
+import org.apache.cassandra.net.GlobalBufferPoolAllocator;
+import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -262,6 +274,75 @@ public class SimpleClient implements Closeable
         }
     }
 
+    private static class InitialHandler extends MessageToMessageEncoder<ByteBuf>
+    {
+        final ProtocolVersion version;
+        final ResponseHandler responseHandler;
+        InitialHandler(ProtocolVersion version, ResponseHandler responseHandler)
+        {
+            this.version = version;
+            this.responseHandler = responseHandler;
+        }
+
+        protected void encode(final ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception
+        {
+            logger.info("Sending initial message, configuring pipeline for {}", version);
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                configureModernPipeline(ctx);
+            else
+                configureLegacyPipeline(ctx);
+            out.add(msg.retain());
+        }
+
+        private void configureModernPipeline(ChannelHandlerContext ctx)
+        {
+            logger.info("Configuring modern pipeline");
+            ChannelPipeline pipeline = ctx.pipeline();
+            pipeline.remove("frameEncoder");
+            pipeline.remove("messageEncoder");
+
+            BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
+            Channel channel = ctx.channel();
+            channel.config().setOption(ChannelOption.ALLOCATOR, allocator);
+            ResourceLimits.EndpointAndGlobal limits =
+                new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Basic(1024 * 1024 * 64),
+                                                      new ResourceLimits.Basic(1024 * 1024 * 64));
+
+            Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
+            Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
+            FrameDecoder messageFrameDecoder = new FrameDecoderCrc(allocator);
+            FrameEncoder messageFrameEncoder = FrameEncoderCrc.instance;
+            Consumer<Message> messageConsumer = message -> {
+                responseHandler.handleResponse(ctx, (Message.Response)message);
+            };
+
+            CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
+                                                                messageFrameDecoder,
+                                                                cqlFrameDecoder,
+                                                                messageDecoder,
+                                                                messageConsumer,
+                                                                limits);
+
+            pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
+            pipeline.addLast("messageFrameEncoder", messageFrameEncoder);
+            pipeline.addLast("responseHandler", processor);
+
+            pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator()));
+            pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
+            pipeline.remove(this);
+        }
+
+        private void configureLegacyPipeline(ChannelHandlerContext ctx)
+        {
+            logger.info("Configuring legacy pipeline");
+            ChannelPipeline pipeline = ctx.pipeline();
+            pipeline.addBefore("frameEncoder", "frameDecoder", new Frame.Decoder());
+            pipeline.addBefore("messageEncoder", "messageDecoder", messageDecoder);
+            pipeline.addLast("handler", responseHandler);
+            pipeline.remove(this);
+        }
+    }
+
     private class Initializer extends ChannelInitializer<Channel>
     {
         protected void initChannel(Channel channel) throws Exception
@@ -270,18 +351,9 @@ public class SimpleClient implements Closeable
             channel.attr(Connection.attributeKey).set(connection);
 
             ChannelPipeline pipeline = channel.pipeline();
-            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-            {
-                logger.info("Setting up protocol V5");
-            }
-            else
-            {
-                pipeline.addLast("frameDecoder", new Frame.Decoder());
-                pipeline.addLast("frameEncoder", frameEncoder);
-                pipeline.addLast("messageDecoder", messageDecoder);
-                pipeline.addLast("messageEncoder", messageEncoder);
-                pipeline.addLast("handler", responseHandler);
-            }
+            pipeline.addLast("initial", new InitialHandler(version, responseHandler));
+            pipeline.addLast("frameEncoder", Frame.Encoder.instance);
+            pipeline.addLast("messageEncoder", messageEncoder);
         }
     }
 
@@ -296,6 +368,27 @@ public class SimpleClient implements Closeable
         }
     }
 
+    private static class PayloadEncoder extends ChannelOutboundHandlerAdapter
+    {
+        private final FrameEncoder.PayloadAllocator allocator;
+        PayloadEncoder(FrameEncoder.PayloadAllocator allocator)
+        {
+            this.allocator = allocator;
+        }
+
+        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
+        {
+            Frame frame = (Frame)msg;
+            // TODO large messages
+            FrameEncoder.Payload sending = allocator.allocate(true, (int)(Frame.Header.LENGTH + frame.header.bodySizeInBytes));
+            ((Frame) msg).encodeInto(sending.buffer);
+            sending.finish();
+            ctx.write(sending);
+            ctx.flush();
+            sending.release();
+        }
+    }
+
     @ChannelHandler.Sharable
     private static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
@@ -304,6 +397,11 @@ public class SimpleClient implements Closeable
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
+        {
+            handleResponse(ctx, r);
+        }
+
+        public void handleResponse(ChannelHandlerContext ctx, Message.Response r)
         {
             try
             {
