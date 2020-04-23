@@ -34,8 +34,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 
-import org.apache.commons.lang3.SystemUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -127,8 +125,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
         catch (YAMLException e)
         {
-            throw new ConfigurationException("Invalid yaml: " + url + SystemUtils.LINE_SEPARATOR
-                                             +  " Error: " + e.getMessage(), false);
+            String msg = "Failed to load configuration from " + url;
+            throw new ConfigurationException(msg, e);
         }
     }
 
