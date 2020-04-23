@@ -76,6 +76,11 @@ public class Verifier implements Closeable
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Options options;
     private final boolean isOffline;
+    /**
+     * Given a keyspace, return the set of local and pending token ranges.  By default {@link StorageService#getLocalAndPendingRanges(String)}
+     * is expected, but for the standalone verifier case we can't use that, so this is here to allow the CLI to provide
+     * the token ranges.
+     */
     private final Function<String, ? extends Collection<Range<Token>>> tokenLookup;
 
     private int goodRows;
