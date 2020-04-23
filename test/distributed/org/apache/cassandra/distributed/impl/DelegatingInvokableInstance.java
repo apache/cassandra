@@ -27,6 +27,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.apache.cassandra.distributed.api.CompleteQueryResult;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -50,6 +51,11 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public InetSocketAddress broadcastAddress()
     {
         return delegate().broadcastAddress();
+    }
+
+    public CompleteQueryResult executeInternalWithResult(String query, Object... args)
+    {
+        return delegate().executeInternalWithResult(query, args);
     }
 
     @Override

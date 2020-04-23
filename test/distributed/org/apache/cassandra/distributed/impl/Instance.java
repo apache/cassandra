@@ -62,6 +62,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.api.CompleteQueryResult;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -168,17 +169,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public InetSocketAddress broadcastAddress() { return config.broadcastAddress(); }
 
     @Override
-    public Object[][] executeInternal(String query, Object... args)
+    public CompleteQueryResult executeInternalWithResult(String query, Object... args)
     {
         return sync(() -> {
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
                                                                      QueryProcessor.makeInternalOptions(prepared.statement, args));
 
-            if (result instanceof ResultMessage.Rows)
-                return RowUtil.toObjects((ResultMessage.Rows)result);
-            else
-                return null;
+            return RowUtil.toQueryResult(result);
         }).call();
     }
 
