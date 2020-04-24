@@ -1,4 +1,4 @@
-4.0-alpha4
+4.0-alpha5
  * Avoid race condition when completing stream sessions (CASSANDRA-15666)
  * Flush with fast compressors by default (CASSANDRA-15379)
  * Fix CqlInputFormat regression from the switch to system.size_estimates (CASSANDRA-15637)
@@ -14,6 +14,14 @@
  * Do not check cdc_raw_directory filesystem space if CDC disabled (CASSANDRA-15688)
  * Replace array iterators with get by index (CASSANDRA-15394)
  * Minimize BTree iterator allocations (CASSANDRA-15389)
+Merged from 3.11:
+Merged from 3.0:
+ * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
+ * Don't skip sstables in slice queries based only on local min/max/deletion timestamp (CASSANDRA-15690)
+Merged from 2.2:
+ * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)
+
+4.0-alpha4
  * Add client request size server metrics (CASSANDRA-15704)
  * Add additional logging around FileUtils and compaction leftover cleanup (CASSANDRA-15705)
  * Mark system_views/system_virtual_schema as non-alterable keyspaces in cqlsh (CASSANDRA-15711)
