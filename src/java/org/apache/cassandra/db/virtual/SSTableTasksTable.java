@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -33,6 +37,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
     private final static String KIND = "kind";
     private final static String PROGRESS = "progress";
     private final static String TOTAL = "total";
+    private final static String PROGRESS_IN_PERCENTS = "progress_in_percents";
     private final static String UNIT = "unit";
 
     SSTableTasksTable(String keyspace)
@@ -46,6 +51,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
                            .addClusteringColumn(TASK_ID, UUIDType.instance)
                            .addRegularColumn(KIND, UTF8Type.instance)
                            .addRegularColumn(PROGRESS, LongType.instance)
+                           .addRegularColumn(PROGRESS_IN_PERCENTS, DoubleType.instance)
                            .addRegularColumn(TOTAL, LongType.instance)
                            .addRegularColumn(UNIT, UTF8Type.instance)
                            .build());
@@ -57,12 +63,18 @@ final class SSTableTasksTable extends AbstractVirtualTable
 
         for (CompactionInfo task : CompactionManager.instance.getSSTableTasks())
         {
+            long completed = task.getCompleted();
+            long total = task.getTotal();
+
+            double progressInPercents = new BigDecimal(Double.toString(((double) completed / total) * 100)).setScale(2, RoundingMode.HALF_UP).doubleValue();
+
             result.row(task.getKeyspace().orElse("*"),
                        task.getTable().orElse("*"),
                        task.getTaskId())
                   .column(KIND, task.getTaskType().toString().toLowerCase())
-                  .column(PROGRESS, task.getCompleted())
-                  .column(TOTAL, task.getTotal())
+                  .column(PROGRESS, completed)
+                  .column(TOTAL, total)
+                  .column(PROGRESS_IN_PERCENTS, progressInPercents)
                   .column(UNIT, task.getUnit().toString().toLowerCase());
         }
 
