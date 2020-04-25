@@ -19,6 +19,7 @@ package org.apache.cassandra.db.virtual;
 
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -30,6 +31,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
     private final static String KEYSPACE_NAME = "keyspace_name";
     private final static String TABLE_NAME = "table_name";
     private final static String TASK_ID = "task_id";
+    private final static String COMPLETION_RATIO = "completion_ratio";
     private final static String KIND = "kind";
     private final static String PROGRESS = "progress";
     private final static String TOTAL = "total";
@@ -44,6 +46,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
                            .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                            .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
                            .addClusteringColumn(TASK_ID, UUIDType.instance)
+                           .addRegularColumn(COMPLETION_RATIO, DoubleType.instance)
                            .addRegularColumn(KIND, UTF8Type.instance)
                            .addRegularColumn(PROGRESS, LongType.instance)
                            .addRegularColumn(TOTAL, LongType.instance)
@@ -57,12 +60,18 @@ final class SSTableTasksTable extends AbstractVirtualTable
 
         for (CompactionInfo task : CompactionManager.instance.getSSTableTasks())
         {
+            long completed = task.getCompleted();
+            long total = task.getTotal();
+
+            double completionRatio = total == 0L ? 1.0 : (((double) completed) / total);
+
             result.row(task.getKeyspace().orElse("*"),
                        task.getTable().orElse("*"),
                        task.getTaskId())
+                  .column(COMPLETION_RATIO, completionRatio)
                   .column(KIND, task.getTaskType().toString().toLowerCase())
-                  .column(PROGRESS, task.getCompleted())
-                  .column(TOTAL, task.getTotal())
+                  .column(PROGRESS, completed)
+                  .column(TOTAL, total)
                   .column(UNIT, task.getUnit().toString().toLowerCase());
         }
 

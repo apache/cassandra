@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Add completion_ratio column to sstable_tasks virtual table (CASANDRA-15759)
  * Add support for adding custom Verbs (CASSANDRA-15725)
  * Speed up entire-file-streaming file containment check and allow entire-file-streaming for all compaction strategies (CASSANDRA-15657,CASSANDRA-15783)
  * Provide ability to configure IAuditLogger (CASSANDRA-15748)
