@@ -1,5 +1,6 @@
 3.0.21
  * Fix infinite loop on index query paging in tables with clustering (CASSANDRA-14242)
+ * Fix chunk index overflow due to large sstable with small chunk length (CASSANDRA-15595)
  * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
  * Don't skip sstables in slice queries based only on local min/max/deletion timestamp (CASSANDRA-15690)
  * Memtable memory allocations may deadlock (CASSANDRA-15367)
