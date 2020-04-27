@@ -16,6 +16,7 @@
  * Minimize BTree iterator allocations (CASSANDRA-15389)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix chunk index overflow due to large sstable with small chunk length (CASSANDRA-15595)
  * Allow selecting static column only when querying static index (CASSANDRA-14242)
  * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
  * Don't skip sstables in slice queries based only on local min/max/deletion timestamp (CASSANDRA-15690)

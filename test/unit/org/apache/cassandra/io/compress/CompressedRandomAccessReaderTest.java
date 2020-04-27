@@ -18,12 +18,14 @@
  */
 package org.apache.cassandra.io.compress;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.Random;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,6 +39,7 @@ import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.SyncUtil;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -136,31 +139,44 @@ public class CompressedRandomAccessReaderTest
         }
     }
 
+    /**
+     * JIRA: CASSANDRA-15595 verify large position with small chunk length won't overflow chunk index
+     */
+    @Test
+    public void testChunkIndexOverflow() throws IOException
+    {
+        File file = File.createTempFile("chunk_idx_overflow", "1");
+        String filename = file.getAbsolutePath();
+        int chunkLength = 4096; // 4k
+
+        try
+        {
+            writeSSTable(file, CompressionParams.snappy(chunkLength), 10);
+            CompressionMetadata metadata = new CompressionMetadata(filename + ".metadata", file.length(), true);
+
+            long chunks = 2761628520L;
+            long midPosition = (chunks / 2L) * chunkLength;
+            int idx = 8 * (int) (midPosition / chunkLength); // before patch
+            assertTrue("Expect integer overflow", idx < 0);
+
+            Throwable thrown = Assertions.catchThrowable(() -> metadata.chunkFor(midPosition));
+            assertThat(thrown).isInstanceOf(CorruptSSTableException.class)
+                              .hasCauseInstanceOf(EOFException.class);
+        }
+        finally
+        {
+            if (file.exists())
+                assertTrue(file.delete());
+            File metadata = new File(filename + ".metadata");
+            if (metadata.exists())
+                metadata.delete();
+        }
+    }
+
     private static void testResetAndTruncate(File f, boolean compressed, boolean usemmap, int junkSize, double minCompressRatio) throws IOException
     {
         final String filename = f.getAbsolutePath();
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-        try(SequentialWriter writer = compressed
-                ? new CompressedSequentialWriter(f, filename + ".metadata",
-                null, SequentialWriterOption.DEFAULT,
-                CompressionParams.snappy(), sstableMetadataCollector)
-                : new SequentialWriter(f))
-        {
-            writer.write("The quick ".getBytes());
-            DataPosition mark = writer.mark();
-            writer.write("blue fox jumps over the lazy dog".getBytes());
-
-            // write enough to be sure to change chunk
-            for (int i = 0; i < junkSize; ++i)
-            {
-                writer.write((byte) 1);
-            }
-
-            writer.resetAndTruncate(mark);
-            writer.write("brown fox jumps over the lazy dog".getBytes());
-            writer.finish();
-        }
-        assert f.exists();
+        writeSSTable(f, compressed ? CompressionParams.snappy() : null, junkSize);
 
         CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length(), true) : null;
         try (FileHandle.Builder builder = new FileHandle.Builder(filename).mmapped(usemmap).withCompressionMetadata(compressionMetadata);
@@ -181,6 +197,33 @@ public class CompressedRandomAccessReaderTest
             if (compressed && metadata.exists())
                 metadata.delete();
         }
+    }
+
+    private static void writeSSTable(File f, CompressionParams params, int junkSize) throws IOException
+    {
+        final String filename = f.getAbsolutePath();
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try(SequentialWriter writer = params != null
+                ? new CompressedSequentialWriter(f, filename + ".metadata",
+                                                 null, SequentialWriterOption.DEFAULT,
+                                                 params, sstableMetadataCollector)
+                : new SequentialWriter(f))
+        {
+            writer.write("The quick ".getBytes());
+            DataPosition mark = writer.mark();
+            writer.write("blue fox jumps over the lazy dog".getBytes());
+
+            // write enough to be sure to change chunk
+            for (int i = 0; i < junkSize; ++i)
+            {
+                writer.write((byte) 1);
+            }
+
+            writer.resetAndTruncate(mark);
+            writer.write("brown fox jumps over the lazy dog".getBytes());
+            writer.finish();
+        }
+        assert f.exists();
     }
 
     /**
