@@ -1,8 +1,7 @@
 3.11.7
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:
-=======
-3.0.21
+ * Allow selecting static column only when querying static index (CASSANDRA-14242)
  * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
  * Don't skip sstables in slice queries based only on local min/max/deletion timestamp (CASSANDRA-15690)
  * Memtable memory allocations may deadlock (CASSANDRA-15367)
