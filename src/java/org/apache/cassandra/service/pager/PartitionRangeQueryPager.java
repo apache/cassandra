@@ -69,6 +69,11 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
             pageRange = fullRange;
             limits = command.limits().forPaging(pageSize);
         }
+        // if the last key was the one of the end of the range we know that we are done
+        else if (lastReturnedKey.equals(fullRange.keyRange().right) && remainingInPartition() == 0 && lastReturnedRow == null)
+        {
+            return null;
+        }
         else
         {
             // We want to include the last returned key only if we haven't achieved our per-partition limit, otherwise, don't bother.

@@ -67,7 +67,13 @@ abstract class AbstractQueryPager implements QueryPager
 
         pageSize = Math.min(pageSize, remaining);
         Pager pager = new RowPager(limits.forPaging(pageSize), command.nowInSec());
-        return Transformation.apply(nextPageReadCommand(pageSize).execute(consistency, clientState), pager);
+        ReadCommand readCommand = nextPageReadCommand(pageSize);
+        if (readCommand == null)
+        {
+            exhausted = true;
+            return EmptyIterators.partition();
+        }
+        return Transformation.apply(readCommand.execute(consistency, clientState), pager);
     }
 
     public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException
@@ -77,7 +83,13 @@ abstract class AbstractQueryPager implements QueryPager
 
         pageSize = Math.min(pageSize, remaining);
         RowPager pager = new RowPager(limits.forPaging(pageSize), command.nowInSec());
-        return Transformation.apply(nextPageReadCommand(pageSize).executeInternal(orderGroup), pager);
+        ReadCommand readCommand = nextPageReadCommand(pageSize);
+        if (readCommand == null)
+        {
+            exhausted = true;
+            return EmptyIterators.partition();
+        }
+        return Transformation.apply(readCommand.executeInternal(orderGroup), pager);
     }
 
     public UnfilteredPartitionIterator fetchPageUnfiltered(CFMetaData cfm, int pageSize, ReadOrderGroup orderGroup)
@@ -86,9 +98,15 @@ abstract class AbstractQueryPager implements QueryPager
             return EmptyIterators.unfilteredPartition(cfm, false);
 
         pageSize = Math.min(pageSize, remaining);
-        UnfilteredPager pager = new UnfilteredPager(limits.forPaging(pageSize), command.nowInSec());
 
-        return Transformation.apply(nextPageReadCommand(pageSize).executeLocally(orderGroup), pager);
+        ReadCommand readCommand = nextPageReadCommand(pageSize);
+        if (readCommand == null)
+        {
+            exhausted = true;
+            return EmptyIterators.unfilteredPartition(cfm, false);
+        }
+        UnfilteredPager pager = new UnfilteredPager(limits.forPaging(pageSize), command.nowInSec());
+        return Transformation.apply(readCommand.executeLocally(orderGroup), pager);
     }
 
     private class UnfilteredPager extends Pager<Unfiltered>
