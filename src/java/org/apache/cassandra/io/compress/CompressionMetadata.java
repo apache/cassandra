@@ -226,10 +226,14 @@ public class CompressionMetadata
     public Chunk chunkFor(long position)
     {
         // position of the chunk
-        int idx = 8 * (int) (position / parameters.chunkLength());
+        long idx = 8 * (position / parameters.chunkLength());
 
         if (idx >= chunkOffsetsSize)
             throw new CorruptSSTableException(new EOFException(), indexFilePath);
+
+        if (idx < 0)
+            throw new CorruptSSTableException(new IllegalArgumentException(String.format("Invalid negative chunk index %d with position %d", idx, position)),
+                                              indexFilePath);
 
         long chunkOffset = chunkOffsets.getLong(idx);
         long nextChunkOffset = (idx + 8 == chunkOffsetsSize)
