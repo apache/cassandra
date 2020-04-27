@@ -348,6 +348,31 @@ public class CassandraIndexTest extends CQLTester
 
         assertEmpty(execute("SELECT * FROM %s WHERE s = ? AND token(k) < token(?)", "s0", "k0"));
         assertEmpty(execute("SELECT * FROM %s WHERE s = ? AND token(k) < token(?)", "s1", "k1"));
+
+        row1 = row("s0");
+        row2 = row("s0");
+        row3 = row("s1");
+        row4 = row("s1");
+
+        assertRows(execute("SELECT s FROM %s WHERE s = ?", "s0"), row1, row2);
+        assertRows(execute("SELECT s FROM %s WHERE s = ?", "s1"), row3, row4);
+
+        assertRows(execute("SELECT s FROM %s WHERE s = ? AND token(k) >= token(?)", "s0", "k0"), row1, row2);
+        assertRows(execute("SELECT s FROM %s WHERE s = ? AND token(k) >= token(?)", "s1", "k1"), row3, row4);
+
+        assertEmpty(execute("SELECT s FROM %s WHERE s = ? AND token(k) < token(?)", "s0", "k0"));
+        assertEmpty(execute("SELECT s FROM %s WHERE s = ? AND token(k) < token(?)", "s1", "k1"));
+
+        dropIndex(String.format("DROP INDEX %s.sc_index", keyspace()));
+
+        assertRows(execute("SELECT s FROM %s WHERE s = ? ALLOW FILTERING", "s0"), row1, row2);
+        assertRows(execute("SELECT s FROM %s WHERE s = ? ALLOW FILTERING", "s1"), row3, row4);
+
+        assertRows(execute("SELECT s FROM %s WHERE s = ? AND token(k) >= token(?) ALLOW FILTERING", "s0", "k0"), row1, row2);
+        assertRows(execute("SELECT s FROM %s WHERE s = ? AND token(k) >= token(?) ALLOW FILTERING", "s1", "k1"), row3, row4);
+
+        assertEmpty(execute("SELECT s FROM %s WHERE s = ? AND token(k) < token(?) ALLOW FILTERING", "s0", "k0"));
+        assertEmpty(execute("SELECT s FROM %s WHERE s = ? AND token(k) < token(?) ALLOW FILTERING", "s1", "k1"));
     }
 
     @Test

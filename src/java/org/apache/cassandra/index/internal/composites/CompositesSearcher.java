@@ -123,7 +123,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                                                                     RowFilter.NONE,
                                                                     DataLimits.NONE,
                                                                     partitionKey,
-                                                                    new ClusteringIndexSliceFilter(Slices.ALL, false));
+                                                                    command.clusteringIndexFilter(partitionKey));
                         entries.add(nextEntry);
                         nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
                     }
