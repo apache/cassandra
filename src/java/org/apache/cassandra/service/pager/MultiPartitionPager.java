@@ -90,8 +90,10 @@ public class MultiPartitionPager implements QueryPager
         if (isExhausted())
             return null;
 
-        PagingState state = pagers[current].state();
-        return new PagingState(pagers[current].key(), state == null ? null : state.rowMark, remaining, Integer.MAX_VALUE);
+        SinglePartitionPager pager = pagers[current];
+        PagingState pagerState = pager.state();
+        // Multi-partition paging state represents a _current_ position.
+        return new PagingState(pager.key(), pagerState == null ? null : pagerState.rowMark, remaining, pager.remainingInPartition());
     }
 
     public boolean isExhausted()
