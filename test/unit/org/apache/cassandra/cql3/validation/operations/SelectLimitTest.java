@@ -285,6 +285,162 @@ public class SelectLimitTest extends CQLTester
     }
 
     @Test
+    public void testPerPartitionLimitWithStaticDataAndPaging() throws Throwable
+    {
+        String query = "CREATE TABLE %s (a int, b int, s int static, c int, PRIMARY KEY (a, b))";
+
+        createTable(query);
+
+        for (int i = 0; i < 5; i++)
+        {
+            execute("INSERT INTO %s (a, s) VALUES (?, ?)", i, i);
+        }
+
+        for (int pageSize = 1; pageSize < 8; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s PER PARTITION LIMIT 2", pageSize),
+                          row(0, null, 0, null),
+                          row(1, null, 1, null),
+                          row(2, null, 2, null),
+                          row(3, null, 3, null),
+                          row(4, null, 4, null));
+
+            // Combined Per Partition and "global" limit
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s PER PARTITION LIMIT 2 LIMIT 4", pageSize),
+                          row(0, null, 0, null),
+                          row(1, null, 1, null),
+                          row(2, null, 2, null),
+                          row(3, null, 3, null));
+
+            // odd amount of results
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s PER PARTITION LIMIT 2 LIMIT 3", pageSize),
+                          row(0, null, 0, null),
+                          row(1, null, 1, null),
+                          row(2, null, 2, null));
+
+            // IN query
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1,3,4) PER PARTITION LIMIT 2", pageSize),
+                          row(1, null, 1, null),
+                          row(3, null, 3, null),
+                          row(4, null, 4, null));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1,3,4) PER PARTITION LIMIT 2 LIMIT 2",
+                                               pageSize),
+                          row(1, null, 1, null),
+                          row(3, null, 3, null));
+
+            // with restricted partition key
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 PER PARTITION LIMIT 3", pageSize),
+                          row(2, null, 2, null));
+
+            // with ordering
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 ORDER BY b DESC PER PARTITION LIMIT 3",
+                                               pageSize),
+                          row(2, null, 2, null));
+
+            // with filtering
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 AND s > 0 PER PARTITION LIMIT 2 ALLOW FILTERING",
+                                               pageSize),
+                          row(2, null, 2, null));
+        }
+
+        for (int i = 0; i < 5; i++)
+        {
+            if (i != 1)
+            {
+                for (int j = 0; j < 5; j++)
+                {
+                    execute("INSERT INTO %s (a, b, s, c) VALUES (?, ?, ?, ?)", i, j, i, j);
+                }
+            }
+        }
+
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT * FROM %s PER PARTITION LIMIT ?", 0);
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT * FROM %s PER PARTITION LIMIT ?", -1);
+
+        for (int pageSize = 1; pageSize < 8; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s PER PARTITION LIMIT 2", pageSize),
+                          row(0, 0, 0, 0),
+                          row(0, 1, 0, 1),
+                          row(1, null, 1, null),
+                          row(2, 0, 2, 0),
+                          row(2, 1, 2, 1),
+                          row(3, 0, 3, 0),
+                          row(3, 1, 3, 1),
+                          row(4, 0, 4, 0),
+                          row(4, 1, 4, 1));
+
+            // Combined Per Partition and "global" limit
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s PER PARTITION LIMIT 2 LIMIT 4", pageSize),
+                          row(0, 0, 0, 0),
+                          row(0, 1, 0, 1),
+                          row(1, null, 1, null),
+                          row(2, 0, 2, 0));
+
+            // odd amount of results
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s PER PARTITION LIMIT 2 LIMIT 5", pageSize),
+                          row(0, 0, 0, 0),
+                          row(0, 1, 0, 1),
+                          row(1, null, 1, null),
+                          row(2, 0, 2, 0),
+                          row(2, 1, 2, 1));
+
+            // IN query
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (2,3) PER PARTITION LIMIT 2", pageSize),
+                          row(2, 0, 2, 0),
+                          row(2, 1, 2, 1),
+                          row(3, 0, 3, 0),
+                          row(3, 1, 3, 1));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (2,3) PER PARTITION LIMIT 2 LIMIT 3",
+                                               pageSize),
+                          row(2, 0, 2, 0),
+                          row(2, 1, 2, 1),
+                          row(3, 0, 3, 0));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1,2,3) PER PARTITION LIMIT 2 LIMIT 3",
+                                               pageSize),
+                          row(1, null, 1, null),
+                          row(2, 0, 2, 0),
+                          row(2, 1, 2, 1));
+
+            // with restricted partition key
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 PER PARTITION LIMIT 3", pageSize),
+                          row(2, 0, 2, 0),
+                          row(2, 1, 2, 1),
+                          row(2, 2, 2, 2));
+
+            // with ordering
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 ORDER BY b DESC PER PARTITION LIMIT 3",
+                                               pageSize),
+                          row(2, 4, 2, 4),
+                          row(2, 3, 2, 3),
+                          row(2, 2, 2, 2));
+
+            // with filtering
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 AND b > 0 PER PARTITION LIMIT 2 ALLOW FILTERING",
+                                               pageSize),
+                          row(2, 1, 2, 1),
+                          row(2, 2, 2, 2));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 2 AND b > 2 ORDER BY b DESC PER PARTITION LIMIT 2 ALLOW FILTERING",
+                                               pageSize),
+                          row(2, 4, 2, 4),
+                          row(2, 3, 2, 3));
+        }
+
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries",
+                             "SELECT DISTINCT a FROM %s PER PARTITION LIMIT ?", 3);
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries",
+                             "SELECT DISTINCT a FROM %s PER PARTITION LIMIT ? LIMIT ?", 3, 4);
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with aggregate queries.",
+                             "SELECT COUNT(*) FROM %s PER PARTITION LIMIT ?", 3);
+    }
+
+    @Test
     public void testLimitWithDeletedRowsAndStaticColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, c int, v int, s int static, PRIMARY KEY (pk, c))");
