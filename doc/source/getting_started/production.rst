@@ -85,7 +85,7 @@ We recommend the following read ahead settings:
 
 Read ahead can be adjusted on Linux systems by using the `blockdev` tool.
 
-For example, we can set read ahead of ``/dev/sda1` to 4KB by doing the following::
+For example, we can set read ahead of ``/dev/sda1`` to 4KB by doing the following::
 
     blockdev --setra 8 /dev/sda1
 
@@ -99,7 +99,7 @@ throughput requirements.  To understand how read ahead impacts disk resource usa
 Compression
 ^^^^^^^^^^^^
 
-Compressed data is stored by compressing fixed size byte buffers and writing the data to disk.  The buffer size is
+Compressed data is stored by compressing fixed-size byte buffers and writing the data to disk.  The buffer size is
 determined by the  ``chunk_length_in_kb`` element in the compression map of the schema settings.
 
 The default setting is 16KB starting with Cassandra 4.0.
@@ -122,7 +122,7 @@ may (and frequently do) use different compaction strategies on the same cluster.
 Encryption
 ^^^^^^^^^^^
 
-It is significantly easier to set up peer to peer encryption and client server encryption when setting up your production
+It is significantly easier to set up peer-to-peer encryption and client-server encryption when setting up your production
 cluster as opposed to setting it up once the cluster is already serving production traffic.  If you are planning on using network encryption
 eventually (in any form), we recommend setting it up now.  Changing these configurations down the line is not impossible,
 but mistakes can result in downtime or data loss.
@@ -145,12 +145,5 @@ Configure Racks and Snitch
 **Correctly configuring or changing racks after a cluster has been provisioned is an unsupported process**.  Migrating from
 a single rack to multiple racks is also unsupported and can result in data loss.
 
-Using ``GossipingPropertyFileSnitch`` is the most flexible solution for on premise or mixed cloud environments.  ``Ec2Snitch``
+Using ``GossipingPropertyFileSnitch`` is the most flexible solution for on-premise or mixed cloud environments.  ``Ec2Snitch``
 is reliable for AWS EC2 only environments.
-
-
-
-
-
-
-

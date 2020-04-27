@@ -19,7 +19,7 @@
 Overview
 ========
 
-Apache Cassandra is an open source, distributed, NoSQL database. It presents
+Apache Cassandra is an open-source, distributed, NoSQL database. It presents
 a partitioned wide column storage model with eventually consistent semantics.
 
 Apache Cassandra was initially designed at `Facebook
@@ -34,12 +34,12 @@ data and storage engine model. Dynamo and Bigtable were both developed to meet
 emerging requirements for scalable, reliable and highly available storage
 systems, but each had areas that could be improved.
 
-Cassandra was designed as a best in class combination of both systems to meet
-emerging large scale, both in data footprint and query volume, storage
+Cassandra was designed as a best-in-class combination of both systems to meet
+emerging large-scale (both in data footprint and query volume) storage
 requirements. As applications began to require full global replication and
 always available low-latency reads and writes, it became imperative to design a
 new kind of database model as the relational database systems of the time
-struggled to meet the new requirements of global scale applications.
+struggled to meet the new requirements of global-scale applications.
 
 Systems like Cassandra are designed for these challenges and seek the
 following design objectives:
@@ -69,24 +69,24 @@ organize data within a cluster of Cassandra nodes using:
   the query.
 - **Row**: contains a collection of columns identified by a unique primary key
   made up of the partition key and optionally additional clustering keys.
-- **Column**: A single datum with a type which belong to a row.
+- **Column**: A single datum with a type that belongs to a row.
 
 CQL supports numerous advanced features over a partitioned dataset such as:
 
-- Single partition lightweight transactions with atomic compare and set
-  semantics.
+- Single-partition lightweight transactions with atomic compare and set
+  semantics
 - User-defined types, functions and aggregates
-- Collection types including sets, maps, and lists.
+- Collection types including sets, maps, and lists
 - Local secondary indices
 - (Experimental) materialized views
 
-Cassandra explicitly chooses not to implement operations that require cross
-partition coordination as they are typically slow and hard to provide highly
-available global semantics. For example Cassandra does not support:
+Cassandra explicitly chooses not to implement operations that require cross-partition
+coordination as they are typically slow and hard to provide highly available global
+semantics. For example Cassandra does not support:
 
-- Cross partition transactions
+- Cross-partition transactions
 - Distributed joins
-- Foreign keys or referential integrity.
+- Foreign keys or referential integrity
 
 Operating
 ---------
@@ -108,7 +108,7 @@ which presents a point in time snapshot of Cassandra's data for easy
 integration with many backup tools. Cassandra also supports incremental backups
 where data can be backed up as it is written.
 
-Apache Cassandra 4.0 has added several new features including virtual tables.
+Apache Cassandra 4.0 has added several new features including virtual tables,
 transient replication, audit logging, full query logging, and support for Java
 11. Two of these features are experimental: transient replication and Java 11
 support.

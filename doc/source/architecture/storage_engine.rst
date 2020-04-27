@@ -22,19 +22,17 @@ Storage Engine
 CommitLog
 ^^^^^^^^^
 
-Commitlogs are an append only log of all mutations local to a Cassandra node. Any data written to Cassandra will first be written to a commit log before being written to a memtable. This provides durability in the case of unexpected shutdown. On startup, any mutations in the commit log will be applied to memtables.
+Commitlogs are an append-only log of all mutations local to a Cassandra node. Any data written to Cassandra will first be written to a commit log before being written to a memtable. This provides durability in the case of unexpected shutdown. On startup, any mutations in the commit log will be applied to memtables.
 
-All mutations write optimized by storing in commitlog segments, reducing the number of seeks needed to write to disk. Commitlog Segments are limited by the "commitlog_segment_size_in_mb" option, once the size is reached, a new commitlog segment is created. Commitlog segments can be archived, deleted, or recycled once all its data has been flushed to SSTables.  Commitlog segments are truncated when Cassandra has written data older than a certain point to the SSTables. Running "nodetool drain" before stopping Cassandra will write everything in the memtables to SSTables and remove the need to sync with the commitlogs on startup.
+All mutations write optimized by storing in commitlog segments, reducing the number of seeks needed to write to disk. Commitlog Segments are limited by the ``commitlog_segment_size_in_mb`` option: once this size is reached, a new commitlog segment is created. a commitlog segment can be archived, deleted, or recycled once all its data has been flushed to SSTables.  Commitlog segments are truncated when Cassandra has written data older than a certain point to the SSTables. Running "nodetool drain" before stopping Cassandra will write everything in the memtables to SSTables and remove the need to sync with the commitlogs on startup.
 
-- ``commitlog_segment_size_in_mb``: The default size is 32, which is almost always fine, but if you are archiving commitlog segments (see commitlog_archiving.properties), then you probably want a finer granularity of archiving; 8 or 16 MB is reasonable. Max mutation size is also configurable via max_mutation_size_in_kb setting in cassandra.yaml. The default is half the size commitlog_segment_size_in_mb * 1024.
+- ``commitlog_segment_size_in_mb``: The default size is 32, which is almost always fine, but if you are archiving commitlog segments (see commitlog_archiving.properties), then you probably want a finer granularity of archiving; 8 or 16 MB is reasonable. The maximum mutation size is also configurable via max_mutation_size_in_kb setting in cassandra.yaml. The default is half the size commitlog_segment_size_in_mb * 1024.
 
-***NOTE: If max_mutation_size_in_kb is set explicitly then commitlog_segment_size_in_mb must be set to at least twice the size of max_mutation_size_in_kb / 1024***
+***NOTE: If max_mutation_size_in_kb is set explicitly, then commitlog_segment_size_in_mb must be set to at least twice the size of max_mutation_size_in_kb / 1024**
 
 *Default Value:* 32
 
-Commitlogs are an append only log of all mutations local to a Cassandra node. Any data written to Cassandra will first be written to a commit log before being written to a memtable. This provides durability in the case of unexpected shutdown. On startup, any mutations in the commit log will be applied.
-
-- ``commitlog_sync``: may be either “periodic” or “batch.”
+- ``commitlog_sync``: may be either "periodic" or "batch".
 
   - ``batch``: In batch mode, Cassandra won’t ack writes until the commit log has been fsynced to disk. It will wait "commitlog_sync_batch_window_in_ms" milliseconds between fsyncs. This window should be kept short because the writer threads will be unable to do extra work while waiting. You may need to increase concurrent_writes for the same reason.
 
@@ -51,7 +49,7 @@ Commitlogs are an append only log of all mutations local to a Cassandra node. An
 *** NOTE: In the event of an unexpected shutdown, Cassandra can lose up to the sync period or more if the sync is delayed. If using "batch" mode, it is recommended to store commitlogs in a separate, dedicated device.**
 
 
-- ``commitlog_directory``: This option is commented out by default When running on magnetic HDD, this should be a separate spindle than the data directories. If not set, the default directory is $CASSANDRA_HOME/data/commitlog.
+- ``commitlog_directory``: This option is commented out by default. When running on magnetic HDD, this should be a separate spindle than the data directories. If not set, the default directory is $CASSANDRA_HOME/data/commitlog.
 
 *Default Value:* /var/lib/cassandra/commitlog
 
@@ -67,7 +65,7 @@ Commitlogs are an append only log of all mutations local to a Cassandra node. An
 
 If space gets above this value, Cassandra will flush every dirty CF in the oldest segment and remove it. So a small total commitlog space will tend to cause more flush activity on less-active columnfamilies.
 
-The default value is the smaller of 8192, and 1/4 of the total space of the commitlog volume.
+The default value is the smallest between 8192 and 1/4 of the total space of the commitlog volume.
 
 *Default Value:* 8192
 
@@ -184,7 +182,7 @@ Version 2
   * new Statistics.db file format
   * index summaries can be downsampled and the sampling level is persisted
   * switch uncompressed checksums to adler32
-  * tracks presense of legacy (local and remote) counter shards
+  * tracks presence of legacy (local and remote) counter shards
 * la (2.2.0): new file name format
 * lb (2.2.7): commit log lower bound included
 

@@ -34,7 +34,7 @@ should consider setting the following properties:
 - ``seeds``: a comma separated list of the IP addresses of your cluster seeds.
 - ``storage_port``: you don't necessarily need to change this but make sure that there are no firewalls blocking this
   port.
-- ``listen_address``: the IP address of your node, this is what allows other nodes to communicate with this node so it
+- ``listen_address``: the IP address of your node. This is what allows other nodes to communicate with this node so it
   is important that you change it. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to
   use, and consecutively which address to use. Set only one, not both.
 - ``native_transport_port``: as for storage\_port, make sure this port is not blocked by firewalls as clients will
@@ -56,7 +56,7 @@ Environment variables
 ^^^^^^^^^^^^^^^^^^^^^
 
 JVM-level settings such as heap size can be set in ``cassandra-env.sh``.  You can add any additional JVM command line
-argument to the ``JVM_OPTS`` environment variable; when Cassandra starts these arguments will be passed to the JVM.
+argument to the ``JVM_OPTS`` environment variable; when Cassandra starts, these arguments will be passed to the JVM.
 
 Logging
 ^^^^^^^
