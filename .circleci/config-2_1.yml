@@ -933,6 +933,7 @@ commands:
             set -x
             export PATH=$JAVA_HOME/bin:$PATH
             time mv ~/cassandra /tmp
+            cd /tmp/cassandra
 
             export cython="<<parameters.cython_enabled>>"
             export CASSANDRA_USE_JDK11="<<parameters.jdk11_enabled>>"
