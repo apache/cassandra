@@ -32,6 +32,7 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
+export TEST_OUTPUT_DIR="${TEST_OUTPUT_DIR:-${WORKSPACE}}"
 
 if [ -z "$CASSANDRA_USE_JDK11" ]; then
     export CASSANDRA_USE_JDK11=false
@@ -103,7 +104,8 @@ set +e # disable immediate exit from this point
 nosetests
 
 ccm remove
-mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
+mkdir -p "$TEST_OUTPUT_DIR"
+mv nosetests.xml ${TEST_OUTPUT_DIR}/cqlshlib.xml
 
 ################################
 #
