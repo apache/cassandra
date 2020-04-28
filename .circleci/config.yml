@@ -1316,7 +1316,7 @@ jobs:
             script -qfce "$(printf "%q " "$@")"
           }
 
-          faketty pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
+          faketty "$PWD/pylib/cassandra-cqlsh-tests.sh" "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
@@ -2174,7 +2174,7 @@ jobs:
             script -qfce "$(printf "%q " "$@")"
           }
 
-          faketty pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
+          faketty "$PWD/pylib/cassandra-cqlsh-tests.sh" "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
