@@ -803,72 +803,6 @@ jobs:
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
     - CASSANDRA_USE_JDK11: true
-  j8_cassandra_cqlsh_tests_py27_cython:
-    docker:
-    - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-    resource_class: xlarge
-    working_directory: ~/
-    shell: /bin/bash -eo pipefail -l
-    parallelism: 1
-    steps:
-    - attach_workspace:
-        at: /home/cassandra
-    - run:
-        name: Log Environment Information
-        command: |
-          echo '*** id ***'
-          id
-          echo '*** cat /proc/cpuinfo ***'
-          cat /proc/cpuinfo
-          echo '*** free -m ***'
-          free -m
-          echo '*** df -m ***'
-          df -m
-          echo '*** ifconfig -a ***'
-          ifconfig -a
-          echo '*** uname -a ***'
-          uname -a
-          echo '*** mount ***'
-          mount
-          echo '*** env ***'
-          env
-          echo '*** java ***'
-          which java
-          java -version
-    - run:
-        name: Install python 2.7 dev packages
-        command: sudo apt-get install -y python2.7-dev
-    - run:
-        name: Run cassandra-cqlsh-tests
-        command: |
-          set -x
-          export PATH=$JAVA_HOME/bin:$PATH
-          time mv ~/cassandra /tmp
-          cd /tmp/cassandra
-
-          export cython="yes"
-          export TEST_OUTPUT_DIR="/tmp/test_output"
-
-          pylib/cassandra-cqlsh-tests.sh "$PWD" "python2.7"
-          ls -l "$TEST_OUTPUT_DIR"
-    - store_test_results:
-        path: /tmp/test_output
-    environment:
-    - ANT_HOME: /usr/share/ant
-    - LANG: en_US.UTF-8
-    - KEEP_TEST_DIR: true
-    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
-    - PYTHONIOENCODING: utf-8
-    - PYTHONUNBUFFERED: true
-    - CASS_DRIVER_NO_EXTENSIONS: true
-    - CASS_DRIVER_NO_CYTHON: true
-    - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: master
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
-    - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_dtests-with-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11:20200406
@@ -1377,6 +1311,7 @@ jobs:
 
           export cython="yes"
           export TEST_OUTPUT_DIR="/tmp/test_output"
+          export TERM=xterm
 
           pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
@@ -2108,72 +2043,6 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-  j8_cassandra_cqlsh_tests_py27_nocython:
-    docker:
-    - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-    resource_class: xlarge
-    working_directory: ~/
-    shell: /bin/bash -eo pipefail -l
-    parallelism: 1
-    steps:
-    - attach_workspace:
-        at: /home/cassandra
-    - run:
-        name: Log Environment Information
-        command: |
-          echo '*** id ***'
-          id
-          echo '*** cat /proc/cpuinfo ***'
-          cat /proc/cpuinfo
-          echo '*** free -m ***'
-          free -m
-          echo '*** df -m ***'
-          df -m
-          echo '*** ifconfig -a ***'
-          ifconfig -a
-          echo '*** uname -a ***'
-          uname -a
-          echo '*** mount ***'
-          mount
-          echo '*** env ***'
-          env
-          echo '*** java ***'
-          which java
-          java -version
-    - run:
-        name: Install python 2.7 dev packages
-        command: sudo apt-get install -y python2.7-dev
-    - run:
-        name: Run cassandra-cqlsh-tests
-        command: |
-          set -x
-          export PATH=$JAVA_HOME/bin:$PATH
-          time mv ~/cassandra /tmp
-          cd /tmp/cassandra
-
-          export cython="no"
-          export TEST_OUTPUT_DIR="/tmp/test_output"
-
-          pylib/cassandra-cqlsh-tests.sh "$PWD" "python2.7"
-          ls -l "$TEST_OUTPUT_DIR"
-    - store_test_results:
-        path: /tmp/test_output
-    environment:
-    - ANT_HOME: /usr/share/ant
-    - LANG: en_US.UTF-8
-    - KEEP_TEST_DIR: true
-    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
-    - PYTHONIOENCODING: utf-8
-    - PYTHONUNBUFFERED: true
-    - CASS_DRIVER_NO_EXTENSIONS: true
-    - CASS_DRIVER_NO_CYTHON: true
-    - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: master
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
-    - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_dtests-no-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11:20200406
@@ -2297,6 +2166,7 @@ jobs:
 
           export cython="no"
           export TEST_OUTPUT_DIR="/tmp/test_output"
+          export TERM=xterm
 
           pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
@@ -2492,12 +2362,6 @@ workflows:
         requires:
         - j8_build
     - j8_cassandra_cqlsh_tests_py36_nocython:
-        requires:
-        - j8_build
-    - j8_cassandra_cqlsh_tests_py27_cython:
-        requires:
-        - j8_build
-    - j8_cassandra_cqlsh_tests_py27_nocython:
         requires:
         - j8_build
     - start_j11_unit_tests:

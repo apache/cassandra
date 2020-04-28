@@ -68,12 +68,6 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j8_cassandra_cqlsh_tests_py36_nocython:
         requires:
           - j8_build
-    - j8_cassandra_cqlsh_tests_py27_cython:
-        requires:
-          - j8_build
-    - j8_cassandra_cqlsh_tests_py27_nocython:
-        requires:
-          - j8_build
     # Java 11 unit tests (on request, currently not working)
     - start_j11_unit_tests:
         type: approval
@@ -374,30 +368,6 @@ jobs:
       - log_environment
       - cassandra_cqlsh_tests:
           python_version: python3.6
-          cython_enabled: "no"
-  j8_cassandra_cqlsh_tests_py27_cython:
-    <<: *j8_seq_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run:
-          name: Install python 2.7 dev packages
-          command: sudo apt-get install -y python2.7-dev
-      - cassandra_cqlsh_tests:
-          python_version: python2.7
-          cython_enabled: "yes"
-  j8_cassandra_cqlsh_tests_py27_nocython:
-    <<: *j8_seq_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run:
-          name: Install python 2.7 dev packages
-          command: sudo apt-get install -y python2.7-dev
-      - cassandra_cqlsh_tests:
-          python_version: python2.7
           cython_enabled: "no"
 
   j8_jvm_dtests:
@@ -957,7 +927,8 @@ commands:
     parameters:
       python_version:
         type: enum
-        enum: ["python2.7", "python3.6", "python3.7", "python3.8"]
+        # as of this moment only 3.6 works...
+        enum: ["python3.6"]
         default: "python3.6"
       cython_enabled:
         type: enum
@@ -974,6 +945,7 @@ commands:
 
             export cython="<<parameters.cython_enabled>>"
             export TEST_OUTPUT_DIR="/tmp/test_output"
+            export TERM=xterm
             
             pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
             ls -l "$TEST_OUTPUT_DIR"
