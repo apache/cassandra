@@ -62,6 +62,9 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j8_jvm_dtests:
         requires:
           - j8_build
+    - j8_cassandra_cqlsh_tests:
+        requires:
+          - j8_build
     # Java 11 unit tests (on request, currently not working)
     - start_j11_unit_tests:
         type: approval
@@ -344,6 +347,17 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests
+
+  j8_cassandra_cqlsh_tests:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - cassandra_cqlsh_tests:
+          python_version: python3
+          cython_enabled: "yes"
+          jdk11_enabled: "false"
 
   j8_jvm_dtests:
     <<: *j8_small_par_executor
@@ -897,6 +911,35 @@ commands:
     - store_artifacts:
         path: /tmp/cassandra/build/test/logs
         destination: logs
+
+  cassandra_cqlsh_tests:
+    parameters:
+      python_version:
+        type: enum
+        enum: ["python3", "python2"]
+        default: "python3"
+      cython_enabled:
+        type: enum
+        enum: ["yes", "no"]
+        default: "yes"
+      jdk11_enabled:
+        type: enum
+        enum: ["true", "false"]
+        default: "false"
+    steps:
+      - run:
+          name: Run cassandra-cqlsh-tests
+          command: |
+            set -x
+            export PATH=$JAVA_HOME/bin:$PATH
+            time mv ~/cassandra /tmp
+
+            export cython="<<parameters.cython_enabled>>"
+            export CASSANDRA_USE_JDK11="<<parameters.jdk11_enabled>>"
+
+            pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
+      - store_test_results:
+          path: /tmp/cassandra/cqlshlib.xml
 
   create_venv:
     parameters:
