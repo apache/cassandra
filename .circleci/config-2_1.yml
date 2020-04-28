@@ -284,8 +284,6 @@ executors:
         default: medium
     docker:
       - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-        environment:
-          TERM: dumb
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -947,8 +945,12 @@ commands:
 
             export cython="<<parameters.cython_enabled>>"
             export TEST_OUTPUT_DIR="/tmp/test_output"
+            # see https://stackoverflow.com/questions/32910661/pretend-to-be-a-tty-in-bash-for-any-command
+            faketty () {
+              script -qfce "$(printf "%q " "$@")"
+            }
             
-            pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
+            faketty pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
             ls -l "$TEST_OUTPUT_DIR"
       - store_test_results:
           path: /tmp/test_output

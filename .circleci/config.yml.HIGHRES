@@ -3,8 +3,6 @@ jobs:
   j8_jvm_upgrade_dtests:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -96,8 +94,6 @@ jobs:
   j8_cqlsh-dtests-py2-with-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -267,8 +263,6 @@ jobs:
   j8_cqlsh-dtests-py38-no-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -580,8 +574,6 @@ jobs:
   j8_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -659,8 +651,6 @@ jobs:
   j8_cqlsh-dtests-py2-no-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -897,8 +887,6 @@ jobs:
   j8_dtests-no-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -957,8 +945,6 @@ jobs:
   j8_upgradetests-no-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1058,8 +1044,6 @@ jobs:
   utests_stress:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1105,8 +1089,6 @@ jobs:
   j8_unit_tests:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1290,8 +1272,6 @@ jobs:
   j8_cassandra_cqlsh_tests_py36_cython:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1331,8 +1311,12 @@ jobs:
 
           export cython="yes"
           export TEST_OUTPUT_DIR="/tmp/test_output"
+          # see https://stackoverflow.com/questions/32910661/pretend-to-be-a-tty-in-bash-for-any-command
+          faketty () {
+            script -qfce "$(printf "%q " "$@")"
+          }
 
-          pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
+          faketty pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
@@ -1514,8 +1498,6 @@ jobs:
   j8_dtests-with-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1652,8 +1634,6 @@ jobs:
   j8_jvm_dtests:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1745,8 +1725,6 @@ jobs:
   j8_build:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1827,8 +1805,6 @@ jobs:
   j8_cqlsh-dtests-py3-no-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1906,8 +1882,6 @@ jobs:
   j8_cqlsh-dtests-py38-with-vnodes:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1985,8 +1959,6 @@ jobs:
   utests_long:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2032,8 +2004,6 @@ jobs:
   utests_fqltool:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2160,8 +2130,6 @@ jobs:
   j8_cassandra_cqlsh_tests_py36_nocython:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2201,8 +2169,12 @@ jobs:
 
           export cython="no"
           export TEST_OUTPUT_DIR="/tmp/test_output"
+          # see https://stackoverflow.com/questions/32910661/pretend-to-be-a-tty-in-bash-for-any-command
+          faketty () {
+            script -qfce "$(printf "%q " "$@")"
+          }
 
-          pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
+          faketty pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
@@ -2225,8 +2197,6 @@ jobs:
   utests_compression:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2318,8 +2288,6 @@ jobs:
   j8_dtest_jars_build:
     docker:
     - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
-      environment:
-        TERM: dumb
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
