@@ -937,6 +937,8 @@ commands:
     steps:
       - run:
           name: Run cassandra-cqlsh-tests
+          environment:
+            TERM: dumb
           command: |
             set -x
             export PATH=$JAVA_HOME/bin:$PATH
@@ -945,7 +947,6 @@ commands:
 
             export cython="<<parameters.cython_enabled>>"
             export TEST_OUTPUT_DIR="/tmp/test_output"
-            export TERM=xterm
             
             pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
             ls -l "$TEST_OUTPUT_DIR"

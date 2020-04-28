@@ -1303,6 +1303,8 @@ jobs:
           java -version
     - run:
         name: Run cassandra-cqlsh-tests
+        environment:
+          TERM: dumb
         command: |
           set -x
           export PATH=$JAVA_HOME/bin:$PATH
@@ -1311,7 +1313,6 @@ jobs:
 
           export cython="yes"
           export TEST_OUTPUT_DIR="/tmp/test_output"
-          export TERM=xterm
 
           pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
@@ -2158,6 +2159,8 @@ jobs:
           java -version
     - run:
         name: Run cassandra-cqlsh-tests
+        environment:
+          TERM: dumb
         command: |
           set -x
           export PATH=$JAVA_HOME/bin:$PATH
@@ -2166,7 +2169,6 @@ jobs:
 
           export cython="no"
           export TEST_OUTPUT_DIR="/tmp/test_output"
-          export TERM=xterm
 
           pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
