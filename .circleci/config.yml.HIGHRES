@@ -1309,12 +1309,10 @@ jobs:
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
 
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y expect-dev
-
           export cython="yes"
           export TEST_OUTPUT_DIR="/tmp/test_output"
 
-          unbuffer -p pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
+          script -q -c "$PWD/pylib/cassandra-cqlsh-tests.sh '$PWD' 'python3.6'"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
@@ -2165,12 +2163,10 @@ jobs:
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
 
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y expect-dev
-
           export cython="no"
           export TEST_OUTPUT_DIR="/tmp/test_output"
 
-          unbuffer -p pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
+          script -q -c "$PWD/pylib/cassandra-cqlsh-tests.sh '$PWD' 'python3.6'"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output

@@ -943,12 +943,10 @@ commands:
             time mv ~/cassandra /tmp
             cd /tmp/cassandra
 
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y expect-dev
-
             export cython="<<parameters.cython_enabled>>"
             export TEST_OUTPUT_DIR="/tmp/test_output"
             
-            unbuffer -p pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
+            script -q -c "$PWD/pylib/cassandra-cqlsh-tests.sh '$PWD' '<<parameters.python_version>>'"
             ls -l "$TEST_OUTPUT_DIR"
       - store_test_results:
           path: /tmp/test_output
