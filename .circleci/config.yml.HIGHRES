@@ -1309,14 +1309,12 @@ jobs:
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
 
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y expect-dev
+
           export cython="yes"
           export TEST_OUTPUT_DIR="/tmp/test_output"
-          # see https://stackoverflow.com/questions/32910661/pretend-to-be-a-tty-in-bash-for-any-command
-          faketty () {
-            script -qfce "$(printf "%q " "$@")"
-          }
 
-          faketty "$PWD/pylib/cassandra-cqlsh-tests.sh" "$PWD" "python3.6"
+          unbuffer -p pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
@@ -2167,14 +2165,12 @@ jobs:
           time mv ~/cassandra /tmp
           cd /tmp/cassandra
 
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y expect-dev
+
           export cython="no"
           export TEST_OUTPUT_DIR="/tmp/test_output"
-          # see https://stackoverflow.com/questions/32910661/pretend-to-be-a-tty-in-bash-for-any-command
-          faketty () {
-            script -qfce "$(printf "%q " "$@")"
-          }
 
-          faketty "$PWD/pylib/cassandra-cqlsh-tests.sh" "$PWD" "python3.6"
+          unbuffer -p pylib/cassandra-cqlsh-tests.sh "$PWD" "python3.6"
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
