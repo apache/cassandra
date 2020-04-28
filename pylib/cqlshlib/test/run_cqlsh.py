@@ -150,6 +150,8 @@ class ProcRunner:
         self.env = env
         self.readbuf = ''
 
+        print("Running command " + path + " with args " + args)
+
         self.start_proc()
 
     def start_proc(self):
