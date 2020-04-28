@@ -284,6 +284,8 @@ executors:
         default: medium
     docker:
       - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
+        environment:
+          TERM: dumb
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -937,8 +939,6 @@ commands:
     steps:
       - run:
           name: Run cassandra-cqlsh-tests
-          environment:
-            TERM: dumb
           command: |
             set -x
             export PATH=$JAVA_HOME/bin:$PATH
