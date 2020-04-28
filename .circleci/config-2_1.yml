@@ -355,9 +355,8 @@ jobs:
           at: /home/cassandra
       - log_environment
       - cassandra_cqlsh_tests:
-          python_version: python3
+          python_version: python3.6
           cython_enabled: "yes"
-          jdk11_enabled: "false"
 
   j8_jvm_dtests:
     <<: *j8_small_par_executor
@@ -916,16 +915,12 @@ commands:
     parameters:
       python_version:
         type: enum
-        enum: ["python3", "python2"]
-        default: "python3"
+        enum: ["python2.7", "python3.6", "python3.7", "python3.8"]
+        default: "python3.6"
       cython_enabled:
         type: enum
         enum: ["yes", "no"]
         default: "yes"
-      jdk11_enabled:
-        type: enum
-        enum: ["true", "false"]
-        default: "false"
     steps:
       - run:
           name: Run cassandra-cqlsh-tests
@@ -936,14 +931,7 @@ commands:
             cd /tmp/cassandra
 
             export cython="<<parameters.cython_enabled>>"
-            export CASSANDRA_USE_JDK11="<<parameters.jdk11_enabled>>"
             
-            if [[ "<<parameters.python_version>>" == "python3" ]]; then
-              # the script hard codes cython version which does not support python 3.7+
-              # to work around this issue, this build only supports python 3.6 when referring to python 3
-              alias python="/usr/bin/python3.6"
-            fi
-
             pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
       - store_test_results:
           path: /tmp/cassandra/cqlshlib.xml
