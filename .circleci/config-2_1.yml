@@ -383,7 +383,7 @@ jobs:
       - log_environment
       - run:
           name: Install python 2.7 dev packages
-          command: sudo apt-get install python2.7-dev
+          command: sudo apt-get install -y python2.7-dev
       - cassandra_cqlsh_tests:
           python_version: python2.7
           cython_enabled: "yes"
@@ -395,7 +395,7 @@ jobs:
       - log_environment
       - run:
           name: Install python 2.7 dev packages
-          command: sudo apt-get install python2.7-dev
+          command: sudo apt-get install -y python2.7-dev
       - cassandra_cqlsh_tests:
           python_version: python2.7
           cython_enabled: "no"
