@@ -486,6 +486,15 @@ public class Config
     public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
 
     /**
+     * The intial capacity for creating RangeTombstoneList.
+     */
+    public volatile int initial_range_tombstone_list_allocation_size = 1;
+    /**
+     * The growth factor to enlarge a RangeTombstoneList.
+     */
+    public volatile double range_tombstone_list_growth_factor = 1.5;
+
+    /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
     @Deprecated

@@ -5415,6 +5415,41 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Updated batch_size_warn_threshold_in_kb to {}", threshold);
     }
 
+    public int getInitialRangeTombstoneListAllocationSize()
+    {
+        return DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize();
+    }
+
+    public void setInitialRangeTombstoneListAllocationSize(int size)
+    {
+        if (size < 0 || size > 1024)
+        {
+            throw new IllegalStateException("Not updating initial_range_tombstone_allocation_size as it must be in the range [0, 1024] inclusive");
+        }
+        int originalSize = DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize();
+        DatabaseDescriptor.setInitialRangeTombstoneListAllocationSize(size);
+        logger.info("Updated initial_range_tombstone_allocation_size from {} to {}", originalSize, size);
+    }
+
+    public double getRangeTombstoneResizeListGrowthFactor()
+    {
+        return DatabaseDescriptor.getRangeTombstoneListGrowthFactor();
+    }
+
+    public void setRangeTombstoneListResizeGrowthFactor(double growthFactor) throws IllegalStateException
+    {
+        if (growthFactor < 1.2 || growthFactor > 5)
+        {
+            throw new IllegalStateException("Not updating range_tombstone_resize_factor as growth factor must be in the range [1.2, 5.0] inclusive");
+        }
+        else
+        {
+            double originalGrowthFactor = DatabaseDescriptor.getRangeTombstoneListGrowthFactor();
+            DatabaseDescriptor.setRangeTombstoneListGrowthFactor(growthFactor);
+            logger.info("Updated range_tombstone_resize_factor from {} to {}", originalGrowthFactor, growthFactor);
+        }
+    }
+
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);

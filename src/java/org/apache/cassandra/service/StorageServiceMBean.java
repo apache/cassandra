@@ -771,4 +771,15 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void stopFullQueryLogger();
 
+    /** Sets the initial allocation size of backing arrays for new RangeTombstoneList objects */
+    public void setInitialRangeTombstoneListAllocationSize(int size);
+
+    /** Returns the initial allocation size of backing arrays for new RangeTombstoneList objects */
+    public int getInitialRangeTombstoneListAllocationSize();
+
+    /** Sets the resize factor to use when growing/resizing a RangeTombstoneList */
+    public void setRangeTombstoneListResizeGrowthFactor(double growthFactor);
+
+    /** Returns the resize factor to use when growing/resizing a RangeTombstoneList */
+    public double getRangeTombstoneResizeListGrowthFactor();
 }
