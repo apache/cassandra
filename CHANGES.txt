@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Add tunable initial size and growth factor to RangeTombstoneList (CASSANDRA-15763)
  * Fix buffer pool NPE with concurrent release due to in-progress tiny pool eviction (CASSANDRA-15726)
  * Avoid race condition when completing stream sessions (CASSANDRA-15666)
  * Flush with fast compressors by default (CASSANDRA-15379)
