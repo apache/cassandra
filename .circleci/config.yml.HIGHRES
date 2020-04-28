@@ -836,6 +836,9 @@ jobs:
           which java
           java -version
     - run:
+        name: Install python 2.7 dev packages
+        command: sudo apt-get install python2.7-dev
+    - run:
         name: Run cassandra-cqlsh-tests
         command: |
           set -x
@@ -2137,6 +2140,9 @@ jobs:
           echo '*** java ***'
           which java
           java -version
+    - run:
+        name: Install python 2.7 dev packages
+        command: sudo apt-get install python2.7-dev
     - run:
         name: Run cassandra-cqlsh-tests
         command: |

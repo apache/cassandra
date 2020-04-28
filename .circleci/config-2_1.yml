@@ -381,6 +381,9 @@ jobs:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
+      - run:
+          name: Install python 2.7 dev packages
+          command: sudo apt-get install python2.7-dev
       - cassandra_cqlsh_tests:
           python_version: python2.7
           cython_enabled: "yes"
@@ -390,6 +393,9 @@ jobs:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
+      - run:
+          name: Install python 2.7 dev packages
+          command: sudo apt-get install python2.7-dev
       - cassandra_cqlsh_tests:
           python_version: python2.7
           cython_enabled: "no"
