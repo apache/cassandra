@@ -62,7 +62,16 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     - j8_jvm_dtests:
         requires:
           - j8_build
-    - j8_cassandra_cqlsh_tests:
+    - j8_cassandra_cqlsh_tests_py36_cython:
+        requires:
+          - j8_build
+    - j8_cassandra_cqlsh_tests_py36_nocython:
+        requires:
+          - j8_build
+    - j8_cassandra_cqlsh_tests_py27_cython:
+        requires:
+          - j8_build
+    - j8_cassandra_cqlsh_tests_py27_nocython:
         requires:
           - j8_build
     # Java 11 unit tests (on request, currently not working)
@@ -348,7 +357,7 @@ jobs:
       - log_environment
       - run_parallel_junit_tests
 
-  j8_cassandra_cqlsh_tests:
+  j8_cassandra_cqlsh_tests_py36_cython:
     <<: *j8_seq_executor
     steps:
       - attach_workspace:
@@ -357,6 +366,33 @@ jobs:
       - cassandra_cqlsh_tests:
           python_version: python3.6
           cython_enabled: "yes"
+  j8_cassandra_cqlsh_tests_py36_nocython:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - cassandra_cqlsh_tests:
+          python_version: python3.6
+          cython_enabled: "no"
+  j8_cassandra_cqlsh_tests_py27_cython:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - cassandra_cqlsh_tests:
+          python_version: python2.7
+          cython_enabled: "yes"
+  j8_cassandra_cqlsh_tests_py27_nocython:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - cassandra_cqlsh_tests:
+          python_version: python2.7
+          cython_enabled: "no"
 
   j8_jvm_dtests:
     <<: *j8_small_par_executor
