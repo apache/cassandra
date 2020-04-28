@@ -35,9 +35,10 @@ import static org.apache.cassandra.net.Crc.*;
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.
  */
 @ChannelHandler.Sharable
+public
 class FrameEncoderLZ4 extends FrameEncoder
 {
-    static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
+    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
 
     private final LZ4Compressor compressor;
 

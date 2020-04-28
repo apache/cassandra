@@ -30,11 +30,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.function.Consumer;
 
+import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -52,8 +52,10 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoderCrc;
+import org.apache.cassandra.net.FrameDecoderLZ4;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
+import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.security.SSLFactory;
@@ -89,6 +91,8 @@ public class SimpleClient implements Closeable
     protected Bootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
+
+    protected String compression;
 
     private final Connection.Factory connectionFactory = new Connection.Factory()
     {
@@ -274,7 +278,7 @@ public class SimpleClient implements Closeable
         }
     }
 
-    private static class InitialHandler extends MessageToMessageEncoder<ByteBuf>
+    private static class InitialHandler extends MessageToMessageEncoder<Frame>
     {
         final ProtocolVersion version;
         final ResponseHandler responseHandler;
@@ -284,22 +288,30 @@ public class SimpleClient implements Closeable
             this.responseHandler = responseHandler;
         }
 
-        protected void encode(final ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception
+        protected void encode(ChannelHandlerContext ctx, Frame frame, List<Object> list) throws Exception
         {
-            logger.info("Sending initial message, configuring pipeline for {}", version);
-            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                configureModernPipeline(ctx);
-            else
-                configureLegacyPipeline(ctx);
-            out.add(msg.retain());
+            if (frame.header.type == Message.Type.STARTUP)
+            {
+                logger.info("Sending STARTUP message, configuring pipeline for {}", version);
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    configureModernPipeline(ctx);
+                else
+                    configureLegacyPipeline(ctx);
+            }
+
+            ctx.write(Frame.Encoder.instance.encodeHeader(frame));
+            ctx.write(frame.body);
+            ctx.flush();
         }
 
         private void configureModernPipeline(ChannelHandlerContext ctx)
         {
             logger.info("Configuring modern pipeline");
             ChannelPipeline pipeline = ctx.pipeline();
-            pipeline.remove("frameEncoder");
+            pipeline.remove("frameDecoder");
+            pipeline.remove("messageDecoder");
             pipeline.remove("messageEncoder");
+            pipeline.remove("responseHandler");
 
             BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
             Channel channel = ctx.channel();
@@ -310,8 +322,8 @@ public class SimpleClient implements Closeable
 
             Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
-            FrameDecoder messageFrameDecoder = new FrameDecoderCrc(allocator);
-            FrameEncoder messageFrameEncoder = FrameEncoderCrc.instance;
+            FrameDecoder messageFrameDecoder = frameDecoder(ctx, allocator);
+            FrameEncoder messageFrameEncoder = frameEncoder(ctx);
             Consumer<Message> messageConsumer = message -> {
                 responseHandler.handleResponse(ctx, (Message.Response)message);
             };
@@ -325,22 +337,41 @@ public class SimpleClient implements Closeable
 
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
             pipeline.addLast("messageFrameEncoder", messageFrameEncoder);
-            pipeline.addLast("responseHandler", processor);
-
+            pipeline.addLast("processor", processor);
             pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator()));
             pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
             pipeline.remove(this);
+        }
+
+        private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)
+        {
+            Connection conn = ctx.channel().attr(Connection.attributeKey).get();
+            if (conn.getCompressor() == null)
+                return FrameDecoderCrc.create(allocator);
+            if (conn.getCompressor() instanceof FrameCompressor.LZ4Compressor)
+                return FrameDecoderLZ4.fast(allocator);
+            throw new ProtocolException("Unsupported compressor: " + conn.getCompressor().getClass().getCanonicalName());
+        }
+
+        private FrameEncoder frameEncoder(ChannelHandlerContext ctx)
+        {
+            Connection conn = ctx.channel().attr(Connection.attributeKey).get();
+            if (conn.getCompressor() == null)
+                return FrameEncoderCrc.instance;
+            if (conn.getCompressor() instanceof FrameCompressor.LZ4Compressor)
+                return FrameEncoderLZ4.fastInstance;
+            throw new ProtocolException("Unsupported compressor: " + conn.getCompressor().getClass().getCanonicalName());
         }
 
         private void configureLegacyPipeline(ChannelHandlerContext ctx)
         {
             logger.info("Configuring legacy pipeline");
             ChannelPipeline pipeline = ctx.pipeline();
-            pipeline.addBefore("frameEncoder", "frameDecoder", new Frame.Decoder());
-            pipeline.addBefore("messageEncoder", "messageDecoder", messageDecoder);
-            pipeline.addLast("handler", responseHandler);
-            pipeline.remove(this);
+            pipeline.replace(this, "frameEncoder", Frame.Encoder.instance);
+            pipeline.addAfter("frameEncoder", "frameDecompressor", Frame.Decompressor.instance);
+            pipeline.addAfter("frameDecompressor", "frameCompressor", Frame.Compressor.instance);
         }
+
     }
 
     private class Initializer extends ChannelInitializer<Channel>
@@ -351,9 +382,11 @@ public class SimpleClient implements Closeable
             channel.attr(Connection.attributeKey).set(connection);
 
             ChannelPipeline pipeline = channel.pipeline();
+            pipeline.addLast("frameDecoder", new Frame.Decoder());
             pipeline.addLast("initial", new InitialHandler(version, responseHandler));
-            pipeline.addLast("frameEncoder", Frame.Encoder.instance);
+            pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
+            pipeline.addLast("responseHandler",  responseHandler);
         }
     }
 

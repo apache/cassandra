@@ -29,12 +29,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
@@ -56,20 +59,27 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoderCrc;
+import org.apache.cassandra.net.FrameDecoderLZ4;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
+import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.SupportedMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Server implements CassandraDaemon.Server
@@ -417,6 +427,7 @@ public class Server implements CassandraDaemon.Server
     {
         // Stateless handlers
         private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
+        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
 
         private final Server server;
 
@@ -453,7 +464,15 @@ public class Server implements CassandraDaemon.Server
 
             //pipeline.addLast("debug", new LoggingHandler());
 
+            pipeline.addLast("frameEncoder", Frame.Encoder.instance);
             pipeline.addLast("initial", new InitialHandler(new Frame.Decoder(), server.connectionFactory));
+            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
+            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
+            // eventExecutorGroup may not enforce strict ordering for channel events.
+            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
+            // correctly handled before the handler itself is removed.
+            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
+            pipeline.addLast("exceptionHandler", exceptionHandler);
         }
     }
 
@@ -530,7 +549,6 @@ public class Server implements CassandraDaemon.Server
 
     static class InitialHandler extends ByteToMessageDecoder
     {
-        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
         final Frame.Decoder decoder;
         final Connection.Factory factory;
 
@@ -539,60 +557,99 @@ public class Server implements CassandraDaemon.Server
             this.decoder = decoder;
             this.factory = factory;
         }
-
         protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> list) throws Exception
         {
             Frame frame = decoder.decodeFrame(buffer);
             if (frame == null)
                 return;
 
-            Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
-            Connection connection = attrConn.get();
-            if (connection == null)
+            switch(frame.header.type)
             {
-                // First message seen on this channel, attach the connection object
-                connection = factory.newConnection(ctx.channel(), frame.header.version);
-                attrConn.set(connection);
-                logger.info("Configuring pipeline for {}", frame.header.version);
-                InetAddress remoteAddress = ((InetSocketAddress)ctx.channel().remoteAddress()).getAddress();
-                Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
-                if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                {
-                    configureModernPipeline(ctx, decoder, frame, payloadTracker);
-                }
-                else
-                {
-                    configureLegacyPipeline(ctx.channel(), decoder, payloadTracker);
-                    list.add(frame);
-                }
-                logger.info("Configured pipeline: {}", ctx.pipeline());
-            }
-            else
-            {
-                logger.error("Connection was already set on channel, initial handler should have configured pipeline");
-                throw new ServerError("Connection initialization error.");
+                case OPTIONS:
+                    logger.info("OPTIONS received {}", frame.header.version);
+                    List<String> cqlVersions = new ArrayList<String>();
+                    cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
+
+                    List<String> compressions = new ArrayList<String>();
+                    if (FrameCompressor.SnappyCompressor.instance != null)
+                        compressions.add("snappy");
+                    // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
+                    compressions.add("lz4");
+
+                    Map<String, List<String>> supported = new HashMap<String, List<String>>();
+                    supported.put(StartupMessage.CQL_VERSION, cqlVersions);
+                    supported.put(StartupMessage.COMPRESSION, compressions);
+                    supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+                    SupportedMessage response = new SupportedMessage(supported);
+                    Frame outbound = Message.ProtocolEncoder.instance.encodeMessage(response, frame.header.version);
+                    ctx.writeAndFlush(outbound);
+                    break;
+
+                case STARTUP:
+                    Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
+                    Connection connection = attrConn.get();
+                    if (connection == null)
+                    {
+                        connection = factory.newConnection(ctx.channel(), frame.header.version);
+                        attrConn.set(connection);
+                    }
+
+                    logger.info("STARTUP received, configuring pipeline for {}", frame.header.version);
+                    StartupMessage message = (StartupMessage) Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), frame);
+                    InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
+                    Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
+
+                    if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    {
+                        try
+                        {
+                            configureModernPipeline(ctx, decoder, frame.header.bodySizeInBytes, message, payloadTracker);
+                        }
+                        catch(ProtocolException e)
+                        {
+                            ErrorMessage error = ErrorMessage.fromException(e);
+                            Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
+                            ctx.writeAndFlush(errorFrame);
+                        }
+                    }
+                    else
+                        configureLegacyPipeline(ctx.channel(), decoder, message, payloadTracker);
+                    logger.info("Configured pipeline: {}", ctx.pipeline());
+                    break;
+
+                default:
+                    ErrorMessage error =
+                        ErrorMessage.fromException(
+                            new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
+                                                                frame.header.type)));
+                    Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
+                    ctx.writeAndFlush(errorFrame);
             }
         }
 
         void configureModernPipeline(final ChannelHandlerContext ctx,
                                      final Frame.Decoder frameDecoder,
-                                     final Frame frame,
+                                     final long messageBodyBytes,
+                                     final StartupMessage startup,
                                      final Server.EndpointPayloadTracker tracker)
         {
-            logger.info("Configuring V5 pipeline");
+            logger.info("Configuring V5 pipeline: {}", startup);
             BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
             ctx.channel().config().setOption(ChannelOption.ALLOCATOR, allocator);
 
-            FrameDecoder messageFrameDecoder = new FrameDecoderCrc(allocator);
-            FrameEncoder messageFrameEncoder = FrameEncoderCrc.instance;
+            FrameDecoder messageFrameDecoder = frameDecoder(startup, allocator);
+            FrameEncoder messageFrameEncoder = frameEncoder(startup);
 
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
-            Message.Dispatcher dispatcher = new Message.Dispatcher(Message.Dispatcher.Flusher.Type.V5, tracker);
+            Message.Dispatcher dispatcher =
+                new Message.Dispatcher(tracker,
+                                       loop -> Message.Dispatcher.Flusher.v5(loop, messageFrameEncoder.allocator()));
+
             Consumer<Message> messageConsumer = message -> {
                 dispatcher.dispatch(ctx, (Message.Request)message);
             };
             ChannelPipeline pipeline = ctx.channel().pipeline();
-
+            pipeline.remove("frameEncoder");
             pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
             pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
 
@@ -603,38 +660,54 @@ public class Server implements CassandraDaemon.Server
                                                                 messageConsumer,
                                                                 tracker.endpointAndGlobalPayloadsInFlight);
             pipeline.addBefore("initial", "cqlProcessor", processor);
-            addExceptionHandler(pipeline);
             pipeline.remove(this);
-            tracker.endpointAndGlobalPayloadsInFlight.allocate(frame.header.bodySizeInBytes);
-            Message message = Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), frame);
-            messageConsumer.accept(message);
+            tracker.endpointAndGlobalPayloadsInFlight.allocate(messageBodyBytes);
+            messageConsumer.accept(startup);
         }
 
-        void configureLegacyPipeline(Channel channel, Frame.Decoder frameDecoder, Server.EndpointPayloadTracker tracker)
+        private FrameDecoder frameDecoder(StartupMessage startup, BufferPoolAllocator allocator)
         {
-            logger.info("Configuring legacy pipeline");
+            String compression = startup.options.get(StartupMessage.COMPRESSION);
+            if (null == compression)
+                return FrameDecoderCrc.create(allocator);
+            if (compression.equalsIgnoreCase("LZ4"))
+                return FrameDecoderLZ4.fast(allocator);
+            throw new ProtocolException("Unsupported compression type: " + compression);
+        }
+
+        private FrameEncoder frameEncoder(StartupMessage startup)
+        {
+            String compression = startup.options.get(StartupMessage.COMPRESSION);
+            if (Strings.isNullOrEmpty(compression))
+                return FrameEncoderCrc.instance;
+            if (compression.equalsIgnoreCase("LZ4"))
+                return FrameEncoderLZ4.fastInstance;
+            throw new ProtocolException("Unsupported compression type: " + compression);
+        }
+
+        void configureLegacyPipeline(final Channel channel,
+                                     final Frame.Decoder frameDecoder,
+                                     final StartupMessage startup,
+                                     final Server.EndpointPayloadTracker tracker)
+        {
+            logger.info("Configuring legacy pipeline: {}", startup);
+
             ChannelPipeline pipeline = channel.pipeline();
-            pipeline.addBefore("initial", "frameDecoder", frameDecoder);
-            pipeline.addBefore("initial", "frameEncoder", Frame.Encoder.instance);
-            pipeline.addLast("messageDecoder", Message.ProtocolDecoder.instance);
-            pipeline.addLast("messageEncoder", Message.ProtocolEncoder.instance);
-            Message.Dispatcher.Flusher.Type flusherType =  DatabaseDescriptor.useNativeTransportLegacyFlusher()
-                                                           ? Message.Dispatcher.Flusher.Type.LEGACY
-                                                           : Message.Dispatcher.Flusher.Type.IMMEDIATE;
-            pipeline.addLast("executor", new Message.Dispatcher(flusherType, tracker));
-            addExceptionHandler(pipeline);
+            pipeline.addBefore("frameEncoder", "frameDecoder", frameDecoder);
+            pipeline.addBefore("initial", "frameDecompressor", Frame.Decompressor.instance);
+            pipeline.addBefore("initial", "frameCompressor", Frame.Compressor.instance);
+            pipeline.addBefore("initial", "messageDecoder", Message.ProtocolDecoder.instance);
+            pipeline.addBefore("initial", "messageEncoder", Message.ProtocolEncoder.instance);
+            pipeline.addBefore("initial", "executor", new Message.Dispatcher(tracker,
+                                                                loop -> DatabaseDescriptor.useNativeTransportLegacyFlusher()
+                                                                        ? Message.Dispatcher.Flusher.legacy(loop)
+                                                                        : Message.Dispatcher.Flusher.immediate(loop)));
             pipeline.remove(this);
+            pipeline.context(Message.ProtocolDecoder.class).fireChannelRead(startup);
         }
 
         void addExceptionHandler(ChannelPipeline pipeline)
         {
-            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
-            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
-            // eventExecutorGroup may not enforce strict ordering for channel events.
-            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
-            // correctly handled before the handler itself is removed.
-            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
-            pipeline.addLast("exceptionHandler", exceptionHandler);
         }
 
     }

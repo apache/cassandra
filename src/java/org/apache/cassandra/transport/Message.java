@@ -237,7 +237,7 @@ public abstract class Message
 
         protected abstract Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest);
 
-        final Response execute(QueryState queryState, long queryStartNanoTime)
+        public final Response execute(QueryState queryState, long queryStartNanoTime)
         {
             boolean shouldTrace = false;
             UUID tracingSessionId = null;
@@ -529,22 +529,19 @@ public abstract class Message
 
         static abstract class Flusher implements Runnable
         {
-            enum Type {
+            public static Flusher legacy(EventLoop loop)
+            {
+                return new LegacyFlusher(loop);
+            }
 
-                LEGACY(LegacyFlusher::new),
-                IMMEDIATE(ImmediateFlusher::new),
-                V5(loop -> new V5Flusher(loop, ProtocolEncoder.instance, FrameEncoderCrc.instance.allocator()));
+            public static Flusher immediate(EventLoop loop)
+            {
+                return new ImmediateFlusher(loop);
+            }
 
-                final Function<EventLoop, Flusher> factory;
-                Flusher flusher(EventLoop loop)
-                {
-                    return factory.apply(loop);
-                }
-
-                Type(Function<EventLoop, Flusher> fn)
-                {
-                    this.factory = fn;
-                }
+            public static Flusher v5(EventLoop loop, FrameEncoder.PayloadAllocator allocator)
+            {
+                return new V5Flusher(loop, allocator);
             }
 
             final EventLoop eventLoop;
@@ -657,18 +654,16 @@ public abstract class Message
             }
         }
 
-        public static final class V5Flusher extends Flusher
+        private static final class V5Flusher extends Flusher
         {
-            private final ProtocolEncoder messageEncoder;
+            private final ProtocolEncoder messageEncoder = ProtocolEncoder.instance;
             private final FrameEncoder.PayloadAllocator allocator;
-            private Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
+            private final Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
 
-            public V5Flusher(EventLoop eventLoop,
-                             ProtocolEncoder messageEncoder,
+            private V5Flusher(EventLoop eventLoop,
                              FrameEncoder.PayloadAllocator allocator)
             {
                 super(eventLoop);
-                this.messageEncoder = messageEncoder;
                 this.allocator = allocator;
             }
 
@@ -732,12 +727,13 @@ public abstract class Message
 
         private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
 
-        private final Flusher.Type flusherType;
+        private final Function<EventLoop, Flusher> flusherProvider;
 
-        public Dispatcher(Flusher.Type flusherType, Server.EndpointPayloadTracker endpointPayloadTracker)
+        public Dispatcher(Server.EndpointPayloadTracker endpointPayloadTracker,
+                          Function<EventLoop, Flusher> flusherProvider)
         {
             super(false);
-            this.flusherType = flusherType;
+            this.flusherProvider = flusherProvider;
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
@@ -886,7 +882,7 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
-                Flusher created = flusherType.flusher(loop);
+                Flusher created = flusherProvider.apply(loop);
                 Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;

@@ -281,28 +281,33 @@ public class Frame
         public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
-            ByteBuf header = CBUtil.allocator.buffer(Header.LENGTH);
+            ByteBuf serializedHeader = encodeHeader(frame);
+            int messageSize = serializedHeader.readableBytes() + frame.body.readableBytes();
+            ClientRequestSizeMetrics.totalBytesWritten.inc(messageSize);
+            ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(messageSize);
+
+            results.add(serializedHeader);
+            results.add(frame.body);
+        }
+
+        public ByteBuf encodeHeader(Frame frame)
+        {
+            ByteBuf buf = CBUtil.allocator.buffer(Header.LENGTH);
 
             Message.Type type = frame.header.type;
-            header.writeByte(type.direction.addToVersion(frame.header.version.asInt()));
-            header.writeByte(Header.Flag.serialize(frame.header.flags));
+            buf.writeByte(type.direction.addToVersion(frame.header.version.asInt()));
+            buf.writeByte(Header.Flag.serialize(frame.header.flags));
 
             // Continue to support writing pre-v3 headers so that we can give proper error messages to drivers that
             // connect with the v1/v2 protocol. See CASSANDRA-11464.
             if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
-                header.writeShort(frame.header.streamId);
+                buf.writeShort(frame.header.streamId);
             else
-                header.writeByte(frame.header.streamId);
+                buf.writeByte(frame.header.streamId);
 
-            header.writeByte(type.opcode);
-            header.writeInt(frame.body.readableBytes());
-
-            int messageSize = header.readableBytes() + frame.body.readableBytes();
-            ClientRequestSizeMetrics.totalBytesWritten.inc(messageSize);
-            ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(messageSize);
-
-            results.add(header);
-            results.add(frame.body);
+            buf.writeByte(type.opcode);
+            buf.writeInt(frame.body.readableBytes());
+            return buf;
         }
     }
 
@@ -358,7 +363,6 @@ public class Frame
                 results.add(frame);
                 return;
             }
-
             frame.header.flags.add(Header.Flag.COMPRESSED);
             results.add(compressor.compress(frame));
         }

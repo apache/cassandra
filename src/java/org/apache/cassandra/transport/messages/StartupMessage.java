@@ -91,6 +91,10 @@ public class StartupMessage extends Message.Request
             {
                 if (FrameCompressor.SnappyCompressor.instance == null)
                     throw new ProtocolException("This instance does not support Snappy compression");
+
+                if (getSourceFrame().header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    throw new ProtocolException("Snappy compression is not supported in protocol V5");
+
                 connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
             }
             else if (compression.equals("lz4"))

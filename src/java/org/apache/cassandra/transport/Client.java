@@ -113,6 +113,11 @@ public class Client extends SimpleClient
                    options.put(StartupMessage.COMPRESSION, "snappy");
                    connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
                }
+               if (next.toLowerCase().equals("lz4"))
+                {
+                    options.put(StartupMessage.COMPRESSION, "lz4");
+                    connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
+                }
             }
             return new StartupMessage(options);
         }
