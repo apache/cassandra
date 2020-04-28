@@ -61,7 +61,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -145,7 +144,7 @@ public abstract class CassandraIndex implements Index
                                                   Clustering clustering,
                                                   CellPath path,
                                                   ByteBuffer cellValue);
-
+    
     public ColumnMetadata getIndexedColumn()
     {
         return indexedColumn;
