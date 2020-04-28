@@ -1311,6 +1311,7 @@ jobs:
 
           export cython="yes"
           export TEST_OUTPUT_DIR="/tmp/test_output"
+          export DISABLE_CLEAN_EXIT=true
 
           pylib/cassandra-cqlsh-tests.sh "$PWD" 'python3.6'
           ls -l "$TEST_OUTPUT_DIR"
@@ -2165,6 +2166,7 @@ jobs:
 
           export cython="no"
           export TEST_OUTPUT_DIR="/tmp/test_output"
+          export DISABLE_CLEAN_EXIT=true
 
           pylib/cassandra-cqlsh-tests.sh "$PWD" 'python3.6'
           ls -l "$TEST_OUTPUT_DIR"

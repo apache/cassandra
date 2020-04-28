@@ -945,6 +945,7 @@ commands:
 
             export cython="<<parameters.cython_enabled>>"
             export TEST_OUTPUT_DIR="/tmp/test_output"
+            export DISABLE_CLEAN_EXIT=true
             
             pylib/cassandra-cqlsh-tests.sh "$PWD" '<<parameters.python_version>>'
             ls -l "$TEST_OUTPUT_DIR"

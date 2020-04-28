@@ -102,6 +102,7 @@ cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
 nosetests
+rc=$?
 
 ccm remove
 mkdir -p "$TEST_OUTPUT_DIR"
@@ -117,4 +118,7 @@ mv nosetests.xml ${TEST_OUTPUT_DIR}/cqlshlib.xml
 deactivate
 
 # Exit cleanly for usable "Unstable" status
+if [[ "${DISABLE_CLEAN_EXIT:-false}" == "true" ]]; then
+  exit $rc
+fi
 exit 0
