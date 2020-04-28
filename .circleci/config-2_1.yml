@@ -937,6 +937,12 @@ commands:
 
             export cython="<<parameters.cython_enabled>>"
             export CASSANDRA_USE_JDK11="<<parameters.jdk11_enabled>>"
+            
+            if [[ "<<parameters.python_version>>" == "python3" ]]; then
+              # the script hard codes cython version which does not support python 3.7+
+              # to work around this issue, this build only supports python 3.6 when referring to python 3
+              alias python="/usr/bin/python3.6"
+            fi
 
             pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
       - store_test_results:
