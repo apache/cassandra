@@ -2189,6 +2189,7 @@ jobs:
           set -x
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
+          cd /tmp/cassandra
 
           export cython="yes"
           export CASSANDRA_USE_JDK11="false"
