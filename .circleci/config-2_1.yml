@@ -934,6 +934,7 @@ commands:
             export TEST_OUTPUT_DIR="/tmp/test_output"
             
             pylib/cassandra-cqlsh-tests.sh "$PWD" "<<parameters.python_version>>"
+            ls -l "$TEST_OUTPUT_DIR"
       - store_test_results:
           path: /tmp/test_output
 
