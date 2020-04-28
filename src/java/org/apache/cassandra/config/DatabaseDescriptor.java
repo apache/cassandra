@@ -3090,4 +3090,23 @@ public class DatabaseDescriptor
         return Math.max(seconds, 0);
     }
 
+    public static int getInitialRangeTombstoneListAllocationSize()
+    {
+        return conf.initial_range_tombstone_list_allocation_size;
+    }
+
+    public static void setInitialRangeTombstoneListAllocationSize(int size)
+    {
+        conf.initial_range_tombstone_list_allocation_size = size;
+    }
+
+    public static double getRangeTombstoneListGrowthFactor()
+    {
+        return conf.range_tombstone_list_growth_factor;
+    }
+
+    public static void setRangeTombstoneListGrowthFactor(double resizeFactor)
+    {
+        conf.range_tombstone_list_growth_factor = resizeFactor;
+    }
 }
