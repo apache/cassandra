@@ -1,6 +1,7 @@
 3.11.7
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:
+ * Fix infinite loop on index query paging in tables with clustering (CASSANDRA-14242)
  * Fix chunk index overflow due to large sstable with small chunk length (CASSANDRA-15595)
  * Allow selecting static column only when querying static index (CASSANDRA-14242)
  * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
