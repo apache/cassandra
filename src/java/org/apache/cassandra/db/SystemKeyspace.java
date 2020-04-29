@@ -1344,12 +1344,17 @@ public final class SystemKeyspace
     public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
     {
         SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
-        String cql = String.format("SELECT keyspace_name, table_name FROM %s", TableEstimates.toString(), TABLE_ESTIMATES_TYPE_PRIMARY);
-        UntypedResultSet rs = executeInternal(cql);
-        for (UntypedResultSet.Row row : rs)
+        // Its possible that size_estimates knows about a different set of keyspace/tables than table_estimates (mostly
+        // caused by external systems modifying the tables, such as dtest) so query both
+        for (String cql : Arrays.asList(
+            "SELECT keyspace_name, table_name FROM " + TableEstimates.toString(),
+            "SELECT keyspace_name, table_name FROM " + LegacySizeEstimates.toString()))
         {
-            keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
+            UntypedResultSet rs = executeInternal(cql);
+            for (UntypedResultSet.Row row : rs)
+                keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
         }
+
         return keyspaceTableMap;
     }
 
