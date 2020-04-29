@@ -267,3 +267,7 @@ Use the schema option making sure to either escape the parenthesis or enclose in
 Use the transport option::
 
     cassandra-stress "write n=100k cl=ONE no-warmup" -transport "truststore=$HOME/jks/truststore.jks truststore-password=cassandra"
+
+**Is Cassandra Stress a secured tool?**
+
+Cassandra stress is not a secured tool. Serialization and other aspects of the tool offer no security guarantees.
