@@ -1313,7 +1313,7 @@ jobs:
           export TEST_OUTPUT_DIR="/tmp/test_output"
           export DISABLE_CLEAN_EXIT=true
 
-          pylib/cassandra-cqlsh-tests.sh "$PWD" 'python3.6'
+          (setsid pylib/cassandra-cqlsh-tests.sh "$PWD" 'python3.6') < /dev/null |& cat
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
@@ -2168,7 +2168,7 @@ jobs:
           export TEST_OUTPUT_DIR="/tmp/test_output"
           export DISABLE_CLEAN_EXIT=true
 
-          pylib/cassandra-cqlsh-tests.sh "$PWD" 'python3.6'
+          (setsid pylib/cassandra-cqlsh-tests.sh "$PWD" 'python3.6') < /dev/null |& cat
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output

@@ -947,7 +947,7 @@ commands:
             export TEST_OUTPUT_DIR="/tmp/test_output"
             export DISABLE_CLEAN_EXIT=true
             
-            pylib/cassandra-cqlsh-tests.sh "$PWD" '<<parameters.python_version>>'
+            (setsid pylib/cassandra-cqlsh-tests.sh "$PWD" '<<parameters.python_version>>') < /dev/null |& cat
             ls -l "$TEST_OUTPUT_DIR"
       - store_test_results:
           path: /tmp/test_output
