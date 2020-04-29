@@ -1327,30 +1327,15 @@ public final class SystemKeyspace
     }
 
     /**
-     * Clears size estimates for a keyspace (used to manually clean when we miss a keyspace drop)
+     * truncates size_estimates and table_estimates tables
      */
-    public static void clearEstimates(String keyspace)
+    public static void clearAllEstimates()
     {
-        String cqlFormat = "DELETE FROM %s WHERE keyspace_name = ?";
-        String cql = String.format(cqlFormat, LegacySizeEstimates.toString());
-        executeInternal(cql, keyspace);
-        cql = String.format(cqlFormat, TableEstimates.toString());
-        executeInternal(cql, keyspace);
-    }
-
-    /**
-     * @return A multimap from keyspace to table for all tables with entries in size estimates
-     */
-    public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
-    {
-        SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
-        String cql = String.format("SELECT keyspace_name, table_name FROM %s", TableEstimates.toString(), TABLE_ESTIMATES_TYPE_PRIMARY);
-        UntypedResultSet rs = executeInternal(cql);
-        for (UntypedResultSet.Row row : rs)
+        for (TableMetadata table : Arrays.asList(LegacySizeEstimates, TableEstimates))
         {
-            keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
+            String cql = String.format("TRUNCATE TABLE " + table.toString());
+            executeInternal(cql);
         }
-        return keyspaceTableMap;
     }
 
     public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedTransientRanges)

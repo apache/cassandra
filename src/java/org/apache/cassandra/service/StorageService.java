@@ -3670,24 +3670,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void cleanupSizeEstimates()
     {
-        SetMultimap<String, String> sizeEstimates = SystemKeyspace.getTablesWithSizeEstimates();
-
-        for (Entry<String, Collection<String>> tablesByKeyspace : sizeEstimates.asMap().entrySet())
-        {
-            String keyspace = tablesByKeyspace.getKey();
-            if (!Schema.instance.getKeyspaces().contains(keyspace))
-            {
-                SystemKeyspace.clearEstimates(keyspace);
-            }
-            else
-            {
-                for (String table : tablesByKeyspace.getValue())
-                {
-                    if (Schema.instance.getTableMetadataRef(keyspace, table) == null)
-                        SystemKeyspace.clearEstimates(keyspace, table);
-                }
-            }
-        }
+        SystemKeyspace.clearAllEstimates();
     }
 
     /**
