@@ -32,10 +32,14 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
+export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
 export TEST_OUTPUT_DIR="${TEST_OUTPUT_DIR:-${WORKSPACE}}"
 
-if [ -z "$CASSANDRA_USE_JDK11" ]; then
-    export CASSANDRA_USE_JDK11=false
+if [ "${CASSANDRA_USE_JDK11:-false}" = true ]; then
+  TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
+else
+  TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
+  export CASSANDRA_USE_JDK11=false
 fi
 
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
@@ -63,9 +67,12 @@ pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
+    TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
     pip install "Cython>=0.20,<0.25"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
+else
+    TESTSUITE_NAME="${TESTSUITE_NAME}.no_cython"
 fi
 
 ################################
@@ -105,6 +112,8 @@ nosetests
 rc=$?
 
 ccm remove
+sed -i '' "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/" nosetests.xml
+sed -i '' "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./" nosetests.xml
 mkdir -p "$TEST_OUTPUT_DIR"
 mv nosetests.xml ${TEST_OUTPUT_DIR}/cqlshlib.xml
 
