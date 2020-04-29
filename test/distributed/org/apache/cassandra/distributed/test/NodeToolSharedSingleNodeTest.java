@@ -30,6 +30,9 @@ public class NodeToolSharedSingleNodeTest extends TestBaseImpl
             CLUSTER.close();
     }
 
+    /**
+     * Replaces Python Dtest: nodetool_test.py#test_refresh_size_estimates_clears_invalid_entries
+     */
     @Test
     public void refreshTableEstimatesClearsInvalidEntries()
     {
@@ -58,6 +61,9 @@ public class NodeToolSharedSingleNodeTest extends TestBaseImpl
         Assertions.assertThat(qr).isExhausted();
     }
 
+    /**
+     * Replaces Python Dtest: nodetool_test.py#test_refresh_size_estimates_clears_invalid_entries
+     */
     @Test
     public void refreshSizeEstimatesClearsInvalidEntries()
     {
