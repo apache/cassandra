@@ -296,7 +296,7 @@ class CqlshRunner(ProcRunner):
             args += ('--cqlversion', str(cqlver))
         if keyspace is not None:
             args += ('--keyspace', keyspace.lower())
-        if tty and is_win():
+        if tty:
             args += ('--tty',)
             args += ('--encoding', 'utf-8')
             if win_force_colors:
