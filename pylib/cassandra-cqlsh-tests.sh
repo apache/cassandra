@@ -112,8 +112,8 @@ nosetests
 rc=$?
 
 ccm remove
-sed -i '' "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/" nosetests.xml
-sed -i '' "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./" nosetests.xml
+sed -i "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/" nosetests.xml
+sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./" nosetests.xml
 mkdir -p "$TEST_OUTPUT_DIR"
 mv nosetests.xml ${TEST_OUTPUT_DIR}/cqlshlib.xml
 
