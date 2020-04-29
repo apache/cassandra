@@ -1,4 +1,5 @@
 2.2.20
+ * Fix Debian init start/stop (CASSANDRA-15770)
  * Remove ant targets list-jvm-dtests and ant list-jvm-upgrade-dtests (CASSANDRA-16519)
  * Fix centos packaging for arm64, >=4.0 rpm's now require python3 (CASSANDRA-16477)
  * Make TokenMetadata's ring version increments atomic (CASSANDRA-16286)
