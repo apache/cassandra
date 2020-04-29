@@ -150,6 +150,8 @@ class ProcRunner:
         self.env = env
         self.readbuf = ''
 
+        print("Running command " + path + " with args " + str(args) + "; tty=" + str(self.tty) + ", realtty=" + str(self.realtty))
+
         self.start_proc()
 
     def start_proc(self):
@@ -294,7 +296,7 @@ class CqlshRunner(ProcRunner):
             args += ('--cqlversion', str(cqlver))
         if keyspace is not None:
             args += ('--keyspace', keyspace.lower())
-        if tty and is_win():
+        if tty:
             args += ('--tty',)
             args += ('--encoding', 'utf-8')
             if win_force_colors:

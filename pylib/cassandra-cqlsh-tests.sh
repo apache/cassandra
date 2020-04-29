@@ -18,7 +18,7 @@ if [ "${PYTHON_VERSION}" = "" ]; then
     PYTHON_VERSION=python3
 fi
 
-if [ "${PYTHON_VERSION}" != "python3" -a "${PYTHON_VERSION}" != "python2" ]; then
+if [[ ! "${PYTHON_VERSION}" =~ python[23]  ]]; then
     echo "Specify Python version python3 or python2"
     exit
 fi
@@ -32,9 +32,14 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
+export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
+export TEST_OUTPUT_DIR="${TEST_OUTPUT_DIR:-${WORKSPACE}}"
 
-if [ -z "$CASSANDRA_USE_JDK11" ]; then
-    export CASSANDRA_USE_JDK11=false
+if [ "${CASSANDRA_USE_JDK11:-false}" = true ]; then
+  TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
+else
+  TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
+  export CASSANDRA_USE_JDK11=false
 fi
 
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
@@ -56,13 +61,18 @@ set -e # enable immediate exit if venv setup fails
 virtualenv --python=$PYTHON_VERSION venv
 source venv/bin/activate
 
+python --version
+
 pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
+    TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
     pip install "Cython>=0.20,<0.25"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
+else
+    TESTSUITE_NAME="${TESTSUITE_NAME}.no_cython"
 fi
 
 ################################
@@ -99,9 +109,13 @@ cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
 nosetests
+rc=$?
 
 ccm remove
-mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
+sed -i "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/g" nosetests.xml
+sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" nosetests.xml
+mkdir -p "$TEST_OUTPUT_DIR"
+mv nosetests.xml ${TEST_OUTPUT_DIR}/cqlshlib.xml
 
 ################################
 #
@@ -113,4 +127,7 @@ mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 deactivate
 
 # Exit cleanly for usable "Unstable" status
+if [[ "${DISABLE_CLEAN_EXIT:-false}" == "true" ]]; then
+  exit $rc
+fi
 exit 0
