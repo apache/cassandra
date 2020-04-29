@@ -52,6 +52,15 @@ public class BufferPoolTest
     @After
     public void cleanUp()
     {
+        resetBufferPool();
+    }
+
+    /**
+     * Exposes a utility method on this test that other tests might use to access the protected
+     * {@link BufferPool#unsafeReset()} method.
+     */
+    public static void resetBufferPool()
+    {
         BufferPool.unsafeReset();
     }
 
