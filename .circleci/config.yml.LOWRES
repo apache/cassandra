@@ -1317,6 +1317,9 @@ jobs:
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
+    - store_artifacts:
+        path: /tmp/test_output
+        destination: cqlsh_tests
     environment:
     - ANT_HOME: /usr/share/ant
     - LANG: en_US.UTF-8
@@ -2172,6 +2175,9 @@ jobs:
           ls -l "$TEST_OUTPUT_DIR"
     - store_test_results:
         path: /tmp/test_output
+    - store_artifacts:
+        path: /tmp/test_output
+        destination: cqlsh_tests
     environment:
     - ANT_HOME: /usr/share/ant
     - LANG: en_US.UTF-8

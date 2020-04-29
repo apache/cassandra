@@ -951,6 +951,9 @@ commands:
             ls -l "$TEST_OUTPUT_DIR"
       - store_test_results:
           path: /tmp/test_output
+      - store_artifacts:
+          path: /tmp/test_output
+          destination: cqlsh_tests
 
   create_venv:
     parameters:
