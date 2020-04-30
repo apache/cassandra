@@ -675,40 +675,84 @@ public abstract class Message
 
                 while (null != (flush = queued.poll()))
                 {
-                    channels.add(flush.ctx);
-                    FrameEncoder.Payload sending = payloads.get(flush.ctx);
-                    if (null == sending)
-                    {
-                        sending = allocator.allocate(true, LARGE_MESSAGE_THRESHOLD);
-                        payloads.put(flush.ctx, sending);
-                    }
-
+                    ChannelHandlerContext ctx = flush.ctx;
+                    channels.add(ctx);
                     Connection connection = flush.response.connection;
-                    org.apache.cassandra.transport.Frame outbound =
-                        messageEncoder.encodeMessage(flush.response, connection == null
-                                                                     ? ProtocolVersion.CURRENT
-                                                                     : connection.getVersion());
+                    Frame outbound = messageEncoder.encodeMessage(flush.response, connection == null
+                                                                                  ? ProtocolVersion.CURRENT
+                                                                                  : connection.getVersion());
 
-                    if(sending.remaining() < org.apache.cassandra.transport.Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
+                    if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= FrameEncoder.Payload.MAX_SIZE)
                     {
-                        sending.finish();
-                        flush.ctx.write(sending);
-                        sending.release();
-                        sending = allocator.allocate(true, LARGE_MESSAGE_THRESHOLD);
-                        payloads.put(flush.ctx, sending);
-                    }
+                        // Large message
+                        FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                        ByteBuffer buf = largePayload.buffer;
+                        outbound.encodeHeaderInto(buf);
 
-                    outbound.encodeInto(sending.buffer);
-                    outbound.release();
-                    flushed.add(flush);
-                    doneWork = true;
+                        int capacityRemaining = buf.limit() - buf.position();
+                        ByteBuf body = outbound.body;
+                        buf.put(body.slice(body.readerIndex(), capacityRemaining).nioBuffer());
+                        largePayload.finish();
+                        ctx.writeAndFlush(largePayload);
+                        body.readerIndex(capacityRemaining);
+                        int idx = body.readerIndex();
+
+                        while (body.readableBytes() >= FrameEncoder.Payload.MAX_SIZE)
+                        {
+                            largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                            buf = largePayload.buffer;
+                            int remaining = Math.min(buf.remaining(), body.readableBytes()) ;
+                            buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
+                            body.readerIndex(idx + remaining);
+                            idx = body.readerIndex();
+                            largePayload.finish();
+                            ctx.writeAndFlush(largePayload);
+                            largePayload.release();
+                        }
+
+                        if (body.readableBytes() > 0)
+                        {
+                            largePayload = allocator.allocate(false, body.readableBytes());
+                            buf = largePayload.buffer;
+                            buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
+                            largePayload.finish();
+                            ctx.writeAndFlush(largePayload);
+                            largePayload.release();
+                        }
+                        flushed.add(flush);
+                        doneWork = true;
+                    }
+                    else
+                    {
+                        FrameEncoder.Payload sending = payloads.get(flush.ctx);
+                        if (null == sending)
+                        {
+                            sending = allocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
+                            payloads.put(flush.ctx, sending);
+                        }
+
+                        if(sending.remaining() < Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
+                        {
+                            sending.finish();
+                            flush.ctx.write(sending);
+                            sending.release();
+                            sending = allocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
+                            payloads.put(flush.ctx, sending);
+                        }
+
+                        outbound.encodeInto(sending.buffer);
+                        outbound.release();
+                        flushed.add(flush);
+                        doneWork = true;
+                    }
                 }
 
                 if (doneWork)
                 {
-                    for (ChannelHandlerContext ctx : payloads.keySet())
+                    for (Map.Entry<ChannelHandlerContext, FrameEncoder.Payload> entry : payloads.entrySet())
                     {
-                        FrameEncoder.Payload sending = payloads.get(ctx);
+                        ChannelHandlerContext ctx = entry.getKey();
+                        FrameEncoder.Payload sending = entry.getValue();
                         sending.finish();
                         ctx.write(sending);
                         ctx.flush();

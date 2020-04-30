@@ -76,18 +76,23 @@ public class Frame
         return new Frame(header, body);
     }
 
-    public void encodeInto(ByteBuffer buf)
+    public void encodeHeaderInto(ByteBuffer buf)
     {
-        buf.put((byte)header.type.direction.addToVersion(header.version.asInt()));
-        buf.put((byte)org.apache.cassandra.transport.Frame.Header.Flag.serialize(header.flags));
+        buf.put((byte) header.type.direction.addToVersion(header.version.asInt()));
+        buf.put((byte) org.apache.cassandra.transport.Frame.Header.Flag.serialize(header.flags));
 
         if (header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
-            buf.putShort((short)header.streamId);
+            buf.putShort((short) header.streamId);
         else
-            buf.put((byte)header.streamId);
+            buf.put((byte) header.streamId);
 
-        buf.put((byte)header.type.opcode);
+        buf.put((byte) header.type.opcode);
         buf.putInt(body.readableBytes());
+    }
+
+    public void encodeInto(ByteBuffer buf)
+    {
+        encodeHeaderInto(buf);
         buf.put(body.nioBuffer());
     }
 
@@ -159,9 +164,7 @@ public class Frame
         private long bytesToDiscard;
         private int tooLongStreamId;
 
-        @VisibleForTesting
-        Frame decodeFrame(ByteBuf buffer)
-        throws Exception
+        Frame.Header decodeHeader(ByteBuf buffer) throws Exception
         {
             if (discardingTooLongFrame)
             {
@@ -211,14 +214,34 @@ public class Frame
             }
 
             long bodyLength = buffer.getUnsignedInt(idx);
-            idx += Header.BODY_LENGTH_SIZE;
+            return new Header(version, decodedFlags, streamId, type, bodyLength);
+        }
 
-            long frameLength = bodyLength + Header.LENGTH;
+        @VisibleForTesting
+        Frame decodeFrame(ByteBuf buffer) throws Exception
+        {
+            if (discardingTooLongFrame)
+            {
+                bytesToDiscard = discard(buffer, bytesToDiscard);
+                // If we have discarded everything, throw the exception
+                if (bytesToDiscard <= 0)
+                    fail();
+                return null;
+            }
+            int idx = buffer.readerIndex();
+
+            Frame.Header header = decodeHeader(buffer);
+            if (header == null)
+                return null;
+
+            idx += Header.LENGTH;
+
+            long frameLength = header.bodySizeInBytes + Header.LENGTH;
             if (frameLength > MAX_FRAME_LENGTH)
             {
                 // Enter the discard mode and discard everything received so far.
                 discardingTooLongFrame = true;
-                tooLongStreamId = streamId;
+                tooLongStreamId = header.streamId;
                 tooLongFrameLength = frameLength;
                 bytesToDiscard = discard(buffer, frameLength);
                 if (bytesToDiscard <= 0)
@@ -233,13 +256,13 @@ public class Frame
             ClientRequestSizeMetrics.bytesRecievedPerFrame.update(frameLength);
 
             // extract body
-            ByteBuf body = buffer.slice(idx, (int) bodyLength);
+            ByteBuf body = buffer.slice(idx, (int) header.bodySizeInBytes);
             body.retain();
 
-            idx += bodyLength;
+            idx += header.bodySizeInBytes;
             buffer.readerIndex(idx);
 
-            return new Frame(new Header(version, decodedFlags, streamId, type, bodyLength), body);
+            return new Frame(header, body);
         }
 
         @Override

@@ -84,7 +84,7 @@ public class ShareableBytes
      * The first invocation must occur while the calling thread has exclusive access (though there may be more
      * than one 'owner', these must all either be owned by the calling thread or otherwise not being used)
      */
-    ShareableBytes share()
+    public ShareableBytes share()
     {
         int count = owner.count;
         if (count < 0)
@@ -119,7 +119,7 @@ public class ShareableBytes
         }
     }
 
-    void release()
+    public void release()
     {
         owner.doRelease();
     }
@@ -147,7 +147,7 @@ public class ShareableBytes
     /**
      * Create a slice over the next {@code length} bytes, consuming them from our buffer, and incrementing the owner count
      */
-    ShareableBytes sliceAndConsume(int length)
+    public ShareableBytes sliceAndConsume(int length)
     {
         int begin = bytes.position();
         int end = begin + length;

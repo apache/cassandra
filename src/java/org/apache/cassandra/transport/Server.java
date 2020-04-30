@@ -46,6 +46,8 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -462,7 +464,7 @@ public class Server implements CassandraDaemon.Server
                 });
             }
 
-            //pipeline.addLast("debug", new LoggingHandler());
+//            pipeline.addLast("debug", new LoggingHandler(LogLevel.INFO));
 
             pipeline.addLast("frameEncoder", Frame.Encoder.instance);
             pipeline.addLast("initial", new InitialHandler(new Frame.Decoder(), server.connectionFactory));

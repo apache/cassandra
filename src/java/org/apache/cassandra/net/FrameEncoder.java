@@ -35,6 +35,7 @@ public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
      */
     public static class Payload
     {
+        public static final int MAX_SIZE = 1 << 17;
         // isSelfContained is a flag in the Frame API, indicating if the contents consists of only complete messages
         private boolean isSelfContained;
         // the buffer to write to

@@ -20,6 +20,8 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -36,13 +38,12 @@ import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.Crc;
 import org.apache.cassandra.net.FrameDecoder;
+import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.net.ShareableBytes;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
-
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements FrameDecoder.FrameProcessor
 {
@@ -55,12 +56,10 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
     private final ResourceLimits.EndpointAndGlobal limits;
     private final Consumer<Message> dispatcher;
 
-    // TODO
-    private final int largeThreshold =  1024 * 1024 * 256;
+    private LargeMessage largeMessage;
 
     long corruptFramesRecovered, corruptFramesUnrecovered;
     long receivedCount, receivedBytes;
-    long throttledCount, throttledNanos;
 
     private long channelPayloadBytesInFlight;
     private boolean paused;
@@ -112,14 +111,11 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
     {
         if (frame.isSelfContained)
             return processFrameOfContainedMessages(frame.contents, limits);
-
-        throw new IllegalArgumentException("Large message support not added yet");
-//        else if (null == largeMessage)
-//            return processFirstFrameOfLargeMessage(frame, endpointReserve, globalReserve);
-//        else
-//            return processSubsequentFrameOfLargeMessage(frame);
+        else if (null == largeMessage)
+            return processFirstFrameOfLargeMessage(frame, limits);
+        else
+            return processSubsequentFrameOfLargeMessage(frame);
     }
-
 
     /*
      * Handle contained messages (not crossing boundaries of the frame) - both small and large, for the inbound
@@ -136,18 +132,18 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
 
     private boolean processOneContainedMessage(ShareableBytes bytes, ResourceLimits.EndpointAndGlobal limits) throws IOException
     {
-        org.apache.cassandra.transport.Frame frame = deserialize(bytes);
-        // TODO ??
+        Frame frame = toCqlFrame(bytes);
         if (frame == null)
             return false;
 
-        // todo make this a long?
+        // TODO old max frame size defaults to 256mb, so should be safe to downcast
         int size = Ints.checkedCast(frame.header.bodySizeInBytes);
 
-        // TODO rename to something like aqcuireCapacity
+        // TODO rename
         if (!shouldHandleRequest(frame.header, limits))
         {
-            // TODO process it anyway, because we didn't throw
+            // we're over allocated here, but process the message
+            // anyway because we didn't throw any exception
             receivedCount++;
             receivedBytes += size;
             processCqlFrame(frame);
@@ -157,50 +153,90 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         receivedCount++;
         receivedBytes += size;
 
-        if (size <= largeThreshold)
-        {
+        if (size <= FrameEncoder.Payload.MAX_SIZE)
             processCqlFrame(frame);
-        }
         else
-        {
-            releaseCapacity(size);
-            throw new IllegalArgumentException("Large message support not yet added");
-//            processLargeMessage(bytes, size, header);
-        }
+            processLargeMessage(frame);
 
         return true;
     }
 
-    private org.apache.cassandra.transport.Frame deserialize(ShareableBytes bytes)
+    // for various reasons, it's possible for a large message to be contained in a single frame
+    private void processLargeMessage(Frame frame)
+    {
+//        new LargeMessage(header, bytes.sliceAndConsume(size).share()).schedule();
+    }
+
+    private Frame toCqlFrame(ShareableBytes bytes)
     {
         ByteBuffer buf = bytes.get();
         final int begin = buf.position();
         ByteBuf buffer = Unpooled.wrappedBuffer(buf);
-
-        long currentTimeNanos = approxTime.now();
 
         // get o.a.c.transport.Frame.Header from buf
         // deserialize o.a.c.transport.Message from buf
         // create task to process Header + Message
         try
         {
-            org.apache.cassandra.transport.Frame f = cqlFrameDecoder.decodeFrame(buffer);
+            Frame f = cqlFrameDecoder.decodeFrame(buffer);
             buf.position(begin + buffer.readerIndex());
             return f;
         }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t, false);
-//            callbacks.onFailedDeserialize(size, header, t);
             logger.error("{} unexpected exception caught while deserializing a message", id(), t);
         }
         return null;
     }
 
-    private void processCqlFrame(org.apache.cassandra.transport.Frame frame)
+    private void processCqlFrame(Frame frame)
     {
-        org.apache.cassandra.transport.Message message = messageDecoder.decodeMessage(channel, frame);
+        Message message = messageDecoder.decodeMessage(channel, frame);
         dispatcher.accept(message);
+    }
+
+    /*
+     * Handling of multi-frame large messages
+     */
+
+    private boolean processFirstFrameOfLargeMessage(FrameDecoder.IntactFrame frame,
+                                                    ResourceLimits.EndpointAndGlobal limits) throws IOException
+    {
+        ShareableBytes bytes = frame.contents;
+        ByteBuffer buf = bytes.get();
+        try
+        {
+            Frame.Header header = cqlFrameDecoder.decodeHeader(Unpooled.wrappedBuffer(buf));
+
+            if (!shouldHandleRequest(header, limits))
+            {
+                receivedCount++;
+                receivedBytes += frame.frameSize;
+                return false;
+            }
+
+            receivedCount++;
+            receivedBytes += buf.remaining();
+            largeMessage = new LargeMessage(header);
+            largeMessage.supply(frame);
+            return true;
+        }
+        catch (Exception e)
+        {
+            throw new IOException("Error decoding CQL frame", e);
+        }
+    }
+
+    private boolean processSubsequentFrameOfLargeMessage(FrameDecoder.Frame frame)
+    {
+        receivedBytes += frame.frameSize;
+        if (largeMessage.supply(frame))
+        {
+            receivedCount++;
+            largeMessage = null;
+        }
+        return true;
     }
 
     private String id()
@@ -215,7 +251,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         // TODO
     }
 
-    private boolean shouldHandleRequest(org.apache.cassandra.transport.Frame.Header header,
+    private boolean shouldHandleRequest(Frame.Header header,
                                         ResourceLimits.EndpointAndGlobal limits)
     {
         long frameSize = header.bodySizeInBytes;
@@ -250,7 +286,6 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
                 return false;
             }
         }
-
         channelPayloadBytesInFlight += frameSize;
         return true;
     }
@@ -289,18 +324,121 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
             corruptFramesRecovered++;
             noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading messages (corrupted self-contained frame)", id());
         }
-//        else if (null == largeMessage) // first frame of a large message
-//        {
-//            receivedBytes += frame.frameSize;
-//            corruptFramesUnrecovered++;
-//            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages (corrupted first frame of a large message)", id());
-//            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
-//        }
-//        else // subsequent frame of a large message
-//        {
-//            processSubsequentFrameOfLargeMessage(frame);
-//            corruptFramesRecovered++;
-//            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading a large message", id());
-//        }
+        else if (null == largeMessage) // first frame of a large message
+        {
+            receivedBytes += frame.frameSize;
+            corruptFramesUnrecovered++;
+            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages (corrupted first frame of a large message)", id());
+            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+        }
+        else // subsequent frame of a large message
+        {
+            processSubsequentFrameOfLargeMessage(frame);
+            corruptFramesRecovered++;
+            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading a large message", id());
+        }
+    }
+
+    private class LargeMessage
+    {
+        private final int size;
+        private final Frame.Header header;
+
+        private final List<ShareableBytes> buffers = new ArrayList<>();
+        private long received;
+
+        private boolean isCorrupt;
+
+        private LargeMessage(Frame.Header header)
+        {
+            this.size = Frame.Header.LENGTH + Ints.checkedCast(header.bodySizeInBytes);
+            this.header = header;
+        }
+
+        private LargeMessage(Frame.Header header, ShareableBytes bytes)
+        {
+            this(header);
+            buffers.add(bytes);
+        }
+
+        private void schedule()
+        {
+            processCqlFrame(assembleFrame());
+            releaseBuffers();
+        }
+
+        private Frame assembleFrame()
+        {
+            // TODO we already have the frame header, so we could skip HEADER_LENGTH
+            // and go straight to message decoding
+            ByteBuf concat = Unpooled.wrappedBuffer(buffers.stream()
+                                                           .map(ShareableBytes::get)
+                                                           .toArray(ByteBuffer[]::new));
+            try
+            {
+                return cqlFrameDecoder.decodeFrame(concat);
+            } catch (Exception e)
+            {
+                buffers.forEach(ShareableBytes::release);
+                throw new RuntimeException("Error deserializing CQL frame", e);
+            }
+            //TODO lifecycle
+        }
+
+        /**
+         * Return true if this was the last frame of the large message.
+         */
+        private boolean supply(FrameDecoder.Frame frame)
+        {
+            if (frame instanceof FrameDecoder.IntactFrame)
+                onIntactFrame((FrameDecoder.IntactFrame) frame);
+            else
+                onCorruptFrame();
+
+            received += frame.frameSize;
+            if (size == received)
+                onComplete();
+            return size == received;
+        }
+
+        private void onIntactFrame(FrameDecoder.IntactFrame frame)
+        {
+            if (!isCorrupt)
+            {
+                buffers.add(frame.contents.sliceAndConsume(frame.frameSize).share());
+                return;
+            }
+            frame.consume();
+        }
+
+        private void onCorruptFrame()
+        {
+            if (!isCorrupt)
+                releaseBuffersAndCapacity(); // release resources once we transition from normal state to corrupt
+            isCorrupt = true;
+        }
+
+        private void onComplete()
+        {
+            if (!isCorrupt)
+                schedule();
+        }
+
+        private void abort()
+        {
+            if (!isCorrupt)
+                releaseBuffersAndCapacity(); // release resources if in normal state when abort() is invoked
+        }
+
+        private void releaseBuffers()
+        {
+            buffers.forEach(ShareableBytes::release); buffers.clear();
+        }
+
+        private void releaseBuffersAndCapacity()
+        {
+            releaseBuffers();
+            releaseCapacity(size);
+        }
     }
 }

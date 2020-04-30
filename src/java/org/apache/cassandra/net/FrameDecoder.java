@@ -119,7 +119,7 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             return !contents.hasRemaining();
         }
 
-        void consume()
+        public void consume()
         {
             contents.consume();
         }

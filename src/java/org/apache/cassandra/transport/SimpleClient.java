@@ -30,11 +30,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.function.Consumer;
 
-import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -43,6 +43,8 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -266,7 +268,6 @@ public class SimpleClient implements Closeable
     // Stateless handlers
     private static final Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
     private static final Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
-    private static final Frame.Encoder frameEncoder = Frame.Encoder.instance;
 
     private static class ConnectionTracker implements Connection.Tracker
     {
@@ -382,6 +383,7 @@ public class SimpleClient implements Closeable
             channel.attr(Connection.attributeKey).set(connection);
 
             ChannelPipeline pipeline = channel.pipeline();
+//            pipeline.addLast("debug", new LoggingHandler(LogLevel.INFO));
             pipeline.addLast("frameDecoder", new Frame.Decoder());
             pipeline.addLast("initial", new InitialHandler(version, responseHandler));
             pipeline.addLast("messageDecoder", messageDecoder);
@@ -411,14 +413,50 @@ public class SimpleClient implements Closeable
 
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
         {
-            Frame frame = (Frame)msg;
-            // TODO large messages
-            FrameEncoder.Payload sending = allocator.allocate(true, (int)(Frame.Header.LENGTH + frame.header.bodySizeInBytes));
-            ((Frame) msg).encodeInto(sending.buffer);
-            sending.finish();
-            ctx.write(sending);
-            ctx.flush();
-            sending.release();
+            Frame outbound = (Frame)msg;
+            if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= FrameEncoder.Payload.MAX_SIZE)
+            {
+                // Large message
+                FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                ByteBuffer buf = largePayload.buffer;
+                outbound.encodeHeaderInto(buf);
+
+                int capacityRemaining = buf.limit() - buf.position();
+                ByteBuf body = outbound.body;
+                buf.put(body.slice(body.readerIndex(), capacityRemaining).nioBuffer());
+                largePayload.finish();
+                ctx.writeAndFlush(largePayload, promise);
+                body.readerIndex(capacityRemaining);
+                int idx = body.readerIndex();
+
+                while (body.readableBytes() >= FrameEncoder.Payload.MAX_SIZE)
+                {
+                    largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                    buf = largePayload.buffer;
+                    int remaining = Math.min(buf.remaining(), body.readableBytes()) ;
+                    buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
+                    body.readerIndex(idx + remaining);
+                    idx = body.readerIndex();
+                    largePayload.finish();
+                    ctx.writeAndFlush(largePayload, promise);
+                }
+
+                if (body.readableBytes() > 0)
+                {
+                    largePayload = allocator.allocate(false, body.readableBytes());
+                    buf = largePayload.buffer;
+                    buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
+                    largePayload.finish();
+                    ctx.writeAndFlush(largePayload, promise);
+                }
+            }
+            else
+            {
+                FrameEncoder.Payload sending = allocator.allocate(true, (int)(Frame.Header.LENGTH + outbound.header.bodySizeInBytes));
+                ((Frame) msg).encodeInto(sending.buffer);
+                sending.finish();
+                ctx.writeAndFlush(sending, promise);
+            }
         }
     }
 
