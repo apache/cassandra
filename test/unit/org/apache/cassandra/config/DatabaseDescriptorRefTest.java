@@ -178,6 +178,9 @@ public class DatabaseDescriptorRefTest
         PrintStream err = System.err;
 
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+        // sleep 1s to count all threads started by ide
+        // eg. thread "Attach Listener" by intellij ide
+        Thread.sleep(1000);
         int threadCount = threads.getThreadCount();
 
         ClassLoader delegate = Thread.currentThread().getContextClassLoader();
