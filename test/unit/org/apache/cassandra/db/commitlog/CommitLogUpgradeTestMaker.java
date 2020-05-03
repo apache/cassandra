@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
+import org.junit.Assert;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -110,7 +111,7 @@ public class CommitLogUpgradeTestMaker
         Thread.sleep(runTimeMs);
         stop = true;
         scheduled.shutdown();
-        scheduled.awaitTermination(2, TimeUnit.SECONDS);
+        Assert.assertTrue(scheduled.awaitTermination(1, TimeUnit.MINUTES));
 
         int hash = 0;
         int cells = 0;

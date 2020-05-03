@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.Sets;
@@ -135,7 +136,7 @@ public class UUIDTests
                 es.execute(task);
             }
             es.shutdown();
-            es.awaitTermination(10, TimeUnit.MINUTES);
+            Assert.assertTrue(es.awaitTermination(1, TimeUnit.MINUTES));
 
             assert !failedOrdering.get();
             assert !failedDuplicate.get();
