@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -494,7 +495,7 @@ public class RandomAccessReaderTest
                     executor.submit(worker);
 
                 executor.shutdown();
-                executor.awaitTermination(1, TimeUnit.MINUTES);
+                Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
             }
         }
     }

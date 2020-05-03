@@ -1364,7 +1364,7 @@ public class JsonTest extends CQLTester
             future.get(30, TimeUnit.SECONDS);
 
         executor.shutdown();
-        Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
     }
 
     @Test
