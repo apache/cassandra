@@ -1121,7 +1121,7 @@ public class SASIIndexTest
             Assert.assertEquals(writeCount, rows.size());
         } finally {
             scheduler.shutdownNow();
-            scheduler.awaitTermination(30, TimeUnit.SECONDS);
+            Assert.assertTrue(scheduler.awaitTermination(1, TimeUnit.MINUTES));
         }
     }
 

@@ -276,7 +276,7 @@ public class MonitoringTaskTest
         }
 
         executorService.shutdown();
-        assertTrue(executorService.awaitTermination(30, TimeUnit.SECONDS));
+        assertTrue(executorService.awaitTermination(1, TimeUnit.MINUTES));
         assertEquals(opCount, operations.size());
 
         waitForOperationsToComplete(operations);

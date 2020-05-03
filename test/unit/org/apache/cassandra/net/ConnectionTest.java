@@ -817,7 +817,7 @@ public class ConnectionTest
                 submitOrder.forEach(executor::submit);
 
                 executor.shutdown();
-                executor.awaitTermination(10, TimeUnit.SECONDS);
+                Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
 
                 Assert.assertEquals(acquireCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
                 Assert.assertEquals(acquireCount - acquisitionFailures.get(), outbound.pendingCount());

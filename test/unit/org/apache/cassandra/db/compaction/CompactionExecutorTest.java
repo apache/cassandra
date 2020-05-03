@@ -22,6 +22,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -62,7 +63,7 @@ public class CompactionExecutorTest
     public void destroy() throws Exception
     {
         executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.MINUTES);
+        Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
     }
 
     @Test
