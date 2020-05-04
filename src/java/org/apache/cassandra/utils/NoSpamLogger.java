@@ -344,9 +344,9 @@ public class NoSpamLogger
 
     public NoSpamLogStatement getStatement(String key, String s, long minIntervalNanos)
     {
-        return lastMessage.computeIfAbsent(key, x -> new NoSpamLogStatement(s, minIntervalNanos));
+        return lastMessage.computeIfAbsent(key, k -> new NoSpamLogStatement(s, minIntervalNanos));
     }
-    
+
     // Syntactic sugar for making supplier of params
     public static Object[] params(Object... objects) {
         return objects;

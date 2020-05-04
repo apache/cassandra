@@ -320,16 +320,4 @@ public class NoSpamLoggerTest
         assertTrue(nospamStatement.error(lazyParams));
         checkSupplierMock(Level.ERROR, now);
     }
-
-    @Test
-    public void simpleLog()
-    {
-        NoSpamLogger.log(mock, Level.INFO, 1, TimeUnit.NANOSECONDS, "{}", "param");
-    }
-
-    @Test
-    public void paramLog()
-    {
-        NoSpamLogger.log(mock, Level.INFO, 1, TimeUnit.NANOSECONDS, "{}", () -> params("param"));
-    }
 }
