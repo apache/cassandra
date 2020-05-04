@@ -108,7 +108,7 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
      */
     public static ImmutableBTreePartition create(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered)
     {
-        return new ImmutableBTreePartition(iterator.metadata(), iterator.partitionKey(), build(iterator, initialRowCapacity, ordered));
+        return new ImmutableBTreePartition(iterator.metadata(), iterator.partitionKey(), build(iterator, initialRowCapacity, ordered, null));
     }
 
     protected Holder holder()

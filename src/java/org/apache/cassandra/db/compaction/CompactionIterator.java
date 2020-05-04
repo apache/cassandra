@@ -25,6 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -104,7 +106,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                              ? EmptyIterators.unfilteredPartition(controller.cfs.metadata, false)
                                              : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
         boolean isForThrift = merged.isForThrift(); // to stop capture of iterator in Purger, which is confusing for debug
-        this.compacted = Transformation.apply(merged, new Purger(isForThrift, controller, nowInSec));
+        merged = Transformation.apply(merged, new Purger(isForThrift, controller, nowInSec));
+        this.compacted = DuplicateRowChecker.duringCompaction(merged, type);
     }
 
     public boolean isForThrift()

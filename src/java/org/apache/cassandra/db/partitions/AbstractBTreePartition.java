@@ -320,10 +320,10 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
-        return build(iterator, initialRowCapacity, true);
+        return build(iterator, initialRowCapacity, true, null);
     }
 
-    protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered)
+    protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered, BTree.Builder.QuickResolver<Row> quickResolver)
     {
         CFMetaData metadata = iterator.metadata();
         PartitionColumns columns = iterator.columns();
@@ -331,6 +331,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
         BTree.Builder<Row> builder = BTree.builder(metadata.comparator, initialRowCapacity);
         builder.auto(!ordered);
+        builder.setQuickResolver(quickResolver);
         MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(iterator.partitionLevelDeletion(), metadata.comparator, reversed);
 
         while (iterator.hasNext())
