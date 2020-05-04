@@ -26,6 +26,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
 public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
 {
@@ -37,6 +38,10 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         if (command.clear_snapshot)
         {
             Keyspace.clearSnapshot(command.snapshot_name, command.keyspace);
+        }
+        else if (DiagnosticSnapshotService.isDiagnosticSnapshotRequest(command))
+        {
+            DiagnosticSnapshotService.snapshot(command, message.from);
         }
         else
             Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);

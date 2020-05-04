@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.SuperColumnCompatibility;
 import org.apache.cassandra.utils.AbstractIterator;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.PeekingIterator;
@@ -1485,10 +1487,12 @@ public abstract class LegacyLayout
                 // written, as 2.x storage format does not guarantee just one range tombstone, unlike 3.x.
                 // We have to make sure that clustering matches, which would mean that tombstone is for the
                 // same row.
-                if (rowDeletion != null && clustering.equals(tombstone.start.getAsClustering(metadata)))
+                if (clustering.equals(tombstone.start.getAsClustering(metadata)))
                 {
-                    // If the tombstone superceeds the previous delete, we discard the previous one
-                    if (tombstone.deletionTime.supersedes(rowDeletion.deletionTime))
+                    // If the tombstone superceeds the previous delete, we discard the previous one.
+                    // This assumes that we are building the row from a sane source (ie, this row deletion
+                    // does not delete anything already added to the builder). See CASSANDRA-15789 for details
+                    if (rowDeletion == null || tombstone.deletionTime.supersedes(rowDeletion.deletionTime))
                     {
                         builder.addRowDeletion(Row.Deletion.regular(tombstone.deletionTime));
                         rowDeletion = tombstone;
@@ -1497,7 +1501,7 @@ public abstract class LegacyLayout
                     return true;
                 }
 
-                // If we're already within a row and there was no delete written before that one, it can't be the same one
+                // different clustering -> new row
                 return false;
             }
 
@@ -1620,7 +1624,8 @@ public abstract class LegacyLayout
         public final ColumnDefinition column;
         public final ByteBuffer collectionElement;
 
-        private LegacyCellName(Clustering clustering, ColumnDefinition column, ByteBuffer collectionElement)
+        @VisibleForTesting
+        public LegacyCellName(Clustering clustering, ColumnDefinition column, ByteBuffer collectionElement)
         {
             this.clustering = clustering;
             this.column = column;
@@ -1740,7 +1745,8 @@ public abstract class LegacyLayout
         public final int localDeletionTime;
         public final int ttl;
 
-        private LegacyCell(Kind kind, LegacyCellName name, ByteBuffer value, long timestamp, int localDeletionTime, int ttl)
+        @VisibleForTesting
+        public LegacyCell(Kind kind, LegacyCellName name, ByteBuffer value, long timestamp, int localDeletionTime, int ttl)
         {
             this.kind = kind;
             this.name = name;
