@@ -30,6 +30,8 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.utils.NoSpamLogger.params;
+
 /**
  * A message sink that all inbound messages go through.
  *
@@ -96,8 +98,10 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
         {
             fail(message.header, t);
 
-            if (t instanceof TombstoneOverwhelmingException || t instanceof IndexNotAvailableException)
-                noSpamLogger.error(t.getMessage());
+            if (t instanceof TombstoneOverwhelmingException)
+                noSpamLogger.error("Tombstone overwhelming while receiving message: {}", () -> params(t.getMessage()));
+            else if (t instanceof IndexNotAvailableException)
+                noSpamLogger.error("Index not available while receiving message: {}", () -> params(t.getMessage()));
             else if (t instanceof RuntimeException)
                 throw (RuntimeException) t;
             else

@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
@@ -84,6 +85,28 @@ public class NoSpamLogger
         public boolean log(Level l, long nowNanos, Object... objects)
         {
             if (!shouldLog(nowNanos)) return false;
+            switch (l)
+            {
+            case INFO:
+                wrapped.info(statement, objects);
+                break;
+            case WARN:
+                wrapped.warn(statement, objects);
+                break;
+            case ERROR:
+                wrapped.error(statement, objects);
+                break;
+            default:
+                throw new AssertionError();
+            }
+            return true;
+        }
+
+        public boolean lazylog(Level l, long nowNanos, Supplier<Object[]> objectsSupplier)
+        {
+            if (!shouldLog(nowNanos)) return false;
+
+            Object[] objects = objectsSupplier.get();
 
             switch (l)
             {
@@ -96,8 +119,8 @@ public class NoSpamLogger
             case ERROR:
                 wrapped.error(statement, objects);
                 break;
-                default:
-                    throw new AssertionError();
+            default:
+                throw new AssertionError();
             }
             return true;
         }
@@ -112,6 +135,16 @@ public class NoSpamLogger
             return NoSpamLogStatement.this.info(CLOCK.nanoTime(), objects);
         }
 
+        public boolean info(long nowNanos, Supplier<Object[]> lazyObjects)
+        {
+            return NoSpamLogStatement.this.lazylog(Level.INFO, nowNanos, lazyObjects);
+        }
+
+        public boolean info(Supplier<Object[]> lazyObjects)
+        {
+            return NoSpamLogStatement.this.info(CLOCK.nanoTime(), lazyObjects);
+        }
+
         public boolean warn(long nowNanos, Object... objects)
         {
             return NoSpamLogStatement.this.log(Level.WARN, nowNanos, objects);
@@ -122,6 +155,16 @@ public class NoSpamLogger
             return NoSpamLogStatement.this.warn(CLOCK.nanoTime(), objects);
         }
 
+        public boolean warn(long nowNanos, Supplier<Object[]> lazyObjects)
+        {
+            return NoSpamLogStatement.this.lazylog(Level.WARN, nowNanos, lazyObjects);
+        }
+
+        public boolean warn(Supplier<Object[]> lazyObjects)
+        {
+            return NoSpamLogStatement.this.warn(CLOCK.nanoTime(), lazyObjects);
+        }
+
         public boolean error(long nowNanos, Object... objects)
         {
             return NoSpamLogStatement.this.log(Level.ERROR, nowNanos, objects);
@@ -130,6 +173,16 @@ public class NoSpamLogger
         public boolean error(Object... objects)
         {
             return NoSpamLogStatement.this.error(CLOCK.nanoTime(), objects);
+        }
+
+        public boolean error(long nowNanos, Supplier<Object[]> lazyObjects)
+        {
+            return NoSpamLogStatement.this.lazylog(Level.ERROR, nowNanos, lazyObjects);
+        }
+
+        public boolean error(Supplier<Object[]> lazyObjects)
+        {
+            return NoSpamLogStatement.this.error(CLOCK.nanoTime(), lazyObjects);
         }
     }
 
@@ -159,6 +212,11 @@ public class NoSpamLogger
         return log(logger, level, message, minInterval, unit, CLOCK.nanoTime(), message, objects);
     }
 
+    public static boolean log(Logger logger, Level level, long minInterval, TimeUnit unit, String message, Supplier<Object[]> lazyObjects)
+    {
+        return lazylog(logger, level, message, minInterval, unit, CLOCK.nanoTime(), message, lazyObjects);
+    }
+
     public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, String message, Object... objects)
     {
         return log(logger, level, key, minInterval, unit, CLOCK.nanoTime(), message, objects);
@@ -169,6 +227,13 @@ public class NoSpamLogger
         NoSpamLogger wrapped = getLogger(logger, minInterval, unit);
         NoSpamLogStatement statement = wrapped.getStatement(key, message);
         return statement.log(level, nowNanos, objects);
+    }
+
+    public static boolean lazylog(Logger logger, Level level, String key, long minInterval, TimeUnit unit, long nowNanos, String message, Supplier<Object[]> lazyObjects)
+    {
+        NoSpamLogger wrapped = getLogger(logger, minInterval, unit);
+        NoSpamLogStatement statement = wrapped.getStatement(key, message);
+        return statement.lazylog(level, nowNanos, lazyObjects);
     }
 
     public static NoSpamLogStatement getStatement(Logger logger, String message, long minInterval, TimeUnit unit)
@@ -197,6 +262,16 @@ public class NoSpamLogger
         return NoSpamLogger.this.info(CLOCK.nanoTime(), s, objects);
     }
 
+    public boolean info(long nowNanos, String s, Supplier<Object[]> lazyObjects)
+    {
+        return NoSpamLogger.this.log( Level.INFO, s, nowNanos, lazyObjects);
+    }
+
+    public boolean info(String s, Supplier<Object[]> lazyObjects)
+    {
+        return NoSpamLogger.this.info(CLOCK.nanoTime(), s, lazyObjects);
+    }
+
     public boolean warn(long nowNanos, String s, Object... objects)
     {
         return NoSpamLogger.this.log( Level.WARN, s, nowNanos, objects);
@@ -205,6 +280,16 @@ public class NoSpamLogger
     public boolean warn(String s, Object... objects)
     {
         return NoSpamLogger.this.warn(CLOCK.nanoTime(), s, objects);
+    }
+
+    public boolean warn(long nowNanos, String s, Supplier<Object[]> lazyObjects)
+    {
+        return NoSpamLogger.this.log( Level.WARN, s, nowNanos, lazyObjects);
+    }
+
+    public boolean warn(String s, Supplier<Object[]> lazyObjects)
+    {
+        return NoSpamLogger.this.warn(CLOCK.nanoTime(), s, lazyObjects);
     }
 
     public boolean error(long nowNanos, String s, Object... objects)
@@ -217,9 +302,24 @@ public class NoSpamLogger
         return NoSpamLogger.this.error(CLOCK.nanoTime(), s, objects);
     }
 
+    public boolean error(long nowNanos, String s, Supplier<Object[]> lazyObjects)
+    {
+        return NoSpamLogger.this.log( Level.ERROR, s, nowNanos, lazyObjects);
+    }
+
+    public boolean error(String s, Supplier<Object[]> lazyObjects)
+    {
+        return NoSpamLogger.this.error(CLOCK.nanoTime(), s, lazyObjects);
+    }
+
     public boolean log(Level l, String s, long nowNanos, Object... objects)
     {
         return NoSpamLogger.this.getStatement(s, minIntervalNanos).log(l, nowNanos, objects);
+    }
+
+    public boolean log(Level l, String s, long nowNanos, Supplier<Object[]> params)
+    {
+        return NoSpamLogger.this.getStatement(s, minIntervalNanos).lazylog(l, nowNanos, params);
     }
 
     public NoSpamLogStatement getStatement(String s)
@@ -244,14 +344,11 @@ public class NoSpamLogger
 
     public NoSpamLogStatement getStatement(String key, String s, long minIntervalNanos)
     {
-        NoSpamLogStatement statement = lastMessage.get(key);
-        if (statement == null)
-        {
-            statement = new NoSpamLogStatement(s, minIntervalNanos);
-            NoSpamLogStatement temp = lastMessage.putIfAbsent(key, statement);
-            if (temp != null)
-                statement = temp;
-        }
-        return statement;
+        return lastMessage.computeIfAbsent(key, x -> new NoSpamLogStatement(s, minIntervalNanos));
+    }
+    
+    // Syntactic sugar for making supplier of params
+    public static Object[] params(Object... objects) {
+        return objects;
     }
 }

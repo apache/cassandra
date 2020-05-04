@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
+import static org.apache.cassandra.utils.NoSpamLogger.params;
 import static org.junit.Assert.*;
 
 import java.util.ArrayDeque;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.utils.NoSpamLogger.Level;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
@@ -76,6 +78,8 @@ public class NoSpamLoggerTest
 
    static final String statement = "swizzle{}";
    static final String param = "";
+   static final String supplierStatement = "one{}two{}";
+   static final String someString = "SomeString";
    static long now;
 
    @BeforeClass
@@ -248,4 +252,84 @@ public class NoSpamLoggerTest
        assertTrue(nospamStatement.error(param));
        checkMock(Level.ERROR);
    }
+
+    private void checkSupplierMock(Level l, long param2)
+    {
+        Pair<String, Object[]> p = logged.get(l).poll();
+        assertNotNull(p);
+        assertEquals(supplierStatement, p.left);
+        Object objs[] = p.right;
+        assertEquals(2, objs.length);
+        assertEquals(someString, objs[0]);
+        assertEquals(param2, objs[1]);
+        assertTrue(logged.get(l).isEmpty());
+    }
+    /*
+     * Make sure that what is passed to the underlying logger is the correct set of objects
+     */
+    @Test
+    public void testSupplierLoggedResult() throws Exception
+    {
+        Supplier<Object[]> lazyParams = () -> params(someString, now);
+        now = 5;
+
+        assertTrue(NoSpamLogger.log( mock, Level.INFO, 5,  TimeUnit.NANOSECONDS, supplierStatement, lazyParams));
+        checkSupplierMock(Level.INFO, now);
+
+        now = 10;
+
+        assertTrue(NoSpamLogger.log( mock, Level.WARN, 5,  TimeUnit.NANOSECONDS, supplierStatement, lazyParams));
+        checkSupplierMock(Level.WARN, now);
+
+        now = 15;
+
+        assertTrue(NoSpamLogger.log( mock, Level.ERROR, 5,  TimeUnit.NANOSECONDS, supplierStatement, lazyParams));
+        checkSupplierMock(Level.ERROR, now);
+
+        now = 20;
+
+        NoSpamLogger logger = NoSpamLogger.getLogger(mock, 5, TimeUnit.NANOSECONDS);
+
+        assertTrue(logger.info(supplierStatement, lazyParams));
+        checkSupplierMock(Level.INFO, now);
+
+        now = 25;
+
+        assertTrue(logger.warn(supplierStatement, lazyParams));
+        checkSupplierMock(Level.WARN, now);
+
+        now = 30;
+
+        assertTrue(logger.error(supplierStatement, lazyParams));
+        checkSupplierMock(Level.ERROR, now);
+
+        NoSpamLogger.NoSpamLogStatement nospamStatement = logger.getStatement(supplierStatement);
+
+        now = 35;
+
+        assertTrue(nospamStatement.info(lazyParams));
+        checkSupplierMock(Level.INFO, now);
+
+        now = 40;
+
+        assertTrue(nospamStatement.warn(lazyParams));
+        checkSupplierMock(Level.WARN, now);
+
+        now = 45;
+
+        assertTrue(nospamStatement.error(lazyParams));
+        checkSupplierMock(Level.ERROR, now);
+    }
+
+    @Test
+    public void simpleLog()
+    {
+        NoSpamLogger.log(mock, Level.INFO, 1, TimeUnit.NANOSECONDS, "{}", "param");
+    }
+
+    @Test
+    public void paramLog()
+    {
+        NoSpamLogger.log(mock, Level.INFO, 1, TimeUnit.NANOSECONDS, "{}", () -> params("param"));
+    }
 }

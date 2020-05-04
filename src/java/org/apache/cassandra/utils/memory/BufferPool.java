@@ -23,6 +23,7 @@ import java.lang.ref.ReferenceQueue;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Queue;
 import java.util.Set;
@@ -51,6 +52,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.utils.ExecutorUtils.*;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
+import static org.apache.cassandra.utils.NoSpamLogger.params;
 import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
 
 /**
@@ -218,6 +220,8 @@ public class BufferPool
             return chunks.poll();
         }
 
+
+
         /**
          * This method might be called by multiple threads and that's fine if we add more
          * than one chunk at the same time as long as we don't exceed the MEMORY_USAGE_THRESHOLD.
@@ -232,8 +236,8 @@ public class BufferPool
                     if (MEMORY_USAGE_THRESHOLD > 0)
                     {
                         noSpamLogger.info("Maximum memory usage reached ({}), cannot allocate chunk of {}",
-                                          prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
-                                          prettyPrintMemory(MACRO_CHUNK_SIZE));
+                                          () -> params(prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
+                                                       prettyPrintMemory(MACRO_CHUNK_SIZE)));
                     }
                     return null;
                 }
@@ -252,9 +256,9 @@ public class BufferPool
                 noSpamLogger.error("Buffer pool failed to allocate chunk of {}, current size {} ({}). " +
                                    "Attempting to continue; buffers will be allocated in on-heap memory which can degrade performance. " +
                                    "Make sure direct memory size (-XX:MaxDirectMemorySize) is large enough to accommodate off-heap memtables and caches.",
-                                   prettyPrintMemory(MACRO_CHUNK_SIZE),
-                                   prettyPrintMemory(sizeInBytes()),
-                                   oom.toString());
+                                   () -> params(prettyPrintMemory(MACRO_CHUNK_SIZE),
+                                                prettyPrintMemory(sizeInBytes()),
+                                                oom.toString()));
                 return null;
             }
 

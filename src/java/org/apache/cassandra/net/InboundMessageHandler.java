@@ -58,6 +58,7 @@ import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.Crc.*;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.NoSpamLogger.params;
 
 /**
  * Core logic for handling inbound message deserialization and execution (in tandem with {@link FrameDecoder}).
@@ -325,7 +326,8 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
         catch (IncompatibleSchemaException e)
         {
             callbacks.onFailedDeserialize(size, header, e);
-            noSpamLogger.info("{} incompatible schema encountered while deserializing a message", id(), e);
+            noSpamLogger.info("{} incompatible schema encountered while deserializing a message - {}",
+                              () -> params(id(), e));
         }
         catch (Throwable t)
         {
@@ -415,20 +417,23 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
         {
             receivedBytes += frame.frameSize;
             corruptFramesRecovered++;
-            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading messages (corrupted self-contained frame)", id());
+            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading messages (corrupted self-contained frame)",
+                              () -> params(id()));
         }
         else if (null == largeMessage) // first frame of a large message
         {
             receivedBytes += frame.frameSize;
             corruptFramesUnrecovered++;
-            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages (corrupted first frame of a large message)", id());
+            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages (corrupted first frame of a large message)",
+                               () -> params(id()));
             throw new InvalidCrc(frame.readCRC, frame.computedCRC);
         }
         else // subsequent frame of a large message
         {
             processSubsequentFrameOfLargeMessage(frame);
             corruptFramesRecovered++;
-            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading a large message", id());
+            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading a large message",
+                              () -> params(id()));
         }
     }
 
@@ -822,7 +827,8 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
             catch (IncompatibleSchemaException e)
             {
                 callbacks.onFailedDeserialize(size, header, e);
-                noSpamLogger.info("{} incompatible schema encountered while deserializing a message", id(), e);
+                noSpamLogger.info("{} incompatible schema encountered while deserializing a message - {}",
+                                  () -> params(id(), e));
             }
             catch (Throwable t)
             {
