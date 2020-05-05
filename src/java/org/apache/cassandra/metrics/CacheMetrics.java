@@ -19,6 +19,8 @@ package org.apache.cassandra.metrics;
 
 import java.util.function.DoubleSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.codahale.metrics.*;
 import org.apache.cassandra.cache.CacheSize;
 
@@ -84,6 +86,13 @@ public class CacheMetrics
         fifteenMinuteHitRate =
             Metrics.register(factory.createMetricName("FifteenMinuteHitRate"),
                              ratioGauge(hits::getFifteenMinuteRate, requests::getFifteenMinuteRate));
+    }
+
+    @VisibleForTesting
+    public void reset()
+    {
+        hits.mark(-hits.getCount());
+        misses.mark(-misses.getCount());
     }
 
     private static Metered sumMeters(Metered first, Metered second)

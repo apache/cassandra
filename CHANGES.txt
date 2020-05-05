@@ -1,4 +1,5 @@
 4.0-beta2
+ * Improved testability for CacheMetrics and ChunkCacheMetrics (CASSANDRA-15788)
  * Handle errors in StreamSession#prepare (CASSANDRA-15852)
  * FQL replay should have options to ignore DDL statements (CASSANDRA-16039)
  * Remove COMPACT STORAGE internals (CASSANDRA-13994)
