@@ -419,7 +419,7 @@ public class FileHandle extends SharedCloseableImpl
         private RebuffererFactory maybeCached(ChunkReader reader)
         {
             if (chunkCache != null && chunkCache.capacity() > 0)
-                return chunkCache.wrap(reader);
+                return chunkCache.maybeWrap(reader);
             return reader;
         }
 
