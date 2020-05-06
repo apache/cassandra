@@ -1111,6 +1111,7 @@
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
           <include name="**"/>
           <exclude name="bin/*" />
+          <exclude name="tools/bin/*"/>
         </tarfileset>
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
