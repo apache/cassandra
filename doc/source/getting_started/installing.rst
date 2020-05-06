@@ -187,7 +187,7 @@ Installing the Debian packages
 
 ::
 
-   $ curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+   $ curl -L https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                     Dload  Upload   Total   Spent    Left  Speed
    100  266k  100  266k    0     0   320k      0 --:--:-- --:--:-- --:--:--  320k
