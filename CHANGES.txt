@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Update to Python driver 3.23 for cqlsh (CASSANDRA-15793)
  * Add tunable initial size and growth factor to RangeTombstoneList (CASSANDRA-15763)
  * Improve debug logging in SSTableReader for index summary (CASSANDRA-15755)
  * bin/sstableverify should support user provided token ranges (CASSANDRA-15753)
