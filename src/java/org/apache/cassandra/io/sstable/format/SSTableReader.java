@@ -846,8 +846,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void buildSummary(boolean recreateBloomFilter, boolean summaryLoaded, int samplingLevel) throws IOException
     {
-         if (!components.contains(Component.PRIMARY_INDEX))
-             return;
+        if (!components.contains(Component.PRIMARY_INDEX))
+            return;
+
+        if (logger.isDebugEnabled())
+            logger.debug("Attempting to build summary for {}", descriptor);
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX))))
@@ -906,7 +909,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
         if (!summariesFile.exists())
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("SSTable Summary File {} does not exist", summariesFile.getAbsolutePath());
             return false;
+        }
 
         DataInputStream iStream = null;
         try
