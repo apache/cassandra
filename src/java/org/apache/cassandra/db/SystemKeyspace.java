@@ -1333,7 +1333,7 @@ public final class SystemKeyspace
     {
         for (TableMetadata table : Arrays.asList(LegacySizeEstimates, TableEstimates))
         {
-            String cql = String.format("TRUNCATE " + table.toString());
+            String cql = String.format("TRUNCATE TABLE " + table.toString());
             executeInternal(cql);
         }
     }

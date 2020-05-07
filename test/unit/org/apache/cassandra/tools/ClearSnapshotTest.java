@@ -29,6 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 public class ClearSnapshotTest extends ToolsTester
@@ -46,6 +47,9 @@ public class ClearSnapshotTest extends ToolsTester
         System.setProperty("cassandra.jmx.local.port", String.valueOf(JMX_PORT));
 
         SchemaLoader.prepareServer();
+        // CASSANDRA-15776 - size_estimates and table_estimates get truncated on startup, and auto snapshot is true by default for tests
+        // set it false so the test state doesn't see those snapshots
+        DatabaseDescriptor.setAutoSnapshot(false);
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
 
