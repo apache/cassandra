@@ -49,12 +49,18 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
         super(replicaPlan, callback, writeType, queryStartNanoTime);
         assert replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM;
 
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicaPlan.keyspace().getReplicationStrategy();
-
-        for (String dc : strategy.getDatacenters())
+        if (replicaPlan.keyspace().getReplicationStrategy() instanceof NetworkTopologyStrategy)
         {
-            int rf = strategy.getReplicationFactor(dc).allReplicas;
-            responses.put(dc, new AtomicInteger((rf / 2) + 1));
+            NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicaPlan.keyspace().getReplicationStrategy();
+            for (String dc : strategy.getDatacenters())
+            {
+                int rf = strategy.getReplicationFactor(dc).allReplicas;
+                responses.put(dc, new AtomicInteger((rf / 2) + 1));
+            }
+        }
+        else
+        {
+            responses.put(DatabaseDescriptor.getLocalDataCenter(), new AtomicInteger(ConsistencyLevel.quorumFor(replicaPlan.keyspace())));
         }
 
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level

@@ -100,11 +100,21 @@ public enum ConsistencyLevel
 
     public static ObjectIntHashMap<String> eachQuorumForRead(Keyspace keyspace)
     {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-        ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(((strategy.getDatacenters().size() + 1) * 4) / 3);
-        for (String dc : strategy.getDatacenters())
-            perDc.put(dc, ConsistencyLevel.localQuorumFor(keyspace, dc));
-        return perDc;
+        AbstractReplicationStrategy strategy = keyspace.getReplicationStrategy();
+        if (strategy instanceof NetworkTopologyStrategy)
+        {
+            NetworkTopologyStrategy npStrategy = (NetworkTopologyStrategy) strategy;
+            ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(((npStrategy.getDatacenters().size() + 1) * 4) / 3);
+            for (String dc : npStrategy.getDatacenters())
+                perDc.put(dc, ConsistencyLevel.localQuorumFor(keyspace, dc));
+            return perDc;
+        }
+        else
+        {
+            ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(1);
+            perDc.put(DatabaseDescriptor.getLocalDataCenter(), quorumFor(keyspace));
+            return perDc;
+        }
     }
 
     public static ObjectIntHashMap<String> eachQuorumForWrite(Keyspace keyspace, Endpoints<?> pendingWithDown)
