@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3.statements;
 import java.util.Iterator;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.junit.Test;
@@ -36,11 +39,11 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.schema.SchemaConstants.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -91,47 +94,49 @@ public class DescribeStatementTest extends CQLTester
             // Test describe schema
 
             assertRowsNet(executeDescribeNet("DESCRIBE SCHEMA"),
-                          row("CREATE KEYSPACE " + KEYSPACE + "\n" +
+                          row(KEYSPACE, "keyspace", KEYSPACE,
+                              "CREATE KEYSPACE " + KEYSPACE + "\n" +
                                   "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
                                   "     AND durable_writes = true;"),
-                          row("CREATE KEYSPACE " + KEYSPACE_PER_TEST + "\n" +
+                          row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST,
+                              "CREATE KEYSPACE " + KEYSPACE_PER_TEST + "\n" +
                                   "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
                                   "     AND durable_writes = true;"),
-                          row(keyspaceOutput()),
-                          row(allTypesTable()),
-                          row(testTableOutput(true, true)),
-                          row(indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
-                          row(indexOutput("\"Test_val_idx\"", "\"Test\"", "val")),
-                          row(userTableOutput()),
-                          row(indexOutput("myindex", "users", "age")),
-                          row(usersMvTableOutput()),
-                          row(usersByStateMvOutput()));
+                          row("test", "keyspace", "test", keyspaceOutput()),
+                          row("test", "table", "has_all_types", allTypesTable()),
+                          row("test", "table", "\"Test\"", testTableOutput(true, true)),
+                          row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
+                          row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")),
+                          row("test", "table", "users", userTableOutput()),
+                          row("test", "index", "myindex", indexOutput("myindex", "users", "age")),
+                          row("test", "table", "users_mv", usersMvTableOutput()),
+                          row("test", "materialized_view", "users_by_state", usersByStateMvOutput()));
 
             // Test describe keyspaces/keyspace
 
             assertRowsNet(executeDescribeNet("DESCRIBE KEYSPACES"),
-                          row(KEYSPACE),
-                          row(KEYSPACE_PER_TEST),
-                          row(SchemaConstants.SYSTEM_KEYSPACE_NAME),
-                          row(SchemaConstants.AUTH_KEYSPACE_NAME),
-                          row(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME),
-                          row(SchemaConstants.SCHEMA_KEYSPACE_NAME),
-                          row(SchemaConstants.TRACE_KEYSPACE_NAME),
-                          row(SchemaConstants.VIRTUAL_SCHEMA),
-                          row("test"));
+                          row(KEYSPACE, "keyspace", KEYSPACE),
+                          row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST),
+                          row(SYSTEM_KEYSPACE_NAME, "keyspace", SYSTEM_KEYSPACE_NAME),
+                          row(AUTH_KEYSPACE_NAME, "keyspace", AUTH_KEYSPACE_NAME),
+                          row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),
+                          row(SCHEMA_KEYSPACE_NAME, "keyspace", SCHEMA_KEYSPACE_NAME),
+                          row(TRACE_KEYSPACE_NAME, "keyspace", TRACE_KEYSPACE_NAME),
+                          row(VIRTUAL_SCHEMA, "keyspace", VIRTUAL_SCHEMA),
+                          row("test", "keyspace", "test"));
 
             assertRowsNet(executeDescribeNet("DESCRIBE ONLY KEYSPACE test"),
-                          row(keyspaceOutput()));
+                          row("test", "keyspace", "test", keyspaceOutput()));
 
-            Object[][] testKeyspaceOutput = rows(row(keyspaceOutput()),
-                                                 row(allTypesTable()),
-                                                 row(testTableOutput(true, true)),
-                                                 row(indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
-                                                 row(indexOutput("\"Test_val_idx\"", "\"Test\"", "val")),
-                                                 row(userTableOutput()),
-                                                 row(indexOutput("myindex", "users", "age")),
-                                                 row(usersMvTableOutput()),
-                                                 row(usersByStateMvOutput()));
+            Object[][] testKeyspaceOutput = rows(row("test", "keyspace", "test", keyspaceOutput()),
+                                                 row("test", "table", "has_all_types", allTypesTable()),
+                                                 row("test", "table", "\"Test\"", testTableOutput(true, true)),
+                                                 row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
+                                                 row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")),
+                                                 row("test", "table", "users", userTableOutput()),
+                                                 row("test", "index", "myindex", indexOutput("myindex", "users", "age")),
+                                                 row("test", "table", "users_mv", usersMvTableOutput()),
+                                                 row("test", "materialized_view", "users_by_state", usersByStateMvOutput()));
 
             assertRowsNet(executeDescribeNet("DESCRIBE KEYSPACE test"), testKeyspaceOutput);
             assertRowsNet(executeDescribeNet("DESCRIBE test"), testKeyspaceOutput);
@@ -141,35 +146,36 @@ public class DescribeStatementTest extends CQLTester
             // Test describe tables/table
             for (String cmd : new String[]{"describe TABLES", "DESC tables"})
             assertRowsNet(executeDescribeNet("test", cmd),
-                          row("has_all_types"),
-                          row("\"Test\""),
-                          row("users"),
-                          row("users_mv"));
+                          row("test", "table", "has_all_types"),
+                          row("test", "table", "\"Test\""),
+                          row("test", "table", "users"),
+                          row("test", "table", "users_mv"));
 
-            testDescribeTable("test", "has_all_types", row(allTypesTable()));
+            testDescribeTable("test", "has_all_types", row("test", "table", "has_all_types", allTypesTable()));
 
-            testDescribeTable("test", "\"Test\"", row(testTableOutput(true, true)),
-                                              row(indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
-                                              row(indexOutput("\"Test_val_idx\"", "\"Test\"", "val")));
+            testDescribeTable("test", "\"Test\"",
+                              row("test", "table", "\"Test\"", testTableOutput(true, true)),
+                              row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
+                              row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")));
 
-            testDescribeTable("test", "users", row(userTableOutput()),
-                                               row(indexOutput("myindex", "users", "age")));
+            testDescribeTable("test", "users", row("test", "table", "users", userTableOutput()),
+                                               row("test", "index", "myindex", indexOutput("myindex", "users", "age")));
 
             describeError("test", "DESCRIBE users2", "'users2' not found in keyspace 'test'");
             describeError("DESCRIBE test.users2", "'users2' not found in keyspace 'test'");
 
             // Test describe index
 
-            testDescribeIndex("test", "myindex", row(indexOutput("myindex", "users", "age")));
-            testDescribeIndex("test", "\"Test_col_idx\"", row(indexOutput("\"Test_col_idx\"", "\"Test\"", "col")));
-            testDescribeIndex("test", "\"Test_val_idx\"", row(indexOutput("\"Test_val_idx\"", "\"Test\"", "val")));
+            testDescribeIndex("test", "myindex", row("test", "index", "myindex", indexOutput("myindex", "users", "age")));
+            testDescribeIndex("test", "\"Test_col_idx\"", row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")));
+            testDescribeIndex("test", "\"Test_val_idx\"", row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")));
 
             describeError("DESCRIBE test.myindex2", "'myindex2' not found in keyspace 'test'");
             describeError("test", "DESCRIBE myindex2", "'myindex2' not found in keyspace 'test'");
 
             // Test describe materialized view
 
-            testDescribeMaterializedView("test", "users_by_state", row(usersByStateMvOutput()));
+            testDescribeMaterializedView("test", "users_by_state", row("test", "materialized_view", "users_by_state", usersByStateMvOutput()));
         }
         finally
         {
@@ -228,20 +234,19 @@ public class DescribeStatementTest extends CQLTester
     public void testDescribeCluster() throws Throwable
     {
         assertRowsNet(executeDescribeNet("DESCRIBE CLUSTER"),
-                     row("Cluster: Test Cluster\n" +
-                         "Partitioner: ByteOrderedPartitioner\n" +
-                         "Snitch: " + DatabaseDescriptor.getEndpointSnitch().getClass().getName() + "\n"));
+                     row("Test Cluster",
+                         "ByteOrderedPartitioner",
+                         DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
 
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
         Token token = tokenMetadata.sortedTokens().get(0);
         InetAddressAndPort addressAndPort = tokenMetadata.getAllEndpoints().iterator().next();
 
         assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE CLUSTER"),
-                      row("Cluster: Test Cluster\n" +
-                          "Partitioner: ByteOrderedPartitioner\n" +
-                          "Snitch: " + DatabaseDescriptor.getEndpointSnitch().getClass().getName() + "\n\n" +
-                          "Range ownership:\n" +
-                          String.format(" %39s", token) + "  [" + addressAndPort + "]\n"));
+                      row("Test Cluster",
+                          "ByteOrderedPartitioner",
+                          DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
+                          ImmutableMap.of(token.toString(), ImmutableList.of(addressAndPort.toString()))));
     }
 
     @Test
@@ -281,20 +286,22 @@ public class DescribeStatementTest extends CQLTester
     public void testDescribeFunctionAndAggregate() throws Throwable
     {
         String fNonOverloaded = createFunction(KEYSPACE,
-                                  "",
-                                  "CREATE OR REPLACE FUNCTION %s() " +
-                                  "CALLED ON NULL INPUT " +
-                                  "RETURNS int " +
-                                  "LANGUAGE java " +
-                                  "AS 'throw new RuntimeException();';");
+                                               "",
+                                               "CREATE OR REPLACE FUNCTION %s() " +
+                                               "CALLED ON NULL INPUT " +
+                                               "RETURNS int " +
+                                               "LANGUAGE java " +
+                                               "AS 'throw new RuntimeException();';");
 
-        String fOverloaded = createFunction(KEYSPACE, "int, ascii",
-                                       "CREATE FUNCTION %s (input int, other_in ascii) " +
-                                       "RETURNS NULL ON NULL INPUT " +
-                                       "RETURNS text " +
-                                       "LANGUAGE java " +
-                                       "AS 'return \"Hello World\";'");
-        createFunctionOverload(fOverloaded, "text, ascii",
+        String fOverloaded = createFunction(KEYSPACE,
+                                            "int, ascii",
+                                            "CREATE FUNCTION %s (input int, other_in ascii) " +
+                                            "RETURNS NULL ON NULL INPUT " +
+                                            "RETURNS text " +
+                                            "LANGUAGE java " +
+                                            "AS 'return \"Hello World\";'");
+        createFunctionOverload(fOverloaded,
+                               "text, ascii",
                                "CREATE FUNCTION %s (input text, other_in ascii) " +
                                "RETURNS NULL ON NULL INPUT " +
                                "RETURNS text " +
@@ -302,19 +309,28 @@ public class DescribeStatementTest extends CQLTester
                                "AS 'return \"Hello World\";'");
 
         assertRowsNet(executeDescribeNet("DESCRIBE FUNCTION " + fNonOverloaded),
-                      row("CREATE FUNCTION " + fNonOverloaded + "()\n" +
+                      row(KEYSPACE,
+                          "function",
+                          shortFunctionName(fNonOverloaded) + "()",
+                          "CREATE FUNCTION " + fNonOverloaded + "()\n" +
                           "    CALLED ON NULL INPUT\n" +
                           "    RETURNS int\n" +
                           "    LANGUAGE java\n" +
                           "    AS $$throw new RuntimeException();$$;"));
 
         assertRowsNet(executeDescribeNet("DESCRIBE FUNCTION " + fOverloaded),
-                      row("CREATE FUNCTION " + fOverloaded + "(input int, other_in ascii)\n" +
+                      row(KEYSPACE,
+                          "function",
+                          shortFunctionName(fOverloaded) + "(int, ascii)",
+                          "CREATE FUNCTION " + fOverloaded + "(input int, other_in ascii)\n" +
                               "    RETURNS NULL ON NULL INPUT\n" +
                               "    RETURNS text\n" +
                               "    LANGUAGE java\n" +
                               "    AS $$return \"Hello World\";$$;"),
-                      row("CREATE FUNCTION " + fOverloaded + "(input text, other_in ascii)\n" +
+                      row(KEYSPACE,
+                          "function",
+                          shortFunctionName(fOverloaded) + "(text, ascii)",
+                          "CREATE FUNCTION " + fOverloaded + "(input text, other_in ascii)\n" +
                               "    RETURNS NULL ON NULL INPUT\n" +
                               "    RETURNS text\n" +
                               "    LANGUAGE java\n" +
@@ -352,12 +368,18 @@ public class DescribeStatementTest extends CQLTester
                                                               shortFunctionName(fFinal)));
 
         assertRowsNet(executeDescribeNet("DESCRIBE AGGREGATE " + aNonDeterministic),
-                      row("CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
+                      row(KEYSPACE,
+                          "aggregate",
+                          shortFunctionName(aNonDeterministic) + "(int)",
+                          "CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
                           "    SFUNC " + shortFunctionName(fIntState) + "\n" +
                           "    STYPE int\n" +
                           "    INITCOND 42;"));
         assertRowsNet(executeDescribeNet("DESCRIBE AGGREGATE " + aDeterministic),
-                      row("CREATE AGGREGATE " + aDeterministic + "(int)\n" +
+                      row(KEYSPACE,
+                          "aggregate",
+                          shortFunctionName(aDeterministic) + "(int)",
+                          "CREATE AGGREGATE " + aDeterministic + "(int)\n" +
                                          "    SFUNC " + shortFunctionName(fIntState) + "\n" +
                                          "    STYPE int\n" +
                                          "    FINALFUNC " + shortFunctionName(fFinal) + ";"));
@@ -379,13 +401,13 @@ public class DescribeStatementTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (key int PRIMARY KEY) WITH compaction = {'class': 'LeveledCompactionStrategy'}");
 
-        String output = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table).all().get(0).getString(0);
+        String output = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table).all().get(0).getString("create_statement");
 
         execute("DROP TABLE %s");
 
         executeNet(output);
 
-        String output2 = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table).all().get(0).getString(0);
+        String output2 = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table).all().get(0).getString("create_statement");
         assertEquals(output, output2);
 
         execute("INSERT INTO %s (key) VALUES (1)");

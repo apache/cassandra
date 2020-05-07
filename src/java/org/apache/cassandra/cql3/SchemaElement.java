@@ -18,6 +18,9 @@
 package org.apache.cassandra.cql3;
 
 import java.util.Comparator;
+import java.util.Locale;
+
+import org.apache.cassandra.cql3.SchemaElement.SchemaElementType;
 
 /**
  * A schema element (keyspace, udt, udf, uda, table, index, view).
@@ -37,7 +40,13 @@ public interface SchemaElement
         AGGREGATE,
         TABLE,
         INDEX,
-        VIEW;
+        MATERIALIZED_VIEW;
+
+        @Override
+        public String toString()
+        {
+            return super.toString().toLowerCase(Locale.US);
+        }
     }
 
     /**
@@ -60,6 +69,24 @@ public interface SchemaElement
      * @return the name of this schema element.
      */
     String getElementName();
+
+    default String getElementNameQuotedIfNeeded()
+    {
+        String name = getElementName();
+        if (getElementType() == SchemaElementType.FUNCTION
+                || getElementType() == SchemaElementType.AGGREGATE)
+        {
+            int index = name.indexOf('(');
+            return ColumnIdentifier.maybeQuote(name.substring(0, index)) + name.substring(index);
+        }
+
+        return ColumnIdentifier.maybeQuote(name);
+    }
+
+    default String getElementKeyspaceQuotedIfNeeded()
+    {
+        return ColumnIdentifier.maybeQuote(getElementKeyspace());
+    }
 
     /**
      * Returns a CQL representation of this element

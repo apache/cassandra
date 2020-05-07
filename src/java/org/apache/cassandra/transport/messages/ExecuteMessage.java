@@ -173,6 +173,7 @@ public class ExecuteMessage extends Message.Request
         }
         catch (Exception e)
         {
+            e.printStackTrace();
             QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);

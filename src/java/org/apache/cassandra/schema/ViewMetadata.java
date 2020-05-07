@@ -206,7 +206,7 @@ public final class ViewMetadata implements SchemaElement
     @Override
     public SchemaElementType getElementType()
     {
-        return SchemaElementType.VIEW;
+        return SchemaElementType.MATERIALIZED_VIEW;
     }
 
     @Override

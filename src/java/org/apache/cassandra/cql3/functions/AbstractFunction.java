@@ -134,7 +134,7 @@ public abstract class AbstractFunction implements Function
 
     public String getElementName()
     {
-        return new CqlBuilder().append(name)
+        return new CqlBuilder().append(name.name)
                                .append('(')
                                .appendWithSeparators(argTypes, ", ")
                                .append(')')

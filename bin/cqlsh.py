@@ -969,9 +969,7 @@ class Shell(cmd.Cmd):
         if custom_handler:
             parsed = cqlruleset.cql_whole_parse_tokens(tokens, srcstr=srcstr,
                                                        startsymbol='cqlshCommand')
-            if cmdword.lower() in ('describe', 'desc'):
-                return self.serverside_describe(cqlruleset.cql_extract_orig(tokens, srcstr))
-            elif parsed and not parsed.remainder:
+            if parsed and not parsed.remainder:
                 # successful complete parse
                 return custom_handler(parsed)
             else:
@@ -1246,136 +1244,37 @@ class Shell(cmd.Cmd):
         if valstr is not None:
             return cqlruleset.dequote_value(valstr)
 
-    def do_describe(self, parsed):
+    def _columnize_unicode(self, name_list):
         """
-        DESCRIBE
+        Used when columnizing identifiers that may contain unicode
+        """
+        names = [n for n in name_list]
+        cmd.Cmd.columnize(self, names)
+        print('')
 
-        (DESC may be used as a shorthand.)
+    def do_describe(self, parsed):
 
-          Outputs information about the connected Cassandra cluster, or about
-          the data objects stored in the cluster. Use in one of the following ways:
-
-        DESCRIBE KEYSPACES
-
-          Output the names of all keyspaces.
-
-        DESCRIBE [ONLY] KEYSPACE [<keyspacename>] [WITH INTERNALS]
-
-          Output CQL commands that could be used to recreate the given keyspace,
-          and the objects in it (such as tables, types, functions, etc.).
-          In some cases, as the CQL interface matures, there will be some metadata
-          about a keyspace that is not representable with CQL. That metadata will not be shown.
-
-          The '<keyspacename>' argument may be omitted, in which case the current
-          keyspace will be described.
-
-          If WITH INTERNALS is specified, the output contains the table IDs and is
-          adopted to represent the DDL necessary to "re-create" dropped columns.
-
-          If ONLY is specified, only the DDL to recreate the keyspace will be created.
-          All keyspace elements, like tables, types, functions, etc will be omitted.
-
-        DESCRIBE TABLES [WITH INTERNALS]
-
-          Output the names of all tables in the current keyspace, or in all
-          keyspaces if there is no current keyspace.
-
-        DESCRIBE TABLE [<keyspace>.]<tablename> [WITH INTERNALS]
-
-          Output CQL commands that could be used to recreate the given table.
-          In some cases, as above, there may be table metadata which is not
-          representable and which will not be shown.
-
-          If WITH INTERNALS is specified, the output contains the table ID and is
-          adopted to represent the DDL necessary to "re-create" dropped columns.
-
-        DESCRIBE INDEX <indexname>
-
-          Output the CQL command that could be used to recreate the given index.
-          In some cases, there may be index metadata which is not representable
-          and which will not be shown.
-
-        DESCRIBE MATERIALIZED VIEW <viewname> [WITH INTERNALS]
-
-          Output the CQL command that could be used to recreate the given materialized view.
-          In some cases, there may be materialized view metadata which is not representable
-          and which will not be shown.
-
-          If WITH INTERNALS is specified, the output contains the table ID and is
-          adopted to represent the DDL necessary to "re-create" dropped columns.
-
-        DESCRIBE CLUSTER
-
-          Output information about the connected Cassandra cluster, such as the
-          cluster name, and the partitioner and snitch in use. When you are
-          connected to a non-system keyspace, also shows endpoint-range
-          ownership information for the Cassandra ring.
-
-        DESCRIBE [FULL] SCHEMA [WITH INTERNALS]
-
-          Output CQL commands that could be used to recreate the entire (non-system) schema.
-          Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
-          k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
-
-          If WITH INTERNALS is specified, the output contains the table IDs and is
-          adopted to represent the DDL necessary to "re-create" dropped columns.
-
-        DESCRIBE TYPES
-
-          Output the names of all user-defined-types in the current keyspace, or in all
-          keyspaces if there is no current keyspace.
-
-        DESCRIBE TYPE [<keyspace>.]<type>
-
-          Output the CQL command that could be used to recreate the given user-defined-type.
-
-        DESCRIBE FUNCTIONS
-
-          Output the names of all user-defined-functions in the current keyspace, or in all
-          keyspaces if there is no current keyspace.
-
-        DESCRIBE FUNCTION [<keyspace>.]<function>
-
-          Output the CQL command that could be used to recreate the given user-defined-function.
-
-        DESCRIBE AGGREGATES
-
-          Output the names of all user-defined-aggregates in the current keyspace, or in all
-          keyspaces if there is no current keyspace.
-
-        DESCRIBE AGGREGATE [<keyspace>.]<aggregate>
-
-          Output the CQL command that could be used to recreate the given user-defined-aggregate.
-
-        DESCRIBE (ACTIVE|PENDING) SERACH INDEX (SCEHMA|CONFIG) ON [<keyspace>.]<tablename>
-
-          Output the CQL command that could be used to recreate the search index on the given table.
-
-        DESCRIBE <objname> [WITH INTERNALS]
-
-          Output CQL commands that could be used to recreate the entire object schema,
-          where object can be either a keyspace or a table or an index or a materialized
-          view (in this order).
-
-          If WITH INTERNALS is specified and &lt;objname&gt; represents a keyspace, table
-          materialized view, the output contains the table IDs and is
-          adopted to represent the DDL necessary to "re-create" dropped columns.
-
-          <objname> (obviously) cannot be any of the "describe what" qualifiers like
-          "cluster", "table", etc.
-  """
-        pass
-
-    def serverside_describe(self, cqlsrc):
-        stmt = SimpleStatement(cqlsrc, consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE, fetch_size=self.page_size if self.use_paging else None)
+        """
+        Handle the DESCRIBE queries by forwarding them to the server and formatting the returned output.
+        """
+        stmt = SimpleStatement(parsed.extract_orig(), consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE, fetch_size=self.page_size if self.use_paging else None)
         future = self.session.execute_async(stmt)
 
         try:
             result = future.result()
-            # result has a single column
-            for row in result:
-                self.query_out.write(row['schema_part'])
-        except CQL_ERRORS, err:
+
+            what = parsed.matched[1][1].lower()
+
+            if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates'):
+                self.describe_list(result)
+            elif what == 'keyspaces':
+                self.describe_keyspaces(result)
+            elif what == 'cluster':
+                self.describe_cluster(result)
+            elif what:
+                self.describe_element(result)
+
+        except CQL_ERRORS as err:
             self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
         except Exception:
             import traceback
@@ -1386,6 +1285,74 @@ class Shell(cmd.Cmd):
                 self.print_warnings(future.warnings)
 
     do_desc = do_describe
+
+    def describe_keyspaces(self, rows):
+        """
+        Print the output for a DESCRIBE KEYSPACES query
+        """
+        names = list()
+        for row in rows:
+            names.append(str(row['name']))
+
+        print('')
+        cmd.Cmd.columnize(self, names)
+        print('')
+
+    def describe_list(self, rows):
+        """
+        Print the output for all the DESCRIBE queries for element names (e.g DESCRIBE TABLES, DESCRIBE FUNCTIONS ...)
+        """
+        keyspace = None
+        names = list()
+        for row in rows:
+            if row['keyspace_name'] != keyspace:
+                if keyspace is not None:
+                    self.print_keyspace_element_names(keyspace, names)
+
+                keyspace = row['keyspace_name']
+                names = list()
+
+            names.append(str(row['name']))
+
+        if keyspace is not None:
+            self.print_keyspace_element_names(keyspace, names)
+            print('')
+
+    def print_keyspace_element_names(self, keyspace, names):
+            print('')
+            if self.current_keyspace is None:
+                print('Keyspace %s' % (keyspace))
+                print('---------%s' % ('-' * len(keyspace)))
+            cmd.Cmd.columnize(self, names)
+
+
+    def describe_element(self, rows):
+        """
+        Print the output for all the DESCRIBE queries where an element name as been specified (e.g DESCRIBE TABLE, DESCRIBE INDEX ...)
+        """
+        for row in rows:
+            print('')
+            self.query_out.write(row['create_statement'])
+            print('')
+
+    def describe_cluster(self, rows):
+        """
+        Print the output for a DESCRIBE CLUSTER query.
+
+        If a specified keyspace was in use the returned ResultSet will contains a 'range_ownership' column,
+        otherwise not.
+        """
+        for row in rows:
+            print('\nCluster: %s' % row['cluster'])
+            print('\nPartitioner: %s' % row['partitioner'])
+            print ('\nSnitch: %s' % row['snitch'])
+            print('')
+
+            if 'range_ownership' in row:
+                print("Range ownership:")
+                for entry in list(row['range_ownership'].items()):
+                    print(' %39s  [%s]' % (entry[0], ', '.join([host for host in entry[1]])))
+                print('')
 
     def do_copy(self, parsed):
         r"""

@@ -33,6 +33,8 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -55,6 +57,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotEm
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * Implements the foundations for all concrete {@code DESCRIBE} statement implementations.
@@ -192,8 +195,22 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 {
     private static final String KS = "system";
     private static final String CF = "describe";
-    private static final List<ColumnSpecification> metadata =
-            ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("schema_part", true), UTF8Type.instance));
+
+    /**
+     * The columns returned by the describe queries that only list elements names (e.g. DESCRIBE KEYSPACES, DESCRIBE TABLES...) 
+     */
+    private static final List<ColumnSpecification> LIST_METADATA = 
+            ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("keyspace_name", true), UTF8Type.instance),
+                             new ColumnSpecification(KS, CF, new ColumnIdentifier("type", true), UTF8Type.instance),
+                             new ColumnSpecification(KS, CF, new ColumnIdentifier("name", true), UTF8Type.instance));
+
+    /**
+     * The columns returned by the describe queries that returns the CREATE STATEMENT for the different elements (e.g. DESCRIBE KEYSPACE, DESCRIBE TABLE ...) 
+     */
+    private static final List<ColumnSpecification> ELEMENT_METADATA = 
+            ImmutableList.<ColumnSpecification>builder().addAll(LIST_METADATA)
+                                                        .add(new ColumnSpecification(KS, CF, new ColumnIdentifier("create_statement", true), UTF8Type.instance))
+                                                        .build();
 
     /**
      * "Magic version" for the paging state.
@@ -282,7 +299,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         List<List<ByteBuffer>> rows = stream.map(e -> toRow(e, includeInternalDetails))
                                             .collect(Collectors.toList());
 
-        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata);
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata(state.getClientState()));
         ResultSet result = new ResultSet(resultMetadata, rows);
 
         if (pageSize > 0 && rows.size() == pageSize)
@@ -292,6 +309,11 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 
         return new ResultMessage.Rows(result);
     }
+
+    /**
+     * Returns the columns of the {@code ResultMetadata}
+     */
+    protected abstract List<ColumnSpecification> metadata(ClientState state);
 
     private PagingState getPagingState(long nextPageOffset, UUID schemaVersion)
     {
@@ -353,37 +375,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                         .orElseThrow(() -> new KeyspaceNotDefinedException(format("Keyspace '%s' not found", ks)));
     }
 
-    public static class Elements extends DescribeStatement<SchemaElement>
-    {
-        private final String keyspace;
-
-        private final String name;
-
-        private final BiFunction<KeyspaceMetadata, String, Stream<? extends SchemaElement>> elementsProvider;
-
-        public Elements(String keyspace, String name, BiFunction<KeyspaceMetadata, String, Stream<? extends SchemaElement>> elementsProvider)
-        {
-            this.keyspace = keyspace;
-            this.name = name;
-            this.elementsProvider = elementsProvider;
-        }
-
-        @Override
-        protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
-        {
-            String ks = keyspace == null ? checkNotNull(state.getRawKeyspace(), "No keyspace specified and no current keyspace")
-                                         : keyspace;
-
-            return elementsProvider.apply(validateKeyspace(ks, keyspaces), name);
-        }
-
-        @Override
-        protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
-        {
-            return Collections.singletonList(UTF8Type.instance.decompose(element.toCqlString(withInternals)));
-        }
-    }
-
+    /**
+     * {@code DescribeStatement} implementation used for describe queries that only list elements names.
+     */
     public static final class Listing extends DescribeStatement<SchemaElement>
     {
         private final java.util.function.Function<KeyspaceMetadata, Stream<? extends SchemaElement>> elementsProvider;
@@ -398,24 +392,24 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         {
             String keyspace = state.getRawKeyspace();
             Stream<KeyspaceMetadata> stream = keyspace == null ? keyspaces.stream().sorted(SchemaElement.NAME_COMPARATOR)
-                                                               : Stream.of(keyspaces.getNullable(keyspace));
+                                                               : Stream.of(validateKeyspace(keyspace, keyspaces));
 
             return stream.flatMap(k -> elementsProvider.apply(k));
         }
 
         @Override
+        protected List<ColumnSpecification> metadata(ClientState state)
+        {
+            return LIST_METADATA;
+        }
+
+        @Override
         protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
         {
-            return Collections.singletonList(UTF8Type.instance.decompose(ColumnIdentifier.maybeQuote(element.getElementName())));
+            return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
+                                    bytes(element.getElementType().toString()),
+                                    bytes(element.getElementNameQuotedIfNeeded()));
         }
-    }
-
-    /**
-     * Creates a {@link DescribeStatement} for {@code DESCRIBE KEYSPACES}.
-     */
-    public static DescribeStatement<SchemaElement> keyspaces()
-    {
-        return new Listing(ks -> Stream.of(ks));
     }
 
     /**
@@ -451,6 +445,35 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     }
 
     /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE KEYSPACES}.
+     */
+    public static DescribeStatement<SchemaElement> keyspaces()
+    {
+        return new DescribeStatement<SchemaElement>()
+        {
+            @Override
+            protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
+            {
+                return keyspaces.stream().sorted(SchemaElement.NAME_COMPARATOR);
+            }
+
+            @Override
+            protected List<ColumnSpecification> metadata(ClientState state)
+            {
+                return LIST_METADATA;
+            }
+
+            @Override
+            protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
+            {
+                return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
+                                        bytes(element.getElementType().toString()),
+                                        bytes(element.getElementNameQuotedIfNeeded()));
+            }
+        };
+    }
+
+    /**
      * Creates a {@link DescribeStatement} for {@code DESCRIBE [FULL] SCHEMA}.
      */
     public static DescribeStatement<SchemaElement> schema(boolean includeSystemKeyspaces)
@@ -467,11 +490,69 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             }
 
             @Override
+            protected List<ColumnSpecification> metadata(ClientState state)
+            {
+                return ELEMENT_METADATA;
+            }
+
+            @Override
             protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
             {
-                return Collections.singletonList(UTF8Type.instance.decompose(element.toCqlString(withInternals)));
+                return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
+                                        bytes(element.getElementType().toString()),
+                                        bytes(element.getElementNameQuotedIfNeeded()),
+                                        bytes(element.toCqlString(withInternals)));
             }
         };
+    }
+
+    /**
+     * {@code DescribeStatement} implementation used for describe queries for a single schema element.
+     */
+    public static class Element extends DescribeStatement<SchemaElement>
+    {
+        /**
+         * The keyspace name 
+         */
+        private final String keyspace;
+
+        /**
+         * The element name
+         */
+        private final String name;
+
+        private final BiFunction<KeyspaceMetadata, String, Stream<? extends SchemaElement>> elementsProvider;
+
+        public Element(String keyspace, String name, BiFunction<KeyspaceMetadata, String, Stream<? extends SchemaElement>> elementsProvider)
+        {
+            this.keyspace = keyspace;
+            this.name = name;
+            this.elementsProvider = elementsProvider;
+        }
+
+        @Override
+        protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
+        {
+            String ks = keyspace == null ? checkNotNull(state.getRawKeyspace(), "No keyspace specified and no current keyspace")
+                                         : keyspace;
+
+            return elementsProvider.apply(validateKeyspace(ks, keyspaces), name);
+        }
+
+        @Override
+        protected List<ColumnSpecification> metadata(ClientState state)
+        {
+            return ELEMENT_METADATA;
+        }
+
+        @Override
+        protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
+        {
+            return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
+                                    bytes(element.getElementType().toString()),
+                                    bytes(element.getElementNameQuotedIfNeeded()),
+                                    bytes(element.toCqlString(withInternals)));
+        }
     }
 
     /**
@@ -479,7 +560,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> keyspace(String keyspace, boolean onlyKeyspaceDefinition)
     {
-        return new Elements(keyspace, null, (ks, t) -> getKeyspaceElements(ks, onlyKeyspaceDefinition));
+        return new Element(keyspace, null, (ks, t) -> getKeyspaceElements(ks, onlyKeyspaceDefinition));
     }
 
     private static Stream<? extends SchemaElement> getKeyspaceElements(KeyspaceMetadata ks, boolean onlyKeyspace)
@@ -514,7 +595,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> table(String keyspace, String name)
     {
-        return new Elements(keyspace, name, (ks, t) -> {
+        return new Element(keyspace, name, (ks, t) -> {
 
             TableMetadata table = checkNotNull(ks.getTableOrViewNullable(t),
                                                "Table '%s' not found in keyspace '%s'", t, ks.name);
@@ -530,7 +611,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> index(String keyspace, String name)
     {
-        return new Elements(keyspace, name, (ks, index) -> {
+        return new Element(keyspace, name, (ks, index) -> {
 
             TableMetadata tm = ks.findIndexedTable(index)
                                  .orElseThrow(() -> invalidRequest("Table for existing index '%s' not found in '%s'",
@@ -548,7 +629,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> view(String keyspace, String name)
     {
-        return new Elements(keyspace, name, (ks, view) -> {
+        return new Element(keyspace, name, (ks, view) -> {
 
             return ks.views.get(view)
                            .map(Stream::of)
@@ -561,7 +642,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> type(String keyspace, String name)
     {
-        return new Elements(keyspace, name, (ks, type) -> {
+        return new Element(keyspace, name, (ks, type) -> {
 
             return ks.types.get(ByteBufferUtil.bytes(type))
                            .map(Stream::of)
@@ -576,7 +657,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> function(String keyspace, String name)
     {
-        return new Elements(keyspace, name, (ks, n) -> {
+        return new Element(keyspace, name, (ks, n) -> {
 
             return checkNotEmpty(ks.functions.getUdfs(new FunctionName(ks.name, n)),
                                  "User defined function '%s' not found in '%s'", n, ks.name).stream()
@@ -589,7 +670,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> aggregate(String keyspace, String name)
     {
-        return new Elements(keyspace, name, (ks, n) -> {
+        return new Element(keyspace, name, (ks, n) -> {
 
             return checkNotEmpty(ks.functions.getUdas(new FunctionName(ks.name, n)),
                                  "User defined aggregate '%s' not found in '%s'", n, ks.name).stream()
@@ -677,6 +758,12 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             }
 
             @Override
+            protected List<ColumnSpecification> metadata(ClientState state)
+            {
+                return delegate.metadata(state);
+            }
+
+            @Override
             protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
             {
                 return delegate.toRow(element, withInternals);
@@ -687,51 +774,72 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     /**
      * Creates a {@link DescribeStatement} for {@code DESCRIBE CLUSTER}.
      */
-    public static DescribeStatement<String> cluster()
+    public static DescribeStatement<List<Object>> cluster()
     {
-        return new DescribeStatement<String>()
+        return new DescribeStatement<List<Object>>()
         {
             @Override
-            protected Stream<String> describe(ClientState state, Keyspaces keyspaces)
+            protected Stream<List<Object>> describe(ClientState state, Keyspaces keyspaces)
             {
-                CqlBuilder builder = new CqlBuilder();
-                builder.append("Cluster: ")
-                       .append(DatabaseDescriptor.getClusterName())
-                       .newLine()
-                       .append("Partitioner: ")
-                       .append(trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."))
-                       .newLine()
-                       .append("Snitch: ")
-                       .append(trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
-                                             "org.apache.cassandra.locator."))
-                       .newLine();
+                List<Object> list = new ArrayList<Object>();
+                list.add(DatabaseDescriptor.getClusterName());
+                list.add(trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."));
+                list.add(trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
+                                            "org.apache.cassandra.locator."));
+ 
+                String useKs = state.getRawKeyspace();
+                if (useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs))
+                {
+                    list.add(StorageService.instance.getRangeToAddressMap(useKs)
+                                                    .entrySet()
+                                                    .stream()
+                                                    .sorted(Comparator.comparing(Map.Entry::getKey))
+                                                    .collect(Collectors.toMap(e -> e.getKey().right.toString(),
+                                                                              e -> e.getValue()
+                                                                                    .stream()
+                                                                                    .map(r -> r.endpoint().toString())
+                                                                                    .collect(Collectors.toList()))));
+                }
+                return Stream.of(list);
+            }
+
+            @Override
+            protected List<ColumnSpecification> metadata(ClientState state)
+            {
+                ImmutableList.Builder<ColumnSpecification> builder = ImmutableList.builder();
+                builder.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("cluster", true), UTF8Type.instance),
+                                        new ColumnSpecification(KS, CF, new ColumnIdentifier("partitioner", true), UTF8Type.instance),
+                                        new ColumnSpecification(KS, CF, new ColumnIdentifier("snitch", true), UTF8Type.instance));
 
                 String useKs = state.getRawKeyspace();
                 if (useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs))
                 {
-                    builder.newLine()
-                           .append("Range ownership:")
-                           .newLine();
-
-                    StorageService.instance.getRangeToAddressMap(useKs)
-                                           .entrySet()
-                                           .stream()
-                                           .sorted(Comparator.comparing(Map.Entry::getKey))
-                                           .map(rangeOwners -> format(" %39s  [%s]",
-                                                                      rangeOwners.getKey().right,
-                                                                      rangeOwners.getValue()
-                                                                                 .stream()
-                                                                                 .map(r -> r.endpoint().toString())
-                                                                                 .collect(Collectors.joining(", "))))
-                                           .forEach(s -> builder.append(s).newLine());
+                    builder.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("range_ownership", true), MapType.getInstance(UTF8Type.instance,
+                                                                                                                                   ListType.getInstance(UTF8Type.instance, false), false)));
                 }
-                return Stream.of(builder.toString());
+
+                return builder.build();
             }
 
             @Override
-            protected List<ByteBuffer> toRow(String element, boolean withInternals)
+            protected List<ByteBuffer> toRow(List<Object> elements, boolean withInternals)
             {
-                return Collections.singletonList(UTF8Type.instance.decompose(element));
+                ImmutableList.Builder<ByteBuffer> builder = ImmutableList.builder(); 
+
+                builder.add(UTF8Type.instance.decompose((String) elements.get(0)),
+                            UTF8Type.instance.decompose((String) elements.get(1)),
+                            UTF8Type.instance.decompose((String) elements.get(2)));
+
+                if (elements.size() > 3)
+                {
+                    MapType<String, List<String>> rangeOwnershipType = MapType.getInstance(UTF8Type.instance,
+                                                                                           ListType.getInstance(UTF8Type.instance, false),
+                                                                                           false);
+
+                    builder.add(rangeOwnershipType.decompose((Map<String, List<String>>) elements.get(3)));
+                }
+
+                return builder.build();
             }
 
             private String trimIfPresent(String src, String begin)

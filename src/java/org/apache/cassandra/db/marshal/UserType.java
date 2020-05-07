@@ -25,7 +25,6 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.SchemaElement.SchemaElementType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.schema.Difference;
