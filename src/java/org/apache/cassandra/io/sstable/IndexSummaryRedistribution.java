@@ -37,11 +37,11 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -263,12 +263,37 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                          sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata.ksName).getColumnFamilyStore(sstable.metadata.cfId);
+            long oldSize = sstable.bytesOnDisk();
             SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
+            long newSize = replacement.bytesOnDisk();
             newSSTables.add(replacement);
             transactions.get(sstable.metadata.cfId).update(replacement, true);
+            addHooks(cfs, transactions, oldSize, newSize);
         }
 
         return newSSTables;
+    }
+
+    /**
+     * Add hooks to correctly update the storage load metrics once the transaction is closed/aborted
+     */
+    @SuppressWarnings("resource") // Transactions are closed in finally outside of this method
+    private void addHooks(ColumnFamilyStore cfs, Map<UUID, LifecycleTransaction> transactions, long oldSize, long newSize)
+    {
+        LifecycleTransaction txn = transactions.get(cfs.metadata.cfId);
+        txn.runOnCommit(() -> {
+            // The new size will be added in Transactional.commit() as an updated SSTable, more details: CASSANDRA-13738
+            StorageMetrics.load.dec(oldSize);
+            cfs.metric.liveDiskSpaceUsed.dec(oldSize);
+            cfs.metric.totalDiskSpaceUsed.dec(oldSize);
+        });
+        txn.runOnAbort(() -> {
+            // the local disk was modified but book keeping couldn't be commited, apply the delta
+            long delta = oldSize - newSize; // if new is larger this will be negative, so dec will become a inc
+            StorageMetrics.load.dec(delta);
+            cfs.metric.liveDiskSpaceUsed.dec(delta);
+            cfs.metric.totalDiskSpaceUsed.dec(delta);
+        });
     }
 
     @VisibleForTesting

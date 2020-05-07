@@ -1,6 +1,7 @@
 3.11.7
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:
+ * liveDiskSpaceUsed and totalDiskSpaceUsed get corrupted if IndexSummaryRedistribution gets interrupted (CASSANDRA-15674)
  * Fix Debian init start/stop (CASSANDRA-15770)
  * Fix infinite loop on index query paging in tables with clustering (CASSANDRA-14242)
  * Fix chunk index overflow due to large sstable with small chunk length (CASSANDRA-15595)
