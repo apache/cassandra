@@ -348,7 +348,7 @@ pipeline {
           // the following should fail on any installation other than builds.apache.org
           //  TODO: keep jenkins infrastructure related settings in `cassandra_job_dsl_seed.groovy`
           warnError('cannot send notifications') {
-              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. ${env.GIT_COMMIT}\n${CHANGES}"
+              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. ${env.GIT_COMMIT}\n${currentBuild.changeSets}"
               emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${env.GIT_COMMIT}", body: '''
 -------------------------------------------------------------------------------
 Build ${ENV,var="JOB_NAME"} #${BUILD_NUMBER} ${BUILD_STATUS}
