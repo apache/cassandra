@@ -17,38 +17,48 @@
 Configuring Cassandra
 ---------------------
 
-For running Cassandra on a single node, the default configuration file present at ``./conf/cassandra.yaml`` is enough, 
-you shouldn't need to change any configuration. However, when you deploy a cluster of nodes, or use clients that 
-are not on the same host, then there are some parameters that must be changed.
+The :term:`Cassandra` configuration files location varies, depending on the type of installation:
 
-The Cassandra configuration files can be found in the ``conf`` directory of tarballs. For packages, the configuration
-files will be located in ``/etc/cassandra``.
+- tarball: ``conf`` directory within the tarball install location
+- package: ``/etc/cassandra`` directory
+
+Cassandra's default configuration file, ``cassandra.yaml``, is sufficient to explore a simple single-node :term:`cluster`.
+However, anything beyond running a single-node cluster locally requires additional configuration to various Cassandra configuration files.
+Some examples that require non-default configuration are deploying a multi-node cluster or using clients that are not running on a cluster node.
+
+- ``cassandra.yaml``: the main configuration file for Cassandra
+- ``cassandra-env.sh``:  environment variables can be set
+- ``cassandra-rackdc.properties`` OR ``cassandra-topology.properties``: set rack and datacenter information for a cluster
+- ``logback.xml``: logging configuration including logging levels
+- ``jvm-*``: a number of JVM configuration files for both the server and clients
+- ``commitlog_archiving.properties``: set archiving parameters for the :term:`commitlog`
+
+Two sample configuration files can also be found in ``./conf``:
+
+- ``metrics-reporter-config-sample.yaml``: configuring what the metrics-report will collect
+- ``cqlshrc.sample``: how the CQL shell, cqlsh, can be configured
 
 Main runtime properties
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Most of configuration in Cassandra is done via yaml properties that can be set in ``cassandra.yaml``. At a minimum you
+Configuring Cassandra is done by setting yaml properties in the ``cassandra.yaml`` file. At a minimum you
 should consider setting the following properties:
 
-- ``cluster_name``: the name of your cluster.
-- ``seeds``: a comma separated list of the IP addresses of your cluster seeds.
-- ``storage_port``: you don't necessarily need to change this but make sure that there are no firewalls blocking this
-  port.
-- ``listen_address``: the IP address of your node, this is what allows other nodes to communicate with this node so it
-  is important that you change it. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to
-  use, and consecutively which address to use. Set only one, not both.
-- ``native_transport_port``: as for storage\_port, make sure this port is not blocked by firewalls as clients will
-  communicate with Cassandra on this port.
+- ``cluster_name``: Set the name of your cluster.
+- ``seeds``: A comma separated list of the IP addresses of your cluster :term:`seed nodes`.
+- ``storage_port``: Check that you don't have the default port of 7000 blocked by a firewall.
+- ``listen_address``: The :term:`listen address` is the IP address of a node that allows it to communicate with other nodes in the cluster. Set to `localhost` by default. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to use, and consecutively which address to use. Set one property, not both.
+- ``native_transport_port``: Check that you don't have the default port of 9042 blocked by a firewall, so that clients like cqlsh can communicate with Cassandra on this port.
 
 Changing the location of directories
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following yaml properties control the location of directories:
 
-- ``data_file_directories``: one or more directories where data files are located.
-- ``commitlog_directory``: the directory where commitlog files are located.
-- ``saved_caches_directory``: the directory where saved caches are located.
-- ``hints_directory``: the directory where hints are located.
+- ``data_file_directories``: One or more directories where data files, like :term:`SSTables` are located.
+- ``commitlog_directory``: The directory where commitlog files are located.
+- ``saved_caches_directory``: The directory where saved caches are located.
+- ``hints_directory``: The directory where :term:`hints` are located.
 
 For performance reasons, if you have multiple disks, consider putting commitlog and data files on different disks.
 
@@ -56,12 +66,15 @@ Environment variables
 ^^^^^^^^^^^^^^^^^^^^^
 
 JVM-level settings such as heap size can be set in ``cassandra-env.sh``.  You can add any additional JVM command line
-argument to the ``JVM_OPTS`` environment variable; when Cassandra starts these arguments will be passed to the JVM.
+argument to the ``JVM_OPTS`` environment variable; when Cassandra starts, these arguments will be passed to the JVM.
 
 Logging
 ^^^^^^^
 
-The logger in use is logback. You can change logging properties by editing ``logback.xml``. By default it will log at
-INFO level into a file called ``system.log`` and at debug level into a file called ``debug.log``. When running in the
-foreground, it will also log at INFO level to the console.
+The default logger is `logback`. By default it will log:
+
+- **INFO** level in ``system.log`` 
+- **DEBUG** level in ``debug.log``
+
+When running in the foreground, it will also log at INFO level to the console. You can change logging properties by editing ``logback.xml`` or by running the `nodetool setlogginglevel` command.
 
