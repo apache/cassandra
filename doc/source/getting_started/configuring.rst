@@ -17,12 +17,12 @@
 Configuring Cassandra
 ---------------------
 
-The Cassandra configuration files location varies, depending on the type of installation:
+The :term:`Cassandra` configuration files location varies, depending on the type of installation:
 
 - tarball: ``conf`` directory within the tarball install lcation
 - package: ``/etc/cassandra` directory
 
-Cassandra's default configuration file, ``./conf/cassandra.yaml``, is sufficient to explore a simple single-node cluster.
+Cassandra's default configuration file, ``./conf/cassandra.yaml``, is sufficient to explore a simple single-node :term:`cluster`.
 However, anything beyond running a single-node cluster locally requires additional configuration to various Cassandra configuration files.
 Some examples that require non-default configuration are deploying a multi-node cluster or using clients that are not running on a cluster node.
 
@@ -31,9 +31,10 @@ Some examples that require non-default configuration are deploying a multi-node 
 - ``cassandra-rackdc.properties`` OR ``cassandra-topology.properties``: set rack and datacenter information for a cluster
 - ``logback.xml``: logging configuration including logging levels
 - ``jvm-*``: a number of JVM configuration files for both the server and clients
-- ``commitlog_archiving.properties``: set archiving parameters for the commitlog
+- ``commitlog_archiving.properties``: set archiving parameters for the :term:`commitlog`
 
 Two sample configuration files can also be found in ``./conf``:
+
 - ``metrics-reporter-config-sample.yaml``: configuring what the metrics-report will collect
 - ``cqlshrc.sample``: how the CQL shell, cqlsh, can be configured
 
