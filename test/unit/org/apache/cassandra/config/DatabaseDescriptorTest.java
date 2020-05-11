@@ -743,7 +743,8 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testDefaultSslContextFactoryConfiguration() {
+    public void testDefaultSslContextFactoryConfiguration()
+    {
         Config config = DatabaseDescriptor.loadConfig();
         Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
                             config.client_encryption_options.ssl_context_factory.class_name);
@@ -751,5 +752,31 @@ public class DatabaseDescriptorTest
         Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
                             config.server_encryption_options.ssl_context_factory.class_name);
         Assert.assertTrue(config.server_encryption_options.ssl_context_factory.parameters.isEmpty());
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testInvalidSub1DefaultRFs() throws ConfigurationException
+    {
+        DatabaseDescriptor.setDefaultKeyspaceRF(0);
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testInvalidSub0MinimumRFs() throws ConfigurationException
+    {
+        DatabaseDescriptor.setMinimumKeyspaceRF(-1);
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testDefaultRfLessThanMinRF()
+    {
+        DatabaseDescriptor.setMinimumKeyspaceRF(2);
+        DatabaseDescriptor.setDefaultKeyspaceRF(1);
+    }
+
+    @Test (expected = ConfigurationException.class)
+    public void testMinimumRfGreaterThanDefaultRF()
+    {
+        DatabaseDescriptor.setDefaultKeyspaceRF(1);
+        DatabaseDescriptor.setMinimumKeyspaceRF(2);
     }
 }
