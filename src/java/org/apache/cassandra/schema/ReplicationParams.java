@@ -82,13 +82,13 @@ public final class ReplicationParams
         return fromMapWithDefaults(map, new HashMap<>());
     }
 
-    public static ReplicationParams fromMapWithDefaults(Map<String, String> map, Map<String, String> defaults)
+    public static ReplicationParams fromMapWithDefaults(Map<String, String> map, Map<String, String> previousOptions)
     {
         Map<String, String> options = new HashMap<>(map);
         String className = options.remove(CLASS);
 
         Class<? extends AbstractReplicationStrategy> klass = AbstractReplicationStrategy.getClass(className);
-        AbstractReplicationStrategy.prepareReplicationStrategyOptions(klass, options, defaults);
+        AbstractReplicationStrategy.prepareReplicationStrategyOptions(klass, options, previousOptions);
 
         return new ReplicationParams(klass, options);
     }

@@ -6269,4 +6269,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setRowIndexSizeAbortThresholdKb(value);
         logger.info("updated track_warnings.row_index_size.abort_threshold_kb to {}", value);
     }
+
+    public void setDefaultKeyspaceReplicationFactor(int value)
+    {
+        DatabaseDescriptor.setDefaultKeyspaceRF(value);
+        logger.info("set default keyspace rf to {}", value);
+    }
+
+    public int getDefaultKeyspaceReplicationFactor()
+    {
+        return DatabaseDescriptor.getDefaultKeyspaceRF();
+    }
+
+    public void setMinimumKeyspaceReplicationFactor(int value)
+    {
+        DatabaseDescriptor.setMinimumKeyspaceRF(value);
+        logger.info("set minimum keyspace rf to {}", value);
+    }
+
+    public int getMinimumKeyspaceReplicationFactor()
+    {
+        return DatabaseDescriptor.getMinimumKeyspaceRF();
+    }
 }

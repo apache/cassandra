@@ -83,13 +83,17 @@ For instance::
 Attempting to create a keyspace that already exists will return an error unless the ``IF NOT EXISTS`` option is used. If
 it is used, the statement will be a no-op if the keyspace already exists.
 
+Attempting to create a keyspace with a replication factor less than what is configured for ``minimum_keyspace_rf``
+(default value 0) will return an error.
+
 The supported ``options`` are:
 
 =================== ========== =========== ========= ===================================================================
 name                 kind       mandatory   default   description
 =================== ========== =========== ========= ===================================================================
-``replication``      *map*      yes                   The replication strategy and options to use for the keyspace (see
-                                                      details below).
+``replication``      *map*      yes (nts)             The replication strategy and options to use for the keyspace (see
+                                no  (ss)              details below). NOT mandatory for Simple Strategy (ss). This is
+                                                      however mandatory for NetworkTopology Strategy (nts).
 ``durable_writes``   *simple*   no          true      Whether to use the commit log for updates on this keyspace
                                                       (disable this option at your own risk!).
 =================== ========== =========== ========= ===================================================================
@@ -107,12 +111,14 @@ A simple strategy that defines a replication factor for data to be spread
 across the entire cluster. This is generally not a wise choice for production
 because it does not respect datacenter layouts and can lead to wildly varying
 query latency. For a production ready strategy, see
-``NetworkTopologyStrategy``. ``SimpleStrategy`` supports a single mandatory argument:
+``NetworkTopologyStrategy``. ``SimpleStrategy`` supports a single optional argument:
 
 ========================= ====== ======= =============================================
 sub-option                 type   since   description
 ========================= ====== ======= =============================================
-``'replication_factor'``   int    all     The number of replicas to store per range
+``'replication_factor'``   int    all     The number of replicas to store per range.
+                                          If not specified, ``'default_keyspace_rf'``
+                                          would be applied.
 ========================= ====== ======= =============================================
 
 ``NetworkTopologyStrategy``
@@ -134,6 +140,8 @@ sub-option                             type   since  description
                                                      definitions or explicit datacenter settings.
                                                      For example, to have three replicas per
                                                      datacenter, supply this with a value of 3.
+                                                     If not specified, ``'default_keyspace_rf'``
+                                                     would be applied.
 ===================================== ====== ====== =============================================
 
 Note that when ``ALTER`` ing keyspaces and supplying ``replication_factor``,
@@ -174,6 +182,7 @@ For instance, this keyspace will have 3 replicas in DC1, 1 of which is transient
 
     CREATE KEYSPACE some_keysopace
                WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1' : '3/1'', 'DC2' : '5/2'};
+
 
 .. _use-statement:
 

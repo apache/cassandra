@@ -388,13 +388,27 @@ public class CreateTest extends CQLTester
     }
 
     /**
-     * Test {@link ConfigurationException} is thrown on create keyspace without any options.
+     * Test {@link ConfigurationException} is not thrown on create NetworkTopologyStrategy keyspace without any options.
      */
     @Test
-    public void testConfigurationExceptionThrownWhenCreateKeyspaceWithNoOptions() throws Throwable
+    public void testCreateKeyspaceWithNetworkTopologyStrategyNoOptions() throws Throwable
     {
-        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ with replication = { 'class': 'NetworkTopologyStrategy' }");
-        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy' }");
+        schemaChange("CREATE KEYSPACE testXYZ with replication = { 'class': 'NetworkTopologyStrategy' }");
+
+        // clean-up
+        execute("DROP KEYSPACE IF EXISTS testXYZ");
+    }
+
+    /**
+     * Test {@link ConfigurationException} is not thrown on create SimpleStrategy keyspace without any options.
+     */
+    @Test
+    public void testCreateKeyspaceWithSimpleStrategyNoOptions() throws Throwable
+    {
+        schemaChange("CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy' }");
+
+        // clean-up
+        execute("DROP KEYSPACE IF EXISTS testXYZ");
     }
 
     @Test
@@ -721,6 +735,29 @@ public class CreateTest extends CQLTester
         public Collection<Mutation> augment(Partition update)
         {
             return Collections.emptyList();
+        }
+    }
+
+    @Test
+    public void testMinimumRF()
+    {
+        try
+        {
+            DatabaseDescriptor.setDefaultKeyspaceRF(3);
+            DatabaseDescriptor.setMinimumKeyspaceRF(2);
+
+            assertThrowsConfigurationException(
+            String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
+            "CREATE KEYSPACE ks1 WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+
+            assertThrowsConfigurationException(
+            String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
+            "CREATE KEYSPACE ks2 WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1 }");
+        }
+        finally
+        {
+            DatabaseDescriptor.setMinimumKeyspaceRF(0);
+            DatabaseDescriptor.setDefaultKeyspaceRF(1);
         }
     }
 }

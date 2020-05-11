@@ -488,6 +488,11 @@ public class Config
 
     public volatile boolean diagnostic_events_enabled = false;
 
+    // Default and minimum keyspace replication factors allow validation of newly created keyspaces
+    // and good defaults if no replication factor is provided by the user
+    public volatile int default_keyspace_rf = 1;
+    public volatile int minimum_keyspace_rf = 0;
+
     /**
      * flags for enabling tracking repaired state of data during reads
      * separate flags for range & single partition reads as single partition reads are only tracked
