@@ -23,7 +23,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
@@ -40,6 +42,7 @@ import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -115,8 +118,8 @@ public class BinLogTest
     @Test
     public void testBinLogStartStop() throws Exception
     {
-        Semaphore blockBinLog = new Semaphore(1);
         AtomicInteger releaseCount = new AtomicInteger();
+        CountDownLatch ready = new CountDownLatch(2);
         binLog.put(new BinLog.ReleaseableWriteMarshallable()
         {
             public void release()
@@ -136,14 +139,7 @@ public class BinLogTest
 
             public void writeMarshallablePayload(WireOut wire)
             {
-                try
-                {
-                    blockBinLog.acquire();
-                }
-                catch (InterruptedException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                ready.countDown();
             }
         });
         binLog.put(new BinLog.ReleaseableWriteMarshallable()
@@ -160,7 +156,7 @@ public class BinLogTest
 
             public void writeMarshallablePayload(WireOut wire)
             {
-
+                ready.countDown();
             }
 
             public void release()
@@ -168,8 +164,8 @@ public class BinLogTest
                 releaseCount.incrementAndGet();
             }
         });
-        Thread.sleep(1000);
-        assertEquals(2, releaseCount.get());
+        ready.await();
+        Util.spinAssertEquals("Both records should be released", 2, releaseCount::get, 10, TimeUnit.SECONDS);
         Thread t = new Thread(() -> {
             try
             {
@@ -182,7 +178,7 @@ public class BinLogTest
         });
         t.start();
         t.join(60 * 1000);
-        assertEquals(t.getState(), Thread.State.TERMINATED);
+        assertEquals("BinLog stop should not block forever", t.getState(), Thread.State.TERMINATED);
 
         Util.spinAssertEquals(2, releaseCount::get, 60);
         Util.spinAssertEquals(Thread.State.TERMINATED, binLog.binLogThread::getState, 60);
@@ -426,9 +422,14 @@ public class BinLogTest
     @Test
     public void testPutAfterStop() throws Exception
     {
+        final BinLog.ReleaseableWriteMarshallable unexpected = record(testString);
         binLog.stop();
-        binLog.put(record(testString));
-        assertEquals(null, binLog.sampleQueue.poll());
+        binLog.put(unexpected);
+        BinLog.ReleaseableWriteMarshallable record;
+        while (null != (record = binLog.sampleQueue.poll()))
+        {
+            assertNotEquals("A stopped BinLog should no longer accept", unexpected, record);
+        }
     }
 
     /**
