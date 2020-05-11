@@ -613,6 +613,8 @@ public abstract class Slices implements Iterable<Slice>
                 }
                 else
                 {
+                    boolean isReversed = column.isReversedType();
+
                     // As said above, we assume (without checking) that this means all ComponentOfSlice for this column
                     // are the same, so we only bother about the first.
                     if (first.startValue != null)
@@ -620,14 +622,24 @@ public abstract class Slices implements Iterable<Slice>
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
-                        sb.append(column.name).append(first.startInclusive ? " >= " : " > ").append(column.type.getString(first.startValue));
+                        sb.append(column.name);
+                        if (isReversed)
+                            sb.append(first.startInclusive ? " <= " : " < ");
+                        else
+                            sb.append(first.startInclusive ? " >= " : " > ");
+                        sb.append(column.type.getString(first.startValue));
                     }
                     if (first.endValue != null)
                     {
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
-                        sb.append(column.name).append(first.endInclusive ? " <= " : " < ").append(column.type.getString(first.endValue));
+                        sb.append(column.name);
+                        if (isReversed)
+                            sb.append(first.endInclusive ? " >= " : " > ");
+                        else
+                            sb.append(first.endInclusive ? " <= " : " < ");
+                        sb.append(column.type.getString(first.endValue));
                     }
                 }
             }
