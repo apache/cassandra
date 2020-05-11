@@ -262,11 +262,13 @@ public final class KeyspaceMetadata implements SchemaElement
                    .appendQuotingIfNeeded(name)
                    .append(" is a virtual keyspace and cannot be recreated with CQL.")
                    .newLine()
-                   .append(" Structure, for reference:*/")
+                   .append("Structure, for reference:")
                    .newLine()
-                   .append("// VIRTUAL KEYSPACE ")
+                   .append("VIRTUAL KEYSPACE ")
                    .appendQuotingIfNeeded(name)
                    .append(';')
+                   .newLine()
+                   .append("*/")
                    .toString();
         }
         else

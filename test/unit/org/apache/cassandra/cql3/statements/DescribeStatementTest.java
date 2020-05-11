@@ -39,6 +39,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -75,6 +77,168 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
+    public void testDescribeFunctionAndAggregate() throws Throwable
+    {
+        String fNonOverloaded = createFunction(KEYSPACE,
+                                               "",
+                                               "CREATE OR REPLACE FUNCTION %s() " +
+                                               "CALLED ON NULL INPUT " +
+                                               "RETURNS int " +
+                                               "LANGUAGE java " +
+                                               "AS 'throw new RuntimeException();';");
+
+        String fOverloaded = createFunction(KEYSPACE,
+                                            "int, ascii",
+                                            "CREATE FUNCTION %s (input int, other_in ascii) " +
+                                            "RETURNS NULL ON NULL INPUT " +
+                                            "RETURNS text " +
+                                            "LANGUAGE java " +
+                                            "AS 'return \"Hello World\";'");
+        createFunctionOverload(fOverloaded,
+                               "text, ascii",
+                               "CREATE FUNCTION %s (input text, other_in ascii) " +
+                               "RETURNS NULL ON NULL INPUT " +
+                               "RETURNS text " +
+                               "LANGUAGE java " +
+                               "AS 'return \"Hello World\";'");
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTION " + fNonOverloaded),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(fNonOverloaded) + "()",
+                              "CREATE FUNCTION " + fNonOverloaded + "()\n" +
+                                      "    CALLED ON NULL INPUT\n" +
+                                      "    RETURNS int\n" +
+                                      "    LANGUAGE java\n" +
+                                  "    AS $$throw new RuntimeException();$$;"));
+
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTION " + fOverloaded),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(fOverloaded) + "(int, ascii)",
+                              "CREATE FUNCTION " + fOverloaded + "(input int, other_in ascii)\n" +
+                                      "    RETURNS NULL ON NULL INPUT\n" +
+                                      "    RETURNS text\n" +
+                                      "    LANGUAGE java\n" +
+                                  "    AS $$return \"Hello World\";$$;"),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(fOverloaded) + "(text, ascii)",
+                              "CREATE FUNCTION " + fOverloaded + "(input text, other_in ascii)\n" +
+                                      "    RETURNS NULL ON NULL INPUT\n" +
+                                      "    RETURNS text\n" +
+                                      "    LANGUAGE java\n" +
+                                  "    AS $$return \"Hello World\";$$;"));
+
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTIONS"),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(fNonOverloaded) + "()"),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(fOverloaded) + "(int, ascii)"),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(fOverloaded) + "(text, ascii)"));
+        }
+
+        String fIntState = createFunction(KEYSPACE,
+                                          "int, int",
+                                          "CREATE FUNCTION %s (state int, add_to int) " +
+                                          "CALLED ON NULL INPUT " +
+                                          "RETURNS int " +
+                                          "LANGUAGE java " +
+                                          "AS 'return state + add_to;'");
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s (state int) " +
+                                       "RETURNS NULL ON NULL INPUT " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return state;'");
+
+        String aNonDeterministic = createAggregate(KEYSPACE,
+                                                   "int",
+                                                   format("CREATE AGGREGATE %%s(int) " +
+                                                                 "SFUNC %s " +
+                                                                 "STYPE int " +
+                                                                 "INITCOND 42",
+                                                                 shortFunctionName(fIntState)));
+        String aDeterministic = createAggregate(KEYSPACE,
+                                                "int",
+                                                format("CREATE AGGREGATE %%s(int) " +
+                                                              "SFUNC %s " +
+                                                              "STYPE int " +
+                                                              "FINALFUNC %s ",
+                                                              shortFunctionName(fIntState),
+                                                              shortFunctionName(fFinal)));
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aNonDeterministic),
+                          row(KEYSPACE,
+                              "aggregate",
+                              shortFunctionName(aNonDeterministic) + "(int)",
+                              "CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
+                                      "    SFUNC " + shortFunctionName(fIntState) + "\n" +
+                                      "    STYPE int\n" +
+                                  "    INITCOND 42;"));
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aDeterministic),
+                          row(KEYSPACE,
+                              "aggregate",
+                              shortFunctionName(aDeterministic) + "(int)",
+                              "CREATE AGGREGATE " + aDeterministic + "(int)\n" +
+                                      "    SFUNC " + shortFunctionName(fIntState) + "\n" +
+                                      "    STYPE int\n" +
+                                      "    FINALFUNC " + shortFunctionName(fFinal) + ";"));
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATES"),
+                          row(KEYSPACE,
+                              "aggregate",
+                              shortFunctionName(aNonDeterministic) + "(int)"),
+                          row(KEYSPACE,
+                              "aggregate",
+                              shortFunctionName(aDeterministic) + "(int)"));
+        }
+    }
+
+    @Test
+    public void testDescribeMaterializedView() throws Throwable
+    {
+        assertRowsNet(executeDescribeNet("DESCRIBE ONLY KEYSPACE system_virtual_schema;"), 
+                      row("system_virtual_schema",
+                          "keyspace",
+                          "system_virtual_schema",
+                          "/*\n" + 
+                          "Warning: Keyspace system_virtual_schema is a virtual keyspace and cannot be recreated with CQL.\n" +
+                          "Structure, for reference:\n" +
+                          "VIRTUAL KEYSPACE system_virtual_schema;\n" +
+                          "*/"));
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE system_virtual_schema.columns;"), 
+                      row("system_virtual_schema",
+                          "table",
+                          "columns",
+                          "/*\n" + 
+                          "Warning: Table system_virtual_schema.columns is a virtual table and cannot be recreated with CQL.\n" +
+                          "Structure, for reference:\n" +
+                          "VIRTUAL TABLE system_virtual_schema.columns (\n" +
+                          "    keyspace_name text,\n" +
+                          "    table_name text,\n" +
+                          "    column_name text,\n" +
+                          "    clustering_order text,\n" +
+                          "    column_name_bytes blob,\n" +
+                          "    kind text,\n" +
+                          "    position int,\n" +
+                          "    type text,\n" +
+                          "    PRIMARY KEY (keyspace_name, table_name, column_name)\n" +
+                          ") WITH CLUSTERING ORDER BY (table_name ASC, column_name ASC)\n" +
+                          "    AND comment = 'virtual column definitions';\n" +
+                          "*/"));
+    }
+
+    @Test
     public void testDescribe() throws Throwable
     {
         try
@@ -93,7 +257,7 @@ public class DescribeStatementTest extends CQLTester
 
             // Test describe schema
 
-            assertRowsNet(executeDescribeNet("DESCRIBE SCHEMA"),
+            Object[][] testSchemaOutput = rows(
                           row(KEYSPACE, "keyspace", KEYSPACE,
                               "CREATE KEYSPACE " + KEYSPACE + "\n" +
                                   "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
@@ -104,7 +268,7 @@ public class DescribeStatementTest extends CQLTester
                                   "     AND durable_writes = true;"),
                           row("test", "keyspace", "test", keyspaceOutput()),
                           row("test", "table", "has_all_types", allTypesTable()),
-                          row("test", "table", "\"Test\"", testTableOutput(true, true)),
+                          row("test", "table", "\"Test\"", testTableOutput()),
                           row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
                           row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")),
                           row("test", "table", "users", userTableOutput()),
@@ -112,25 +276,33 @@ public class DescribeStatementTest extends CQLTester
                           row("test", "table", "users_mv", usersMvTableOutput()),
                           row("test", "materialized_view", "users_by_state", usersByStateMvOutput()));
 
+            assertRowsNet(executeDescribeNet("DESCRIBE SCHEMA"), testSchemaOutput);
+            assertRowsNet(executeDescribeNet("DESC SCHEMA"), testSchemaOutput);
+
             // Test describe keyspaces/keyspace
 
-            assertRowsNet(executeDescribeNet("DESCRIBE KEYSPACES"),
-                          row(KEYSPACE, "keyspace", KEYSPACE),
-                          row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST),
-                          row(SYSTEM_KEYSPACE_NAME, "keyspace", SYSTEM_KEYSPACE_NAME),
-                          row(AUTH_KEYSPACE_NAME, "keyspace", AUTH_KEYSPACE_NAME),
-                          row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),
-                          row(SCHEMA_KEYSPACE_NAME, "keyspace", SCHEMA_KEYSPACE_NAME),
-                          row(TRACE_KEYSPACE_NAME, "keyspace", TRACE_KEYSPACE_NAME),
-                          row(VIRTUAL_SCHEMA, "keyspace", VIRTUAL_SCHEMA),
-                          row("test", "keyspace", "test"));
+            Object[][] testKeyspacesOutput = rows(row(KEYSPACE, "keyspace", KEYSPACE),
+                                                  row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST),
+                                                  row(SYSTEM_KEYSPACE_NAME, "keyspace", SYSTEM_KEYSPACE_NAME),
+                                                  row(AUTH_KEYSPACE_NAME, "keyspace", AUTH_KEYSPACE_NAME),
+                                                  row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),
+                                                  row(SCHEMA_KEYSPACE_NAME, "keyspace", SCHEMA_KEYSPACE_NAME),
+                                                  row(TRACE_KEYSPACE_NAME, "keyspace", TRACE_KEYSPACE_NAME),
+                                                  row(VIRTUAL_SCHEMA, "keyspace", VIRTUAL_SCHEMA),
+                                                  row("test", "keyspace", "test"));
 
-            assertRowsNet(executeDescribeNet("DESCRIBE ONLY KEYSPACE test"),
-                          row("test", "keyspace", "test", keyspaceOutput()));
+            for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+            {
+                assertRowsNet(executeDescribeNet(describeKeyword + " KEYSPACES"), testKeyspacesOutput);
+                assertRowsNet(executeDescribeNet("test", describeKeyword + " KEYSPACES"), testKeyspacesOutput);
+
+                assertRowsNet(executeDescribeNet(describeKeyword + " ONLY KEYSPACE test"),
+                              row("test", "keyspace", "test", keyspaceOutput()));
+            }
 
             Object[][] testKeyspaceOutput = rows(row("test", "keyspace", "test", keyspaceOutput()),
                                                  row("test", "table", "has_all_types", allTypesTable()),
-                                                 row("test", "table", "\"Test\"", testTableOutput(true, true)),
+                                                 row("test", "table", "\"Test\"", testTableOutput()),
                                                  row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
                                                  row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")),
                                                  row("test", "table", "users", userTableOutput()),
@@ -138,23 +310,26 @@ public class DescribeStatementTest extends CQLTester
                                                  row("test", "table", "users_mv", usersMvTableOutput()),
                                                  row("test", "materialized_view", "users_by_state", usersByStateMvOutput()));
 
-            assertRowsNet(executeDescribeNet("DESCRIBE KEYSPACE test"), testKeyspaceOutput);
-            assertRowsNet(executeDescribeNet("DESCRIBE test"), testKeyspaceOutput);
+            for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+            {
+                assertRowsNet(executeDescribeNet(describeKeyword + " KEYSPACE test"), testKeyspaceOutput);
+                assertRowsNet(executeDescribeNet(describeKeyword + " test"), testKeyspaceOutput);
 
-            describeError("DESCRIBE test2", "Keyspace 'test2' not found");
+                describeError(describeKeyword + " test2", "Keyspace 'test2' not found");
+            }
 
             // Test describe tables/table
             for (String cmd : new String[]{"describe TABLES", "DESC tables"})
-            assertRowsNet(executeDescribeNet("test", cmd),
-                          row("test", "table", "has_all_types"),
-                          row("test", "table", "\"Test\""),
-                          row("test", "table", "users"),
-                          row("test", "table", "users_mv"));
+                assertRowsNet(executeDescribeNet("test", cmd),
+                              row("test", "table", "has_all_types"),
+                              row("test", "table", "\"Test\""),
+                              row("test", "table", "users"),
+                              row("test", "table", "users_mv"));
 
             testDescribeTable("test", "has_all_types", row("test", "table", "has_all_types", allTypesTable()));
 
             testDescribeTable("test", "\"Test\"",
-                              row("test", "table", "\"Test\"", testTableOutput(true, true)),
+                              row("test", "table", "\"Test\"", testTableOutput()),
                               row("test", "index", "\"Test_col_idx\"", indexOutput("\"Test_col_idx\"", "\"Test\"", "col")),
                               row("test", "index", "\"Test_val_idx\"", indexOutput("\"Test_val_idx\"", "\"Test\"", "val")));
 
@@ -185,58 +360,75 @@ public class DescribeStatementTest extends CQLTester
 
     private void testDescribeTable(String keyspace, String table, Object[]... rows) throws Throwable
     {
-        for (String cmd : new String[]{"describe table " + keyspace + "." + table,
-                                       "describe columnfamily " + keyspace + "." + table,
-                                       "describe " + keyspace + "." + table})
+        for (String describeKeyword : new String[]{"describe", "desc"})
         {
-            assertRowsNet(executeDescribeNet(cmd), rows);
-        }
+            for (String cmd : new String[]{describeKeyword + " table " + keyspace + "." + table,
+                                           describeKeyword + " columnfamily " + keyspace + "." + table,
+                                           describeKeyword + " " + keyspace + "." + table})
+            {
+                assertRowsNet(executeDescribeNet(cmd), rows);
+            }
 
-        for (String cmd : new String[]{"describe table " + table,
-                                       "describe columnfamily " + table,
-                                       "describe " + table})
-        {
-            assertRowsNet(executeDescribeNet(keyspace, cmd), rows);
+            for (String cmd : new String[]{describeKeyword + " table " + table,
+                                           describeKeyword + " columnfamily " + table,
+                                           describeKeyword + " " + table})
+            {
+                assertRowsNet(executeDescribeNet(keyspace, cmd), rows);
+            }
         }
     }
 
     private void testDescribeIndex(String keyspace, String index, Object[]... rows) throws Throwable
     {
-        for (String cmd : new String[]{"describe index " + keyspace + "." + index,
-                                       "describe " + keyspace + "." + index})
+        for (String describeKeyword : new String[]{"describe", "desc"})
         {
-            assertRowsNet(executeDescribeNet(cmd), rows);
-        }
+            for (String cmd : new String[]{describeKeyword + " index " + keyspace + "." + index,
+                                           describeKeyword + " " + keyspace + "." + index})
+            {
+                assertRowsNet(executeDescribeNet(cmd), rows);
+            }
 
-        for (String cmd : new String[]{"describe index " + index,
-                                       "describe " + index})
-        {
-            assertRowsNet(executeDescribeNet(keyspace, cmd), rows);
+            for (String cmd : new String[]{describeKeyword + " index " + index,
+                                           describeKeyword + " " + index})
+            {
+                assertRowsNet(executeDescribeNet(keyspace, cmd), rows);
+            }
         }
     }
 
     private void testDescribeMaterializedView(String keyspace, String view, Object[]... rows) throws Throwable
     {
-        for (String cmd : new String[]{"describe materialized view " + keyspace + "." + view,
-                                       "describe " + keyspace + "." + view})
+        for (String describeKeyword : new String[]{"describe", "desc"})
         {
-            assertRowsNet(executeDescribeNet(cmd), rows);
-        }
+            for (String cmd : new String[]{describeKeyword + " materialized view " + keyspace + "." + view,
+                                           describeKeyword + " " + keyspace + "." + view})
+            {
+                assertRowsNet(executeDescribeNet(cmd), rows);
+            }
 
-        for (String cmd : new String[]{"describe materialized view " + view,
-                                       "describe " + view})
-        {
-            assertRowsNet(executeDescribeNet(keyspace, cmd), rows);
+            for (String cmd : new String[]{describeKeyword + " materialized view " + view,
+                                           describeKeyword + " " + view})
+            {
+                assertRowsNet(executeDescribeNet(keyspace, cmd), rows);
+            }
         }
     }
 
     @Test
     public void testDescribeCluster() throws Throwable
     {
-        assertRowsNet(executeDescribeNet("DESCRIBE CLUSTER"),
-                     row("Test Cluster",
-                         "ByteOrderedPartitioner",
-                         DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " CLUSTER"),
+                         row("Test Cluster",
+                             "ByteOrderedPartitioner",
+                             DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+
+            assertRowsNet(executeDescribeNet("system_virtual_schema", describeKeyword + " CLUSTER"),
+                          row("Test Cluster",
+                              "ByteOrderedPartitioner",
+                              DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+        }
 
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
         Token token = tokenMetadata.sortedTokens().get(0);
@@ -247,6 +439,56 @@ public class DescribeStatementTest extends CQLTester
                           "ByteOrderedPartitioner",
                           DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
                           ImmutableMap.of(token.toString(), ImmutableList.of(addressAndPort.toString()))));
+    }
+
+    @Test
+    public void testDescribeTableWithInternals() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (pk1 text, pk2 int, c int, s decimal static, v1 text, v2 int, v3 int, PRIMARY KEY ((pk1, pk2), c ))");
+
+        TableId id = Schema.instance.getTableMetadata(KEYSPACE, table).id;
+
+        String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                      "    pk1 text,\n" +
+                                      "    pk2 int,\n" +
+                                      "    c int,\n" +
+                                      "    s decimal static,\n" +
+                                      "    v1 text,\n" +
+                                      "    v2 int,\n" +
+                                      "    v3 int,\n" +
+                                      "    PRIMARY KEY ((pk1, pk2), c)\n" +
+                                      ") WITH ID = " + id + "\n" +
+                                      "    AND CLUSTERING ORDER BY (c ASC)\n" +
+                                      "    AND " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatement));
+
+        String dropStatement = "ALTER TABLE " + KEYSPACE + "." + table + " DROP v3 USING TIMESTAMP 1589286942065000;";
+
+        execute(dropStatement);
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatement + "\n" +
+                          dropStatement));
+
+        String addStatement = "ALTER TABLE " + KEYSPACE + "." + table + " ADD v3 int;";
+
+        execute(addStatement);
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatement + "\n" +
+                          dropStatement + "\n" +
+                          addStatement));
     }
 
     @Test
@@ -283,106 +525,54 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
-    public void testDescribeFunctionAndAggregate() throws Throwable
+    public void testDescribeTypes() throws Throwable
     {
-        String fNonOverloaded = createFunction(KEYSPACE,
-                                               "",
-                                               "CREATE OR REPLACE FUNCTION %s() " +
-                                               "CALLED ON NULL INPUT " +
-                                               "RETURNS int " +
-                                               "LANGUAGE java " +
-                                               "AS 'throw new RuntimeException();';");
+        String type1 = createType("CREATE TYPE %s (a int)");
+        String type2 = createType("CREATE TYPE %s (x text, y text)");
+        String type3 = createType("CREATE TYPE %s (a text, b frozen<" + type2 + ">)");
+        execute("ALTER TYPE " + KEYSPACE + "." + type1 + " ADD b frozen<" + type3 + ">");
 
-        String fOverloaded = createFunction(KEYSPACE,
-                                            "int, ascii",
-                                            "CREATE FUNCTION %s (input int, other_in ascii) " +
-                                            "RETURNS NULL ON NULL INPUT " +
-                                            "RETURNS text " +
-                                            "LANGUAGE java " +
-                                            "AS 'return \"Hello World\";'");
-        createFunctionOverload(fOverloaded,
-                               "text, ascii",
-                               "CREATE FUNCTION %s (input text, other_in ascii) " +
-                               "RETURNS NULL ON NULL INPUT " +
-                               "RETURNS text " +
-                               "LANGUAGE java " +
-                               "AS 'return \"Hello World\";'");
+        try
+        {
+            assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TYPES"),
+                          row(KEYSPACE, "type", type1),
+                          row(KEYSPACE, "type", type2),
+                          row(KEYSPACE, "type", type3));
 
-        assertRowsNet(executeDescribeNet("DESCRIBE FUNCTION " + fNonOverloaded),
-                      row(KEYSPACE,
-                          "function",
-                          shortFunctionName(fNonOverloaded) + "()",
-                          "CREATE FUNCTION " + fNonOverloaded + "()\n" +
-                          "    CALLED ON NULL INPUT\n" +
-                          "    RETURNS int\n" +
-                          "    LANGUAGE java\n" +
-                          "    AS $$throw new RuntimeException();$$;"));
+            assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TYPE " + type2),
+                          row(KEYSPACE, "type", type2, "CREATE TYPE " + KEYSPACE + "." + type2 + " (\n" +
+                                                       "    x text,\n" + 
+                                                       "    y text\n" +
+                                                       ");"));
+            assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TYPE " + type1),
+                          row(KEYSPACE, "type", type1, "CREATE TYPE " + KEYSPACE + "." + type1 + " (\n" +
+                                                       "    a int,\n" + 
+                                                       "    b frozen<" + type3 + ">\n" +
+                                                       ");"));
 
-        assertRowsNet(executeDescribeNet("DESCRIBE FUNCTION " + fOverloaded),
-                      row(KEYSPACE,
-                          "function",
-                          shortFunctionName(fOverloaded) + "(int, ascii)",
-                          "CREATE FUNCTION " + fOverloaded + "(input int, other_in ascii)\n" +
-                              "    RETURNS NULL ON NULL INPUT\n" +
-                              "    RETURNS text\n" +
-                              "    LANGUAGE java\n" +
-                              "    AS $$return \"Hello World\";$$;"),
-                      row(KEYSPACE,
-                          "function",
-                          shortFunctionName(fOverloaded) + "(text, ascii)",
-                          "CREATE FUNCTION " + fOverloaded + "(input text, other_in ascii)\n" +
-                              "    RETURNS NULL ON NULL INPUT\n" +
-                              "    RETURNS text\n" +
-                              "    LANGUAGE java\n" +
-                              "    AS $$return \"Hello World\";$$;"));
-
-        String fIntState = createFunction(KEYSPACE,
-                                          "int, int",
-                                          "CREATE FUNCTION %s (state int, add_to int) " +
-                                          "CALLED ON NULL INPUT " +
-                                          "RETURNS int " +
-                                          "LANGUAGE java " +
-                                          "AS 'return state + add_to;'");
-        String fFinal = createFunction(KEYSPACE,
-                                       "int",
-                                       "CREATE FUNCTION %s (state int) " +
-                                       "RETURNS NULL ON NULL INPUT " +
-                                       "RETURNS int " +
-                                       "LANGUAGE java " +
-                                       "AS 'return state;'");
-
-        String aNonDeterministic = createAggregate(KEYSPACE,
-                                                   "int",
-                                                   format("CREATE AGGREGATE %%s(int) " +
-                                                                 "SFUNC %s " +
-                                                                 "STYPE int " +
-                                                                 "INITCOND 42",
-                                                                 shortFunctionName(fIntState)));
-        String aDeterministic = createAggregate(KEYSPACE,
-                                                "int",
-                                                format("CREATE AGGREGATE %%s(int) " +
-                                                              "SFUNC %s " +
-                                                              "STYPE int " +
-                                                              "FINALFUNC %s ",
-                                                              shortFunctionName(fIntState),
-                                                              shortFunctionName(fFinal)));
-
-        assertRowsNet(executeDescribeNet("DESCRIBE AGGREGATE " + aNonDeterministic),
-                      row(KEYSPACE,
-                          "aggregate",
-                          shortFunctionName(aNonDeterministic) + "(int)",
-                          "CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
-                          "    SFUNC " + shortFunctionName(fIntState) + "\n" +
-                          "    STYPE int\n" +
-                          "    INITCOND 42;"));
-        assertRowsNet(executeDescribeNet("DESCRIBE AGGREGATE " + aDeterministic),
-                      row(KEYSPACE,
-                          "aggregate",
-                          shortFunctionName(aDeterministic) + "(int)",
-                          "CREATE AGGREGATE " + aDeterministic + "(int)\n" +
-                                         "    SFUNC " + shortFunctionName(fIntState) + "\n" +
-                                         "    STYPE int\n" +
-                                         "    FINALFUNC " + shortFunctionName(fFinal) + ";"));
+            assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE KEYSPACE " + KEYSPACE),
+                          row(KEYSPACE, "keyspace", KEYSPACE, "CREATE KEYSPACE " + KEYSPACE + "\n" +
+                                                          "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
+                                                          "     AND durable_writes = true;"),
+                          row(KEYSPACE, "type", type2, "CREATE TYPE " + KEYSPACE + "." + type2 + " (\n" +
+                                                       "    x text,\n" + 
+                                                       "    y text\n" +
+                                                       ");"),
+                          row(KEYSPACE, "type", type3, "CREATE TYPE " + KEYSPACE + "." + type3 + " (\n" +
+                                                       "    a text,\n" + 
+                                                       "    b frozen<" + type2 + ">\n" +
+                                                       ");"),
+                          row(KEYSPACE, "type", type1, "CREATE TYPE " + KEYSPACE + "." + type1 + " (\n" +
+                                                       "    a int,\n" + 
+                                                       "    b frozen<" + type3 + ">\n" +
+                                                       ");"));
+        }
+        finally
+        {
+            execute("DROP TYPE " + KEYSPACE + "." + type1);
+            execute("DROP TYPE " + KEYSPACE + "." + type3);
+            execute("DROP TYPE " + KEYSPACE + "." + type2);
+        }
     }
 
     /**
@@ -399,18 +589,21 @@ public class DescribeStatementTest extends CQLTester
     @Test
     public void testDescribeRoundtrip() throws Throwable
     {
-        String table = createTable("CREATE TABLE %s (key int PRIMARY KEY) WITH compaction = {'class': 'LeveledCompactionStrategy'}");
+        for (String withInternals : new String[]{"", " WITH INTERNALS"})
+        {
+            String table = createTable("CREATE TABLE %s (key int PRIMARY KEY) WITH compaction = {'class': 'LeveledCompactionStrategy'}");
 
-        String output = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table).all().get(0).getString("create_statement");
+            String output = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table + withInternals).all().get(0).getString("create_statement");
 
-        execute("DROP TABLE %s");
+            execute("DROP TABLE %s");
 
-        executeNet(output);
+            executeNet(output);
 
-        String output2 = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table).all().get(0).getString("create_statement");
-        assertEquals(output, output2);
+            String output2 = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table + withInternals).all().get(0).getString("create_statement");
+            assertEquals(output, output2);
 
-        execute("INSERT INTO %s (key) VALUES (1)");
+            execute("INSERT INTO %s (key) VALUES (1)");
+        }
     }
 
     private static String allTypesTable()
@@ -441,22 +634,7 @@ public class DescribeStatementTest extends CQLTester
                "    mapcol map<timestamp, timeuuid>,\n" +
                "    setcol set<tinyint>,\n" +
                "    PRIMARY KEY (num)\n" +
-               ") WITH bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND additional_write_policy = '99p';";
+               ") WITH " + tableParametersCql();
     }
 
     private static String usersByStateMvOutput()
@@ -467,22 +645,7 @@ public class DescribeStatementTest extends CQLTester
                "    WHERE state IS NOT NULL AND username IS NOT NULL\n" +
                "    PRIMARY KEY (state, username)\n" +
                " WITH CLUSTERING ORDER BY (username ASC)\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND additional_write_policy = '99p';";
+               "    AND " + tableParametersCql();
     }
 
     private static String indexOutput(String index, String table, String col)
@@ -500,22 +663,7 @@ public class DescribeStatementTest extends CQLTester
                "    session_token text,\n" +
                "    state text,\n" +
                "    PRIMARY KEY (username)\n" +
-               ") WITH bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND additional_write_policy = '99p';";
+               ") WITH " + tableParametersCql();
     }
 
     private static String userTableOutput()
@@ -526,7 +674,23 @@ public class DescribeStatementTest extends CQLTester
                "    firstname text,\n" +
                "    lastname text,\n" +
                "    PRIMARY KEY (userid)\n" +
-               ") WITH bloom_filter_fp_chance = 0.01\n" +
+               ") WITH " + tableParametersCql();
+    }
+
+    private static String testTableOutput()
+    {
+        return "CREATE TABLE test.\"Test\" (\n" +
+                   "    id int,\n" +
+                   "    col int,\n" +
+                   "    val text,\n"  +
+                   "    PRIMARY KEY (id, col)\n" +
+                   ") WITH CLUSTERING ORDER BY (col ASC)\n" +
+                   "    AND " + tableParametersCql();
+    }
+
+    private static String tableParametersCql()
+    {
+        return "bloom_filter_fp_chance = 0.01\n" +
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
@@ -542,39 +706,6 @@ public class DescribeStatementTest extends CQLTester
                "    AND read_repair = 'BLOCKING'\n" +
                "    AND speculative_retry = '99p'\n" +
                "    AND additional_write_policy = '99p';";
-    }
-
-    private static String testTableOutput(boolean hasVal, boolean withParams)
-    {
-        String s = "CREATE TABLE test.\"Test\" (\n" +
-                   "    id int,\n" +
-                   "    col int,\n" +
-                   (hasVal ? "    val text,\n" : "") +
-                   "    PRIMARY KEY (id, col)\n" +
-                   ") WITH ";
-
-        if (withParams)
-        {
-            s +=
-               "CLUSTERING ORDER BY (col ASC)\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND additional_write_policy = '99p'";
-        }
-        return s + ';';
     }
 
     private static String keyspaceOutput()

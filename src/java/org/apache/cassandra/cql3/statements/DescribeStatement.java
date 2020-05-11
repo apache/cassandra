@@ -394,7 +394,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             Stream<KeyspaceMetadata> stream = keyspace == null ? keyspaces.stream().sorted(SchemaElement.NAME_COMPARATOR)
                                                                : Stream.of(validateKeyspace(keyspace, keyspaces));
 
-            return stream.flatMap(k -> elementsProvider.apply(k));
+            return stream.flatMap(k -> elementsProvider.apply(k).sorted(SchemaElement.NAME_COMPARATOR));
         }
 
         @Override
@@ -417,7 +417,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> tables()
     {
-        return new Listing(ks -> ks.tables.stream().sorted(SchemaElement.NAME_COMPARATOR));
+        return new Listing(ks -> ks.tables.stream());
     }
 
     /**
@@ -433,7 +433,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> functions()
     {
-        return new Listing(ks -> ks.functions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
+        return new Listing(ks -> ks.functions.udfs());
     }
 
     /**
@@ -441,7 +441,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> aggregates()
     {
-        return new Listing(ks -> ks.functions.udas().sorted(SchemaElement.NAME_COMPARATOR));
+        return new Listing(ks -> ks.functions.udas());
     }
 
     /**
@@ -569,7 +569,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 
         if (!onlyKeyspace)
         {
-            s = Stream.concat(s, ks.types.stream());
+            s = Stream.concat(s, ks.types.sortedStream());
             s = Stream.concat(s, ks.functions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
             s = Stream.concat(s, ks.functions.udas().sorted(SchemaElement.NAME_COMPARATOR));
             s = Stream.concat(s, ks.tables.stream().sorted(SchemaElement.NAME_COMPARATOR)
@@ -788,7 +788,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                                             "org.apache.cassandra.locator."));
  
                 String useKs = state.getRawKeyspace();
-                if (useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs))
+                if (mustReturnsRangeOwnerships(useKs))
                 {
                     list.add(StorageService.instance.getRangeToAddressMap(useKs)
                                                     .entrySet()
@@ -803,6 +803,11 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 return Stream.of(list);
             }
 
+            private boolean mustReturnsRangeOwnerships(String useKs)
+            {
+                return useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs) && !SchemaConstants.isSystemKeyspace(useKs);
+            }
+
             @Override
             protected List<ColumnSpecification> metadata(ClientState state)
             {
@@ -811,12 +816,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("partitioner", true), UTF8Type.instance),
                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("snitch", true), UTF8Type.instance));
 
-                String useKs = state.getRawKeyspace();
-                if (useKs != null && !SchemaConstants.isLocalSystemKeyspace(useKs))
-                {
+                if (mustReturnsRangeOwnerships(state.getRawKeyspace()))
                     builder.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("range_ownership", true), MapType.getInstance(UTF8Type.instance,
                                                                                                                                    ListType.getInstance(UTF8Type.instance, false), false)));
-                }
 
                 return builder.build();
             }

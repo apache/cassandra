@@ -1143,7 +1143,7 @@ public final class TableMetadata implements SchemaElement
      * insertion ordering is important and ensures that if a user type A uses another user type B, then B will appear
      * before A in iteration order.
      */
-    public static void addUserTypes(AbstractType<?> type, Set<ByteBuffer> types)
+    private static void addUserTypes(AbstractType<?> type, Set<ByteBuffer> types)
     {
         // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
         type.subTypes().forEach(t -> addUserTypes(t, types));
