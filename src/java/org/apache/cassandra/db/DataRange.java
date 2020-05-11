@@ -67,7 +67,7 @@ public class DataRange
      */
     public static DataRange allData(IPartitioner partitioner)
     {
-        return forTokenRange(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
+        return forTokenRange(new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
     }
 
     /**
@@ -105,7 +105,7 @@ public class DataRange
      */
     public static DataRange allData(IPartitioner partitioner, ClusteringIndexFilter filter)
     {
-        return new DataRange(Range.makeRowRange(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken())), filter);
+        return new DataRange(Range.makeRowRange(new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())), filter);
     }
 
     /**
@@ -278,16 +278,19 @@ public class DataRange
     {
         sb.append("token(");
         sb.append(ColumnMetadata.toCQLString(metadata.partitionKeyColumns()));
-        sb.append(") ").append(getOperator(isStart, isInclusive)).append(" ");
+        sb.append(") ");
         if (pos instanceof DecoratedKey)
         {
+            sb.append(getOperator(isStart, isInclusive)).append(" ");
             sb.append("token(");
             appendKeyString(sb, metadata.partitionKeyType, ((DecoratedKey)pos).getKey());
             sb.append(")");
         }
         else
         {
-            sb.append(((Token.KeyBound)pos).getToken());
+            Token.KeyBound keyBound = (Token.KeyBound) pos;
+            sb.append(getOperator(isStart, isStart == keyBound.isMinimumBound)).append(" ");
+            sb.append(keyBound.getToken());
         }
     }
 
