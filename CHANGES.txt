@@ -24,6 +24,7 @@
  * Replace array iterators with get by index (CASSANDRA-15394)
  * Minimize BTree iterator allocations (CASSANDRA-15389)
 Merged from 3.11:
+ * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
  * liveDiskSpaceUsed and totalDiskSpaceUsed get corrupted if IndexSummaryRedistribution gets interrupted (CASSANDRA-15674)
  * Fix Debian init start/stop (CASSANDRA-15770)
