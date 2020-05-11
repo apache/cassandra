@@ -1329,6 +1329,25 @@ compaction_tombstone_warning_threshold: 100000
 # as corrupted. This should be positive and less than 2048.
 # max_value_size_in_mb: 256
 
+# ** Impact on keyspace creation **
+# If replication factor is not mentioned as part of keyspace creation, default_keyspace_rf would apply.
+# Changing this configuration would only take effect for keyspaces created after the change, but does not impact
+# existing keyspaces created prior to the change.
+# ** Impact on keyspace alter **
+# When altering a keyspace from NetworkTopologyStrategy to SimpleStrategy, default_keyspace_rf is applied if rf is not
+# explicitly mentioned.
+# ** Impact on system keyspaces **
+# This would also apply for any system keyspaces that need replication factor.
+# A further note about system keyspaces - system_traces and system_distributed keyspaces take RF of 2 or default,
+# whichever is higher, and system_auth keyspace takes RF of 1 or default, whichever is higher.
+# Suggested value for use in production: 3
+# default_keyspace_rf: 1
+
+# The minimum allowable replication factor. Creating a keyspace with a replication factor less than this value will be rejected.
+# This would also apply to system keyspaces.
+# Suggested value for use in production: 2 or higher
+# minimum_keyspace_rf: 0
+
 # Coalescing Strategies #
 # Coalescing multiples messages turns out to significantly boost message processing throughput (think doubling or more).
 # On bare metal, the floor for packet processing throughput is high enough that many applications won't notice, but in

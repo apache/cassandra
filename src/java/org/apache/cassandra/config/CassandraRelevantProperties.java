@@ -211,6 +211,8 @@ public enum CassandraRelevantProperties
     BATCH_COMMIT_LOG_SYNC_INTERVAL("cassandra.batch_commitlog_sync_interval_millis", "1000"),
 
     SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),
+    SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
+    SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
 
     MEMTABLE_OVERHEAD_SIZE("cassandra.memtable.row_overhead_size", "-1"),
     MEMTABLE_OVERHEAD_COMPUTE_STEPS("cassandra.memtable_row_overhead_computation_step", "100000"),

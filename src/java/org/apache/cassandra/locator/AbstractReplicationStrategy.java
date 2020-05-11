@@ -433,6 +433,12 @@ public abstract class AbstractReplicationStrategy
         try
         {
             ReplicationFactor rf = ReplicationFactor.fromString(s);
+
+            if (rf.fullReplicas < DatabaseDescriptor.getMinimumKeyspaceRF())
+            {
+                throw new ConfigurationException(String.format("Replication factor cannot be less than minimum_keyspace_rf (%d), found %d", DatabaseDescriptor.getMinimumKeyspaceRF(), rf.fullReplicas));
+            }
+
             if (rf.hasTransientReplicas())
             {
                 if (DatabaseDescriptor.getNumTokens() > 1)

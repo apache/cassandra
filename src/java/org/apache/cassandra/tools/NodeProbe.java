@@ -1968,6 +1968,26 @@ public class NodeProbe implements AutoCloseable
     {
         return AuditLogOptionsCompositeData.fromCompositeData(almProxy.getAuditLogOptionsData());
     }
+
+    public void setDefaultKeyspaceReplicationFactor(int value)
+    {
+        ssProxy.setDefaultKeyspaceReplicationFactor(value);
+    }
+
+    public int getDefaultKeyspaceReplicationFactor()
+    {
+        return ssProxy.getDefaultKeyspaceReplicationFactor();
+    }
+
+    public void setMinimumKeyspaceReplicationFactor(int value)
+    {
+        ssProxy.setMinimumKeyspaceReplicationFactor(value);
+    }
+
+    public int getMinimumKeyspaceReplicationFactor()
+    {
+        return ssProxy.getMinimumKeyspaceReplicationFactor();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
