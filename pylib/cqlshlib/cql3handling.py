@@ -23,6 +23,7 @@ simple_cql_types = set(('ascii', 'bigint', 'blob', 'boolean', 'counter', 'date',
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
 from . import helptopics
+helptopics = helptopics
 cqldocs = helptopics.CQL3HelpTopics()
 
 

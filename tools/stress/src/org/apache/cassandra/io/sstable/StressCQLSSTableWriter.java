@@ -187,7 +187,7 @@ public class StressCQLSSTableWriter implements Closeable
      * <p>
      * Please note that the column names in the map keys must be in lowercase unless
      * the declared column name is a
-     * <a href="http://cassandra.apache.org/doc/cql3/CQL.html#identifiers">case-sensitive quoted identifier</a>
+     * <a href="http://cassandra.apache.org/doc/old/CQL-3.0.html#identifiers">case-sensitive quoted identifier</a>
      * (in which case the map key must use the exact case of the column).
      *
      * @param values a map of colum name to column values representing the new
