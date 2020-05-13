@@ -1327,9 +1327,9 @@ public final class SystemKeyspace
     }
 
     /**
-     * truncates size_estimates and table_estimates tabless
+     * truncates size_estimates and table_estimates tables
      */
-    public static void truncateSizeEstimates()
+    public static void clearAllEstimates()
     {
         for (TableMetadata table : Arrays.asList(LegacySizeEstimates, TableEstimates))
         {

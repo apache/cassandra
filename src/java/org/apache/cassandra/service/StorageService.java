@@ -3670,7 +3670,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void cleanupSizeEstimates()
     {
-        SystemKeyspace.truncateSizeEstimates();
+        SystemKeyspace.clearAllEstimates();
     }
 
     /**
