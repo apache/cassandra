@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -126,24 +127,55 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     private final ConcurrentMap<UUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
 
-    public final static ExecutorService repairCommandExecutor;
     static
     {
-        Config.RepairCommandPoolFullStrategy strategy = DatabaseDescriptor.getRepairCommandPoolFullStrategy();
+        RepairMetrics.init();
+    }
+
+    public static class RepairCommandExecutorHandle
+    {
+        private static final ThreadPoolExecutor repairCommandExecutor =
+            initializeExecutor(DatabaseDescriptor.getRepairCommandPoolSize(),
+                               DatabaseDescriptor.getRepairCommandPoolFullStrategy());
+    }
+
+    @VisibleForTesting
+    static ThreadPoolExecutor initializeExecutor(int maxPoolSize, Config.RepairCommandPoolFullStrategy strategy)
+    {
+        int corePoolSize = 1;
         BlockingQueue<Runnable> queue;
         if (strategy == Config.RepairCommandPoolFullStrategy.reject)
+        {
+            // new threads will be created on demand up to max pool
+            // size so we can leave corePoolSize at 1 to start with
             queue = new SynchronousQueue<>();
+        }
         else
+        {
+            // new threads are only created if > corePoolSize threads are running
+            // and the queue is full, so set corePoolSize to the desired max as the
+            // queue will _never_ be full. Idle core threads will eventually time
+            // out and may be re-created if/when subsequent tasks are submitted.
+            corePoolSize = maxPoolSize;
             queue = new LinkedBlockingQueue<>();
+        }
 
-        repairCommandExecutor = new JMXEnabledThreadPoolExecutor(1,
-                                                                 DatabaseDescriptor.getRepairCommandPoolSize(),
-                                                                 1, TimeUnit.HOURS,
-                                                                 queue,
-                                                                 new NamedThreadFactory("Repair-Task"),
-                                                                 "internal",
-                                                                 new ThreadPoolExecutor.AbortPolicy());
-        RepairMetrics.init();
+        ThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(corePoolSize,
+                                                                       maxPoolSize,
+                                                                       1,
+                                                                       TimeUnit.HOURS,
+                                                                       queue,
+                                                                       new NamedThreadFactory("Repair-Task"),
+                                                                       "internal",
+                                                                       new ThreadPoolExecutor.AbortPolicy());
+        // allow idle core threads to be terminated
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
+
+    public static ThreadPoolExecutor repairCommandExecutor()
+    {
+        return RepairCommandExecutorHandle.repairCommandExecutor;
     }
 
     private final IFailureDetector failureDetector;
@@ -461,10 +493,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
         try
         {
-            // Failed repair is expensive so we wait for longer time.
-            if (!prepareLatch.await(1, TimeUnit.HOURS)) {
+            if (!prepareLatch.await(DatabaseDescriptor.getRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
                 failRepair(parentRepairSession, "Did not get replies from all endpoints.");
-            }
         }
         catch (InterruptedException e)
         {

@@ -42,19 +42,19 @@ public abstract class RepairCoordinatorTimeout extends RepairCoordinatorBase
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
                   .failure()
-                  .errorContains("Got negative replies from endpoints [127.0.0.2:7012]");
+                  .errorContains("Did not get replies from all endpoints.");
             if (withNotifications)
             {
                 result.asserts()
                       .notificationContains(NodeToolResult.ProgressEventType.START, "Starting repair command")
                       .notificationContains(NodeToolResult.ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Got negative replies from endpoints [127.0.0.2:7012]")
+                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Did not get replies from all endpoints.")
                       .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
             }
 
             if (repairType != RepairType.PREVIEW)
             {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Got negative replies from endpoints [127.0.0.2:7012]");
+                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Did not get replies from all endpoints.");
             }
             else
             {
