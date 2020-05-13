@@ -216,7 +216,6 @@ public class Config
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
     public int min_free_space_per_drive_in_mb = 50;
 
-    public volatile int concurrent_validations = Integer.MAX_VALUE;
     public volatile int concurrent_materialized_view_builders = 1;
 
     /**
@@ -416,6 +415,7 @@ public class Config
     public volatile boolean back_pressure_enabled = false;
     public volatile ParameterizedClass back_pressure_strategy;
 
+    public volatile int concurrent_validations;
     public RepairCommandPoolFullStrategy repair_command_pool_full_strategy = RepairCommandPoolFullStrategy.queue;
     public int repair_command_pool_size = concurrent_validations;
 

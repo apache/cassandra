@@ -1440,6 +1440,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         CompactionManager.instance.setConcurrentCompactors(value);
     }
 
+    public void bypassConcurrentValidatorsLimit()
+    {
+        logger.info("Enabling the ability to set concurrent validations to an unlimited value");
+        DatabaseDescriptor.allowUnlimitedConcurrentValidations = true ;
+    }
+
+    public void enforceConcurrentValidatorsLimit()
+    {
+        logger.info("Disabling the ability to set concurrent validations to an unlimited value");
+        DatabaseDescriptor.allowUnlimitedConcurrentValidations = false ;
+    }
+
+    public boolean isConcurrentValidatorsLimitEnforced()
+    {
+        return DatabaseDescriptor.allowUnlimitedConcurrentValidations;
+    }
+
     public int getConcurrentValidators()
     {
         return DatabaseDescriptor.getConcurrentValidations();
@@ -1447,8 +1464,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setConcurrentValidators(int value)
     {
+        int concurrentCompactors = DatabaseDescriptor.getConcurrentCompactors();
+        if (value > concurrentCompactors && !DatabaseDescriptor.allowUnlimitedConcurrentValidations)
+            throw new IllegalArgumentException(
+            String.format("Cannot set concurrent_validations greater than concurrent_compactors (%d)",
+                          concurrentCompactors));
+
+        if (value <= 0)
+        {
+            logger.info("Using default value of concurrent_compactors ({}) for concurrent_validations", concurrentCompactors);
+            value = concurrentCompactors;
+        }
+        else
+        {
+            logger.info("Setting concurrent_validations to {}", value);
+        }
+
         DatabaseDescriptor.setConcurrentValidations(value);
-        CompactionManager.instance.setConcurrentValidations(DatabaseDescriptor.getConcurrentValidations());
+        CompactionManager.instance.setConcurrentValidations();
     }
 
     public int getConcurrentViewBuilders()
@@ -3733,7 +3766,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return Pair.create(0, Futures.immediateFuture(null));
 
         int cmd = nextRepairCommand.incrementAndGet();
-        return Pair.create(cmd, ActiveRepairService.repairCommandExecutor.submit(createRepairTask(cmd, keyspace, option, listeners)));
+        return Pair.create(cmd, ActiveRepairService.repairCommandExecutor().submit(createRepairTask(cmd, keyspace, option, listeners)));
     }
 
     /**

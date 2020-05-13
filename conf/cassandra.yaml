@@ -814,8 +814,13 @@ column_index_cache_size_in_kb: 2
 # to the number of cores.
 #concurrent_compactors: 1
 
-# Number of simultaneous repair validations to allow. Default is unbounded
-# Values less than one are interpreted as unbounded (the default)
+# Number of simultaneous repair validations to allow. If not set or set to
+# a value less than 1, it defaults to the value of concurrent_compactors.
+# To set a value greeater than concurrent_compactors at startup, the system
+# property cassandra.allow_unlimited_concurrent_validations must be set to
+# true. To dynamically resize to a value > concurrent_compactors on a running
+# node, first call the bypassConcurrentValidatorsLimit method on the
+# org.apache.cassandra.db:type=StorageService mbean
 # concurrent_validations: 0
 
 # Number of simultaneous materialized view builder tasks to allow.
