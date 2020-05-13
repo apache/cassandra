@@ -1537,8 +1537,12 @@ public abstract class LegacyLayout
 
         private boolean addCollectionTombstone(LegacyRangeTombstone tombstone)
         {
+            // If the collection tombstone is not included in the query (which technically would only apply to thrift
+            // queries since CQL one "fetch" everything), we can skip it (so return), but we're problably still within
+            // the current row so we return `true`. Technically, it is possible that tombstone belongs to another row
+            // that the row currently grouped, but as we ignore it, returning `true` is ok in that case too.
             if (!helper.includes(tombstone.start.collectionName))
-                return false; // see CASSANDRA-13109
+                return true; // see CASSANDRA-13109
 
             // The helper needs to be informed about the current complex column identifier before
             // it can perform the comparison between the recorded drop time and the RT deletion time.
