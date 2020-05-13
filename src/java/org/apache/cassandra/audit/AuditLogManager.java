@@ -89,10 +89,10 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     {
         if (logger.class_name != null)
         {
-            return FBUtilities.newAuditLogger(logger.class_name, logger.parameters);
+            return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
         }
 
-        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName(), null);
+        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName(), Collections.emptyMap());
     }
 
     @VisibleForTesting
