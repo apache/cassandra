@@ -449,6 +449,13 @@ public class OutboundConnectionSettings
         return connectTo;
     }
 
+    public String connectToId()
+    {
+        return !to.equals(connectTo())
+             ? to.toString()
+             : to.toString() + '(' + connectTo().toString() + ')';
+    }
+
     public Framing framing(ConnectionCategory category)
     {
         if (framing != null)
