@@ -57,6 +57,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
@@ -92,13 +93,16 @@ public class PreviewRepairTest extends TestBaseImpl
                 FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
                 cfs.disableAutoCompaction();
             }));
+
             cluster.get(1).callOnInstance(repair(options(false)));
+
             // now re-enable autocompaction on node1, this moves the sstables for the new repair to repaired
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
                 cfs.enableAutoCompaction();
                 FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
             });
+
             RepairResult rs = cluster.get(1).callOnInstance(repair(options(true)));
             assertTrue(rs.success); // preview repair should succeed
             assertFalse(rs.wasInconsistent); // and we should see no mismatches
@@ -339,7 +343,7 @@ public class PreviewRepairTest extends TestBaseImpl
             SimpleCondition await = new SimpleCondition();
             AtomicBoolean success = new AtomicBoolean(true);
             AtomicBoolean wasInconsistent = new AtomicBoolean(false);
-            StorageService.instance.repair(KEYSPACE, options, ImmutableList.of((tag, event) -> {
+            Pair<Integer, Future<?>> result = StorageService.instance.repair(KEYSPACE, options, ImmutableList.of((tag, event) -> {
                 if (event.getType() == ProgressEventType.ERROR)
                 {
                     success.set(false);
@@ -352,6 +356,7 @@ public class PreviewRepairTest extends TestBaseImpl
                 else if (event.getType() == ProgressEventType.COMPLETE)
                     await.signalAll();
             }));
+
             try
             {
                 await.await(1, TimeUnit.MINUTES);
@@ -360,6 +365,18 @@ public class PreviewRepairTest extends TestBaseImpl
             {
                 throw new RuntimeException(e);
             }
+
+            //double check for completion status in case of lossy notification
+            List<String> status = StorageService.instance.getParentRepairStatus(result.left);
+
+            if (ActiveRepairService.ParentRepairStatus.valueOf(status.get(0)) == ActiveRepairService.ParentRepairStatus.COMPLETED)
+                await.signalAll();
+            else if(ActiveRepairService.ParentRepairStatus.valueOf(status.get(0)) == ActiveRepairService.ParentRepairStatus.FAILED)
+            {
+                success.set(false);
+                await.signalAll();
+            }
+
             return new RepairResult(success.get(), wasInconsistent.get());
         };
     }
