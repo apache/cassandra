@@ -49,11 +49,8 @@ should consider setting the following properties:
 - ``cluster_name``: Set the name of your cluster.
 - ``seeds``: A comma separated list of the IP addresses of your cluster :term:`seed nodes`.
 - ``storage_port``: Check that you don't have the default port of 7000 blocked by a firewall.
-- ``listen_address``: The :term:`listen address` is the IP address of a node that allows it to communicate with other nodes in the cluster.
-Set to `localhost` by default. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to
-use, and consecutively which address to use. Set one property, not both.
-- ``native_transport_port``: Check that you don't have the default port of 9042 blocked by a firewall, so that clients like cqlsh can
-  communicate with Cassandra on this port.
+- ``listen_address``: The :term:`listen address` is the IP address of a node that allows it to communicate with other nodes in the cluster. Set to `localhost` by default. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to use, and consecutively which address to use. Set one property, not both.
+- ``native_transport_port``: Check that you don't have the default port of 9042 blocked by a firewall, so that clients like cqlsh can communicate with Cassandra on this port.
 
 Changing the location of directories
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
