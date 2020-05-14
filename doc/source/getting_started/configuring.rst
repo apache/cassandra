@@ -43,17 +43,16 @@ Two sample configuration files can also be found in ``./conf``:
 Main runtime properties
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Most of configuration in Cassandra is done via yaml properties that can be set in ``cassandra.yaml``. At a minimum you
+Configuring Cassandra is done by setting yaml properties in the ``cassandra.yaml`` file. At a minimum you
 should consider setting the following properties:
 
-- ``cluster_name``: the name of your cluster.
-- ``seeds``: a comma separated list of the IP addresses of your cluster seeds.
-- ``storage_port``: you don't necessarily need to change this but make sure that there are no firewalls blocking this
-  port.
-- ``listen_address``: the IP address of your node, this is what allows other nodes to communicate with this node so it
-  is important that you change it. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to
-  use, and consecutively which address to use. Set only one, not both.
-- ``native_transport_port``: as for storage\_port, make sure this port is not blocked by firewalls as clients will
+- ``cluster_name``: Set the name of your cluster.
+- ``seeds``: A comma separated list of the IP addresses of your cluster :term:`seed nodes`.
+- ``storage_port``: Check that you don't have the default port of 7000 blocked by a firewall.
+- ``listen_address``: The :term:`listen address` is the IP address of a node that allows it to communicate with other nodes in the cluster.
+Set to `localhost` by default. Alternatively, you can set ``listen_interface`` to tell Cassandra which interface to
+use, and consecutively which address to use. Set one property, not both.
+- ``native_transport_port``: Check that you don't have the default port of 9042 blocked by a firewall, so that clients like cqlsh can
   communicate with Cassandra on this port.
 
 Changing the location of directories
