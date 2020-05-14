@@ -20,9 +20,9 @@ Configuring Cassandra
 The :term:`Cassandra` configuration files location varies, depending on the type of installation:
 
 - tarball: ``conf`` directory within the tarball install lcation
-- package: ``/etc/cassandra` directory
+- package: ``/etc/cassandra`` directory
 
-Cassandra's default configuration file, ``./conf/cassandra.yaml``, is sufficient to explore a simple single-node :term:`cluster`.
+Cassandra's default configuration file, ``cassandra.yaml``, is sufficient to explore a simple single-node :term:`cluster`.
 However, anything beyond running a single-node cluster locally requires additional configuration to various Cassandra configuration files.
 Some examples that require non-default configuration are deploying a multi-node cluster or using clients that are not running on a cluster node.
 
@@ -37,8 +37,6 @@ Two sample configuration files can also be found in ``./conf``:
 
 - ``metrics-reporter-config-sample.yaml``: configuring what the metrics-report will collect
 - ``cqlshrc.sample``: how the CQL shell, cqlsh, can be configured
-
-
 
 Main runtime properties
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -57,10 +55,10 @@ Changing the location of directories
 
 The following yaml properties control the location of directories:
 
-- ``data_file_directories``: one or more directories where data files are located.
-- ``commitlog_directory``: the directory where commitlog files are located.
-- ``saved_caches_directory``: the directory where saved caches are located.
-- ``hints_directory``: the directory where hints are located.
+- ``data_file_directories``: One or more directories where data files, like :term:`SSTables` are located.
+- ``commitlog_directory``: The directory where commitlog files are located.
+- ``saved_caches_directory``: The directory where saved caches are located.
+- ``hints_directory``: The directory where :term:`hints` are located.
 
 For performance reasons, if you have multiple disks, consider putting commitlog and data files on different disks.
 
@@ -68,12 +66,15 @@ Environment variables
 ^^^^^^^^^^^^^^^^^^^^^
 
 JVM-level settings such as heap size can be set in ``cassandra-env.sh``.  You can add any additional JVM command line
-argument to the ``JVM_OPTS`` environment variable; when Cassandra starts these arguments will be passed to the JVM.
+argument to the ``JVM_OPTS`` environment variable; when Cassandra starts, these arguments will be passed to the JVM.
 
 Logging
 ^^^^^^^
 
-The logger in use is logback. You can change logging properties by editing ``logback.xml``. By default it will log at
-INFO level into a file called ``system.log`` and at debug level into a file called ``debug.log``. When running in the
-foreground, it will also log at INFO level to the console.
+The default logger is `logback`. By default it will log:
+
+- **INFO** level in``system.log`` 
+- **DEBUG** level in ``debug.log``
+
+When running in the foreground, it will also log at INFO level to the console. You can change logging properties by editing ``logback.xml``.
 
