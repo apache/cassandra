@@ -19,7 +19,7 @@ Configuring Cassandra
 
 The :term:`Cassandra` configuration files location varies, depending on the type of installation:
 
-- tarball: ``*install_dir*/conf`` directory within the tarball install location
+- tarball: ``conf`` directory within the tarball install location
 - package: ``/etc/cassandra`` directory
 
 Cassandra's default configuration file, ``cassandra.yaml``, is sufficient to explore a simple single-node :term:`cluster`.
