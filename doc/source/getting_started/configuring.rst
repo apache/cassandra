@@ -19,7 +19,7 @@ Configuring Cassandra
 
 The :term:`Cassandra` configuration files location varies, depending on the type of installation:
 
-- tarball: ``conf`` directory within the tarball install lcation
+- tarball: ``*install_dir*/conf`` directory within the tarball install location
 - package: ``/etc/cassandra`` directory
 
 Cassandra's default configuration file, ``cassandra.yaml``, is sufficient to explore a simple single-node :term:`cluster`.
@@ -73,8 +73,8 @@ Logging
 
 The default logger is `logback`. By default it will log:
 
-- **INFO** level in``system.log`` 
+- **INFO** level in ``system.log`` 
 - **DEBUG** level in ``debug.log``
 
-When running in the foreground, it will also log at INFO level to the console. You can change logging properties by editing ``logback.xml``.
+When running in the foreground, it will also log at INFO level to the console. You can change logging properties by editing ``logback.xml`` or by running the `nodetool setlogginglevel` command.
 
