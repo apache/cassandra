@@ -562,6 +562,10 @@ public abstract class Message
                     if (null == sending)
                     {
                         sending = flush.dispatcher.framePayloadAllocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
+                        // BufferPool may give us a buffer larger than we asked for. FrameEncoder may
+                        // object if buffer.remaining is >= MAX_SIZE.
+                        // TODO a better way to deal with this
+                        sending.buffer.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                         payloads.put(flush.ctx, sending);
                     }
 
@@ -583,6 +587,7 @@ public abstract class Message
             {
                 FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
                 ByteBuffer buf = largePayload.buffer;
+                buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                 outbound.encodeHeaderInto(buf);
 
                 int capacityRemaining = buf.limit() - buf.position();
@@ -597,6 +602,7 @@ public abstract class Message
                 {
                     largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
                     buf = largePayload.buffer;
+                    buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                     int remaining = Math.min(buf.remaining(), body.readableBytes());
                     buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
                     body.readerIndex(idx + remaining);
@@ -610,6 +616,7 @@ public abstract class Message
                 {
                     largePayload = allocator.allocate(false, body.readableBytes());
                     buf = largePayload.buffer;
+                    buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                     buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
                     largePayload.finish();
                     ctx.writeAndFlush(largePayload, ctx.voidPromise());
