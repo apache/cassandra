@@ -643,9 +643,9 @@ public class Server implements CassandraDaemon.Server
             FrameEncoder messageFrameEncoder = frameEncoder(startup);
 
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
-            Message.Dispatcher dispatcher =
-                new Message.Dispatcher(tracker,
-                                       loop -> Message.Dispatcher.Flusher.v5(loop, messageFrameEncoder.allocator()));
+            Message.Dispatcher dispatcher = new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
+                                                                   tracker,
+                                                                   messageFrameEncoder.allocator());
 
             Consumer<Message> messageConsumer = message -> {
                 dispatcher.dispatch(ctx, (Message.Request)message);
@@ -700,18 +700,12 @@ public class Server implements CassandraDaemon.Server
             pipeline.addBefore("initial", "frameCompressor", Frame.Compressor.instance);
             pipeline.addBefore("initial", "messageDecoder", Message.ProtocolDecoder.instance);
             pipeline.addBefore("initial", "messageEncoder", Message.ProtocolEncoder.instance);
-            pipeline.addBefore("initial", "executor", new Message.Dispatcher(tracker,
-                                                                loop -> DatabaseDescriptor.useNativeTransportLegacyFlusher()
-                                                                        ? Message.Dispatcher.Flusher.legacy(loop)
-                                                                        : Message.Dispatcher.Flusher.immediate(loop)));
+            pipeline.addBefore("initial", "executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
+                                                                             tracker,
+                                                                             FrameEncoder.PayloadAllocator.simple));
             pipeline.remove(this);
             pipeline.context(Message.ProtocolDecoder.class).fireChannelRead(startup);
         }
-
-        void addExceptionHandler(ChannelPipeline pipeline)
-        {
-        }
-
     }
 
     private static class LatestEvent

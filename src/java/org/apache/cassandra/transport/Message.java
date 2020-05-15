@@ -49,7 +49,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
-import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
@@ -57,10 +56,10 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
-import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 
 /**
  * A message from the CQL binary protocol.
@@ -529,26 +528,13 @@ public abstract class Message
 
         static abstract class Flusher implements Runnable
         {
-            public static Flusher legacy(EventLoop loop)
-            {
-                return new LegacyFlusher(loop);
-            }
-
-            public static Flusher immediate(EventLoop loop)
-            {
-                return new ImmediateFlusher(loop);
-            }
-
-            public static Flusher v5(EventLoop loop, FrameEncoder.PayloadAllocator allocator)
-            {
-                return new V5Flusher(loop, allocator);
-            }
-
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
             final AtomicBoolean scheduled = new AtomicBoolean(false);
             final HashSet<ChannelHandlerContext> channels = new HashSet<>();
             final List<FlushItem> flushed = new ArrayList<>();
+            final ProtocolEncoder messageEncoder = ProtocolEncoder.instance;
+            final Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
 
             void start()
             {
@@ -561,6 +547,114 @@ public abstract class Message
             public Flusher(EventLoop eventLoop)
             {
                 this.eventLoop = eventLoop;
+            }
+
+            protected void encodeIntoFramedResponsePayload(FlushItem flush, ProtocolVersion version)
+            {
+                Frame outbound = messageEncoder.encodeMessage(flush.response, version);
+                if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= FrameEncoder.Payload.MAX_SIZE)
+                {
+                    flushLargeMessage(flush.ctx, outbound, flush.dispatcher.framePayloadAllocator);
+                }
+                else
+                {
+                    FrameEncoder.Payload sending = payloads.get(flush.ctx);
+                    if (null == sending)
+                    {
+                        sending = flush.dispatcher.framePayloadAllocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
+                        payloads.put(flush.ctx, sending);
+                    }
+
+                    if (sending.remaining() < Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
+                    {
+                        sending.finish();
+                        flush.ctx.write(sending, flush.ctx.voidPromise());
+                        sending.release();
+                        sending = flush.dispatcher.framePayloadAllocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
+                        payloads.put(flush.ctx, sending);
+                    }
+
+                    outbound.encodeInto(sending.buffer);
+                    outbound.release();
+                }
+            }
+
+            protected void flushLargeMessage(ChannelHandlerContext ctx, Frame outbound, FrameEncoder.PayloadAllocator allocator)
+            {
+                FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                ByteBuffer buf = largePayload.buffer;
+                outbound.encodeHeaderInto(buf);
+
+                int capacityRemaining = buf.limit() - buf.position();
+                ByteBuf body = outbound.body;
+                buf.put(body.slice(body.readerIndex(), capacityRemaining).nioBuffer());
+                largePayload.finish();
+                ctx.writeAndFlush(largePayload, ctx.voidPromise());
+                body.readerIndex(capacityRemaining);
+                int idx = body.readerIndex();
+
+                while (body.readableBytes() >= FrameEncoder.Payload.MAX_SIZE)
+                {
+                    largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                    buf = largePayload.buffer;
+                    int remaining = Math.min(buf.remaining(), body.readableBytes());
+                    buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
+                    body.readerIndex(idx + remaining);
+                    idx = body.readerIndex();
+                    largePayload.finish();
+                    ctx.writeAndFlush(largePayload, ctx.voidPromise());
+                    largePayload.release();
+                }
+
+                if (body.readableBytes() > 0)
+                {
+                    largePayload = allocator.allocate(false, body.readableBytes());
+                    buf = largePayload.buffer;
+                    buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
+                    largePayload.finish();
+                    ctx.writeAndFlush(largePayload, ctx.voidPromise());
+                    largePayload.release();
+                }
+            }
+
+            protected void writeUnframedResponse(FlushItem flush)
+            {
+                flush.ctx.write(flush.response, flush.ctx.voidPromise());
+                channels.add(flush.ctx);
+            }
+
+            protected void processItem(FlushItem flush)
+            {
+                Connection connection = flush.response.connection;
+                if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V5))
+                    encodeIntoFramedResponsePayload(flush, connection.getVersion());
+                else
+                    writeUnframedResponse(flush);
+                flushed.add(flush);
+            }
+
+            protected void flushWrittenChannels()
+            {
+                // flush the channels pre-V5 to which messages were written in writeSingleResponse
+                for (ChannelHandlerContext channel : channels)
+                    channel.flush();
+
+                // Framed messages (V5) are accumulated into payloads which may now need to be written & flushed
+                for (Map.Entry<ChannelHandlerContext, FrameEncoder.Payload> entry : payloads.entrySet())
+                {
+                    ChannelHandlerContext ctx = entry.getKey();
+                    FrameEncoder.Payload sending = entry.getValue();
+                    sending.finish();
+                    ctx.writeAndFlush(sending, ctx.voidPromise());
+                    sending.release();
+                    payloads.remove(ctx);
+                }
+
+                for (FlushItem item : flushed)
+                    item.release();
+
+                channels.clear();
+                flushed.clear();
             }
         }
 
@@ -581,9 +675,7 @@ public abstract class Message
                 FlushItem flush;
                 while ( null != (flush = queued.poll()) )
                 {
-                    channels.add(flush.ctx);
-                    flush.ctx.write(flush.response, flush.ctx.voidPromise());
-                    flushed.add(flush);
+                    processItem(flush);
                     doneWork = true;
                 }
 
@@ -591,13 +683,7 @@ public abstract class Message
 
                 if (!doneWork || runsSinceFlush > 2 || flushed.size() > 50)
                 {
-                    for (ChannelHandlerContext channel : channels)
-                        channel.flush();
-                    for (FlushItem item : flushed)
-                        item.release();
-
-                    channels.clear();
-                    flushed.clear();
+                    flushWrittenChannels();
                     runsSinceFlush = 0;
                 }
 
@@ -635,149 +721,29 @@ public abstract class Message
 
                 while (null != (flush = queued.poll()))
                 {
-                    channels.add(flush.ctx);
-                    flush.ctx.write(flush.response, flush.ctx.voidPromise());
-                    flushed.add(flush);
+                    processItem(flush);
                     doneWork = true;
                 }
 
                 if (doneWork)
-                {
-                    for (ChannelHandlerContext channel : channels)
-                        channel.flush();
-                    for (FlushItem item : flushed)
-                        item.release();
-
-                    channels.clear();
-                    flushed.clear();
-                }
+                    flushWrittenChannels();
             }
         }
 
-        private static final class V5Flusher extends Flusher
-        {
-            private final ProtocolEncoder messageEncoder = ProtocolEncoder.instance;
-            private final FrameEncoder.PayloadAllocator allocator;
-            private final Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
-
-            private V5Flusher(EventLoop eventLoop,
-                             FrameEncoder.PayloadAllocator allocator)
-            {
-                super(eventLoop);
-                this.allocator = allocator;
-            }
-
-            public void run()
-            {
-                boolean doneWork = false;
-                FlushItem flush;
-                scheduled.set(false);
-
-                while (null != (flush = queued.poll()))
-                {
-                    ChannelHandlerContext ctx = flush.ctx;
-                    channels.add(ctx);
-                    Connection connection = flush.response.connection;
-                    Frame outbound = messageEncoder.encodeMessage(flush.response, connection == null
-                                                                                  ? ProtocolVersion.CURRENT
-                                                                                  : connection.getVersion());
-
-                    if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= FrameEncoder.Payload.MAX_SIZE)
-                    {
-                        // Large message
-                        FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
-                        ByteBuffer buf = largePayload.buffer;
-                        outbound.encodeHeaderInto(buf);
-
-                        int capacityRemaining = buf.limit() - buf.position();
-                        ByteBuf body = outbound.body;
-                        buf.put(body.slice(body.readerIndex(), capacityRemaining).nioBuffer());
-                        largePayload.finish();
-                        ctx.writeAndFlush(largePayload);
-                        body.readerIndex(capacityRemaining);
-                        int idx = body.readerIndex();
-
-                        while (body.readableBytes() >= FrameEncoder.Payload.MAX_SIZE)
-                        {
-                            largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
-                            buf = largePayload.buffer;
-                            int remaining = Math.min(buf.remaining(), body.readableBytes()) ;
-                            buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
-                            body.readerIndex(idx + remaining);
-                            idx = body.readerIndex();
-                            largePayload.finish();
-                            ctx.writeAndFlush(largePayload);
-                            largePayload.release();
-                        }
-
-                        if (body.readableBytes() > 0)
-                        {
-                            largePayload = allocator.allocate(false, body.readableBytes());
-                            buf = largePayload.buffer;
-                            buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
-                            largePayload.finish();
-                            ctx.writeAndFlush(largePayload);
-                            largePayload.release();
-                        }
-                        flushed.add(flush);
-                        doneWork = true;
-                    }
-                    else
-                    {
-                        FrameEncoder.Payload sending = payloads.get(flush.ctx);
-                        if (null == sending)
-                        {
-                            sending = allocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
-                            payloads.put(flush.ctx, sending);
-                        }
-
-                        if(sending.remaining() < Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
-                        {
-                            sending.finish();
-                            flush.ctx.write(sending);
-                            sending.release();
-                            sending = allocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
-                            payloads.put(flush.ctx, sending);
-                        }
-
-                        outbound.encodeInto(sending.buffer);
-                        outbound.release();
-                        flushed.add(flush);
-                        doneWork = true;
-                    }
-                }
-
-                if (doneWork)
-                {
-                    for (Map.Entry<ChannelHandlerContext, FrameEncoder.Payload> entry : payloads.entrySet())
-                    {
-                        ChannelHandlerContext ctx = entry.getKey();
-                        FrameEncoder.Payload sending = entry.getValue();
-                        sending.finish();
-                        ctx.write(sending);
-                        ctx.flush();
-                        sending.release();
-                        payloads.remove(ctx);
-                    }
-
-                    for (FlushItem item : flushed)
-                        item.release();
-
-                    channels.clear();
-                    flushed.clear();
-                }
-            }
-        }
+        // TODO move encoding from CQL Message -> CQL Frame off the event loop (V5)
 
         private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
 
-        private final Function<EventLoop, Flusher> flusherProvider;
+        private final boolean useLegacyFlusher;
+        private final FrameEncoder.PayloadAllocator framePayloadAllocator;
 
-        public Dispatcher(Server.EndpointPayloadTracker endpointPayloadTracker,
-                          Function<EventLoop, Flusher> flusherProvider)
+        public Dispatcher(boolean useLegacyFlusher,
+                          Server.EndpointPayloadTracker endpointPayloadTracker,
+                          FrameEncoder.PayloadAllocator framePayloadAllocator)
         {
             super(false);
-            this.flusherProvider = flusherProvider;
+            this.useLegacyFlusher = useLegacyFlusher;
+            this.framePayloadAllocator = framePayloadAllocator;
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
@@ -926,7 +892,7 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
-                Flusher created = flusherProvider.apply(loop);
+                Flusher created = useLegacyFlusher ? new LegacyFlusher(loop) : new ImmediateFlusher(loop);
                 Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;
