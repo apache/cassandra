@@ -334,7 +334,8 @@ public class SimpleClient implements Closeable
                                                                 cqlFrameDecoder,
                                                                 messageDecoder,
                                                                 messageConsumer,
-                                                                limits);
+                                                                limits,
+                                                                ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload());
 
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
             pipeline.addLast("messageFrameEncoder", messageFrameEncoder);

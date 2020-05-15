@@ -55,6 +55,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
     private final Message.ProtocolDecoder messageDecoder;
     private final ResourceLimits.EndpointAndGlobal limits;
     private final Consumer<Message> dispatcher;
+    private final boolean throwOnOverload;
 
     private LargeMessage largeMessage;
 
@@ -69,7 +70,8 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
                       org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder,
                       Message.ProtocolDecoder messageDecoder,
                       Consumer<Message> dispatcher,
-                      ResourceLimits.EndpointAndGlobal limits)
+                      ResourceLimits.EndpointAndGlobal limits,
+                      boolean throwOnOverload)
     {
         this.decoder            = decoder;
         this.channel            = channel;
@@ -77,6 +79,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         this.messageDecoder     = messageDecoder;
         this.dispatcher         = dispatcher;
         this.limits             = limits;
+        this.throwOnOverload    = throwOnOverload;
     }
 
     @Override
@@ -259,9 +262,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         // check for overloaded state by trying to allocate framesize to inflight payload trackers
         if (limits.tryAllocate(frameSize) != ResourceLimits.Outcome.SUCCESS)
         {
-            // TODO needs to be per-connection
-//            if (request.connection.isThrowOnOverload())
-            if (isThrowOnOverload())
+            if (throwOnOverload)
             {
                 // discard the request and throw an exception
                 ClientMetrics.instance.markRequestDiscarded();
@@ -288,12 +289,6 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         }
         channelPayloadBytesInFlight += frameSize;
         return true;
-    }
-
-    // TODO should be based on a per-connection option
-    private boolean isThrowOnOverload()
-    {
-        return false;
     }
 
     /*

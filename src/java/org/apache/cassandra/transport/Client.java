@@ -114,10 +114,15 @@ public class Client extends SimpleClient
                    connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
                }
                if (next.toLowerCase().equals("lz4"))
-                {
-                    options.put(StartupMessage.COMPRESSION, "lz4");
-                    connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
-                }
+               {
+                   options.put(StartupMessage.COMPRESSION, "lz4");
+                   connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
+               }
+               if (next.toLowerCase().equals("throw_on_overload"))
+               {
+                   options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
+                   connection.setThrowOnOverload(true);
+               }
             }
             return new StartupMessage(options);
         }

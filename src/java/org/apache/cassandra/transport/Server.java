@@ -655,12 +655,15 @@ public class Server implements CassandraDaemon.Server
             pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
             pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
 
+            boolean throwOnOverload = "1".equals(startup.options.get(StartupMessage.THROW_ON_OVERLOAD));
+
             CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
                                                                 messageFrameDecoder,
                                                                 frameDecoder,
                                                                 messageDecoder,
                                                                 messageConsumer,
-                                                                tracker.endpointAndGlobalPayloadsInFlight);
+                                                                tracker.endpointAndGlobalPayloadsInFlight,
+                                                                throwOnOverload);
             pipeline.addBefore("initial", "cqlProcessor", processor);
             pipeline.remove(this);
             tracker.endpointAndGlobalPayloadsInFlight.allocate(messageBodyBytes);
