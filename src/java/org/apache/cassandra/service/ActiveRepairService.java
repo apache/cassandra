@@ -34,6 +34,8 @@ import com.google.common.util.concurrent.AbstractFuture;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.slf4j.Logger;
@@ -433,8 +435,25 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
+    public static boolean verifyCompactionsPendingThreshold(UUID parentRepairSession, PreviewKind previewKind)
+    {
+        // Snapshot values so failure message is consistent with decision
+        int pendingCompactions = CompactionManager.instance.getPendingTasks();
+        int pendingThreshold = ActiveRepairService.instance.getRepairPendingCompactionRejectThreshold();
+        if (pendingCompactions > pendingThreshold)
+        {
+            logger.error("[{}] Rejecting incoming repair, pending compactions ({}) above threshold ({})",
+                          previewKind.logPrefix(parentRepairSession), pendingCompactions, pendingThreshold);
+            return false;
+        }
+        return true;
+    }
+
     public UUID prepareForRepair(UUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
+        if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
+            failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
+
         long repairedAt = getRepairedAt(options, isForcedRepair);
         registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
@@ -708,6 +727,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             for (UUID id : toRemove)
                 removeParentRepairSession(id);
         }
+    }
+
+    public int getRepairPendingCompactionRejectThreshold()
+    {
+        return DatabaseDescriptor.getRepairPendingCompactionRejectThreshold();
+    }
+
+    public void setRepairPendingCompactionRejectThreshold(int value)
+    {
+        DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(value);
     }
 
 }
