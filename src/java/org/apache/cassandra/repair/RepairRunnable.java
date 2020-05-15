@@ -161,14 +161,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private void skip(String msg)
     {
         notification("Repair " + parentSession + " skipped: " + msg);
-        success(msg);
+        success(msg,  null);
     }
 
-    private void success(String msg)
+    private void success(String msg1, String msg2)
     {
-        fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress, msg));
+        fireProgressEvent(new ProgressEvent(ProgressEventType.SUCCESS, progressCounter.get(), totalProgress, msg1));
         ActiveRepairService.instance.recordRepairStatus(cmd, ActiveRepairService.ParentRepairStatus.COMPLETED,
-                                                        ImmutableList.of(msg));
+                                                        ImmutableList.of(msg1, msg2));
         complete(null);
     }
 
@@ -540,7 +540,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     notification(message);
 
-                    success("Repair preview completed successfully");
+                    success("Repair preview completed successfully", message);
                 }
                 catch (Throwable t)
                 {
@@ -728,7 +728,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             }
             else
             {
-                success("Repair completed successfully");
+                success("Repair completed successfully", null);
             }
             executor.shutdownNow();
         }

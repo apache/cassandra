@@ -368,13 +368,16 @@ public class PreviewRepairTest extends TestBaseImpl
 
             //double check for completion status in case of lossy notification
             List<String> status = StorageService.instance.getParentRepairStatus(result.left);
+            List<String> messages = status.subList(1, status.size());
 
-            if (ActiveRepairService.ParentRepairStatus.valueOf(status.get(0)) == ActiveRepairService.ParentRepairStatus.COMPLETED)
-                await.signalAll();
+            if (ActiveRepairService.ParentRepairStatus.valueOf(status.get(0)) == ActiveRepairService.ParentRepairStatus.COMPLETED
+                            && messages.get(1) == "Repaired data is inconsistent")
+            {
+                wasInconsistent.set(true);
+            }
             else if(ActiveRepairService.ParentRepairStatus.valueOf(status.get(0)) == ActiveRepairService.ParentRepairStatus.FAILED)
             {
                 success.set(false);
-                await.signalAll();
             }
 
             return new RepairResult(success.get(), wasInconsistent.get());
