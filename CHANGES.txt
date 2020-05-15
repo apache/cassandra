@@ -1,4 +1,5 @@
 3.0.22:
+ * Fix gossip shutdown order (CASSANDRA-15816)
  * Remove broken 'defrag-on-read' optimization (CASSANDRA-15432)
  * Check for endpoint collision with hibernating nodes (CASSANDRA-14599)
  * Operational improvements and hardening for replica filtering protection (CASSANDRA-15907)
