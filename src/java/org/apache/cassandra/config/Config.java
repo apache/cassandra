@@ -217,6 +217,7 @@ public class Config
     public int min_free_space_per_drive_in_mb = 50;
 
     public volatile int concurrent_materialized_view_builders = 1;
+    public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
