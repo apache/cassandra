@@ -21,20 +21,21 @@ file and propagates the information to other nodes using :term:`gossip`. This sn
 ------
 Name of the datacenter. The value is case-sensitive.
 
-*Default Value:* DC1
+**Default value:** DC1
 
 ``rack``
 --------
 Rack designation. The value is case-sensitive.
 
-*Default Value:* RAC1 
+**Default value:** RAC1 
 
 ``prefer_local``
 ----------------
 Option to use the local or internal IP address when communication is not across different datacenters.
 
-*Default Value:* true
-*This option is commented out by default.*
+**Default value:** true
+
+**This option is commented out by default.**
 
 ===========================
 AWS EC2 snitch
@@ -54,8 +55,9 @@ Datacenter and rack naming convention. Options are:
           Rack name is the region plus the availability zone letter.
           Examples: us-west-1a => dc: us-west-1, rack: us-west-1a; us-west-2b => dc: us-west-2, rack: us-west-2b;
 
-*Default value:*  ec2_naming_scheme=standard
-*This option is commented out by default.*
+**Default value:**  ec2_naming_scheme=standard
 
-.. note::
+**This option is commented out by default.**
+
+.. NOTE::
           YOU MUST USE THE `legacy` VALUE IF YOU ARE UPGRADING A PRE-4.0 CLUSTER.
