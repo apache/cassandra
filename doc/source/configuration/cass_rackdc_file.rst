@@ -15,14 +15,12 @@ file and propagates the information to other nodes using :term:`gossip`. It is t
 
 The AWS EC2 snitches are configured for clusters in AWS. This snitch uses the `cassandra-rackdc.properties` options to designate one of two AWS EC2 datacenter and rack naming conventions:
 
-- legacy: Datacenter name is the part of the availability zone name preceding the last "-"
-          when the zone ends in -1 and includes the number if not -1. Rack name is the portion of
+- legacy: Datacenter name is the part of the availability zone name preceding the last "-" when the zone ends in -1 and includes the number if not -1. Rack name is the portion of
           the availability zone name following  the last "-".
 
           Examples: us-west-1a => dc: us-west, rack: 1a; us-west-2b => dc: us-west-2, rack: 2b;
 
-- standard: Datacenter name is the standard AWS region name, including the number.
-          Rack name is the region plus the availability zone letter.
+- standard: Datacenter name is the standard AWS region name, including the number. Rack name is the region plus the availability zone letter.
 
           Examples: us-west-1a => dc: us-west-1, rack: us-west-1a; us-west-2b => dc: us-west-2, rack: us-west-2b;
 
