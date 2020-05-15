@@ -52,7 +52,7 @@ AWS EC2 snitch
 ---------------------
 Datacenter and rack naming convention. Options are `legacy` or `standard` (default).
 
-**Default value:**  ec2_naming_scheme=standard
+**Default value:** standard
 
 **This option is commented out by default.**
 
