@@ -3090,6 +3090,16 @@ public class DatabaseDescriptor
         return Math.max(seconds, 0);
     }
 
+    public static int getRepairPendingCompactionRejectThreshold()
+    {
+        return conf.reject_repair_compaction_threshold;
+    }
+
+    public static void setRepairPendingCompactionRejectThreshold(int value)
+    {
+        conf.reject_repair_compaction_threshold = value;
+    }
+
     public static int getInitialRangeTombstoneListAllocationSize()
     {
         return conf.initial_range_tombstone_list_allocation_size;

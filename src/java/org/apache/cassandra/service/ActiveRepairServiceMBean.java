@@ -33,4 +33,7 @@ public interface ActiveRepairServiceMBean
 
     public boolean getUseOffheapMerkleTrees();
     public void setUseOffheapMerkleTrees(boolean value);
+
+    public int getRepairPendingCompactionRejectThreshold();
+    public void setRepairPendingCompactionRejectThreshold(int value);
 }
