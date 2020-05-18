@@ -615,6 +615,27 @@ public final class CFMetaData
                         this);
     }
 
+    public CFMetaData copyWithNewCompactValueType(AbstractType<?> type)
+    {
+        assert isDense && compactValueColumn.type instanceof EmptyType && partitionColumns.size() == 1;
+        return copyOpts(new CFMetaData(ksName,
+                                       cfName,
+                                       cfId,
+                                       isSuper,
+                                       isCounter,
+                                       isDense,
+                                       isCompound,
+                                       isView,
+                                       copy(partitionKeyColumns),
+                                       copy(clusteringColumns),
+                                       PartitionColumns.of(compactValueColumn.withNewType(type)),
+                                       partitioner,
+                                       superCfKeyColumn,
+                                       superCfValueColumn),
+                        this);
+    }
+
+
     private static List<ColumnDefinition> copy(List<ColumnDefinition> l)
     {
         List<ColumnDefinition> copied = new ArrayList<>(l.size());
