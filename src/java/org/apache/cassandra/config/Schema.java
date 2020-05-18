@@ -574,6 +574,14 @@ public class Schema
     }
 
     /**
+     * Checks whether the current schema is empty.
+     */
+    public boolean isEmpty()
+    {
+        return emptyVersion.equals(version);
+    }
+
+    /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
