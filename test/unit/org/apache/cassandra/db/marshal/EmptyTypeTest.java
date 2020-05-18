@@ -88,7 +88,7 @@ public class EmptyTypeTest
             Assert.fail("compose is expected to reject non-empty values, but did not");
         }
         catch (MarshalException e) {
-            Assert.assertEquals("EmptyType only accept empty values", e.getMessage());
+            Assert.assertTrue(e.getMessage().startsWith("EmptyType only accept empty values"));
         }
     }
 }

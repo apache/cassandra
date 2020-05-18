@@ -40,7 +40,11 @@ public class EmptySerializer implements TypeSerializer<Void>
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() > 0)
-            throw new MarshalException("EmptyType only accept empty values");
+        {
+            throw new MarshalException("EmptyType only accept empty values. " +
+                                       "A non-empty value can be a result of a Thrift write into CQL-created dense table. " +
+                                       "See CASSANDRA-15778 for details.");
+        }
     }
 
     public String toString(Void value)

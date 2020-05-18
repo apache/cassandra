@@ -394,7 +394,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public void writeValue(ByteBuffer value, DataOutputPlus out) throws IOException
     {
         assert value.hasRemaining();
-        if (valueLengthIfFixed() >= 0)
+        int valueLengthIfFixed = valueLengthIfFixed();
+        assert valueLengthIfFixed < 0 || value.remaining() == valueLengthIfFixed : String.format("Expected exactly %d bytes, but was %d",
+                                                                                                 valueLengthIfFixed, value.remaining());
+
+        if (valueLengthIfFixed >= 0)
             out.write(value);
         else
             ByteBufferUtil.writeWithVIntLength(value, out);
@@ -403,7 +407,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public long writtenLength(ByteBuffer value)
     {
         assert value.hasRemaining();
-        return valueLengthIfFixed() >= 0
+        int valueLengthIfFixed = valueLengthIfFixed();
+        assert valueLengthIfFixed < 0 || value.remaining() == valueLengthIfFixed : String.format("Expected exactly %d bytes, but was %d",
+                                                                                                 valueLengthIfFixed, value.remaining());
+
+        return valueLengthIfFixed >= 0
              ? value.remaining()
              : TypeSizes.sizeofWithVIntLength(value);
     }
