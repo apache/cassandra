@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
@@ -882,32 +883,169 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+
     public void waitForSchema(int delay)
     {
-        // first sleep the delay to make sure we see all our peers
-        for (int i = 0; i < delay; i += 1000)
-        {
-            // if we see schema, we can proceed to the next check directly
-            if (!Schema.instance.getVersion().equals(SchemaConstants.emptyVersion))
+        waitForNotEmptyLocalVersion(delay);
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        long globalMigrationTaskWait = MigrationManager.instance.getMigrationTaskGlobalWaitInSeconds() * 1000;
+        long totalTime = 0;
+
+        boolean schemaAgreementAchieved = false;
+
+        // start with clean table
+        MigrationTask.reset();
+
+        while (totalTime < globalMigrationTaskWait) {
+
+            populateSchemaVersionsOfLiveMembers();
+
+            if (MigrationTask.schemaNodesMap.isEmpty())
             {
-                logger.debug("got schema: {}", Schema.instance.getVersion());
+                schemaAgreementAchieved = true;
                 break;
             }
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+
+            final Set<UUID> schemaVersionsToWaitFor = getSchemasWaitingMigrationResponses();
+
+            if (schemaVersionsToWaitFor.isEmpty()) {
+                schemaAgreementAchieved = true;
+                break;
+            }
+
+            for (final UUID schema : schemaVersionsToWaitFor)
+            {
+                final Set<InetAddress> hostsForSchema = Sets.newHashSet(MigrationTask.schemaNodesMap.get(schema));
+
+                logger.debug("Schemas to wait for: " + hostsForSchema);
+
+                final Set<InetAddress> intersection = Sets.intersection(MigrationTask.getSubmitted(), hostsForSchema);
+
+                logger.debug("Already submitted: " + new ArrayList<>(MigrationTask.getSubmitted()));
+
+                logger.debug("Intersection of hosts we sent migration messages to and hosts we are waiting for responses of" + intersection);
+
+                if (!intersection.isEmpty())
+                {
+                    // intersection of submitted (running) migration tasks on schemas which we are waiting for is not empty
+                    // so there is no point to submit yet another task for the very same schema version, we just
+                    // wait until it either returns on happy path, fails, or expires so we will try again if needed
+                    continue;
+                }
+
+                // if that intersection is empty, there is not any migration task for that node submitted,
+                // here we will shuffle that set so we give a chance to other nodes to participate
+                // in this schema checking otherwise we could repeatedly pick the very same (e.g. slow) node
+                // so we would never get that schema merged, it does not matter what node we query for that particular schema
+                // as by definition when we merge all schemas out there, we are ready to go
+
+                final InetAddress nextHost = Lists.newArrayList(hostsForSchema).get(random.nextInt(hostsForSchema.size()));
+
+                // schedule immidiately the pull
+
+                logger.debug("Going to pull a schema from node {}", nextHost);
+
+                MigrationManager.scheduleSchemaPullNoDelay(nextHost, Gossiper.instance.getEndpointStateForEndpoint(nextHost));
+            }
+
+            // sleep to get a chance to receive some responses, potentially schemas merged
+            final long resendingSleep = DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000);
+            Uninterruptibles.sleepUninterruptibly(resendingSleep, TimeUnit.MILLISECONDS);
+            totalTime += resendingSleep;
         }
-        // if our schema hasn't matched yet, wait until it has
-        // we do this by waiting for all in-flight migration requests and responses to complete
-        // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
-        if (!MigrationManager.isReadyForBootstrap())
+
+        if (!schemaAgreementAchieved)
         {
-            setMode(Mode.JOINING, "waiting for schema information to complete", true);
-            MigrationManager.waitUntilReadyForBootstrap();
+            logger.warn(String.format("There are nodes in the cluster with a different schema version than us we did not merged schemas from, " +
+                                      "our version - (%s), all versions - %s",
+                                      Schema.instance.getVersion(),
+                                      MigrationTask.schemaNodesMap.asMap()));
+        }
+    }
+
+    private void populateSchemaVersionsOfLiveMembers()
+    {
+        // clean it on every round to start from scratch with population
+        // as in the meanwhile some nodes might jump to other schema
+        MigrationTask.schemaNodesMap.clear();
+
+        for (final InetAddress member : Gossiper.instance.getLiveTokenOwners())
+        {
+            if (member.equals(FBUtilities.getBroadcastAddress()))
+            {
+                // skip asking ourselves to merge our own schema
+                continue;
+            }
+
+            if (!MigrationManager.shouldPullSchemaFrom(member))
+            {
+                continue;
+            }
+
+            final UUID schemaVersion = Gossiper.instance.getSchemaVersion(member);
+
+            if (schemaVersion != null && !Schema.instance.isSameVersion(schemaVersion))
+            {
+                MigrationTask.schemaNodesMap.put(schemaVersion, member);
+            }
+        }
+    }
+
+    private Set<UUID> getSchemasWaitingMigrationResponses() {
+
+        final Set<UUID> schemasOfPendingResponses = new HashSet<>();
+
+        final Set<InetAddress> finishedUpToNow = MigrationTask.getFinished();
+        MigrationTask.removeFinished(finishedUpToNow);
+
+        logger.debug("Finished migration schema responses until now " + finishedUpToNow);
+
+        // there has to be non-empty intersection on what responses we have got so far and what nodes there are
+        // on that particular schema version, it is not empty, it means that we have mergeded that schema for that
+        // version - and this has to happen for all distinct schema versions out there
+        for (final Entry<UUID, Collection<InetAddress>> entry : MigrationTask.schemaNodesMap.asMap().entrySet())
+        {
+            final UUID schemaVersion = entry.getKey();
+
+            final Set<InetAddress> membersToGetResponsesFrom = Sets.newHashSet(entry.getValue());
+            final Set<InetAddress> intersection = Sets.intersection(finishedUpToNow, membersToGetResponsesFrom);
+
+            if (intersection.isEmpty())
+            {
+                schemasOfPendingResponses.add(schemaVersion);
+            }
+        }
+
+        logger.debug("Schemas of pending responses " + schemasOfPendingResponses);
+
+        return schemasOfPendingResponses;
+    }
+
+    private void waitForNotEmptyLocalVersion(int delay)
+    {
+        int totalTime = 0;
+
+        while (totalTime < delay)
+        {
+            UUID version = Schema.instance.getVersion();
+
+            if (!SchemaConstants.emptyVersion.equals(version))
+            {
+                logger.debug("got schema: {}", version);
+                return;
+            }
+
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+
+            totalTime += 1000;
         }
     }
 
     @VisibleForTesting
-    public void joinTokenRing(int delay) throws ConfigurationException
-{
+    private void joinTokenRing(int delay) throws ConfigurationException
+    {
         joined = true;
 
         // We bootstrap if we haven't successfully bootstrapped before, as long as we are not a seed.

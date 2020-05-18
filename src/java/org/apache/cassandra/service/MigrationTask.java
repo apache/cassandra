@@ -19,11 +19,19 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,8 +39,9 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -40,13 +49,43 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 
-class MigrationTask extends WrappedRunnable
+public final class MigrationTask extends WrappedRunnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationTask.class);
 
-    private static final ConcurrentLinkedQueue<CountDownLatch> inflightTasks = new ConcurrentLinkedQueue<>();
+    private static final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
+    {
+        public int compare(InetAddress addr1, InetAddress addr2)
+        {
+            return addr1.getHostAddress().compareTo(addr2.getHostAddress());
+        }
+    };
 
-    private static final Set<BootstrapState> monitoringBootstrapStates = EnumSet.of(BootstrapState.NEEDS_BOOTSTRAP, BootstrapState.IN_PROGRESS);
+    public static Multimap<UUID, InetAddress> schemaNodesMap = Multimaps.synchronizedMultimap(Multimaps.newSetMultimap(new ConcurrentHashMap<>(), HashSet::new));
+    private static final Set<InetAddress> finished = new ConcurrentSkipListSet<>(inetcomparator);
+    private static final Set<InetAddress> submitted = new ConcurrentSkipListSet<>(inetcomparator);
+
+    public static Set<InetAddress> getSubmitted()
+    {
+        return new HashSet<>(submitted);
+    }
+
+    public static Set<InetAddress> getFinished()
+    {
+        return new HashSet<>(finished);
+    }
+
+    public static void removeFinished(Set<InetAddress> finished)
+    {
+        MigrationTask.finished.removeAll(finished);
+    }
+
+    public static void reset()
+    {
+        schemaNodesMap.clear();
+        finished.clear();
+        submitted.clear();
+    }
 
     private final InetAddress endpoint;
 
@@ -55,12 +94,7 @@ class MigrationTask extends WrappedRunnable
         this.endpoint = endpoint;
     }
 
-    public static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
-    {
-        return inflightTasks;
-    }
-
-    public void runMayThrow() throws Exception
+    public void runMayThrow()
     {
         if (!FailureDetector.instance.isAlive(endpoint))
         {
@@ -77,39 +111,59 @@ class MigrationTask extends WrappedRunnable
             return;
         }
 
-        MessageOut message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
+        MessageOut<?> message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
 
-        final CountDownLatch completionLatch = new CountDownLatch(1);
+        logger.info("Sending schema pull request to {} at {} with timeout {}", endpoint, System.currentTimeMillis(), message.getTimeout());
 
-        IAsyncCallback<Collection<Mutation>> cb = new IAsyncCallback<Collection<Mutation>>()
+        submitted.add(endpoint);
+
+        MessagingService.instance().sendRR(message, endpoint, new MigrationTaskCallback(), message.getTimeout(), true);
+    }
+
+    public static class MigrationTaskCallback implements IAsyncCallbackWithFailure<Collection<Mutation>>
+    {
+        private static final Logger logger = LoggerFactory.getLogger(MigrationTaskCallback.class);
+
+        @Override
+        public void response(MessageIn<Collection<Mutation>> message)
         {
-            @Override
-            public void response(MessageIn<Collection<Mutation>> message)
+            try
             {
-                try
-                {
-                    SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
-                }
-                catch (ConfigurationException e)
-                {
-                    logger.error("Configuration exception merging remote schema", e);
-                }
-                finally
-                {
-                    completionLatch.countDown();
-                }
-            }
+                logger.info("Received response to schema request from {} at {}", message.from, System.currentTimeMillis());
 
-            public boolean isLatencyForSnitch()
+                SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
+
+                // add me among finished requests, this will be reached only in case that
+                // above merging of schema went without throwing any exception
+                // we do not know what schema version this particular message was responsible for
+                // and we do not really care anyway here
+                finished.add(message.from);
+            }
+            catch (ConfigurationException e)
             {
-                return false;
+                logger.error("Configuration exception merging remote schema from " + message.from, e);
             }
-        };
+            finally
+            {
+                // remove me from set of submitted messages
+                // so we know if we should skip sending if it is in progress
+                // or we should indeed send a message to that node
+                submitted.remove(message.from);
+            }
+        }
 
-        // Only save the latches if we need bootstrap or are bootstrapping
-        if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()))
-            inflightTasks.offer(completionLatch);
+        public void onFailure(InetAddress from, RequestFailureReason failureReason)
+        {
+            // remove ne from set of submitted requests,
+            // this will be reached either when a proper failure occurs or when this callback expires
+            // if it is not among submitted, it is not among finished either,
+            // it can be not in submitted but in finished only on happy path
+            submitted.remove(from);
+        }
 
-        MessagingService.instance().sendRR(message, endpoint, cb);
+        public boolean isLatencyForSnitch()
+        {
+            return false;
+        }
     }
 }
