@@ -109,7 +109,7 @@ public class RangeCommands
     static float estimateResultsPerRange(PartitionRangeReadCommand command, Keyspace keyspace)
     {
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
-        Index index = command.getIndex(cfs);
+        Index.QueryPlan index = command.indexQueryPlan();
         float maxExpectedResults = index == null
                                    ? command.limits().estimateTotalResults(cfs)
                                    : index.getEstimatedResultRows();

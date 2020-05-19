@@ -224,7 +224,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         if (isRepaired)
@@ -249,7 +249,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                  commitLogPositions,
                                                  sstableLevel,
                                                  header,
-                                                 indexes,
+                                                 indexGroups,
                                                  lifecycleNewTracker);
     }
 

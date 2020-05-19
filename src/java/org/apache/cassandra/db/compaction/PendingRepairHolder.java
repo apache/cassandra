@@ -242,7 +242,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         Preconditions.checkArgument(repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE,
@@ -259,7 +259,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                  commitLogPositions,
                                                  sstableLevel,
                                                  header,
-                                                 indexes,
+                                                 indexGroups,
                                                  lifecycleNewTracker);
     }
 

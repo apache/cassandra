@@ -282,7 +282,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         {
             logger.info("Scheduling index flush to {}", outputFile);
 
-            getExecutor().submit((Runnable) () -> {
+            getExecutor().submit(() -> {
                 long start1 = nanoTime();
 
                 OnDiskIndex[] parts = new OnDiskIndex[segments.size() + 1];
@@ -299,7 +299,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     // parts are present but there is something still in memory, let's flush that inline
                     if (!currentBuilder.isEmpty())
                     {
-                        @SuppressWarnings("resource")
+                        @SuppressWarnings({ "resource", "RedundantSuppression" })
                         OnDiskIndex last = scheduleSegmentFlush(false).call();
                         segments.add(ImmediateFuture.success(last));
                     }
@@ -309,7 +309,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     for (Future<OnDiskIndex> f : segments)
                     {
-                        @SuppressWarnings("resource")
+                        @SuppressWarnings({ "resource", "RedundantSuppression" })
                         OnDiskIndex part = f.get();
                         if (part == null)
                             continue;
@@ -335,7 +335,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     for (int segment = 0; segment < segmentNumber; segment++)
                     {
-                        @SuppressWarnings("resource")
+                        @SuppressWarnings({ "resource", "RedundantSuppression" })
                         OnDiskIndex part = parts[segment];
 
                         if (part != null)
@@ -378,6 +378,6 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
     public boolean equals(Object o)
     {
-        return !(o == null || !(o instanceof PerSSTableIndexWriter)) && descriptor.equals(((PerSSTableIndexWriter) o).descriptor);
+        return o instanceof PerSSTableIndexWriter && descriptor.equals(((PerSSTableIndexWriter) o).descriptor);
     }
 }

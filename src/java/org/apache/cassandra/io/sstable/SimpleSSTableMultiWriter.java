@@ -106,7 +106,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         writer.close();
     }
 
-    @SuppressWarnings("resource") // SimpleSSTableMultiWriter closes writer
+    @SuppressWarnings({"resource", "RedundantSuppression"}) // SimpleSSTableMultiWriter closes writer
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,
@@ -116,7 +116,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             IntervalSet<CommitLogPosition> commitLogPositions,
                                             int sstableLevel,
                                             SerializationHeader header,
-                                            Collection<Index> indexes,
+                                            Collection<Index.Group> indexGroups,
                                             LifecycleNewTracker lifecycleNewTracker,
                                             SSTable.Owner owner)
     {
@@ -131,8 +131,8 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             .setTableMetadataRef(metadata)
                                             .setMetadataCollector(metadataCollector)
                                             .setSerializationHeader(header)
-                                            .addDefaultComponents()
-                                            .addFlushObserversForSecondaryIndexes(indexes, lifecycleNewTracker.opType())
+                                            .addDefaultComponents(indexGroups)
+                                            .addFlushObserversForSecondaryIndexes(indexGroups, lifecycleNewTracker, metadata.get())
                                             .build(lifecycleNewTracker, owner);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }

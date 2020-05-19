@@ -21,6 +21,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
@@ -54,6 +56,16 @@ public final class IndexMetadata
 
 
     public static final Serializer serializer = new Serializer();
+
+    /**
+     * A mapping of user-friendly index names to their fully qualified index class names.
+     */
+    private static final Map<String, String> indexNameAliases = new ConcurrentHashMap<>();
+
+    static
+    {
+        indexNameAliases.put(SASIIndex.class.getSimpleName(), SASIIndex.class.getCanonicalName());
+    }
 
     public enum Kind
     {
@@ -122,12 +134,20 @@ public final class IndexMetadata
             if (options == null || !options.containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))
                 throw new ConfigurationException(String.format("Required option missing for index %s : %s",
                                                                name, IndexTarget.CUSTOM_INDEX_OPTION_NAME));
-            String className = options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
+
+            // Find any aliases to the fully qualified index class name:
+            String className = expandAliases(options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME));
+
             Class<Index> indexerClass = FBUtilities.classForName(className, "custom indexer");
             if (!Index.class.isAssignableFrom(indexerClass))
                 throw new ConfigurationException(String.format("Specified Indexer class (%s) does not implement the Indexer interface", className));
             validateCustomIndexOptions(table, indexerClass, options);
         }
+    }
+
+    public static String expandAliases(String className)
+    {
+        return indexNameAliases.getOrDefault(className, className);
     }
 
     private void validateCustomIndexOptions(TableMetadata table, Class<? extends Index> indexerClass, Map<String, String> options)

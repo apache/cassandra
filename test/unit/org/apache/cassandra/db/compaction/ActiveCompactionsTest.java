@@ -82,7 +82,7 @@ public class ActiveCompactionsTest extends CQLTester
         for (int ii = 0; ii < loopCount; ii++)
         {
             CountDownLatch trigger = new CountDownLatch(1);
-            SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables);
+            SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables, true);
             Future<?> f1 = es.submit(() -> {
                 Uninterruptibles.awaitUninterruptibly(trigger);
                 try
@@ -119,7 +119,7 @@ public class ActiveCompactionsTest extends CQLTester
 
         Index idx = getCurrentColumnFamilyStore().indexManager.getIndexByName(idxName);
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
-        SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables);
+        SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables, false);
 
         MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
         CompactionManager.instance.submitIndexBuild(builder, mockActiveCompactions).get();

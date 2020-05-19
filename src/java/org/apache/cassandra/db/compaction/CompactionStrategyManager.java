@@ -1237,7 +1237,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
@@ -1253,7 +1253,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               commitLogPositions,
                                                                                               sstableLevel,
                                                                                               header,
-                                                                                              indexes,
+                                                                                              indexGroups,
                                                                                               lifecycleNewTracker);
         }
         finally

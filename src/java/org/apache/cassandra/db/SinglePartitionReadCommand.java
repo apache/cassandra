@@ -64,6 +64,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -71,7 +72,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.ClientState;
@@ -101,10 +101,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          DataLimits limits,
                                          DecoratedKey partitionKey,
                                          ClusteringIndexFilter clusteringIndexFilter,
-                                         IndexMetadata index,
+                                         Index.QueryPlan indexQueryPlan,
                                          boolean trackWarnings)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings);
+        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -120,7 +120,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     DataLimits limits,
                                                     DecoratedKey partitionKey,
                                                     ClusteringIndexFilter clusteringIndexFilter,
-                                                    IndexMetadata index,
+                                                    Index.QueryPlan indexQueryPlan,
                                                     boolean trackWarnings)
     {
         if (metadata.isVirtual())
@@ -135,7 +135,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                               limits,
                                                               partitionKey,
                                                               clusteringIndexFilter,
-                                                              index,
+                                                              indexQueryPlan,
                                                               trackWarnings);
         }
         return new SinglePartitionReadCommand(isDigest,
@@ -148,7 +148,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               limits,
                                               partitionKey,
                                               clusteringIndexFilter,
-                                              index,
+                                              indexQueryPlan,
                                               trackWarnings);
     }
 
@@ -162,7 +162,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @param limits the limits to use for the query.
      * @param partitionKey the partition key for the partition to query.
      * @param clusteringIndexFilter the clustering index filter to use for the query.
-     * @param indexMetadata explicitly specified index to use for the query
+     * @param indexQueryPlan explicitly specified index to use for the query
      *
      * @return a newly created read command.
      */
@@ -173,7 +173,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     DataLimits limits,
                                                     DecoratedKey partitionKey,
                                                     ClusteringIndexFilter clusteringIndexFilter,
-                                                    IndexMetadata indexMetadata)
+                                                    Index.QueryPlan indexQueryPlan)
     {
         return create(false,
                       0,
@@ -185,7 +185,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits,
                       partitionKey,
                       clusteringIndexFilter,
-                      indexMetadata,
+                      indexQueryPlan,
                       false);
     }
 
@@ -217,7 +217,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits,
                       partitionKey,
                       clusteringIndexFilter,
-                      findIndex(metadata, rowFilter));
+                      findIndexQueryPlan(metadata, rowFilter));
     }
 
     /**
@@ -362,7 +362,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits(),
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -379,7 +379,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits(),
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -396,7 +396,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits(),
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -413,7 +413,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       newLimits,
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -1318,12 +1318,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                        ColumnFilter columnFilter,
                                        RowFilter rowFilter,
                                        DataLimits limits,
-                                       IndexMetadata index)
+                                       Index.QueryPlan indexQueryPlan)
         throws IOException
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return SinglePartitionReadCommand.create(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index, false);
+            return SinglePartitionReadCommand.create(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
         }
     }
 
@@ -1367,10 +1367,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          DataLimits limits,
                                                          DecoratedKey partitionKey,
                                                          ClusteringIndexFilter clusteringIndexFilter,
-                                                         IndexMetadata index,
+                                                         Index.QueryPlan indexQueryPlan,
                                                          boolean trackWarnings)
         {
-            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, index, trackWarnings);
+            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings);
         }
 
         @Override

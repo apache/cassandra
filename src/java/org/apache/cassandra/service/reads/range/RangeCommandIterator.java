@@ -42,7 +42,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
@@ -60,7 +60,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeCommandIterator.class);
 
-    private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
+    public static final ClientRangeRequestMetrics rangeMetrics = new ClientRangeRequestMetrics("RangeSlice");
 
     private final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
     private final int totalRangeCount;
@@ -270,6 +270,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         {
             long latency = nanoTime() - startTime;
             rangeMetrics.addNano(latency);
+            rangeMetrics.roundTrips.update(batchesRequested);
             Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
         }
     }
