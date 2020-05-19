@@ -52,7 +52,7 @@ ARGS=""
 JVM_ARGS=""
 while true
 do
-  if [ ! $1 ]; then break; fi
+  if [ "x" = "x$1" ]; then break; fi
   case $1 in
     -D*)
       JVM_ARGS="$JVM_ARGS $1"
