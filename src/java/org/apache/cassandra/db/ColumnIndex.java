@@ -123,14 +123,21 @@ public class ColumnIndex
     private void writePartitionHeader(UnfilteredRowIterator iterator) throws IOException
     {
         ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
+
+        long partitionDeletionPosition = writer.position();
         DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
+        if (!observers.isEmpty())
+            observers.forEach(o -> o.partitionLevelDeletion(iterator.partitionLevelDeletion(), partitionDeletionPosition));
+
+        if (header.hasStatic())
         if (header.hasStatic())
         {
             Row staticRow = iterator.staticRow();
+            long staticRowPosition = writer.position();
 
             UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, writer, version);
             if (!observers.isEmpty())
-                observers.forEach((o) -> o.nextUnfilteredCluster(staticRow));
+                observers.forEach(o -> o.staticRow(staticRow, staticRowPosition));
         }
     }
 
@@ -249,12 +256,12 @@ public class ColumnIndex
             firstClustering = unfiltered.clustering();
             startPosition = pos;
         }
-
+        long unfilteredPosition = writer.position();
         UnfilteredSerializer.serializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version);
 
         // notify observers about each new row
         if (!observers.isEmpty())
-            observers.forEach((o) -> o.nextUnfilteredCluster(unfiltered));
+            observers.forEach(o -> o.nextUnfilteredCluster(unfiltered, unfilteredPosition));
 
         lastClustering = unfiltered.clustering();
         previousRowStart = pos;

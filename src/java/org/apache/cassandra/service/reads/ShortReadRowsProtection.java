@@ -184,6 +184,6 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
                                                  command.limits().forShortReadRetry(toQuery),
                                                  partitionKey,
                                                  filter,
-                                                 command.indexMetadata());
+                                                 command.indexQueryPlan());
     }
 }

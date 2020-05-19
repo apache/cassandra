@@ -71,6 +71,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
@@ -530,7 +531,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, MetadataCollector metadataCollector, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
-        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadataCollector, header, indexManager.listIndexes(), lifecycleNewTracker);
+        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadataCollector, header, indexManager.listIndexGroups(), lifecycleNewTracker);
     }
 
     public boolean supportsEarlyOpen()
@@ -1337,17 +1338,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Keyspace.switchLock
-     * param @ lock - lock that needs to be used.
-     * param @ key - key for update/insert
-     * param @ columnFamily - columnFamily changes
+     * @param update to be applied
+     * @param context write context for current update
+     * @param updateIndexes whether secondary indexes should be updated
      */
-    public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+    @SuppressWarnings("resource") // opGroup
+    public void apply(PartitionUpdate update, CassandraWriteContext context, boolean updateIndexes)
 
     {
         long start = nanoTime();
+        OpOrder.Group opGroup = context.getGroup();
+        CommitLogPosition commitLogPosition = context.getPosition();
         try
         {
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
+            UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
             long timeDelta = mt.put(update, indexer, opGroup);
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
@@ -1370,6 +1375,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                        + " for ks: "
                                        + keyspace.getName() + ", table: " + name, e);
         }
+    }
+
+    private UpdateTransaction newUpdateTransaction(PartitionUpdate update, CassandraWriteContext context, boolean updateIndexes, Memtable memtable)
+    {
+        return updateIndexes
+               ? indexManager.newUpdateTransaction(update, context, FBUtilities.nowInSeconds(), memtable)
+               : UpdateTransaction.NO_OP;
     }
 
     /**
