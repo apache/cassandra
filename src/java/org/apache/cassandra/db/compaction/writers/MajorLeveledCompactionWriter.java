@@ -47,7 +47,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, false);
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings({ "resource", "RedundantSuppression" })
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         Directories directories,
                                         LifecycleTransaction txn,

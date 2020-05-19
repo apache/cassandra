@@ -1060,7 +1060,7 @@ public class SSTableReaderTest
                                              .columns("birthdate")
                                              .filterOn("birthdate", Operator.EQ, 1L)
                                              .build();
-        Index.Searcher searcher = rc.getIndex(indexedCFS).searcherFor(rc);
+        Index.Searcher searcher = rc.indexSearcher();
         assertNotNull(searcher);
         try (ReadExecutionController executionController = rc.executionController())
         {
