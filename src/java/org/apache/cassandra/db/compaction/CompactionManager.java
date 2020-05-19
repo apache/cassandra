@@ -1464,7 +1464,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     isTransient,
                                     sstable.getSSTableLevel(),
                                     sstable.header,
-                                    cfs.indexManager.listIndexes(),
+                                    cfs.indexManager.listIndexGroups(),
                                     txn);
     }
 
@@ -1501,7 +1501,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     cfs.metadata,
                                     new MetadataCollector(sstables, cfs.metadata().comparator, minLevel),
                                     SerializationHeader.make(cfs.metadata(), sstables),
-                                    cfs.indexManager.listIndexes(),
+                                    cfs.indexManager.listIndexGroups(),
                                     txn);
     }
 

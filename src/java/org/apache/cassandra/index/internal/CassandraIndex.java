@@ -54,7 +54,6 @@ import org.apache.cassandra.index.*;
 import org.apache.cassandra.index.internal.composites.CompositesSearcher;
 import org.apache.cassandra.index.internal.keys.KeysSearcher;
 import org.apache.cassandra.index.transactions.IndexTransaction;
-import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -271,14 +270,6 @@ public abstract class CassandraIndex implements Index
         return indexCfs.getMeanRowCount();
     }
 
-    /**
-     * No post processing of query results, just return them unchanged
-     */
-    public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand command)
-    {
-        return (partitionIterator, readCommand) -> partitionIterator;
-    }
-
     public RowFilter getPostIndexQueryFilter(RowFilter filter)
     {
         return getTargetExpression(filter.getExpressions()).map(filter::without)
@@ -340,7 +331,8 @@ public abstract class CassandraIndex implements Index
                               final RegularAndStaticColumns columns,
                               final int nowInSec,
                               final WriteContext ctx,
-                              final IndexTransaction.Type transactionType)
+                              final IndexTransaction.Type transactionType,
+                              Memtable memtable)
     {
         /**
          * Indexes on regular and static columns (the non primary-key ones) only care about updates with live
@@ -524,7 +516,7 @@ public abstract class CassandraIndex implements Index
                                                                cell));
         Row row = BTreeRow.noCellLiveRow(buildIndexClustering(rowKey, clustering, cell), info);
         PartitionUpdate upd = partitionUpdate(valueKey, row);
-        indexCfs.getWriteHandler().write(upd, ctx, UpdateTransaction.NO_OP);
+        indexCfs.getWriteHandler().write(upd, ctx, false);
         logger.trace("Inserted entry into index for value {}", valueKey);
     }
 
@@ -570,7 +562,7 @@ public abstract class CassandraIndex implements Index
     {
         Row row = BTreeRow.emptyDeletedRow(indexClustering, Row.Deletion.regular(deletion));
         PartitionUpdate upd = partitionUpdate(indexKey, row);
-        indexCfs.getWriteHandler().write(upd, ctx, UpdateTransaction.NO_OP);
+        indexCfs.getWriteHandler().write(upd, ctx, false);
         logger.trace("Removed index entry for value {}", indexKey);
     }
 

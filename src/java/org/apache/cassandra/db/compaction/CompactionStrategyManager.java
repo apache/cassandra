@@ -1103,7 +1103,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        boolean isTransient,
                                                        MetadataCollector collector,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
@@ -1118,7 +1118,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               isTransient,
                                                                                               collector,
                                                                                               header,
-                                                                                              indexes,
+                                                                                              indexGroups,
                                                                                               lifecycleNewTracker);
         }
         finally

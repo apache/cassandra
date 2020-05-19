@@ -50,9 +50,16 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
@@ -1646,22 +1653,119 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public DecoratedKey keyAt(long indexPosition) throws IOException
     {
-        DecoratedKey key;
         try (FileDataInput in = ifile.createReader(indexPosition))
+        {
+            return keyAt(in);
+        }
+    }
+
+    private DecoratedKey keyAt(FileDataInput reader) throws IOException
+    {
+        if (reader.isEOF()) return null;
+
+        DecoratedKey key = decorateKey(ByteBufferUtil.readWithShortLength(reader));
+
+        // hint read path about key location if caching is enabled
+        // this saves index summary lookup and index file iteration which whould be pretty costly
+        // especially in presence of promoted column indexes
+        if (isKeyCacheEnabled())
+            cacheKey(key, rowIndexEntrySerializer.deserialize(reader));
+
+        return key;
+    }
+
+    /**
+     * Retrieves the partition-level deletion time at the given position of the data file, as specified by
+     * {@link SSTableFlushObserver#partitionLevelDeletion(DeletionTime, long)}.
+     *
+     * @param position the start position of the partion-level deletion time in the data file
+     * @return the partion-level deletion time at the specified position
+     */
+    public DeletionTime partitionLevelDeletionAt(long position) throws IOException
+    {
+        try (FileDataInput in = dfile.createReader(position))
         {
             if (in.isEOF())
                 return null;
 
-            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
-
-            // hint read path about key location if caching is enabled
-            // this saves index summary lookup and index file iteration which whould be pretty costly
-            // especially in presence of promoted column indexes
-            if (isKeyCacheEnabled())
-                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
+            return DeletionTime.serializer.deserialize(in);
         }
+    }
 
-        return key;
+    /**
+     * Retrieves the static row at the given position of the data file, as specified by
+     * {@link SSTableFlushObserver#staticRow(Row, long)}.
+     *
+     * @param position the start position of the static row in the data file
+     * @param columnFilter the columns to fetch, {@code null} to select all the columns
+     * @return the static row at the specified position
+     */
+    public Row staticRowAt(long position, ColumnFilter columnFilter) throws IOException
+    {
+        if (!header.hasStatic())
+            return Rows.EMPTY_STATIC_ROW;
+
+        try (FileDataInput in = dfile.createReader(position))
+        {
+            if (in.isEOF())
+                return null;
+
+            int version = descriptor.version.correspondingMessagingVersion();
+            DeserializationHelper helper = new DeserializationHelper(metadata.get(),
+                                                                     version,
+                                                                     DeserializationHelper.Flag.LOCAL,
+                                                                     columnFilter);
+
+            return UnfilteredSerializer.serializer.deserializeStaticRow(in, header, helper);
+        }
+    }
+
+    /**
+     * Retrieves the clustering prefix of the unfiltered at the given position of the data file, as specified by
+     * {@link SSTableFlushObserver#nextUnfilteredCluster(Unfiltered, long)}.
+     *
+     * @param position the start position of the unfiltered in the data file
+     * @return the clustering prefix of the unfiltered at the specified position
+     */
+    public ClusteringPrefix clusteringAt(long position) throws IOException
+    {
+        try (FileDataInput in = dfile.createReader(position))
+        {
+            if (in.isEOF())
+                return null;
+
+            int version = descriptor.version.correspondingMessagingVersion();
+            int flags = in.readUnsignedByte();
+            boolean isRow = UnfilteredSerializer.kind(flags) == Unfiltered.Kind.ROW;
+
+            return isRow
+                   ? Clustering.serializer.deserialize(in, version, header.clusteringTypes())
+                   : ClusteringBoundOrBoundary.serializer.deserialize(in, version, header.clusteringTypes());
+        }
+    }
+
+    /**
+     * Retrieves the unfiltered at the given position of the data file, as specified by
+     * {@link SSTableFlushObserver#nextUnfilteredCluster(Unfiltered, long)}.
+     *
+     * @param position the start position of the unfiltered in the data file
+     * @param columnFilter the columns to fetch, {@code null} to select all the columns
+     * @return the unfiltered at the specified position
+     */
+    public Unfiltered unfilteredAt(long position, ColumnFilter columnFilter) throws IOException
+    {
+        try (FileDataInput in = dfile.createReader(position))
+        {
+            if (in.isEOF())
+                return null;
+
+            int version = descriptor.version.correspondingMessagingVersion();
+            DeserializationHelper helper = new DeserializationHelper(metadata.get(),
+                                                                     version,
+                                                                     DeserializationHelper.Flag.LOCAL,
+                                                                     columnFilter);
+            return UnfilteredSerializer.serializer.deserialize(in, header, helper, BTreeRow.sortedBuilder());
+        }
     }
 
     public boolean isPendingRepair()

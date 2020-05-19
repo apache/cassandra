@@ -79,7 +79,7 @@ public class Upgrader
                                     cfs.metadata,
                                     sstableMetadataCollector,
                                     SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
-                                    cfs.indexManager.listIndexes(),
+                                    cfs.indexManager.listIndexGroups(),
                                     transaction);
     }
 

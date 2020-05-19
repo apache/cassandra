@@ -168,7 +168,7 @@ public class RealTransactionsTest extends SchemaLoader
                                                            false,
                                                            0,
                                                            SerializationHeader.make(cfs.metadata(), txn.originals()),
-                                                           cfs.indexManager.listIndexes(),
+                                                           cfs.indexManager.listIndexGroups(),
                                                            txn));
                 while (ci.hasNext())
                 {
