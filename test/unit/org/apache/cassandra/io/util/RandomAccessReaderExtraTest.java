@@ -19,10 +19,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.ByteArrayInputStream;
-import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -220,7 +217,8 @@ public class RandomAccessReaderExtraTest
     {
         File dir = Files.createTempDirectory("RandomAccessReaderExtraTest").toFile();
         String prefix = "na-42-big";
-        File uncompressed = new File(dir, "uncompressed-Data.db"); uncompressed.createNewFile();
+        File uncompressed = new File(dir, "uncompressed-Data.db");
+        uncompressed.createNewFile();
         // is there not a cleaner way to compress a stream? Pretending to be a SSTable feels so wrong...
         File compressed = new File(dir, prefix + "-Data.db");
         try (FileChannel cn = FileChannel.open(uncompressed.toPath(), EnumSet.of(WRITE)))
@@ -238,12 +236,12 @@ public class RandomAccessReaderExtraTest
             Assert.assertEquals(8, cn.write(buffer));
         }
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(
-            compressed,
-            new File(dir, prefix + "-CompressionInfo.db").getAbsolutePath(),
-            new File(dir, prefix + "-Digest.crc32"),
-            SequentialWriterOption.newBuilder().build(),
-            CompressionParams.snappy(), // compression
-            new MetadataCollector(new ClusteringComparator())))
+        compressed,
+        new File(dir, prefix + "-CompressionInfo.db").getAbsolutePath(),
+        new File(dir, prefix + "-Digest.crc32"),
+        SequentialWriterOption.newBuilder().build(),
+        CompressionParams.snappy(), // compression
+        new MetadataCollector(new ClusteringComparator())))
         {
             writer.writeLong(42);
 
@@ -269,6 +267,7 @@ public class RandomAccessReaderExtraTest
     public static void cleanupFiles()
     {
         TWENTY_REGIONS.delete();
+        LARGE_TWO_RECORDS.delete();
     }
 
     @Parameters(name = "{0}/{1}/{2}")
@@ -281,7 +280,7 @@ public class RandomAccessReaderExtraTest
             {
                 for (Boolean compressed : Arrays.asList(Boolean.TRUE, Boolean.FALSE))
                 {
-                    tests.add(new Object[] {mmap, bufferType, compressed});
+                    tests.add(new Object[]{ mmap, bufferType, compressed });
                 }
             }
         }
@@ -293,7 +292,8 @@ public class RandomAccessReaderExtraTest
         byte[] bytes = createBytes();
         File dir = Files.createTempDirectory("RandomAccessReaderExtraTest").toFile();
         String prefix = "na-42-big";
-        File uncompressed = new File(dir, "uncompressed-Data.db"); uncompressed.createNewFile();
+        File uncompressed = new File(dir, "uncompressed-Data.db");
+        uncompressed.createNewFile();
         File compressed = new File(dir, prefix + "-Data.db");
         try (FileChannel channel = FileChannel.open(uncompressed.toPath(), EnumSet.of(StandardOpenOption.WRITE));
              CompressedSequentialWriter writer = new CompressedSequentialWriter(compressed,

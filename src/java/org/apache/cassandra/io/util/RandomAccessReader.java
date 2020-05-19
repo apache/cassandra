@@ -214,13 +214,19 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         if (n < 0)
             return 0;
 
-        long oldPosition = getPosition();
+        if (buffer.remaining() > n)
+        {
+            buffer.position(buffer.position() + (int) n);
+            return n;
+        }
+
+        long oldPosition = current();
         long length = length();
         long targetPosition = oldPosition + n;
         if (targetPosition > length)
             targetPosition = length;
 
-        seek(targetPosition);
+        reBufferAt(targetPosition);
         assert targetPosition == getPosition() : "Skipping did not switch to the new position";
         return targetPosition - oldPosition;
     }
