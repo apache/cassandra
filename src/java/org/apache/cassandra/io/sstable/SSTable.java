@@ -33,8 +33,6 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -65,8 +63,6 @@ import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABL
  */
 public abstract class SSTable
 {
-    static final Logger logger = LoggerFactory.getLogger(SSTable.class);
-
     public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
     public static final int TOMBSTONE_HISTOGRAM_SPOOL_SIZE = 100000;
     public static final int TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS = CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.getInt();

@@ -21,8 +21,10 @@ package org.apache.cassandra.io.sstable.format;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -31,7 +33,6 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -39,6 +40,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
@@ -49,6 +51,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.MmappedRegionsCache;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -233,7 +236,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public final Throwable abort(Throwable accumulate)
     {
-        return txnProxy.abort(accumulate);
+        try
+        {
+            return txnProxy.abort(accumulate);
+        }
+        finally
+        {
+            observers.forEach(observer -> observer.abort(accumulate));
+        }
     }
 
     public final void close()
@@ -243,7 +253,14 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public final void abort()
     {
-        txnProxy.abort();
+        try
+        {
+            txnProxy.abort();
+        }
+        finally
+        {
+            observers.forEach(observer -> observer.abort(null));
+        }
     }
 
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
@@ -400,7 +417,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return (B) this;
         }
 
-        public B addDefaultComponents()
+        public B addDefaultComponents(Collection<Index.Group> indexGroups)
         {
             checkNotNull(getTableMetadataRef());
 
@@ -417,21 +434,35 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 addComponents(ImmutableSet.of(Components.CRC));
             }
 
+            if (!indexGroups.isEmpty())
+                addComponents(indexComponents(indexGroups));
+
             return (B) this;
         }
 
-        public B addFlushObserversForSecondaryIndexes(Collection<Index> indexes, OperationType operationType)
+        private static Set<Component> indexComponents(Collection<Index.Group> indexGroups)
         {
-            if (indexes == null)
+            Set<Component> components = new HashSet<>();
+            for (Index.Group group : indexGroups)
+            {
+                components.addAll(group.getComponents());
+            }
+
+            return components;
+        }
+
+        public B addFlushObserversForSecondaryIndexes(Collection<Index.Group> indexGroups, LifecycleNewTracker tracker, TableMetadata metadata)
+        {
+            if (indexGroups == null)
                 return (B) this;
 
             Collection<SSTableFlushObserver> current = this.flushObservers != null ? this.flushObservers : Collections.emptyList();
-            List<SSTableFlushObserver> observers = new ArrayList<>(indexes.size() + current.size());
+            List<SSTableFlushObserver> observers = new ArrayList<>(indexGroups.size() + current.size());
             observers.addAll(current);
 
-            for (Index index : indexes)
+            for (Index.Group group : indexGroups)
             {
-                SSTableFlushObserver observer = index.getFlushObserver(descriptor, operationType);
+                SSTableFlushObserver observer = group.getFlushObserver(descriptor, tracker, metadata);
                 if (observer != null)
                 {
                     observer.begin();

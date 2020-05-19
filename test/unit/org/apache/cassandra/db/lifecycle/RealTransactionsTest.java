@@ -163,9 +163,9 @@ public class RealTransactionsTest extends SchemaLoader
                 rewriter.switchWriter(desc.getFormat().getWriterFactory().builder(desc)
                                           .setTableMetadataRef(metadata)
                                           .setSerializationHeader(SerializationHeader.make(cfs.metadata(), txn.originals()))
-                                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, metadata.get())
                                           .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
-                                          .addDefaultComponents()
+                                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
                                           .build(txn, cfs));
                 while (ci.hasNext())
                 {

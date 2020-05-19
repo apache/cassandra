@@ -38,6 +38,7 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -50,10 +51,10 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
-import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
+import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TopPartitionTracker;
@@ -221,7 +222,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 CompactionIterator.this.updateCounterFor(merged);
 
                 if ( (type != OperationType.COMPACTION && type != OperationType.MAJOR_COMPACTION) 
-                    || !controller.cfs.indexManager.hasIndexes() ) 
+                    || !controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION) ) 
                 {
                     return null;
                 }
