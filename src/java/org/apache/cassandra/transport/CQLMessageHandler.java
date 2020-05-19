@@ -61,9 +61,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
 
     long corruptFramesRecovered, corruptFramesUnrecovered;
     long receivedCount, receivedBytes;
-
-    private long channelPayloadBytesInFlight;
-    private boolean paused;
+    long channelPayloadBytesInFlight;
 
     CQLMessageHandler(Channel channel,
                       FrameDecoder decoder,
@@ -86,7 +84,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
     public void channelRead(ChannelHandlerContext ctx, Object msg)
     {
         /*
-         * InboundMessageHandler works in tandem with FrameDecoder to implement flow control
+         * CQLMessageHandler works in tandem with FrameDecoder to implement flow control
          * and work stashing optimally. We rely on FrameDecoder to invoke the provided
          * FrameProcessor rather than on the pipeline and invocations of channelRead().
          * process(Frame) is the primary entry point for this class.
@@ -139,11 +137,11 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         if (frame == null)
             return false;
 
-        // TODO old max frame size defaults to 256mb, so should be safe to downcast
+        // max (CQL) frame size defaults to 256mb, so should be safe to downcast
         int size = Ints.checkedCast(frame.header.bodySizeInBytes);
 
         // TODO rename
-        if (!shouldHandleRequest(frame.header, limits))
+        if (!acquireCapacity(frame.header, limits))
         {
             // we're over allocated here, but process the message
             // anyway because we didn't throw any exception
@@ -176,9 +174,6 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         final int begin = buf.position();
         ByteBuf buffer = Unpooled.wrappedBuffer(buf);
 
-        // get o.a.c.transport.Frame.Header from buf
-        // deserialize o.a.c.transport.Message from buf
-        // create task to process Header + Message
         try
         {
             Frame f = cqlFrameDecoder.decodeFrame(buffer);
@@ -212,7 +207,7 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
         {
             Frame.Header header = cqlFrameDecoder.decodeHeader(Unpooled.wrappedBuffer(buf));
 
-            if (!shouldHandleRequest(header, limits))
+            if (!acquireCapacity(header, limits))
             {
                 receivedCount++;
                 receivedBytes += frame.frameSize;
@@ -251,11 +246,9 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
     private void releaseCapacity(int bytes)
     {
         limits.release(bytes);
-        // TODO
     }
 
-    private boolean shouldHandleRequest(Frame.Header header,
-                                        ResourceLimits.EndpointAndGlobal limits)
+    private boolean acquireCapacity(Frame.Header header, ResourceLimits.EndpointAndGlobal limits)
     {
         long frameSize = header.bodySizeInBytes;
 
@@ -282,7 +275,6 @@ public class CQLMessageHandler extends ChannelInboundHandlerAdapter implements F
                 // so that we stop processing further frames from the decoder
                 limits.allocate(frameSize);
                 ClientMetrics.instance.pauseConnection();
-                paused = true;
                 channelPayloadBytesInFlight += frameSize;
                 return false;
             }

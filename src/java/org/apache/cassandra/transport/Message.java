@@ -830,6 +830,10 @@ public abstract class Message
             // 1) we allow no other thread/channel to do it, and
             // 2) there's no other events following this one (becuase we're at zero bytes in flight),
             // so no successive to trigger the other clause in this if-block
+            //
+            // note: this path is only relevant when part of a pre-V5 pipeline, as only in this case is
+            // paused ever set to true. In pipelines configured for V5 or later, backpressure and control
+            // over the inbound pipeline's autoread status are handled by the FrameDecoder/FrameProcessor.
             ChannelConfig config = item.ctx.channel().config();
             if (paused && (channelPayloadBytesInFlight == 0 || endpointGlobalReleaseOutcome == ResourceLimits.Outcome.BELOW_LIMIT))
             {
