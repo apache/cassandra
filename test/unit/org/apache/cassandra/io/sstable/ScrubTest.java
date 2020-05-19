@@ -840,7 +840,7 @@ public class ScrubTest
                                          .setMetadataCollector(collector)
                                          .setSerializationHeader(header)
                                          .setFlushObservers(Collections.emptyList())
-                                         .addDefaultComponents()
+                                         .addDefaultComponents(Collections.emptySet())
                                          .build(txn, cfs);
 
         return new TestMultiWriter(writer, txn);

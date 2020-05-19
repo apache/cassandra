@@ -16,26 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.distributed.upgrade;
 
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.tracing.Tracing;
+import org.junit.Test;
 
-public class CassandraTableWriteHandler implements TableWriteHandler
+/**
+ * {@link MixedModeIndexTestBase} for upgrades from 4.0.
+ */
+public class MixedModeIndexV40Test extends MixedModeIndexTestBase
 {
-    private final ColumnFamilyStore cfs;
-
-    public CassandraTableWriteHandler(ColumnFamilyStore cfs)
+    @Test
+    public void testIndex() throws Throwable
     {
-        this.cfs = cfs;
-    }
-
-    @Override
-    @SuppressWarnings("resource")
-    public void write(PartitionUpdate update, WriteContext context, boolean updateIndexes)
-    {
-        CassandraWriteContext ctx = CassandraWriteContext.fromContext(context);
-        Tracing.trace("Adding to {} memtable", update.metadata().name);
-        cfs.apply(update, ctx, updateIndexes);
+        testIndex(v40);
     }
 }

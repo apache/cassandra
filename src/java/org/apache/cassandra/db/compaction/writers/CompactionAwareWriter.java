@@ -262,7 +262,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      * Return a directory where we can expect expectedWriteSize to fit.
      *
      * @param sstables the sstables to compact
-     * @return
      */
     public Directories.DataDirectory getWriteDirectory(Iterable<SSTableReader> sstables, long estimatedWriteSize)
     {
@@ -312,9 +311,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      * - {@link SSTableWriter.Builder#setKeyCount(long)},
      * - {@link SSTableWriter.Builder#setSerializationHeader(SerializationHeader)} and,
      * - {@link SSTableWriter.Builder#setMetadataCollector(MetadataCollector)}
-     *
-     * @param descriptor
-     * @return
      */
     protected SSTableWriter.Builder<?, ?> newWriterBuilder(Descriptor descriptor)
     {
@@ -323,7 +319,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                          .setTransientSSTable(isTransient)
                          .setRepairedAt(minRepairedAt)
                          .setPendingRepair(pendingRepair)
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
-                         .addDefaultComponents();
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .addDefaultComponents(cfs.indexManager.listIndexGroups());
     }
 }

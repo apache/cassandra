@@ -198,7 +198,7 @@ public abstract class AbstractStrategyHolder
                                                                 IntervalSet<CommitLogPosition> commitLogPositions,
                                                                 int sstableLevel,
                                                                 SerializationHeader header,
-                                                                Collection<Index> indexes,
+                                                                Collection<Index.Group> indexGroups,
                                                                 LifecycleNewTracker lifecycleNewTracker);
 
     /**
