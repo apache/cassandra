@@ -65,8 +65,6 @@ import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABL
  */
 public abstract class SSTable
 {
-    static final Logger logger = LoggerFactory.getLogger(SSTable.class);
-
     public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
     public static final int TOMBSTONE_HISTOGRAM_SPOOL_SIZE = 100000;
     public static final int TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS = CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.getInt();

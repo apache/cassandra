@@ -110,7 +110,7 @@ import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.exceptions.TimeQuotaExceededException;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
-import org.apache.cassandra.index.sasi.plan.QueryPlan;
+import org.apache.cassandra.index.sasi.plan.SASIIndexSearcher;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -1505,7 +1505,7 @@ public class SASIIndexTest
                                              DataRange.allData(store.metadata().partitioner));
         try
         {
-            new QueryPlan(store, command, 0).execute(ReadExecutionController.empty());
+            new SASIIndexSearcher(store, command, 0).search(ReadExecutionController.empty());
             Assert.fail();
         }
         catch (TimeQuotaExceededException e)
@@ -1522,7 +1522,7 @@ public class SASIIndexTest
 
         try (ReadExecutionController controller = command.executionController())
         {
-            Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller));
+            Set<String> rows = getKeys(new SASIIndexSearcher(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).search(controller));
             assertRows(rows, "key1", "key2", "key3", "key4");
         }
     }

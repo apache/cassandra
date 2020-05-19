@@ -16,26 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.index.sasi;
 
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.SingletonIndexGroup;
+import org.apache.cassandra.index.sasi.plan.SASIIndexQueryPlan;
 
-public class CassandraTableWriteHandler implements TableWriteHandler
+public class SASIIndexGroup extends SingletonIndexGroup
 {
-    private final ColumnFamilyStore cfs;
-
-    public CassandraTableWriteHandler(ColumnFamilyStore cfs)
+    public SASIIndexGroup(SASIIndex index)
     {
-        this.cfs = cfs;
+        super(index);
     }
 
     @Override
-    @SuppressWarnings("resource")
-    public void write(PartitionUpdate update, WriteContext context, boolean updateIndexes)
+    public Index.QueryPlan queryPlanFor(RowFilter rowFilter)
     {
-        CassandraWriteContext ctx = CassandraWriteContext.fromContext(context);
-        Tracing.trace("Adding to {} memtable", update.metadata().name);
-        cfs.apply(update, ctx, updateIndexes);
+        return SASIIndexQueryPlan.create((SASIIndex) getIndex(), rowFilter);
     }
 }

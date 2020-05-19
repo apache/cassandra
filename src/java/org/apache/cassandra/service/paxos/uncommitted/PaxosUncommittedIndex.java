@@ -245,7 +245,7 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
 
     }
 
-    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType)
+    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType, Memtable memtable)
     {
         return indexer;
     }

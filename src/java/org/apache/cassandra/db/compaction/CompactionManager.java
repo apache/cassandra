@@ -1600,8 +1600,8 @@ public class CompactionManager implements CompactionManagerMBean
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator).sstableLevel(sstable.getSSTableLevel()))
                          .setSerializationHeader(sstable.header)
-                         .addDefaultComponents()
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                         .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
                          .build(txn, cfs);
     }
 
@@ -1640,8 +1640,8 @@ public class CompactionManager implements CompactionManagerMBean
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator, minLevel))
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
-                         .addDefaultComponents()
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                         .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
                          .build(txn, cfs);
     }
 

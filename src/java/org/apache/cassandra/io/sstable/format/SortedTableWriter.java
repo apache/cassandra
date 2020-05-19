@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
 import java.nio.BufferOverflowException;
+import java.util.Collection;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
@@ -441,9 +443,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         }
 
         @Override
-        public B addDefaultComponents()
+        public B addDefaultComponents(Collection<Index.Group> indexGroups)
         {
-            super.addDefaultComponents();
+            super.addDefaultComponents(indexGroups);
 
             if (FilterComponent.shouldUseBloomFilter(getTableMetadataRef().getLocal().params.bloomFilterFpChance))
             {

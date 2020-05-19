@@ -108,10 +108,10 @@ public class SSTableFlushObserverTest
                                          .setMetadataCollector(new MetadataCollector(cfm.comparator).sstableLevel(0))
                                          .setSerializationHeader(new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS))
                                          .setFlushObservers(Collections.singletonList(observer))
-                                         .addDefaultComponents()
+                                         .addDefaultComponents(Collections.emptySet())
                                          .build(transaction, null);
 
-        SSTableReader reader = null;
+        SSTableReader reader;
         Multimap<ByteBuffer, Cell<?>> expected = ArrayListMultimap.create();
 
         try
@@ -152,7 +152,6 @@ public class SSTableFlushObserverTest
         for (Triple<ByteBuffer, Long, Long> e : observer.rows.keySet())
         {
             ByteBuffer key = e.getLeft();
-            long dataPosition = e.getMiddle();
             long indexPosition = e.getRight();
 
             DecoratedKey indexKey = reader.keyAtPositionFromSecondaryIndex(indexPosition);

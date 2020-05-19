@@ -97,7 +97,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return writer.finished();
     }
 
-    @SuppressWarnings("resource") // log and writer closed during doPostCleanup
+    @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
     public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header)
     {
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
@@ -106,7 +106,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     }
 
 
-    @SuppressWarnings("resource") // log and writer closed during doPostCleanup
+    @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
     public static SSTableTxnWriter createRangeAware(TableMetadataRef metadata,
                                                     long keyCount,
                                                     long repairedAt,
@@ -134,7 +134,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return new SSTableTxnWriter(txn, writer);
     }
 
-    @SuppressWarnings("resource") // log and writer closed during doPostCleanup
+    @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
     public static SSTableTxnWriter create(TableMetadataRef metadata,
                                           Descriptor descriptor,
                                           long keyCount,
@@ -143,13 +143,13 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                           boolean isTransient,
                                           int sstableLevel,
                                           SerializationHeader header,
-                                          Collection<Index> indexes,
+                                          Collection<Index.Group> indexGroups,
                                           SSTable.Owner owner)
     {
         // if the column family store does not exist, we create a new default SSTableMultiWriter to use:
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
         MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(sstableLevel);
-        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, indexes, txn, owner);
+        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, indexGroups, txn, owner);
         return new SSTableTxnWriter(txn, writer);
     }
 

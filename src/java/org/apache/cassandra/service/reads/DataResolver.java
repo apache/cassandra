@@ -29,7 +29,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Joiner;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.ReadCommand;
@@ -51,7 +50,6 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -137,22 +135,11 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (command.rowFilter().isEmpty())
             return false;
 
-        IndexMetadata indexMetadata = command.indexMetadata();
-
-        if (indexMetadata == null || !indexMetadata.isCustom())
-        {
+        Index.QueryPlan queryPlan = command.indexQueryPlan();
+        if (queryPlan == null )
             return true;
-        }
 
-        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(command.metadata().id);
-
-        assert cfs != null;
-
-        Index index = command.getIndex(cfs);
-
-        assert index != null;
-
-        return index.supportsReplicaFilteringProtection(command.rowFilter());
+        return queryPlan.supportsReplicaFilteringProtection(command.rowFilter());
     }
 
     private class ResolveContext
@@ -258,11 +245,22 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
                                                                       i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
-                                                                      results -> command.rowFilter().filter(results, command.metadata(), command.nowInSec()),
+                                                                      preCountFilterForReplicaFilteringProtection(),
                                                                       repairedDataTracker);
 
         // Ensure that the RFP instance has a chance to record metrics when the iterator closes.
         return PartitionIterators.doOnClose(completedPartitions, firstPhasePartitions::close);
+    }
+
+    private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
+    {
+        return results -> {
+            Index.Searcher searcher = command.indexSearcher();
+            // in case of "ALLOW FILTERING" without index
+            if (searcher == null)
+                return command.rowFilter().filter(results, command.metadata(), command.nowInSec());
+            return searcher.filterReplicaFilteringProtection(results);
+        };
     }
 
     @SuppressWarnings("resource")

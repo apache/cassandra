@@ -23,19 +23,27 @@ package org.apache.cassandra.index;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.transactions.IndexTransaction;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -56,12 +64,7 @@ public interface IndexRegistry
     public static final IndexRegistry EMPTY = new IndexRegistry()
     {
         @Override
-        public void unregisterIndex(Index index)
-        {
-        }
-
-        @Override
-        public void registerIndex(Index index)
+        public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier)
         {
         }
 
@@ -69,6 +72,12 @@ public interface IndexRegistry
         public Collection<Index> listIndexes()
         {
             return Collections.emptyList();
+        }
+
+        @Override
+        public Collection<Index.Group> listIndexGroups()
+        {
+            return Collections.emptySet();
         }
 
         @Override
@@ -97,7 +106,7 @@ public interface IndexRegistry
      */
     public static final IndexRegistry NON_DAEMON = new IndexRegistry()
     {
-        Index index = new Index()
+        final Index index = new Index()
         {
             public Callable<?> getInitializationTask()
             {
@@ -173,12 +182,7 @@ public interface IndexRegistry
             {
             }
 
-            public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType)
-            {
-                return null;
-            }
-
-            public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand command)
+            public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType, Memtable memtable)
             {
                 return null;
             }
@@ -189,11 +193,59 @@ public interface IndexRegistry
             }
         };
 
-        public void registerIndex(Index index)
+        final Index.Group group = new Index.Group()
         {
-        }
+            @Override
+            public Set<Index> getIndexes()
+            {
+                return Collections.singleton(index);
+            }
 
-        public void unregisterIndex(Index index)
+            @Override
+            public void addIndex(Index index)
+            {
+            }
+
+            @Override
+            public void removeIndex(Index index)
+            {
+            }
+
+            @Override
+            public boolean containsIndex(Index i)
+            {
+                return index == i;
+            }
+
+            @Nullable
+            @Override
+            public Index.Indexer indexerFor(Predicate<Index> indexSelector, DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType, Memtable memtable)
+            {
+                return null;
+            }
+
+            @Nullable
+            @Override
+            public Index.QueryPlan queryPlanFor(RowFilter rowFilter)
+            {
+                return null;
+            }
+
+            @Nullable
+            @Override
+            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
+            {
+                return null;
+            }
+
+            @Override
+            public Set<Component> getComponents()
+            {
+                return null;
+            }
+        };
+
+        public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier)
         {
         }
 
@@ -207,6 +259,12 @@ public interface IndexRegistry
             return Collections.singletonList(index);
         }
 
+        @Override
+        public Collection<Index.Group> listIndexGroups()
+        {
+            return Collections.singletonList(group);
+        }
+
         public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
         {
             return Optional.empty();
@@ -214,12 +272,15 @@ public interface IndexRegistry
 
         public void validate(PartitionUpdate update)
         {
-
         }
     };
 
-    void registerIndex(Index index);
-    void unregisterIndex(Index index);
+    default void registerIndex(Index index)
+    {
+        registerIndex(index, index, () -> new SingletonIndexGroup(index));
+    }
+    public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier);
+    Collection<Index.Group> listIndexGroups();
 
     Index getIndex(IndexMetadata indexMetadata);
     Collection<Index> listIndexes();

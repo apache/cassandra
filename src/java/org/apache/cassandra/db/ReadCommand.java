@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongPredicate;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -49,8 +50,6 @@ import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.IndexNotAvailableException;
-import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -104,7 +103,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     private boolean trackWarnings;
 
     @Nullable
-    private final IndexMetadata index;
+    private final Index.QueryPlan indexQueryPlan;
 
     protected static abstract class SelectionDeserializer
     {
@@ -118,7 +117,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 ColumnFilter columnFilter,
                                                 RowFilter rowFilter,
                                                 DataLimits limits,
-                                                IndexMetadata index) throws IOException;
+                                                Index.QueryPlan indexQueryPlan) throws IOException;
     }
 
     protected enum Kind
@@ -143,7 +142,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                           ColumnFilter columnFilter,
                           RowFilter rowFilter,
                           DataLimits limits,
-                          IndexMetadata index,
+                          Index.QueryPlan indexQueryPlan,
                           boolean trackWarnings)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
@@ -154,7 +153,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
-        this.index = index;
+        this.indexQueryPlan = indexQueryPlan;
         this.trackWarnings = trackWarnings;
     }
 
@@ -242,14 +241,20 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     /**
-     * Index (metadata) chosen for this query. Can be null.
+     * Index query plan chosen for this query. Can be null.
      *
-     * @return index (metadata) chosen for this query
+     * @return index query plan chosen for this query
      */
     @Nullable
-    public IndexMetadata indexMetadata()
+    public Index.QueryPlan indexQueryPlan()
     {
-        return index;
+        return indexQueryPlan;
+    }
+
+    @VisibleForTesting
+    public Index.Searcher indexSearcher()
+    {
+        return indexQueryPlan == null ? null : indexQueryPlan.searcherFor(this);
     }
 
     /**
@@ -350,30 +355,19 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     long indexSerializedSize(int version)
     {
-        return null != index
-             ? IndexMetadata.serializer.serializedSize(index, version)
+        return null != indexQueryPlan
+             ? IndexMetadata.serializer.serializedSize(indexQueryPlan.getFirst().getIndexMetadata(), version)
              : 0;
     }
 
-    public Index getIndex(ColumnFamilyStore cfs)
-    {
-        return null != index
-             ? cfs.indexManager.getIndex(index)
-             : null;
-    }
-
-    static IndexMetadata findIndex(TableMetadata table, RowFilter rowFilter)
+    static Index.QueryPlan findIndexQueryPlan(TableMetadata table, RowFilter rowFilter)
     {
         if (table.indexes.isEmpty() || rowFilter.isEmpty())
             return null;
 
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
 
-        Index index = cfs.indexManager.getBestIndexFor(rowFilter);
-
-        return null != index
-             ? index.getIndexMetadata()
-             : null;
+        return cfs.indexManager.getBestIndexQueryPlanFor(rowFilter);
     }
 
     /**
@@ -384,8 +378,10 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public void maybeValidateIndex()
     {
-        if (null != index)
-            IndexRegistry.obtain(metadata()).getIndex(index).validate(this);
+        if (null != indexQueryPlan)
+        {
+            indexQueryPlan.validate(this);
+        }
     }
 
     /**
@@ -405,16 +401,23 @@ public abstract class ReadCommand extends AbstractReadQuery
         try
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
-            Index index = getIndex(cfs);
+            Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
             Index.Searcher searcher = null;
-            if (index != null)
+            if (indexQueryPlan != null)
             {
-                if (!cfs.indexManager.isIndexQueryable(index))
-                    throw new IndexNotAvailableException(index);
+                cfs.indexManager.checkQueryability(indexQueryPlan);
 
-                searcher = index.searcherFor(this);
-                Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
+                Index index = indexQueryPlan.getFirst();
+                searcher = indexQueryPlan.searcherFor(this);
+                Tracing.trace("Executing read on {}.{} using index{} {}",
+                              cfs.metadata.keyspace,
+                              cfs.metadata.name,
+                              indexQueryPlan.getIndexes().size() == 1 ? "" : "es",
+                              indexQueryPlan.getIndexes()
+                                            .stream()
+                                            .map(i -> i.getIndexMetadata().name)
+                                            .collect(Collectors.joining(",")));
             }
 
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
@@ -430,7 +433,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
                 // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
                 // no point in checking it again.
-                RowFilter filter = (null == searcher) ? rowFilter() : index.getPostIndexQueryFilter(rowFilter());
+                RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
 
                 /*
                  * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
@@ -1064,7 +1067,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             out.writeByte(command.kind.ordinal());
             out.writeByte(
                     digestFlag(command.isDigestQuery())
-                    | indexFlag(null != command.indexMetadata())
+                    | indexFlag(null != command.indexQueryPlan())
                     | acceptsTransientFlag(command.acceptsTransient())
             );
             if (command.isDigestQuery())
@@ -1074,8 +1077,11 @@ public abstract class ReadCommand extends AbstractReadQuery
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata().comparator);
-            if (null != command.index)
-                IndexMetadata.serializer.serialize(command.index, out, version);
+            // Using the name of one of the indexes in the plan to identify the index group because we want
+            // to keep compatibility with legacy nodes. Each replica can create its own different index query plan
+            // from the index name.
+            if (null != command.indexQueryPlan)
+                IndexMetadata.serializer.serialize(command.indexQueryPlan.getFirst().getIndexMetadata(), out, version);
 
             command.serializeSelection(out, version);
         }
@@ -1101,9 +1107,17 @@ public abstract class ReadCommand extends AbstractReadQuery
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata);
-            IndexMetadata index = hasIndex ? deserializeIndexMetadata(in, version, metadata) : null;
 
-            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+            Index.QueryPlan indexQueryPlan = null;
+            if (hasIndex)
+            {
+                IndexMetadata index = deserializeIndexMetadata(in, version, metadata);
+                Index.Group indexGroup =  Keyspace.openAndGetStore(metadata).indexManager.getIndexGroup(index);
+                if (indexGroup != null)
+                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+            }
+
+            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
