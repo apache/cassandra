@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
@@ -56,7 +57,6 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -65,6 +65,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+
+import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAndPort;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -116,7 +118,29 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     // mutated by user-facing API
     private final MessageFilters filters;
+    private final INodeProvisionStrategy.Strategy nodeProvisionStrategy;
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
+
+    /**
+     * Common builder, add methods that are applicable to both Cluster and Upgradable cluster here.
+     */
+    public static abstract class AbstractBuilder<I extends IInstance, C extends ICluster, B extends AbstractBuilder<I, C, B>>
+        extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
+    {
+        private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
+
+        public AbstractBuilder(Factory<I, C, B> factory)
+        {
+            super(factory);
+        }
+
+        public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
+        {
+            this.nodeProvisionStrategy = nodeProvisionStrategy;
+            return (B) this;
+        }
+    }
+
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
@@ -264,6 +288,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.nodeIdTopology = builder.getNodeIdTopology();
         this.configUpdater = builder.getConfigUpdater();
         this.broadcastPort = builder.getBroadcastPort();
+        this.nodeProvisionStrategy = builder.nodeProvisionStrategy;
         this.instances = new ArrayList<>();
         this.instanceMap = new HashMap<>();
         this.initialVersion = builder.getVersion();
@@ -291,19 +316,29 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     private InstanceConfig createInstanceConfig(int nodeNum)
     {
-        String ipPrefix = "127.0." + subnet + ".";
-        String seedIp = ipPrefix + "1";
-        String ipAddress = ipPrefix + nodeNum;
+        INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet);
         long token = tokenSupplier.token(nodeNum);
-
-        NetworkTopology topology = NetworkTopology.build(ipPrefix, broadcastPort, nodeIdTopology);
-
-        InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp);
+        NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
+        InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, Long.toString(token));
         if (configUpdater != null)
             configUpdater.accept(config);
 
         return config;
     }
+
+    public static NetworkTopology buildNetworkTopology(INodeProvisionStrategy provisionStrategy,
+                                                       Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology)
+    {
+        NetworkTopology topology = NetworkTopology.build("", 0, Collections.emptyMap());
+
+        IntStream.rangeClosed(1, nodeIdTopology.size()).forEach(nodeId -> {
+            InetSocketAddress addressAndPort = addressAndPort(provisionStrategy.ipAddress(nodeId), provisionStrategy.storagePort(nodeId));
+            NetworkTopology.DcAndRack dcAndRack = nodeIdTopology.get(nodeId);
+            topology.put(addressAndPort, dcAndRack);
+        });
+        return topology;
+    }
+
 
     protected abstract I newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config);
 
