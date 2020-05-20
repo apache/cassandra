@@ -1,5 +1,6 @@
 # Cassandra storage config YAML v2.0
 # This new version renames many of the old parameters
+# You are also provided to add unit suffixes for Memory, Rate and Time parameters
 # For backward compatibility, Cassandra still works with the old version
 
 # NOTE:
@@ -396,7 +397,7 @@ commitlog_sync_period: 10000ms
 # NOTE: If max_mutation_size_in_kb is set explicitly then commitlog_segment_size_in_mb must
 # be set to at least twice the size of max_mutation_size_in_kb / 1024
 #
-commitlog_segment_size_in_mb: 32
+commitlog_segment_size: 32mb
 
 # Compression to apply to the commit log. If omitted, the commit log
 # will be written uncompressed.  LZ4, Snappy, and Deflate compressors
@@ -405,6 +406,21 @@ commitlog_segment_size_in_mb: 32
 #   - class_name: LZ4Compressor
 #     parameters:
 #         -
+
+# Compression to apply to SSTables as they flush for compressed tables.
+# Note that tables without compression enabled do not respect this flag.
+#
+# As high ratio compressors like LZ4HC, Zstd, and Deflate can potentially
+# block flushes for too long, the default is to flush with a known fast
+# compressor in those cases. Options are:
+#
+# none : Flush without compressing blocks but while still doing checksums.
+# fast : Flush with a fast compressor. If the table is already using a
+#        fast compressor that compressor is used.
+# table: Always flush with the same compressor that the table uses. This
+#        was the pre 4.0 behavior.
+#
+# flush_compression: fast
 
 ############################################
 # Change-data-capture (CDC) space settings #
@@ -827,7 +843,7 @@ key_cache_save_period: 14400
 #
 # Default value is empty to make it "auto" (min(2.5% of Heap (in MB), 50MB)). Set to 0 to disable counter cache.
 # NOTE: if you perform counter deletes and rely on low gcgs, you should disable the counter cache.
-counter_cache_size_in_mb:
+counter_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the counter cache (keys only). Caches are saved to saved_caches_directory as

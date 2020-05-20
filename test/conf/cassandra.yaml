@@ -44,7 +44,7 @@ row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size: 16mb
 user_defined_functions_enabled: true
 scripted_user_defined_functions_enabled: true
-periodic_commitlog_sync_lag_block: 1ms
+prepared_statements_cache_size: 1mb
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
 stream_throughput_outbound: 200000000mbps

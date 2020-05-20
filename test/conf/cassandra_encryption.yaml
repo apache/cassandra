@@ -1,6 +1,6 @@
 transparent_data_encryption_options:
     enabled: true
-    chunk_length_kb: 2
+    chunk_length: 2kb
     cipher: AES/CBC/PKCS5Padding
     key_alias: testing:1
     # CBC requires iv length to be 16 bytes

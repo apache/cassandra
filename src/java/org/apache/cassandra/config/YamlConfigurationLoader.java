@@ -19,13 +19,17 @@ package org.apache.cassandra.config;
 
 import java.beans.IntrospectionException;
 import java.io.ByteArrayInputStream;
+import java.lang.reflect.Field;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +38,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
-
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SystemUtils;
 
 import org.slf4j.Logger;
@@ -48,6 +52,13 @@ import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+
+import java.io.*;
+import java.nio.charset.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.commons.io.*;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
@@ -126,9 +137,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             Yaml yaml = new Yaml(constructor);
             Config result = loadConfig(yaml, configBytes);
             propertiesChecker.check();
-            //properties parse units
+            //CASSANDRA-15234 - parse the properties for units and convert any values if needed
             if(!isOldYAML)
-                Config.parseUnits(result);
+            {
+                Config.parseUnits(result, url);
+            }
 
             return result;
         }
@@ -201,7 +214,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 put("cross_node_timeout", "internode_timeout");
                 put("native_transport_max_threads", "max_native_transport_threads");
                 put("native_transport_max_frame_size_in_mb", "max_native_transport_frame_size_in_mb");
-                put("native_transport_max_concurrent_connections", "max_native_transport_frame_size_in_mb");
+                put("native_transport_max_concurrent_connections", "max_native_transport_concurrent_connections_in_mb");
                 put("native_transport_max_concurrent_connections_per_ip", "max_native_transport_concurrent_connections_per_ip");
                 put("otc_coalescing_strategy", "outbound_connection_coalescing_strategy");
                 put("otc_coalescing_window_us", "outbound_connection_coalescing_window_us");

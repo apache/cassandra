@@ -21,6 +21,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
@@ -36,8 +37,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class ConfigCustomUnitsTest
@@ -132,7 +131,10 @@ public class ConfigCustomUnitsTest
         System.setProperty("cassandra.config.loader", testLoader.getClass().getName());
 
         config = DatabaseDescriptor.loadConfig();
-        Config.parseUnits(config);
+        String configUrl = System.getProperty("cassandra.config");
+        URL url;
+        url = new URL(configUrl);
+        Config.parseUnits(config, url);
 
         assertEquals("6mb", config.commitlog_segment_size);
         assertEquals(6, config.commitlog_segment_size_in_mb);

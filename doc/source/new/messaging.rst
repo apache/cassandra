@@ -125,7 +125,7 @@ A configuration setting has been added to ``cassandra.yaml`` for the maximum con
 
 ::
 
-# internode_application_timeout = 30000ms
+# internode_application_timeout_in_ms = 30000
 
 Some other new features include logging of message size to trace message for tracing a query.
 
