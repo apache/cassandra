@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -36,6 +37,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
@@ -219,8 +221,28 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public static PartitionUpdate fromIterator(UnfilteredRowIterator iterator, ColumnFilter filter)
     {
+
+        return fromIterator(iterator, filter, true,  null);
+    }
+
+    private static final NoSpamLogger rowMergingLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+    /**
+     * Removes duplicate rows from incoming iterator, to be used when we can't trust the underlying iterator (like when reading legacy sstables)
+     */
+    public static PartitionUpdate fromPre30Iterator(UnfilteredRowIterator iterator, ColumnFilter filter)
+    {
+        return fromIterator(iterator, filter, false, (a, b) -> {
+            CFMetaData cfm = iterator.metadata();
+            rowMergingLogger.warn(String.format("Merging rows from pre 3.0 iterator for partition key: %s",
+                                                cfm.getKeyValidator().getString(iterator.partitionKey().getKey())));
+            return Rows.merge(a, b, FBUtilities.nowInSeconds());
+        });
+    }
+
+    private static PartitionUpdate fromIterator(UnfilteredRowIterator iterator, ColumnFilter filter, boolean ordered, BTree.Builder.QuickResolver<Row> quickResolver)
+    {
         iterator = UnfilteredRowIterators.withOnlyQueriedData(iterator, filter);
-        Holder holder = build(iterator, 16);
+        Holder holder = build(iterator, 16, ordered, quickResolver);
         MutableDeletionInfo deletionInfo = (MutableDeletionInfo) holder.deletionInfo;
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
@@ -911,7 +933,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iterator = LegacyLayout.deserializeLegacyPartition(in, version, flag, key))
             {
                 assert iterator != null; // This is only used in mutation, and mutation have never allowed "null" column families
-                return PartitionUpdate.fromIterator(iterator, ColumnFilter.all(iterator.metadata()));
+                return PartitionUpdate.fromPre30Iterator(iterator, ColumnFilter.all(iterator.metadata()));
             }
         }
 

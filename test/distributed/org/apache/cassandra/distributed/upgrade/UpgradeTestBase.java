@@ -32,6 +32,7 @@ import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.Builder;
@@ -174,7 +175,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
                     for (Version version : upgrade.upgrade)
                     {
-                        for (int n : nodesToUpgrade)
+                        for (int n=1; n<=nodesToUpgrade.size(); n++)
                         {
                             cluster.get(n).shutdown().get();
                             cluster.get(n).setVersion(version);
