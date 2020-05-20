@@ -142,6 +142,13 @@ a parameter of logger constructor (as `Map<String, String>`). In ``cassandra.yam
    - key1: value1
      key2: value2
 
+When it comes to configuring these parameters, you can use respective ``enableAuditLog`` method in ``StorageServiceMBean``.
+There are two methods of same name with different signatures. The first one does not accept a map where your parameters would be. This method
+is used primarily e.g. from JConsole or similar tooling. JConsole can not accept a map to be sent over JMX so in order to be able to enable it
+from there, even without any parameters, use this method. ``BinAuditLogger`` does not need any parameters to run with so invoking this method is fine.
+The second one does accept a map with your custom parameters so you can pass them programmatically. ``enableauditlog`` command of ``nodetool`` uses
+the first ``enableAuditLog`` method mentioned. Hence, currently, there is not a way how to pass parameters to your custom audit logger from ``nodetool``.
+
 Setting the Audit Logs Directory
 ********************************
 The audit logs directory is set with the ``audit_logs_dir`` option. A new directory is not created automatically and an existing directory must be set. Audit Logs directory can be configured using ``cassandra.logdir.audit`` system property or default is set to ``cassandra.logdir + /audit/``. A user created directory may be set. As an example, create a directory for the audit logs and set its permissions.
