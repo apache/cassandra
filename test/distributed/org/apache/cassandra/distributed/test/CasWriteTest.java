@@ -32,6 +32,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -249,28 +250,33 @@ public class CasWriteTest extends TestBaseImpl
     @Test
     public void testWriteUnknownResult()
     {
-        while (true)
-        {
-            cluster.filters().reset();
-            int pk = pkGen.getAndIncrement();
-            cluster.filters().verbs(Verb.PAXOS_PROPOSE_REQ.id).from(1).to(3).messagesMatching((from, to, msg) -> {
+        cluster.filters().reset();
+        int pk = pkGen.getAndIncrement();
+        CountDownLatch ready = new CountDownLatch(1);
+        cluster.filters().verbs(Verb.PAXOS_PROPOSE_REQ.id).from(1).to(2, 3).messagesMatching((from, to, msg) -> {
+            if (to == 2)
+            {
                 // Inject a single CAS request in-between prepare and propose phases
                 cluster.coordinator(2).execute(mkCasInsertQuery((a) -> pk, 1, 2),
                                                ConsistencyLevel.QUORUM);
-                return false;
-            }).drop();
+                ready.countDown();
+            } else {
+                Uninterruptibles.awaitUninterruptibly(ready);
+            }
+            return false;
+        }).drop();
 
-            try
-            {
-                cluster.coordinator(1).execute(mkCasInsertQuery((a) -> pk, 1, 1), ConsistencyLevel.QUORUM);
-            }
-            catch (Throwable t)
-            {
-                Assert.assertEquals("Expecting cause to be CasWriteUncertainException",
-                                    CasWriteUnknownResultException.class.getCanonicalName(), t.getClass().getCanonicalName());
-                return;
-            }
+        try
+        {
+            cluster.coordinator(1).execute(mkCasInsertQuery((a) -> pk, 1, 1), ConsistencyLevel.QUORUM);
         }
+        catch (Throwable t)
+        {
+            Assert.assertEquals("Expecting cause to be CasWriteUnknownResultException",
+                                CasWriteUnknownResultException.class.getCanonicalName(), t.getClass().getCanonicalName());
+            return;
+        }
+        Assert.fail("Expecting test to throw a CasWriteUnknownResultException");
     }
 
     // every invokation returns a query with an unique pk
