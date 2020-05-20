@@ -39,6 +39,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public interface RepairedDataVerifier
@@ -107,14 +108,7 @@ public interface RepairedDataVerifier
     static class SnapshottingVerifier extends SimpleVerifier
     {
         private static final Logger logger = LoggerFactory.getLogger(SnapshottingVerifier.class);
-        private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
         private static final String SNAPSHOTTING_WARNING = "Issuing snapshot command for mismatch between repaired datasets for table {}.{} during read of {}. {}";
-
-        // Issue at most 1 snapshot request per minute for any given table.
-        // Replicas will only create one snapshot per day, but this stops us
-        // from swamping the network if we start seeing mismatches.
-        private static final long SNAPSHOT_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
-        private static final ConcurrentHashMap<TableId, AtomicLong> LAST_SNAPSHOT_TIMES = new ConcurrentHashMap<>();
 
         SnapshottingVerifier(ReadCommand command)
         {
@@ -128,29 +122,10 @@ public interface RepairedDataVerifier
             {
                 if (tracker.inconclusiveDigests.isEmpty() ||  DatabaseDescriptor.reportUnconfirmedRepairedDataMismatches())
                 {
-                    long now = System.nanoTime();
-                    AtomicLong cached = LAST_SNAPSHOT_TIMES.computeIfAbsent(command.metadata().id, u -> new AtomicLong(0));
-                    long last = cached.get();
-                    if (now - last > SNAPSHOT_INTERVAL_NANOS && cached.compareAndSet(last, now))
-                    {
-                        logger.warn(SNAPSHOTTING_WARNING, command.metadata().keyspace, command.metadata().name, command.toString(), tracker);
-                        Message<SnapshotCommand> msg = Message.out(Verb.SNAPSHOT_REQ,
-                                                                   new SnapshotCommand(command.metadata().keyspace,
-                                                                                       command.metadata().name,
-                                                                                       getSnapshotName(),
-                                                                                       false));
-                        for (InetAddressAndPort replica : tracker.digests.values())
-                            MessagingService.instance().send(msg, replica);
-                    }
+                    logger.warn(SNAPSHOTTING_WARNING, command.metadata().keyspace, command.metadata().name, command.toString(), tracker);
+                    DiagnosticSnapshotService.repairedDataMismatch(command.metadata(), tracker.digests.values());
                 }
             }
-        }
-
-        public static String getSnapshotName()
-        {
-            return String.format("%s%s",
-                                 SnapshotVerbHandler.REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX,
-                                 DATE_FORMAT.format(LocalDate.now()));
         }
     }
 }

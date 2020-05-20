@@ -89,6 +89,7 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -586,7 +587,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 }
             }
 
-            String snapshotName = RepairedDataVerifier.SnapshottingVerifier.getSnapshotName();
+            String snapshotName = DiagnosticSnapshotService.getSnapshotName(DiagnosticSnapshotService.REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX);
             for (String table : mismatchingTables)
             {
                 // we can just check snapshot existence locally since the repair coordinator is always a replica (unlike in the read case)
@@ -594,14 +595,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 {
                     logger.info("{} Snapshotting {}.{} for preview repair mismatch with tag {} on instances {}",
                                 options.getPreviewKind().logPrefix(parentSession),
-                                keyspace, table, snapshotName, nodes)
-                    ;
-                    Message<SnapshotCommand> message = Message.out(Verb.SNAPSHOT_REQ, new SnapshotCommand(keyspace,
-                                                                                                          table,
-                                                                                                          snapshotName,
-                                                                                                          false));
-                    for (InetAddressAndPort target : nodes)
-                        MessagingService.instance().send(message, target);
+                                keyspace, table, snapshotName, nodes);
+                    DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(), nodes);
                 }
                 else
                 {

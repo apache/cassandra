@@ -46,6 +46,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.junit.Assert.fail;
@@ -184,8 +185,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             long ccAfter = getConfirmedInconsistencies(cluster.get(1));
             Assert.assertEquals("confirmed count should increment by 1 after each partition read", ccBefore + 1, ccAfter);
 
-            String snapshotName = SnapshotVerbHandler.REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX
-                                  + DateTimeFormatter.BASIC_ISO_DATE.format(LocalDate.now());
+            String snapshotName = DiagnosticSnapshotService.getSnapshotName(DiagnosticSnapshotService.REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX);
 
             cluster.forEach(i -> i.runOnInstance(assertSnapshotNotPresent(snapshotName)));
 
