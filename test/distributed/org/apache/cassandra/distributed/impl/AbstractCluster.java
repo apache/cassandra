@@ -577,6 +577,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
     public static class Builder<I extends IInstance, C extends AbstractCluster<I>>
     {
         private final Factory<I, C> factory;
+        private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private int nodeCount;
         private int subnet;
         private Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
@@ -711,6 +712,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
             return this;
         }
 
+        public Builder<I, C> withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
+        {
+            this.nodeProvisionStrategy = nodeProvisionStrategy;
+            return this;
+        }
+
         public C createWithoutStarting() throws IOException
         {
             if (root == null)
@@ -752,14 +759,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster, 
 
         private InstanceConfig createInstanceConfig(int nodeNum)
         {
-            String ipPrefix = "127.0." + subnet + ".";
-            String seedIp = ipPrefix + "1";
-            String ipAddress = ipPrefix + nodeNum;
+            INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet);
             long token = tokenSupplier.token(nodeNum);
-
-            NetworkTopology topology = NetworkTopology.build(ipPrefix, 7012, nodeIdTopology);
-
-            InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp);
+            NetworkTopology topology = NetworkTopology.build(provisionStrategy, nodeIdTopology);
+            InstanceConfig config = InstanceConfig.generate(nodeNum,
+                                                            provisionStrategy,
+                                                            topology,
+                                                            root,
+                                                            String.valueOf(token));
             if (configUpdater != null)
                 configUpdater.accept(config);
 

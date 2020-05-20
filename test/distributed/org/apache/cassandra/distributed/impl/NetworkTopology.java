@@ -28,7 +28,6 @@ import java.util.stream.IntStream;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.Pair;
 
 public class NetworkTopology
 {
@@ -61,14 +60,13 @@ public class NetworkTopology
         map = new HashMap<>(networkTopology.map);
     }
 
-    public static NetworkTopology build(String ipPrefix, int broadcastPort, Map<Integer, DcAndRack> nodeIdTopology)
+    public static NetworkTopology build(INodeProvisionStrategy provisionStrategy, Map<Integer, DcAndRack> nodeIdTopology)
     {
         final NetworkTopology topology = new NetworkTopology();
 
         for (int nodeId = 1; nodeId <= nodeIdTopology.size(); nodeId++)
         {
-            String broadcastAddress = ipPrefix + nodeId;
-
+            String broadcastAddress = provisionStrategy.ipAddress(nodeId);
             try
             {
                 DcAndRack dcAndRack = nodeIdTopology.get(nodeId);
@@ -76,7 +74,7 @@ public class NetworkTopology
                     throw new IllegalStateException("nodeId " + nodeId + "not found in instanceMap");
 
                 InetAddressAndPort broadcastAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(
-                    InetAddress.getByName(broadcastAddress), broadcastPort);
+                    InetAddress.getByName(broadcastAddress), provisionStrategy.storagePort(nodeId));
                 topology.put(broadcastAddressAndPort, dcAndRack);
             }
             catch (UnknownHostException e)
