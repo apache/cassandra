@@ -26,6 +26,8 @@ import java.nio.file.Paths;
 
 import org.junit.AfterClass;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
@@ -381,5 +383,40 @@ public class LegacyLayoutTest
 
         LegacyLayout.fromUnfilteredRowIterator(null, p.unfilteredIterator());
         LegacyLayout.serializedSizeAsLegacyPartition(null, p.unfilteredIterator(), VERSION_21);
+    }
+
+    @Test
+    public void testCellGrouper()
+    {
+        // CREATE TABLE %s (pk int, ck int, v map<text, text>, PRIMARY KEY (pk, ck))
+        CFMetaData cfm = CFMetaData.Builder.create("ks", "table")
+                                           .addPartitionKey("pk", Int32Type.instance)
+                                           .addClusteringColumn("ck", Int32Type.instance)
+                                           .addRegularColumn("v", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true))
+                                           .build();
+        SerializationHelper helper = new SerializationHelper(cfm, MessagingService.VERSION_22, SerializationHelper.Flag.LOCAL, ColumnFilter.all(cfm));
+        LegacyLayout.CellGrouper cg = new LegacyLayout.CellGrouper(cfm, helper);
+
+        ClusteringBound startBound = ClusteringBound.create(ClusteringPrefix.Kind.INCL_START_BOUND, new ByteBuffer[] {ByteBufferUtil.bytes(2)});
+        ClusteringBound endBound = ClusteringBound.create(ClusteringPrefix.Kind.EXCL_END_BOUND, new ByteBuffer[] {ByteBufferUtil.bytes(2)});
+        LegacyLayout.LegacyBound start = new LegacyLayout.LegacyBound(startBound, false, cfm.getColumnDefinition(ByteBufferUtil.bytes("v")));
+        LegacyLayout.LegacyBound end = new LegacyLayout.LegacyBound(endBound, false, cfm.getColumnDefinition(ByteBufferUtil.bytes("v")));
+        LegacyLayout.LegacyRangeTombstone lrt = new LegacyLayout.LegacyRangeTombstone(start, end, new DeletionTime(2, 1588598040));
+        assertTrue(cg.addAtom(lrt));
+
+        // add a real cell
+        LegacyLayout.LegacyCell cell = new LegacyLayout.LegacyCell(LegacyLayout.LegacyCell.Kind.REGULAR,
+                                                                   new LegacyLayout.LegacyCellName(Clustering.make(ByteBufferUtil.bytes(2)),
+                                                                                                   cfm.getColumnDefinition(ByteBufferUtil.bytes("v")),
+                                                                                                   ByteBufferUtil.bytes("g")),
+                                                                   ByteBufferUtil.bytes("v"), 3, Integer.MAX_VALUE, 0);
+        assertTrue(cg.addAtom(cell));
+
+        // add legacy range tombstone where collection name is null for the end bound (this gets translated to a row tombstone)
+        startBound = ClusteringBound.create(ClusteringPrefix.Kind.EXCL_START_BOUND, new ByteBuffer[] {ByteBufferUtil.bytes(2)});
+        endBound = ClusteringBound.create(ClusteringPrefix.Kind.EXCL_END_BOUND, new ByteBuffer[] {ByteBufferUtil.bytes(2)});
+        start = new LegacyLayout.LegacyBound(startBound, false, cfm.getColumnDefinition(ByteBufferUtil.bytes("v")));
+        end = new LegacyLayout.LegacyBound(endBound, false, null);
+        assertTrue(cg.addAtom(new LegacyLayout.LegacyRangeTombstone(start, end, new DeletionTime(1, 1588598040))));
     }
 }

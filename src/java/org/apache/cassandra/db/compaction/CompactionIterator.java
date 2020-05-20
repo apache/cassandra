@@ -23,6 +23,8 @@ import java.util.function.Predicate;
 import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.config.CFMetaData;
+
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
@@ -105,7 +107,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                              : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
         boolean isForThrift = merged.isForThrift(); // to stop capture of iterator in Purger, which is confusing for debug
         merged = Transformation.apply(merged, new GarbageSkipper(controller, nowInSec));
-        this.compacted = Transformation.apply(merged, new Purger(isForThrift, controller, nowInSec));
+        merged = Transformation.apply(merged, new Purger(isForThrift, controller, nowInSec));
+        this.compacted = DuplicateRowChecker.duringCompaction(merged, type);
     }
 
     public boolean isForThrift()
