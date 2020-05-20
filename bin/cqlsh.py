@@ -39,6 +39,7 @@ import getpass
 import optparse
 import os
 import platform
+import re
 import sys
 import traceback
 import warnings
@@ -906,12 +907,25 @@ class Shell(cmd.Cmd):
                     self.reset_statement()
                     print('')
 
+    def strip_comment_blocks(self, statementtext):
+        result = re.sub('[/][*].*[*][/]', "", statementtext)
+        if '/*' in result:
+            result = re.sub('[/][*].*', "", result)
+            self.in_comment = True
+        if '*/' in result:
+            result = re.sub('.*[*][/]', "", result)
+            self.in_comment = False
+        if self.in_comment and not re.findall('[/][*]|[*][/]', statementtext):
+            result = ''
+        return result
+
     def onecmd(self, statementtext):
         """
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
         statementtext = ensure_text(statementtext)
+        statementtext = self.strip_comment_blocks(statementtext)
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError as e:
