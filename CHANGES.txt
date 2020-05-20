@@ -1,4 +1,5 @@
 4.0-beta2
+ * Strip comment blocks from cqlsh input before processing statements (CASSANDRA-15802)
  * Fix unicode chars error input (CASSANDRA-15990)
  * Improved testability for CacheMetrics and ChunkCacheMetrics (CASSANDRA-15788)
  * Handle errors in StreamSession#prepare (CASSANDRA-15852)
