@@ -30,6 +30,7 @@
 Merged from 3.11:
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
+ * Avoid creating duplicate rows during major upgrades (CASSANDRA-15789)
  * liveDiskSpaceUsed and totalDiskSpaceUsed get corrupted if IndexSummaryRedistribution gets interrupted (CASSANDRA-15674)
  * Fix Debian init start/stop (CASSANDRA-15770)
  * Fix infinite loop on index query paging in tables with clustering (CASSANDRA-14242)

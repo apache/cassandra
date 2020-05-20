@@ -21,6 +21,7 @@ import com.google.common.base.Preconditions;
 
 import com.google.common.base.Predicates;
 
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
@@ -359,7 +360,7 @@ public abstract class AbstractReadExecutor
     public void setResult(PartitionIterator result)
     {
         Preconditions.checkState(this.result == null, "Result can only be set once");
-        this.result = result;
+        this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().candidates().endpointList());
     }
 
     /**
