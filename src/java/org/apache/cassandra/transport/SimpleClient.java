@@ -42,6 +42,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -279,7 +280,7 @@ public class SimpleClient implements Closeable
         }
     }
 
-    private static class InitialHandler extends MessageToMessageEncoder<Frame>
+    private static class InitialHandler extends MessageToMessageDecoder<Frame>
     {
         final ProtocolVersion version;
         final ResponseHandler responseHandler;
@@ -289,24 +290,39 @@ public class SimpleClient implements Closeable
             this.responseHandler = responseHandler;
         }
 
-        protected void encode(ChannelHandlerContext ctx, Frame frame, List<Object> list) throws Exception
+        protected void decode(ChannelHandlerContext ctx, Frame frame, List<Object> results) throws Exception
         {
-            if (frame.header.type == Message.Type.STARTUP)
+            switch(frame.header.type)
             {
-                logger.info("Sending STARTUP message, configuring pipeline for {}", version);
-                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                    configureModernPipeline(ctx);
-                else
-                    configureLegacyPipeline(ctx);
+                case READY:
+                case AUTHENTICATE:
+                    if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    {
+                        configureModernPipeline(ctx, frame);
+                        // consuming the message is done when setting up the pipeline
+                    }
+                    else
+                    {
+                        configureLegacyPipeline(ctx);
+                        // really just removes self from the pipeline, so pass this message on
+                        ctx.pipeline().context(Frame.Decoder.class).fireChannelRead(frame);
+                    }
+                    break;
+                case SUPPORTED:
+                    // just pass through
+                    results.add(frame);
+                    break;
+                default:
+                    throw new ProtocolException(String.format("Unexpected %s response expecting " +
+                                                              "READY, AUTHENTICATE or SUPPORTED",
+                                                              frame.header.type));
             }
-
-            ctx.write(Frame.Encoder.instance.encodeHeader(frame));
-            ctx.write(frame.body);
-            ctx.flush();
         }
 
-        private void configureModernPipeline(ChannelHandlerContext ctx)
+        private void configureModernPipeline(ChannelHandlerContext ctx, Frame frame)
         {
+            Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
+            Message response = messageDecoder.decodeMessage(ctx.channel(), frame);
             logger.info("Configuring modern pipeline");
             ChannelPipeline pipeline = ctx.pipeline();
             pipeline.remove("frameDecoder");
@@ -322,7 +338,6 @@ public class SimpleClient implements Closeable
                                                       new ResourceLimits.Basic(1024 * 1024 * 64));
 
             Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
-            Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
             FrameDecoder messageFrameDecoder = frameDecoder(ctx, allocator);
             FrameEncoder messageFrameEncoder = frameEncoder(ctx);
             Consumer<Message> messageConsumer = message -> {
@@ -343,6 +358,7 @@ public class SimpleClient implements Closeable
             pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator()));
             pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
             pipeline.remove(this);
+            messageConsumer.accept(response);
         }
 
         private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)
@@ -369,11 +385,10 @@ public class SimpleClient implements Closeable
         {
             logger.info("Configuring legacy pipeline");
             ChannelPipeline pipeline = ctx.pipeline();
-            pipeline.replace(this, "frameEncoder", Frame.Encoder.instance);
+            pipeline.remove(this);
             pipeline.addAfter("frameEncoder", "frameDecompressor", Frame.Decompressor.instance);
             pipeline.addAfter("frameDecompressor", "frameCompressor", Frame.Compressor.instance);
         }
-
     }
 
     private class Initializer extends ChannelInitializer<Channel>
@@ -386,6 +401,7 @@ public class SimpleClient implements Closeable
             ChannelPipeline pipeline = channel.pipeline();
 //            pipeline.addLast("debug", new LoggingHandler(LogLevel.INFO));
             pipeline.addLast("frameDecoder", new Frame.Decoder());
+            pipeline.addLast("frameEncoder", Frame.Encoder.instance);
             pipeline.addLast("initial", new InitialHandler(version, responseHandler));
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
@@ -420,6 +436,7 @@ public class SimpleClient implements Closeable
                 // Large message
                 FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
                 ByteBuffer buf = largePayload.buffer;
+                buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                 outbound.encodeHeaderInto(buf);
 
                 int capacityRemaining = buf.limit() - buf.position();
@@ -434,6 +451,7 @@ public class SimpleClient implements Closeable
                 {
                     largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
                     buf = largePayload.buffer;
+                    buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                     int remaining = Math.min(buf.remaining(), body.readableBytes()) ;
                     buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
                     body.readerIndex(idx + remaining);
@@ -446,6 +464,7 @@ public class SimpleClient implements Closeable
                 {
                     largePayload = allocator.allocate(false, body.readableBytes());
                     buf = largePayload.buffer;
+                    buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                     buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
                     largePayload.finish();
                     ctx.writeAndFlush(largePayload, promise);

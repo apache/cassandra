@@ -64,6 +64,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoderCrc;
@@ -565,25 +566,26 @@ public class Server implements CassandraDaemon.Server
             if (frame == null)
                 return;
 
+            Frame outbound;
             switch(frame.header.type)
             {
                 case OPTIONS:
-                    logger.info("OPTIONS received {}", frame.header.version);
-                    List<String> cqlVersions = new ArrayList<String>();
+                    logger.debug("OPTIONS received {}", frame.header.version);
+                    List<String> cqlVersions = new ArrayList<>();
                     cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
-                    List<String> compressions = new ArrayList<String>();
+                    List<String> compressions = new ArrayList<>();
                     if (FrameCompressor.SnappyCompressor.instance != null)
                         compressions.add("snappy");
                     // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
                     compressions.add("lz4");
 
-                    Map<String, List<String>> supported = new HashMap<String, List<String>>();
-                    supported.put(StartupMessage.CQL_VERSION, cqlVersions);
-                    supported.put(StartupMessage.COMPRESSION, compressions);
-                    supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
-                    SupportedMessage response = new SupportedMessage(supported);
-                    Frame outbound = Message.ProtocolEncoder.instance.encodeMessage(response, frame.header.version);
+                    Map<String, List<String>> supportedOptions = new HashMap<>();
+                    supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
+                    supportedOptions.put(StartupMessage.COMPRESSION, compressions);
+                    supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+                    SupportedMessage supported = new SupportedMessage(supportedOptions);
+                    outbound = Message.ProtocolEncoder.instance.encodeMessage(supported, frame.header.version);
                     ctx.writeAndFlush(outbound);
                     break;
 
@@ -596,27 +598,44 @@ public class Server implements CassandraDaemon.Server
                         attrConn.set(connection);
                     }
 
-                    logger.info("STARTUP received, configuring pipeline for {}", frame.header.version);
-                    StartupMessage message = (StartupMessage) Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), frame);
+                    StartupMessage startup = (StartupMessage) Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), frame);
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
-                    Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
+                    final Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
 
                     if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     {
-                        try
-                        {
-                            configureModernPipeline(ctx, decoder, frame.header.bodySizeInBytes, message, payloadTracker);
-                        }
-                        catch(ProtocolException e)
-                        {
-                            ErrorMessage error = ErrorMessage.fromException(e);
-                            Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
-                            ctx.writeAndFlush(errorFrame);
-                        }
+                        assert connection instanceof ServerConnection;
+                        final Message.Response response = Message.Dispatcher.processRequest((ServerConnection) connection, startup);
+                        payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(frame.header.bodySizeInBytes);
+                        ChannelPromise promise = AsyncChannelPromise.withListener(ctx, future -> {
+                            if (future.isSuccess())
+                            {
+                                logger.debug("{} response to STARTUP sent, configuring pipeline for {}",
+                                            response.type,
+                                            frame.header.version);
+                                configureModernPipeline(ctx, decoder, startup.options, payloadTracker);
+                                payloadTracker.endpointAndGlobalPayloadsInFlight.release(frame.header.bodySizeInBytes);
+                            }
+                            else
+                            {
+                                Throwable cause = future.cause();
+                                if (null == cause)
+                                    cause = new ServerError("Unexpected error establishing connection");
+                                logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
+                                ErrorMessage error = ErrorMessage.fromException(cause);
+                                Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
+                                ctx.writeAndFlush(errorFrame);
+                            }
+                        });
+                        outbound = Message.ProtocolEncoder.instance.encodeMessage(response, frame.header.version);
+                        ctx.writeAndFlush(outbound, promise);
                     }
                     else
-                        configureLegacyPipeline(ctx.channel(), decoder, message, payloadTracker);
-                    logger.info("Configured pipeline: {}", ctx.pipeline());
+                    {
+                        configureLegacyPipeline(ctx.channel(), decoder, payloadTracker);
+                        ctx.pipeline().context(Message.ProtocolDecoder.class).fireChannelRead(startup);
+                    }
+                    logger.debug("Configured pipeline: {}", ctx.pipeline());
                     break;
 
                 default:
@@ -624,23 +643,22 @@ public class Server implements CassandraDaemon.Server
                         ErrorMessage.fromException(
                             new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
                                                                 frame.header.type)));
-                    Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
-                    ctx.writeAndFlush(errorFrame);
+                    outbound = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
+                    ctx.writeAndFlush(outbound);
             }
         }
 
         void configureModernPipeline(final ChannelHandlerContext ctx,
                                      final Frame.Decoder frameDecoder,
-                                     final long messageBodyBytes,
-                                     final StartupMessage startup,
+                                     final Map<String, String> options,
                                      final Server.EndpointPayloadTracker tracker)
         {
-            logger.info("Configuring V5 pipeline: {}", startup);
             BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
             ctx.channel().config().setOption(ChannelOption.ALLOCATOR, allocator);
 
-            FrameDecoder messageFrameDecoder = frameDecoder(startup, allocator);
-            FrameEncoder messageFrameEncoder = frameEncoder(startup);
+            String compression = options.get(StartupMessage.COMPRESSION);
+            FrameDecoder messageFrameDecoder = frameDecoder(compression, allocator);
+            FrameEncoder messageFrameEncoder = frameEncoder(compression);
 
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
             Message.Dispatcher dispatcher = new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
@@ -655,8 +673,7 @@ public class Server implements CassandraDaemon.Server
             pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
             pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
 
-            boolean throwOnOverload = "1".equals(startup.options.get(StartupMessage.THROW_ON_OVERLOAD));
-
+            boolean throwOnOverload = "1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD));
             CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
                                                                 messageFrameDecoder,
                                                                 frameDecoder,
@@ -666,13 +683,10 @@ public class Server implements CassandraDaemon.Server
                                                                 throwOnOverload);
             pipeline.addBefore("initial", "cqlProcessor", processor);
             pipeline.remove(this);
-            tracker.endpointAndGlobalPayloadsInFlight.allocate(messageBodyBytes);
-            messageConsumer.accept(startup);
         }
 
-        private FrameDecoder frameDecoder(StartupMessage startup, BufferPoolAllocator allocator)
+        private FrameDecoder frameDecoder(String compression, BufferPoolAllocator allocator)
         {
-            String compression = startup.options.get(StartupMessage.COMPRESSION);
             if (null == compression)
                 return FrameDecoderCrc.create(allocator);
             if (compression.equalsIgnoreCase("LZ4"))
@@ -680,9 +694,8 @@ public class Server implements CassandraDaemon.Server
             throw new ProtocolException("Unsupported compression type: " + compression);
         }
 
-        private FrameEncoder frameEncoder(StartupMessage startup)
+        private FrameEncoder frameEncoder(String compression)
         {
-            String compression = startup.options.get(StartupMessage.COMPRESSION);
             if (Strings.isNullOrEmpty(compression))
                 return FrameEncoderCrc.instance;
             if (compression.equalsIgnoreCase("LZ4"))
@@ -692,11 +705,8 @@ public class Server implements CassandraDaemon.Server
 
         void configureLegacyPipeline(final Channel channel,
                                      final Frame.Decoder frameDecoder,
-                                     final StartupMessage startup,
                                      final Server.EndpointPayloadTracker tracker)
         {
-            logger.info("Configuring legacy pipeline: {}", startup);
-
             ChannelPipeline pipeline = channel.pipeline();
             pipeline.addBefore("frameEncoder", "frameDecoder", frameDecoder);
             pipeline.addBefore("initial", "frameDecompressor", Frame.Decompressor.instance);
@@ -707,7 +717,6 @@ public class Server implements CassandraDaemon.Server
                                                                              tracker,
                                                                              FrameEncoder.PayloadAllocator.simple));
             pipeline.remove(this);
-            pipeline.context(Message.ProtocolDecoder.class).fireChannelRead(startup);
         }
     }
 

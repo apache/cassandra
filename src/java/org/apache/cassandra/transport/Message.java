@@ -850,24 +850,11 @@ public abstract class Message
         {
             final Response response;
             final ServerConnection connection;
-            long queryStartNanoTime = System.nanoTime();
-
             try
             {
                 assert request.connection() instanceof ServerConnection;
                 connection = (ServerConnection)request.connection();
-                if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
-                    ClientWarn.instance.captureWarnings();
-
-                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
-
-                logger.trace("Received: {}, v={}", request, connection.getVersion());
-                connection.requests.inc();
-                response = request.execute(qstate, queryStartNanoTime);
-                response.setStreamId(request.getStreamId());
-                response.setWarnings(ClientWarn.instance.getWarnings());
-                response.attach(connection);
-                connection.applyStateTransition(request.type, response.type);
+                response = processRequest(connection, request);
             }
             catch (Throwable t)
             {
@@ -883,6 +870,27 @@ public abstract class Message
 
             logger.trace("Responding: {}, v={}", response, connection.getVersion());
             flush(new FlushItem(ctx, response, request.getSourceFrame(), this));
+        }
+
+        /**
+         * TODO: this might be called on the event loop, but only for STARTUP messages during protocol negotiation
+         */
+        static Response processRequest(ServerConnection connection, Request request)
+        {
+            long queryStartNanoTime = System.nanoTime();
+            if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
+                ClientWarn.instance.captureWarnings();
+
+            QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
+
+            logger.trace("Received: {}, v={}", request, connection.getVersion());
+            connection.requests.inc();
+            Response response = request.execute(qstate, queryStartNanoTime);
+            response.setStreamId(request.getStreamId());
+            response.setWarnings(ClientWarn.instance.getWarnings());
+            response.attach(connection);
+            connection.applyStateTransition(request.type, response.type);
+            return response;
         }
 
         @Override
