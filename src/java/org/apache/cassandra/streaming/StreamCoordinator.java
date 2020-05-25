@@ -288,6 +288,7 @@ public class StreamCoordinator
                 StreamSession session = new StreamSession(streamOperation, peer, factory, isFollower(), streamSessions.size(),
                                                           pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
+                sessionInfos.put(lastReturned, session.getSessionInfo());
                 return session;
             }
             // get
@@ -320,6 +321,7 @@ public class StreamCoordinator
             {
                 session = new StreamSession(streamOperation, peer, factory, isFollower(), id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
+                sessionInfos.put(id, session.getSessionInfo());
             }
             return session;
         }
