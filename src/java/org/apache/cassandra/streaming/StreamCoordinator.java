@@ -283,7 +283,7 @@ public class StreamCoordinator
             for (StreamSession session : streamSessions.values())
             {
                 StreamSession.State state = session.state();
-                if (state != StreamSession.State.COMPLETE && state != StreamSession.State.FAILED)
+                if (!state.isFinalState())
                     return true;
             }
             return false;
@@ -296,6 +296,7 @@ public class StreamCoordinator
             {
                 StreamSession session = new StreamSession(peer, connecting, factory, streamSessions.size(), keepSSTableLevel, isIncremental);
                 streamSessions.put(++lastReturned, session);
+                sessionInfos.put(lastReturned, session.getSessionInfo());
                 return session;
             }
             // get
@@ -328,6 +329,7 @@ public class StreamCoordinator
             {
                 session = new StreamSession(peer, connecting, factory, id, keepSSTableLevel, isIncremental);
                 streamSessions.put(id, session);
+                sessionInfos.put(id, session.getSessionInfo());
             }
             return session;
         }
