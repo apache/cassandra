@@ -23,8 +23,10 @@ public class BloomFilterTracker
 {
     private final AtomicLong falsePositiveCount = new AtomicLong(0);
     private final AtomicLong truePositiveCount = new AtomicLong(0);
+    private final AtomicLong trueNegativeCount = new AtomicLong(0);
     private long lastFalsePositiveCount = 0L;
     private long lastTruePositiveCount = 0L;
+    private long lastTrueNegativeCount = 0L;
 
     public void addFalsePositive()
     {
@@ -34,6 +36,11 @@ public class BloomFilterTracker
     public void addTruePositive()
     {
         truePositiveCount.incrementAndGet();
+    }
+
+    public void addTrueNegative()
+    {
+        trueNegativeCount.incrementAndGet();
     }
 
     public long getFalsePositiveCount()
@@ -69,6 +76,24 @@ public class BloomFilterTracker
         finally
         {
             lastTruePositiveCount = tpc;
+        }
+    }
+
+    public long getTrueNegativeCount()
+    {
+        return trueNegativeCount.get();
+    }
+
+    public long getRecentTrueNegativeCount()
+    {
+        long tnc = getTrueNegativeCount();
+        try
+        {
+            return (tnc - lastTrueNegativeCount);
+        }
+        finally
+        {
+            lastTrueNegativeCount = tnc;
         }
     }
 }
