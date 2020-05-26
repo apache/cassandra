@@ -47,6 +47,7 @@ public class FullQueryLogTool
         List<Class<? extends Runnable>> commands = newArrayList(
                 Help.class,
                 Dump.class,
+                DumpThrift.class,
                 Replay.class,
                 Compare.class
         );

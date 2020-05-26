@@ -158,6 +158,12 @@ public abstract class QueryOptions
         return false;
     }
 
+    public OptionalLong getTimestamp()
+    {
+        long tstamp = getSpecificOptions().timestamp;
+        return tstamp != Long.MIN_VALUE ? OptionalLong.of(tstamp) : OptionalLong.empty();
+    }
+
     /**
      * Returns the column specifications for the bound variables (<i>optional operation</i>).
      *
