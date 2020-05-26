@@ -1,4 +1,5 @@
 3.0.25:
+ * Fix bloom filter false ratio calculation by including true negatives (CASSANDRA-15834)
  * Prevent loss of commit log data when moving sstables between nodes (CASSANDRA-16619)
  * Fix materialized view builders inserting truncated data (CASSANDRA-16567)
  * Don't wait for schema migrations from removed nodes (CASSANDRA-16577)
