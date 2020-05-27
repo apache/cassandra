@@ -415,6 +415,11 @@ public class SinglePartitionReadCommand extends ReadCommand
         return DatabaseDescriptor.getReadRpcTimeout();
     }
 
+    public boolean isReversed()
+    {
+        return clusteringIndexFilter.isReversed();
+    }
+
     public boolean selectsKey(DecoratedKey key)
     {
         if (!this.partitionKey().equals(key))
