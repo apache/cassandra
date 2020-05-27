@@ -1116,7 +1116,7 @@ public abstract class LegacyLayout
         return true;
     }
 
-    private static Comparator<LegacyAtom> legacyAtomComparator(CFMetaData metadata)
+    static Comparator<LegacyAtom> legacyAtomComparator(CFMetaData metadata)
     {
         return (o1, o2) ->
         {
@@ -1374,8 +1374,24 @@ public abstract class LegacyLayout
             this.hasValidCells = false;
         }
 
+        /**
+         * Try adding the provided atom to the currently grouped row.
+         *
+         * @param atom the new atom to try to add. This <b>must</b> be a "row" atom, that is either a cell or a legacy
+         *             range tombstone that covers only one row (row deletion) or a subset of it (collection
+         *             deletion). Meaning that legacy range tombstone covering multiple rows (that should be handled as
+         *             legit range tombstone in the new storage engine) should be handled separately. Atoms should also
+         *             be provided in proper clustering order.
+         * @return {@code true} if the provided atom has been "consumed" by this grouper (this does _not_ mean the
+         *          atom has been "used" by the grouper as the grouper will skip some shadowed atoms for instance, just
+         *          that {@link #getRow()} shouldn't be called just yet if there is more atom in the atom iterator we're
+         *          grouping). {@code false} otherwise, that is if the row currently built by this grouper is done
+         *          _without_ the provided atom being "consumed" (and so {@link #getRow()} should be called and the
+         *          grouper resetted, after which the provided atom should be provided again).
+         */
         public boolean addAtom(LegacyAtom atom)
         {
+            assert atom.isRowAtom(metadata) : "Unexpected non in-row legacy range tombstone " + atom;
             return atom.isCell()
                  ? addCell(atom.asCell())
                  : addRangeTombstone(atom.asRangeTombstone());
@@ -1474,11 +1490,16 @@ public abstract class LegacyLayout
         private boolean addRangeTombstone(LegacyRangeTombstone tombstone)
         {
             if (tombstone.isRowDeletion(metadata))
+            {
                 return addRowTombstone(tombstone);
-            else if (tombstone.isCollectionTombstone())
-                return addCollectionTombstone(tombstone);
+            }
             else
-                return addGenericRangeTombstone(tombstone);
+            {
+                // The isRowAtom() assertion back in addAtom would have already triggered otherwise, but spelling it
+                // out nonetheless.
+                assert tombstone.isCollectionTombstone();
+                return addCollectionTombstone(tombstone);
+            }
         }
 
         private boolean addRowTombstone(LegacyRangeTombstone tombstone)
@@ -1518,8 +1539,12 @@ public abstract class LegacyLayout
 
         private boolean addCollectionTombstone(LegacyRangeTombstone tombstone)
         {
+            // If the collection tombstone is not included in the query (which technically would only apply to thrift
+            // queries since CQL one "fetch" everything), we can skip it (so return), but we're problably still within
+            // the current row so we return `true`. Technically, it is possible that tombstone belongs to another row
+            // that the row currently grouped, but as we ignore it, returning `true` is ok in that case too.
             if (!helper.includes(tombstone.start.collectionName))
-                return false; // see CASSANDRA-13109
+                return true; // see CASSANDRA-13109
 
             // The helper needs to be informed about the current complex column identifier before
             // it can perform the comparison between the recorded drop time and the RT deletion time.
@@ -1547,24 +1572,32 @@ public abstract class LegacyLayout
             return true;
         }
 
-        private boolean addGenericRangeTombstone(LegacyRangeTombstone tombstone)
+        /**
+         * Whether the provided range tombstone starts strictly after the current row of the cell grouper (if no row is
+         * currently started, this return false).
+         */
+        public boolean startsAfterCurrentRow(LegacyRangeTombstone rangeTombstone)
         {
-            /*
-             * We can see a non-collection, non-row deletion in two scenarios:
-             *
-             * 1. Most commonly, the tombstone's start bound is bigger than current row's clustering, which means that
-             *    the current row is over, and we should move on to the next row or RT;
-             *
-             * 2. Less commonly, the tombstone's start bound is smaller than current row's clustering, which means that
-             *    we've crossed an index boundary and are seeing a non-closed RT from the previous block, repeated;
-             *    we should ignore it and stay in the current row.
-             *
-             *  In either case, clustering should be non-null, or we shouldn't have gotten to this method at all
-             *  However, to be absolutely SURE we're in case two above, we check here.
-             */
-            return clustering != null && metadata.comparator.compare(clustering, tombstone.start.bound.clustering()) > 0;
+            return clustering != null && metadata.comparator.compare(rangeTombstone.start.bound, clustering) > 0;
         }
 
+        /**
+         * The clustering of the current row of the cell grouper, or {@code null} if no row is currently started.
+         */
+        public Clustering currentRowClustering()
+        {
+            return clustering;
+        }
+
+        /**
+         * Generates the row currently grouped by this grouper and reset it for the following row.
+         * <p>
+         * Note that the only correct way to call this is when either all the atom we're trying to group has been
+         * consumed, or when {@link #addAtom(LegacyAtom)} returns {@code false}.
+         *
+         * @return the current row that has been grouped, or {@code null} in the rare case where all the atoms
+         * "consumed" by {@link #addAtom(LegacyAtom)} for this row were skipped (we skip atoms under a few conditions).
+         */
         public Row getRow()
         {
             if (!hasValidCells && invalidLivenessInfo != null)
@@ -1720,6 +1753,12 @@ public abstract class LegacyLayout
 
         public LegacyCell asCell();
         public LegacyRangeTombstone asRangeTombstone();
+
+        /**
+         * Whether the atom is one that becomes part of a {@link Row} in the new storage engine, meaning it is either
+         * as cell or a legacy range tombstone that covers a single row, or parts of one.
+         */
+        public boolean isRowAtom(CFMetaData metadata);
     }
 
     /**
@@ -1837,6 +1876,12 @@ public abstract class LegacyLayout
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public boolean isRowAtom(CFMetaData metaData)
+        {
+            return true;
+        }
+
         public boolean isCounter()
         {
             return kind == Kind.COUNTER;
@@ -1891,9 +1936,9 @@ public abstract class LegacyLayout
             if ((start.collectionName == null) != (stop.collectionName == null))
             {
                 if (start.collectionName == null)
-                    stop = new LegacyBound(stop.bound, stop.isStatic, null);
+                    stop = new LegacyBound(ClusteringBound.inclusiveEndOf(stop.bound.values), stop.isStatic, null);
                 else
-                    start = new LegacyBound(start.bound, start.isStatic, null);
+                    start = new LegacyBound(ClusteringBound.inclusiveStartOf(start.bound.values), start.isStatic, null);
             }
             else if (!Objects.equals(start.collectionName, stop.collectionName))
             {
@@ -1920,9 +1965,19 @@ public abstract class LegacyLayout
             return new LegacyRangeTombstone(newStart, stop, deletionTime);
         }
 
+        public LegacyRangeTombstone withNewStart(ClusteringBound newStart)
+        {
+            return withNewStart(new LegacyBound(newStart, start.isStatic, null));
+        }
+
         public LegacyRangeTombstone withNewEnd(LegacyBound newStop)
         {
             return new LegacyRangeTombstone(start, newStop, deletionTime);
+        }
+
+        public LegacyRangeTombstone withNewEnd(ClusteringBound newEnd)
+        {
+            return withNewEnd(new LegacyBound(newEnd, stop.isStatic, null));
         }
 
         public boolean isCell()
@@ -1943,6 +1998,12 @@ public abstract class LegacyLayout
         public LegacyRangeTombstone asRangeTombstone()
         {
             return this;
+        }
+
+        @Override
+        public boolean isRowAtom(CFMetaData metadata)
+        {
+            return isCollectionTombstone() || isRowDeletion(metadata);
         }
 
         public boolean isCollectionTombstone()

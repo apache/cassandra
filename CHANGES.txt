@@ -2,6 +2,7 @@
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:
+ * Fix duplicated row on 2.x upgrades when multi-rows range tombstones interact with collection ones (CASSANDRA-15805)
  * Rely on snapshotted session infos on StreamResultFuture.maybeComplete to avoid race conditions (CASSANDRA-15667)
  * EmptyType doesn't override writeValue so could attempt to write bytes when expected not to (CASSANDRA-15790)
  * Fix index queries on partition key columns when some partitions contains only static data (CASSANDRA-13666)

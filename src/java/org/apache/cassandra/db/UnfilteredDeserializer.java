@@ -480,16 +480,7 @@ public abstract class UnfilteredDeserializer
                 this.helper = helper;
                 this.grouper = new LegacyLayout.CellGrouper(metadata, helper);
                 this.tombstoneTracker = new TombstoneTracker(partitionDeletion);
-                this.atoms = new AtomIterator(atomReader);
-            }
-
-            private boolean isRow(LegacyLayout.LegacyAtom atom)
-            {
-                if (atom.isCell())
-                    return true;
-
-                LegacyLayout.LegacyRangeTombstone tombstone = atom.asRangeTombstone();
-                return tombstone.isCollectionTombstone() || tombstone.isRowDeletion(metadata);
+                this.atoms = new AtomIterator(atomReader, metadata);
             }
 
 
@@ -516,7 +507,7 @@ public abstract class UnfilteredDeserializer
                             if (tombstoneTracker.isShadowed(atom))
                                 continue;
 
-                            if (isRow(atom))
+                            if (atom.isRowAtom(metadata))
                                 next = readRow(atom);
                             else
                                 tombstoneTracker.openNew(atom.asRangeTombstone());
@@ -540,13 +531,57 @@ public abstract class UnfilteredDeserializer
                                                  ? LegacyLayout.CellGrouper.staticGrouper(metadata, helper)
                                                  : this.grouper;
                 grouper.reset();
+                // We know the first atom is not shadowed and is a "row" atom, so can be added blindly.
                 grouper.addAtom(first);
-                // As long as atoms are part of the same row, consume them. Note that the call to addAtom() uses
-                // atoms.peek() so that the atom is only consumed (by next) if it's part of the row (addAtom returns true)
-                while (atoms.hasNext() && grouper.addAtom(atoms.peek()))
+
+                // We're less sure about the next atoms. In particular, CellGrouper want to make sure we only pass it
+                // "row" atoms (it's the only type it knows how to handle) so we should handle anything else.
+                while (atoms.hasNext())
                 {
-                    atoms.next();
+                    // Peek, but don't consume the next atom just yet
+                    LegacyLayout.LegacyAtom atom = atoms.peek();
+                    // First, that atom may be shadowed in which case we can simply ignore it. Note that this handles
+                    // the case of repeated RT start marker after we've crossed an index boundary, which could well
+                    // appear in the middle of a row (CASSANDRA-14008).
+                    if (!tombstoneTracker.hasClosingMarkerBefore(atom) && tombstoneTracker.isShadowed(atom))
+                    {
+                        atoms.next(); // consume the atom since we only peeked it so far
+                        continue;
+                    }
+
+                    // Second, we should only pass "row" atoms to the cell grouper
+                    if (atom.isRowAtom(metadata))
+                    {
+                        if (!grouper.addAtom(atom))
+                            break; // done with the row; don't consume the atom
+                        atoms.next(); // the grouper "accepted" the atom, consume it since we only peeked above
+                    }
+                    else
+                    {
+                        LegacyLayout.LegacyRangeTombstone rt = (LegacyLayout.LegacyRangeTombstone) atom;
+                        // This means we have a non-row range tombstone. Unfortunately, that does not guarantee the
+                        // current row is finished (though it may), because due to the logic within LegacyRangeTombstone
+                        // constructor, we can get an out-of-order RT that includes on the current row (even if it is
+                        // already started) and extends past it.
+
+                        // So first, evacuate the easy case of the range tombstone simply starting after the current
+                        // row, in which case we're done with the current row (but don't consume the new RT yet so it
+                        // gets handled as any other non-row RT).
+                        if (grouper.startsAfterCurrentRow(rt))
+                            break;
+
+                        // Otherwise, we "split" the RT in 2: the part covering the current row, which is now an
+                        // inRowAtom and can be passed to the grouper, and the part after that, which we push back into
+                        // the iterator for later processing.
+                        Clustering currentRow = grouper.currentRowClustering();
+                        atoms.next(); // consume since we had only just peeked it so far and we're using it
+                        atoms.pushOutOfOrder(rt.withNewStart(ClusteringBound.exclusiveStartOf(currentRow)));
+                        // Note: in theory the withNewStart is a no-op here, but not taking any risk
+                        grouper.addAtom(rt.withNewStart(ClusteringBound.inclusiveStartOf(currentRow))
+                                          .withNewEnd(ClusteringBound.inclusiveEndOf(currentRow)));
+                    }
                 }
+
                 return grouper.getRow();
             }
 
@@ -584,51 +619,87 @@ public abstract class UnfilteredDeserializer
             private static class AtomIterator implements PeekingIterator<LegacyLayout.LegacyAtom>
             {
                 private final Supplier<LegacyLayout.LegacyAtom> atomReader;
-                private boolean isDone;
+                private boolean readerExhausted;
                 private LegacyLayout.LegacyAtom next;
 
-                private AtomIterator(Supplier<LegacyLayout.LegacyAtom> atomReader)
+                private final Comparator<LegacyLayout.LegacyAtom> atomComparator;
+                // May temporarily store atoms that needs to be handler later than when they were deserialized.
+                // Lazily initialized since it is used infrequently.
+                private Queue<LegacyLayout.LegacyAtom> outOfOrderAtoms;
+
+                private AtomIterator(Supplier<LegacyLayout.LegacyAtom> atomReader, CFMetaData metadata)
                 {
                     this.atomReader = atomReader;
+                    this.atomComparator = LegacyLayout.legacyAtomComparator(metadata);
                 }
 
                 public boolean hasNext()
                 {
-                    if (isDone)
-                        return false;
+                    if (readerExhausted)
+                        return hasOutOfOrderAtoms(); // We have to return out of order atoms when reader exhausts
 
+                    // Note that next() and peek() assumes that next has been set by this method, so we do it even if
+                    // we have some outOfOrderAtoms stacked up.
                     if (next == null)
-                    {
                         next = atomReader.get();
-                        if (next == null)
-                        {
-                            isDone = true;
-                            return false;
-                        }
-                    }
-                    return true;
+
+                    readerExhausted = next == null;
+                    return !readerExhausted || hasOutOfOrderAtoms();
                 }
 
                 public LegacyLayout.LegacyAtom next()
                 {
                     if (!hasNext())
                         throw new UnsupportedOperationException();
+
+                    if (hasOutOrderAtomBeforeNext())
+                        return outOfOrderAtoms.poll();
+
                     LegacyLayout.LegacyAtom toReturn = next;
                     next = null;
                     return toReturn;
+                }
+
+                private boolean hasOutOfOrderAtoms()
+                {
+                    return outOfOrderAtoms != null && !outOfOrderAtoms.isEmpty();
+                }
+
+                private boolean hasOutOrderAtomBeforeNext()
+                {
+                    // Note that if outOfOrderAtoms is null, the first condition will be false, so we can save a null
+                    // check on calling `outOfOrderAtoms.peek()` in the right branch.
+                    return hasOutOfOrderAtoms()
+                           && (next == null || atomComparator.compare(outOfOrderAtoms.peek(), next) <= 0);
                 }
 
                 public LegacyLayout.LegacyAtom peek()
                 {
                     if (!hasNext())
                         throw new UnsupportedOperationException();
+                    if (hasOutOrderAtomBeforeNext())
+                        return outOfOrderAtoms.peek();
                     return next;
+                }
+
+                /**
+                 * Push back an atom in the iterator assuming said atom sorts strictly _after_ the atom returned by
+                 * the last next() call (meaning the pushed atom fall in the part of the iterator that has not been
+                 * returned yet, not before). The atom will then be returned by the iterator in proper order.
+                 */
+                public void pushOutOfOrder(LegacyLayout.LegacyAtom atom)
+                {
+                    if (outOfOrderAtoms == null)
+                        outOfOrderAtoms = new PriorityQueue<>(atomComparator);
+                    outOfOrderAtoms.offer(atom);
                 }
 
                 public void clearState()
                 {
                     this.next = null;
-                    this.isDone = false;
+                    this.readerExhausted = false;
+                    if (outOfOrderAtoms != null)
+                        outOfOrderAtoms.clear();
                 }
 
                 public void remove()
@@ -686,7 +757,7 @@ public abstract class UnfilteredDeserializer
                     if (partitionDeletion.deletes(timestamp))
                         return true;
 
-                    SortedSet<LegacyLayout.LegacyRangeTombstone> coveringTombstones = isRow(atom) ? openTombstones : openTombstones.tailSet(atom.asRangeTombstone());
+                    SortedSet<LegacyLayout.LegacyRangeTombstone> coveringTombstones = atom.isRowAtom(metadata) ? openTombstones : openTombstones.tailSet(atom.asRangeTombstone());
                     return Iterables.any(coveringTombstones, tombstone -> tombstone.deletionTime.deletes(timestamp));
                 }
 
