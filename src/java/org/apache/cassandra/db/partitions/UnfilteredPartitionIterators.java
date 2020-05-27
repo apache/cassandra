@@ -27,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.FilteredPartitions;
+import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -47,7 +48,7 @@ public abstract class UnfilteredPartitionIterators
     public interface MergeListener
     {
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
-        public void close();
+        public default void close() {}
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -77,6 +78,24 @@ public abstract class UnfilteredPartitionIterators
         return Transformation.apply(toReturn, new Close());
     }
 
+    public static UnfilteredPartitionIterator concat(final List<UnfilteredPartitionIterator> iterators)
+    {
+        if (iterators.size() == 1)
+            return iterators.get(0);
+
+        class Extend implements MorePartitions<UnfilteredPartitionIterator>
+        {
+            int i = 1;
+            public UnfilteredPartitionIterator moreContents()
+            {
+                if (i >= iterators.size())
+                    return null;
+                return iterators.get(i++);
+            }
+        }
+        return MorePartitions.extend(iterators.get(0), new Extend());
+    }
+
     public static PartitionIterator filter(final UnfilteredPartitionIterator iterator, final int nowInSec)
     {
         return FilteredPartitions.filter(iterator, nowInSec);
@@ -84,7 +103,6 @@ public abstract class UnfilteredPartitionIterators
 
     public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final int nowInSec, final MergeListener listener)
     {
-        assert listener != null;
         assert !iterators.isEmpty();
 
         final boolean isForThrift = iterators.get(0).isForThrift();
@@ -109,7 +127,9 @@ public abstract class UnfilteredPartitionIterators
 
             protected UnfilteredRowIterator getReduced()
             {
-                UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
+                UnfilteredRowIterators.MergeListener rowListener = listener == null
+                                                                 ? null
+                                                                 : listener.getRowMergeListener(partitionKey, toMerge);
 
                 // Replace nulls by empty iterators
                 for (int i = 0; i < toMerge.size(); i++)
@@ -153,7 +173,9 @@ public abstract class UnfilteredPartitionIterators
             public void close()
             {
                 merged.close();
-                listener.close();
+
+                if (listener != null)
+                    listener.close();
             }
         };
     }

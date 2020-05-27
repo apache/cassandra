@@ -126,6 +126,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
+    protected abstract Transformation<BaseRowIterator<?>> filter(CFMetaData metadata, int nowInSec);
+
     /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
      * are included in the resulting iterator.
@@ -134,7 +136,23 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public abstract UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec);
+    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+    {
+        return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(iter.metadata(), nowInSec));
+    }
+
+    /**
+     * Filters the provided iterator so that only the row satisfying the expression of this filter
+     * are included in the resulting iterator.
+     *
+     * @param iter the iterator to filter
+     * @param nowInSec the time of query in seconds.
+     * @return the filtered iterator.
+     */
+    public PartitionIterator filter(PartitionIterator iter, CFMetaData metadata, int nowInSec)
+    {
+        return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(metadata, nowInSec));
+    }
 
     /**
      * Whether the provided row in the provided partition satisfies this filter.
@@ -263,20 +281,16 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(expressions);
         }
 
-        public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+        protected Transformation<BaseRowIterator<?>> filter(CFMetaData metadata, int nowInSec)
         {
-            if (expressions.isEmpty())
-                return iter;
-
-            final CFMetaData metadata = iter.metadata();
             long numberOfStaticColumnExpressions = expressions.stream().filter(e -> e.column.isStatic()).count();
             final boolean filterStaticColumns = numberOfStaticColumnExpressions != 0;
             final boolean filterNonStaticColumns = (expressions.size() - numberOfStaticColumnExpressions) > 0;
 
-            class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
+            return new Transformation<BaseRowIterator<?>>()
             {
                 DecoratedKey pk;
-                public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+                protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
                     // The filter might be on static columns, so need to check static row first.
                     if (filterStaticColumns && applyToRow(partition.staticRow()) == null)
@@ -286,7 +300,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     }
 
                     pk = partition.partitionKey();
-                    UnfilteredRowIterator iterator = Transformation.apply(partition, this);
+                    BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
+                                                  ? Transformation.apply((UnfilteredRowIterator) partition, this)
+                                                  : Transformation.apply((RowIterator) partition, this);
 
                     if (filterNonStaticColumns && !iterator.hasNext())
                     {
@@ -308,9 +324,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                             return null;
                     return row;
                 }
-            }
-
-            return Transformation.apply(iter, new IsSatisfiedFilter());
+            };
         }
 
         protected RowFilter withNewExpressions(List<Expression> expressions)
@@ -326,36 +340,47 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(expressions);
         }
 
-        public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, final int nowInSec)
+        protected Transformation<BaseRowIterator<?>> filter(CFMetaData metadata, int nowInSec)
         {
-            if (expressions.isEmpty())
-                return iter;
-
-            class IsSatisfiedThriftFilter extends Transformation<UnfilteredRowIterator>
+            // Thrift does not filter rows, it filters entire partition if any of the expression is not
+            // satisfied, which forces us to materialize the result (in theory we could materialize only
+            // what we need which might or might not be everything, but we keep it simple since in practice
+            // it's not worth that it has ever been).
+            return new Transformation<BaseRowIterator<?>>()
             {
-                @Override
-                public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
+                protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
-                    // Thrift does not filter rows, it filters entire partition if any of the expression is not
-                    // satisfied, which forces us to materialize the result (in theory we could materialize only
-                    // what we need which might or might not be everything, but we keep it simple since in practice
-                    // it's not worth that it has ever been).
-                    ImmutableBTreePartition result = ImmutableBTreePartition.create(iter);
-                    iter.close();
+                    return partition instanceof UnfilteredRowIterator ? applyTo((UnfilteredRowIterator) partition)
+                                                                      : applyTo((RowIterator) partition);
+                }
 
+                private UnfilteredRowIterator applyTo(UnfilteredRowIterator partition)
+                {
+                    ImmutableBTreePartition result = ImmutableBTreePartition.create(partition);
+                    partition.close();
+                    return accepts(result) ? result.unfilteredIterator() : null;
+                }
+
+                private RowIterator applyTo(RowIterator partition)
+                {
+                    FilteredPartition result = FilteredPartition.create(partition);
+                    return accepts(result) ? result.rowIterator() : null;
+                }
+
+                private boolean accepts(ImmutableBTreePartition result)
+                {
                     // The partition needs to have a row for every expression, and the expression needs to be valid.
                     for (Expression expr : expressions)
                     {
                         assert expr instanceof ThriftExpression;
-                        Row row = result.getRow(makeCompactClustering(iter.metadata(), expr.column().name.bytes));
-                        if (row == null || !expr.isSatisfiedBy(iter.metadata(), iter.partitionKey(), row))
-                            return null;
+                        Row row = result.getRow(makeCompactClustering(metadata, expr.column().name.bytes));
+                        if (row == null || !expr.isSatisfiedBy(metadata, result.partitionKey(), row))
+                            return false;
                     }
                     // If we get there, it means all expressions where satisfied, so return the original result
-                    return result.unfilteredIterator();
+                    return true;
                 }
-            }
-            return Transformation.apply(iter, new IsSatisfiedThriftFilter());
+            };
         }
 
         protected RowFilter withNewExpressions(List<Expression> expressions)

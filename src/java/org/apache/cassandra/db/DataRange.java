@@ -196,6 +196,16 @@ public class DataRange
     }
 
     /**
+     * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
+     *
+     * @return whether the underlying {@code ClusteringIndexFilter} is reversed or not.
+     */
+    public boolean isReversed()
+    {
+        return clusteringIndexFilter.isReversed();
+    }
+
+    /**
      * The clustering index filter to use for the provided key.
      * <p>
      * This may or may not be the same filter for all keys (that is, paging range
