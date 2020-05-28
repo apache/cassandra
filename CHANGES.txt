@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Fix handling of fully purged static rows in repaired data tracking (CASSANDRA-15848)
  * Prevent validation request submission from blocking ANTI_ENTROPY stage (CASSANDRA-15812)
  * Add fqltool and auditlogviewer to rpm and deb packages (CASSANDRA-14712)
  * Include DROPPED_COLUMNS in schema digest computation (CASSANDRA-15843)

@@ -164,6 +164,7 @@ public class ReadCommandTest
         TableMetadata.Builder metadata6 =
         TableMetadata.builder(KEYSPACE, CF6)
                      .addPartitionKeyColumn("key", BytesType.instance)
+                     .addStaticColumn("s", AsciiType.instance)
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("a", AsciiType.instance)
                      .addRegularColumn("b", AsciiType.instance)
@@ -979,7 +980,8 @@ public class ReadCommandTest
         cfs.disableAutoCompaction();
         setGCGrace(cfs, 600);
 
-        // Partition with a single, fully deleted row
+        // Partition with a fully deleted static row and a single, fully deleted regular row
+        RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key")).apply();
         RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key"), "cc").apply();
         cfs.forceBlockingFlush();
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
@@ -1029,7 +1031,8 @@ public class ReadCommandTest
         new RowUpdateBuilder(cfs.metadata.get(), 0, ByteBufferUtil.bytes("key-0")).clustering("cc").add("a", ByteBufferUtil.bytes("a")).build().apply();
         cfs.forceBlockingFlush();
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
-        // Fully deleted partition in an unrepaired sstable, so not included in the intial digest
+        // Fully deleted partition (static and regular rows) in an unrepaired sstable, so not included in the intial digest
+        RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key-1")).apply();
         RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key-1"), "cc").apply();
         cfs.forceBlockingFlush();
 
@@ -1064,8 +1067,9 @@ public class ReadCommandTest
         cfs.disableAutoCompaction();
         setGCGrace(cfs, 0);
 
-        // Partition with a single, fully deleted row which will be fully purged
+        // Partition with a fully deleted static row and a single, fully deleted row which will be fully purged
         DecoratedKey key = Util.dk("key");
+        RowUpdateBuilder.deleteRow(cfs.metadata(), 0, key).apply();
         RowUpdateBuilder.deleteRow(cfs.metadata(), 0, key, "cc").apply();
         cfs.forceBlockingFlush();
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
