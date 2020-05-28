@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.Iterator;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -123,6 +125,30 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
             {
                 throw new IOError(e);
             }
+        }
+    }
+
+    @VisibleForTesting
+    public static class EmptySSTableSimpleIterator extends SSTableSimpleIterator
+    {
+        public EmptySSTableSimpleIterator(TableMetadata metadata)
+        {
+            super(metadata, null, null);
+        }
+
+        public Row readStaticRow() throws IOException
+        {
+            return Rows.EMPTY_STATIC_ROW;
+        }
+
+        protected Unfiltered computeNext()
+        {
+            return null;
+        }
+
+        public boolean hasNext()
+        {
+            return false;
         }
     }
 }

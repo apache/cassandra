@@ -51,6 +51,24 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.0.14
+======
+
+Upgrading
+---------
+    - This release introduces safeguards and observability into possible data loss scenarios when nodes have a 
+      divergent view of the cluster. This happens around edge-cases on unsafe bootstrapping, decommissions, or when a 
+      node has a corrupted topology. Two configuration options have been added: `log_out_of_token_range_requests` and 
+      `reject_out_of_token_range_requests`, both enabled by default. The former will make nodes log requests they 
+      receive that don't belong in their current or pending token ranges. The latter will reject those requests 
+      altogether, which prevents the vast majority of eventual data loss that can occur, but may also incur small 
+      windows of degraded availability during range movements in an unhealthy cluster. Both options apply to streaming,
+      mutations, hints, single-partition reads, read-repair, and Paxos operations. Logging these requests is recommended
+      in all situations, and operators are encouraged to be aware when such events occur and to investigate if writes 
+      have only been received on incorrect nodes. Operators that are confident of topology parity across all nodes may 
+      disable rejection to maximize availability. See CASSANDRA-13704 for further details. Transactional Cluster 
+      Metadata in version 5.1 will remove all such edge-cases, providing appropriate guarantees.
+
 4.0.11
 ======
 

@@ -23,6 +23,9 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import com.google.common.base.MoreObjects;
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -59,6 +62,17 @@ public class StreamRequest
         this.full = full;
         this.transientReplicas = transientReplicas;
         this.columnFamilies.addAll(columnFamilies);
+    }
+
+    public String toString()
+    {
+        return MoreObjects.toStringHelper(this)
+                          .add("keyspace", keyspace)
+                          .add("tables", columnFamilies)
+                          .add("full", full)
+                          .add("transientReplicas", transientReplicas)
+                          .omitNullValues()
+                          .toString();
     }
 
     public static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>

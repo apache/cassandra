@@ -3473,6 +3473,26 @@ public class DatabaseDescriptor
         conf.consecutive_message_errors_threshold = value;
     }
 
+    public static boolean getLogOutOfTokenRangeRequests()
+    {
+        return conf.log_out_of_token_range_requests;
+    }
+
+    public static void setLogOutOfTokenRangeRequests(boolean enabled)
+    {
+        conf.log_out_of_token_range_requests = enabled;
+    }
+
+    public static boolean getRejectOutOfTokenRangeRequests()
+    {
+        return conf.reject_out_of_token_range_requests;
+    }
+
+    public static void setRejectOutOfTokenRangeRequests(boolean enabled)
+    {
+        conf.reject_out_of_token_range_requests = enabled;
+    }
+
     public static boolean getForceNewPreparedStatementBehaviour()
     {
         return conf.force_new_prepared_statement_behaviour;

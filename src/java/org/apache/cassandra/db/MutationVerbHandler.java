@@ -22,7 +22,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
 
-public class MutationVerbHandler implements IVerbHandler<Mutation>
+public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
@@ -37,6 +37,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         Tracing.trace("Payload application resulted in WriteTimeout, not replying");
     }
 
+    @Override
     public void doVerb(Message<Mutation> message)
     {
         // Check if there were any forwarding headers in this message
@@ -55,15 +56,21 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
 
         try
         {
-            message.payload.applyFuture().thenAccept(o -> respond(message, respondToAddress)).exceptionally(wto -> {
-                failed();
-                return null;
-            });
+            processMessage(message, respondToAddress);
         }
         catch (WriteTimeoutException wto)
         {
             failed();
         }
+    }
+
+    @Override
+    protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
+    {
+        message.payload.applyFuture().thenAccept(o -> respond(message, respondToAddress)).exceptionally(wto -> {
+            failed();
+            return null;
+        });
     }
 
     private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)
