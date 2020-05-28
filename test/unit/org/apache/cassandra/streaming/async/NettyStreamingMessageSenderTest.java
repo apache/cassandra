@@ -68,7 +68,7 @@ public class NettyStreamingMessageSenderTest
         session.init(future);
         session.attachOutbound(channel);
 
-        sender = session.getMessageSender();
+        sender = (NettyStreamingMessageSender) session.getMessageSender();
         sender.setControlMessageChannel(channel);
     }
 
@@ -194,7 +194,7 @@ public class NettyStreamingMessageSenderTest
         Assert.assertTrue(sender.connected());
         ChannelPromise promise = channel.newPromise();
         promise.setFailure(new RuntimeException("this is just a testing exception"));
-        Future f = sender.onControlMessageComplete(promise, new CompleteMessage());
+        Future<?> f = sender.onControlMessageComplete(promise, new CompleteMessage());
 
         f.get(5, TimeUnit.SECONDS);
 

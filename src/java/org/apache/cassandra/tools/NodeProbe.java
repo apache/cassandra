@@ -1370,6 +1370,11 @@ public class NodeProbe implements AutoCloseable
         return spProxy.getReadRepairRepairedBackground();
     }
 
+    public Map<String,long[]> getOutOfRangeOpCounts()
+    {
+        return ssProxy.getOutOfRangeOperationCounts();
+    }
+
     // JMX getters for the o.a.c.metrics API below.
     /**
      * Retrieve cache metrics based on the cache type (KeyCache, RowCache, or CounterCache)

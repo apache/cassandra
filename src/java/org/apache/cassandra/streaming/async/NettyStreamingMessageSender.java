@@ -288,7 +288,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
      * @return null if the message was processed sucessfully; else, a {@link java.util.concurrent.Future} to indicate
      * the status of aborting any remaining tasks in the session.
      */
-    java.util.concurrent.Future onControlMessageComplete(Future<?> future, StreamMessage msg)
+    java.util.concurrent.Future<?> onControlMessageComplete(Future<?> future, StreamMessage msg)
     {
         ChannelFuture channelFuture = (ChannelFuture)future;
         Throwable cause = future.cause();

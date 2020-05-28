@@ -103,11 +103,19 @@ public abstract class AbstractReplicationStrategy
         return endpoints;
     }
 
-    public Replica getLocalReplicaFor(RingPosition<?> searchPosition)
+    /**
+     * Check if the token is in a naturally replicated range or pending range
+     * @param token the position to check
+     * @return true if the token is in a natural or pending locally replicationed range, false otherwise
+     */
+    public boolean isTokenInLocalNaturalOrPendingRange(Token token)
     {
-        return getNaturalReplicas(searchPosition)
-               .byEndpoint()
-               .get(FBUtilities.getBroadcastAddressAndPort());
+        return getLocalReplicaFor(token) != null || tokenMetadata.isTokenInLocalPendingRange(keyspaceName, token);
+    }
+
+    public Replica getLocalReplicaFor(Token searchPosition)
+    {
+        return getNaturalReplicas(searchPosition).byEndpoint().get(FBUtilities.getBroadcastAddressAndPort());
     }
 
     /**

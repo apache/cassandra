@@ -178,7 +178,7 @@ public class ReadRepairTest extends TestBaseImpl
     @Test
     public void movingTokenReadRepairTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(4), 3))
+        try (Cluster cluster = init(builder().withNodes(4).start(), 3))
         {
             List<Token> tokens = cluster.tokens();
 
@@ -198,6 +198,13 @@ public class ReadRepairTest extends TestBaseImpl
             cluster.get(4).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, 1, 1)", i);
             // mark #2 as leaving in #4
             cluster.get(4).acceptsOnInstance((InetSocketAddress endpoint) -> {
+                StorageService.instance.getTokenMetadata().addLeavingEndpoint(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), endpoint.getPort()));
+                PendingRangeCalculatorService.instance.update();
+                PendingRangeCalculatorService.instance.blockUntilFinished();
+            }).accept(cluster.get(2).broadcastAddress());
+
+            // mark #2 as leaving in #1
+            cluster.get(1).acceptsOnInstance((InetSocketAddress endpoint) -> {
                 StorageService.instance.getTokenMetadata().addLeavingEndpoint(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), endpoint.getPort()));
                 PendingRangeCalculatorService.instance.update();
                 PendingRangeCalculatorService.instance.blockUntilFinished();
@@ -353,7 +360,9 @@ public class ReadRepairTest extends TestBaseImpl
         String key = "test1";
         try (Cluster cluster = init(Cluster.build()
                                            .withConfig(config -> config.with(Feature.GOSSIP, Feature.NETWORK)
-                                                                       .set("read_request_timeout_in_ms", Integer.MAX_VALUE))
+                                                                       .set("read_request_timeout_in_ms", Integer.MAX_VALUE)
+                                                                       .set("reject_out_of_token_range_requests", false)
+                                           )
                                            .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                            .withNodes(3)
@@ -491,6 +500,7 @@ public class ReadRepairTest extends TestBaseImpl
         // on timestamp tie of RT and partition deletion: we should not generate RT bounds in such case,
         // since monotonicity is already ensured by the partition deletion, and RT is unnecessary there.
         // For details, see CASSANDRA-16453.
+        @SuppressWarnings("unused")
         public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForTokenWrite writePlan, @SuperCall Callable<Void> r) throws Exception
         {
             Assert.assertEquals(2, mutations.size());

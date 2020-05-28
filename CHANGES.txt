@@ -1,4 +1,5 @@
 4.0.14
+ * Safer handling of out-of-range tokens (CASSANDRA-13704)
  * Fix memory leak in BTree.FastBuilder (CASSANDRA-19785)
  * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
  * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)

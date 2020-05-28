@@ -18,20 +18,19 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.IOException;
+import java.util.Collection;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.streaming.messages.StreamMessage;
-
-public interface StreamingMessageSender
+public class StreamRequestOutOfTokenRangeException extends RuntimeException
 {
-    void initialize() throws IOException;
+    private final Collection<StreamRequest> requests;
 
-    void sendMessage(StreamMessage message);
+    public StreamRequestOutOfTokenRangeException(Collection<StreamRequest> requests)
+    {
+        this.requests = requests;
+    }
 
-    boolean connected();
-
-    void close();
+    public String getMessage()
+    {
+        return String.format("Received stream requests containing ranges outside of owned ranges: %s", requests);
+    }
 }

@@ -20,13 +20,18 @@
  */
 package org.apache.cassandra.locator;
 
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
-
-import java.util.*;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 
@@ -147,6 +152,44 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
                 replicasToAdd.addAll(replicas);
             }
         }
+    }
+
+    public boolean isTokenInLocalPendingRange(Token token)
+    {
+        Range<Token> searchRange = new Range<>(token, token);
+
+        // search for non-wrap-around maps
+        NavigableMap<Range<Token>, EndpointsForRange.Builder> ascendingTailMap = ascendingMap.tailMap(searchRange, true);
+        NavigableMap<Range<Token>, EndpointsForRange.Builder> descendingTailMap = descendingMap.tailMap(searchRange, false);
+
+        boolean ascMapSizeLTDescMapSize = ascendingTailMap.size() < descendingTailMap.size();
+        NavigableMap<Range<Token>, EndpointsForRange.Builder> smallerMap = ascMapSizeLTDescMapSize ? ascendingTailMap : descendingTailMap;
+        NavigableMap<Range<Token>, EndpointsForRange.Builder> biggerMap = ascMapSizeLTDescMapSize ? descendingTailMap : ascendingTailMap;
+
+        // find the intersection of two sets
+        for (Range<Token> range : smallerMap.keySet())
+        {
+            EndpointsForRange.Builder replicas = biggerMap.get(range);
+            if (replicas != null && replicas.selfIfPresent() != null)
+                return true;
+        }
+
+        // search for wrap-around sets
+        ascendingTailMap = ascendingMapForWrapAround.tailMap(searchRange, true);
+        descendingTailMap = descendingMapForWrapAround.tailMap(searchRange, false);
+
+        for (EndpointsForRange.Builder endpointsForRange : ascendingTailMap.values())
+        {
+            if (endpointsForRange.selfIfPresent() != null)
+                return true;
+        }
+        for (EndpointsForRange.Builder endpointsForRange  : descendingTailMap.values())
+        {
+            if (endpointsForRange.selfIfPresent() != null)
+                return true;
+        }
+
+        return false;
     }
 
     public EndpointsForToken pendingEndpointsFor(Token token)

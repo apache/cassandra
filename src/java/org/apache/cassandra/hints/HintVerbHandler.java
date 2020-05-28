@@ -19,10 +19,12 @@
 package org.apache.cassandra.hints;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
@@ -31,10 +33,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
  * Verb handler used both for hint dispatch and streaming.
- *
+ * <p>
  * With the non-sstable format, we cannot just stream hint sstables on node decommission. So sometimes, at decommission
  * time, we might have to stream hints to a non-owning host (say, if the owning host B is down during decommission of host A).
  * In that case the handler just stores the received hint in its local hint store.
@@ -89,6 +92,22 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             // the topology has changed, and we are no longer a replica of the mutation - since we don't know which node(s)
             // it has been handed over to, re-address the hint to all replicas; see CASSANDRA-5902.
             HintsService.instance.writeForAllReplicas(hint);
+
+            HintsService.instance.metrics.incrHintsReceivedForUnownedRanges();
+            if (DatabaseDescriptor.getLogOutOfTokenRangeRequests())
+            {
+                // Log at most 1 message per second
+                NoSpamLogger.log(logger,
+                                 NoSpamLogger.Level.WARN,
+                                 1,
+                                 TimeUnit.SECONDS,
+                                 "Receiving hint(s) for token(s) neither owned nor pending. Example: from {} for token {} in {}.{}",
+                                 message.from(),
+                                 hint.mutation.key().getToken(),
+                                 hint.mutation.getKeyspaceName(),
+                                 hint.mutation.getPartitionUpdates().iterator().next().metadata().name);
+            }
+
             respond(message);
         }
         else

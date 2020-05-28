@@ -20,21 +20,24 @@
  */
 package org.apache.cassandra.locator;
 
+import java.net.UnknownHostException;
+
+import org.junit.Test;
+
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.junit.Test;
-
-import java.net.UnknownHostException;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class PendingRangeMapsTest {
-
+public class PendingRangeMapsTest
+{
     private Range<Token> genRange(String left, String right)
     {
-        return new Range<Token>(new BigIntegerToken(left), new BigIntegerToken(right));
+        return new Range<>(new BigIntegerToken(left), new BigIntegerToken(right));
     }
 
     private static void addPendingRange(PendingRangeMaps pendingRangeMaps, Range<Token> range, String endpoint)
@@ -104,5 +107,61 @@ public class PendingRangeMapsTest {
         EndpointsForToken replicas = pendingRangeMaps.pendingEndpointsFor(new BigIntegerToken("6"));
         assertTrue(replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.1")));
         assertTrue(replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.7")));
+    }
+
+    @Test
+    public void testIsTokenInLocalPendingRanges()
+    {
+        PendingRangeMaps pendingRangeMaps = new PendingRangeMaps();
+        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
+        String selfHostAddress = self.getHostAddress(true);
+
+        addPendingRange(pendingRangeMaps, genRange("5", "15"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("15", "25"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("25", "35"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("35", "45"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("45", "55"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("45", "65"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange( "66", "67"), "127.0.0.7");
+
+        assertFalse(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("0")));
+        assertFalse(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("5")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("10")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("15")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("20")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("25")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("35")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("45")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("55")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("65")));
+        assertFalse(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("66")));
+    }
+
+    @Test
+    public void testIsTokenInLocalPendingRangesWrapAroundRanges()
+    {
+        PendingRangeMaps pendingRangeMaps = new PendingRangeMaps();
+        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
+        String selfHostAddress = self.getHostAddress(true);
+
+        addPendingRange(pendingRangeMaps, genRange("5", "15"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("15", "25"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("25", "35"), "127.0.0.1");
+        addPendingRange(pendingRangeMaps, genRange("35", "45"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("45", "55"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("45", "65"), selfHostAddress);
+        addPendingRange(pendingRangeMaps, genRange("65", "7"), selfHostAddress);
+
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("0")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("5")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("7")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("10")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("15")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("20")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("25")));
+        assertFalse(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("35")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("45")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("55")));
+        assertTrue(pendingRangeMaps.isTokenInLocalPendingRange(new BigIntegerToken("65")));
     }
 }
