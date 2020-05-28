@@ -21,7 +21,6 @@ package org.apache.cassandra.streaming.async;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -39,7 +38,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
-import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
@@ -225,11 +223,9 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
         StreamSession deriveSession(StreamMessage message)
         {
-            // StreamInitMessage starts a new channel, and IncomingStreamMessage potentially, as well.
-            // IncomingStreamMessage needs a session to be established a priori, though
+            // StreamInitMessage starts a new channel here, but IncomingStreamMessage needs a session
+            // to be established a priori
             StreamSession streamSession = message.getOrCreateSession(channel);
-            if (streamSession == null)
-                throw new IllegalStateException(createLogTag(null, channel) + " no session found for message " + message);
 
             // Attach this channel to the session: this only happens upon receiving the first init message as a follower;
             // in all other cases, no new control channel will be added, as the proper control channel will be already attached.

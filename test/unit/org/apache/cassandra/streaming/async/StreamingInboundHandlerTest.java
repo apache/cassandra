@@ -164,10 +164,10 @@ public class StreamingInboundHandlerTest
                                                              0, 0, 0, UUID.randomUUID());
 
         // IncomingStreamMessage.serializer.deserialize
-        StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.isFollower);
+        StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);
         Assert.assertNotNull(session);
 
-        session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, !header.isFollower);
+        session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, !header.sendByFollower);
         Assert.assertNull(session);
     }
 }

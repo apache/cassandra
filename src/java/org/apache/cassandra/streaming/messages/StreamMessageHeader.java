@@ -42,8 +42,8 @@ public class StreamMessageHeader
 
     public final TableId tableId;
     public UUID planId;
-    // it tells us if the file was sent by a follower
-    public final boolean isFollower;
+    // it tells us if the file was sent by a follower stream session
+    public final boolean sendByFollower;
     public int sessionIndex;
     public final int sequenceNumber;
     public final long repairedAt;
@@ -53,7 +53,7 @@ public class StreamMessageHeader
     public StreamMessageHeader(TableId tableId,
                                InetAddressAndPort sender,
                                UUID planId,
-                               boolean isFollower,
+                               boolean sendByFollower,
                                int sessionIndex,
                                int sequenceNumber,
                                long repairedAt,
@@ -62,7 +62,7 @@ public class StreamMessageHeader
         this.tableId = tableId;
         this.sender = sender;
         this.planId = planId;
-        this.isFollower = isFollower;
+        this.sendByFollower = sendByFollower;
         this.sessionIndex = sessionIndex;
         this.sequenceNumber = sequenceNumber;
         this.repairedAt = repairedAt;
@@ -77,7 +77,7 @@ public class StreamMessageHeader
         sb.append(", #").append(sequenceNumber);
         sb.append(", repairedAt: ").append(repairedAt);
         sb.append(", pendingRepair: ").append(pendingRepair);
-        sb.append(", isFollower: ").append(isFollower);
+        sb.append(", sendByFollower: ").append(sendByFollower);
         sb.append(')');
         return sb.toString();
     }
@@ -88,7 +88,7 @@ public class StreamMessageHeader
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StreamMessageHeader that = (StreamMessageHeader) o;
-        return isFollower == that.isFollower &&
+        return sendByFollower == that.sendByFollower &&
                sequenceNumber == that.sequenceNumber &&
                Objects.equal(tableId, that.tableId);
     }
@@ -96,7 +96,7 @@ public class StreamMessageHeader
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(tableId, isFollower, sequenceNumber);
+        return Objects.hashCode(tableId, sendByFollower, sequenceNumber);
     }
 
     public void addSessionInfo(StreamSession session)
@@ -112,7 +112,7 @@ public class StreamMessageHeader
             header.tableId.serialize(out);
             inetAddressAndPortSerializer.serialize(header.sender, out, version);
             UUIDSerializer.serializer.serialize(header.planId, out, version);
-            out.writeBoolean(header.isFollower);
+            out.writeBoolean(header.sendByFollower);
             out.writeInt(header.sessionIndex);
             out.writeInt(header.sequenceNumber);
             out.writeLong(header.repairedAt);
@@ -128,13 +128,13 @@ public class StreamMessageHeader
             TableId tableId = TableId.deserialize(in);
             InetAddressAndPort sender = inetAddressAndPortSerializer.deserialize(in, version);
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
-            boolean isFollower = in.readBoolean();
+            boolean sendByFollower = in.readBoolean();
             int sessionIndex = in.readInt();
             int sequenceNumber = in.readInt();
             long repairedAt = in.readLong();
             UUID pendingRepair = in.readBoolean() ? UUIDSerializer.serializer.deserialize(in, version) : null;
 
-            return new StreamMessageHeader(tableId, sender, planId, isFollower, sessionIndex, sequenceNumber, repairedAt, pendingRepair);
+            return new StreamMessageHeader(tableId, sender, planId, sendByFollower, sessionIndex, sequenceNumber, repairedAt, pendingRepair);
         }
 
         public long serializedSize(StreamMessageHeader header, int version)
@@ -142,7 +142,7 @@ public class StreamMessageHeader
             long size = header.tableId.serializedSize();
             size += inetAddressAndPortSerializer.serializedSize(header.sender, version);
             size += UUIDSerializer.serializer.serializedSize(header.planId, version);
-            size += TypeSizes.sizeof(header.isFollower);
+            size += TypeSizes.sizeof(header.sendByFollower);
             size += TypeSizes.sizeof(header.sessionIndex);
             size += TypeSizes.sizeof(header.sequenceNumber);
             size += TypeSizes.sizeof(header.repairedAt);

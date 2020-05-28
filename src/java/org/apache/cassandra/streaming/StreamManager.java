@@ -176,9 +176,9 @@ public class StreamManager implements StreamManagerMBean
         return notifier.getNotificationInfo();
     }
 
-    public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex, boolean sentByFollower)
+    public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex, boolean searchInitiatorSessions)
     {
-        Map<UUID, StreamResultFuture> streams = sentByFollower ? initiatorStreams : followerStreams;
+        Map<UUID, StreamResultFuture> streams = searchInitiatorSessions ? initiatorStreams : followerStreams;
         return findSession(streams, peer, planId, sessionIndex);
     }
 

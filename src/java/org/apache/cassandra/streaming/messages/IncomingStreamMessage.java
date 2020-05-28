@@ -40,7 +40,7 @@ public class IncomingStreamMessage extends StreamMessage
         public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
-            StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.isFollower);
+            StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);
             if (session == null)
                 throw new IllegalStateException(String.format("unknown stream session: %s - %d", header.planId, header.sessionIndex));
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(header.tableId);
