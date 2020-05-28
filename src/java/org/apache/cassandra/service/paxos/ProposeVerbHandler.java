@@ -23,7 +23,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
-public class ProposeVerbHandler implements IVerbHandler<Commit>
+public class ProposeVerbHandler extends AbstractPaxosVerbHandler implements IVerbHandler<Commit>
 {
     public static final ProposeVerbHandler instance = new ProposeVerbHandler();
 
@@ -32,7 +32,7 @@ public class ProposeVerbHandler implements IVerbHandler<Commit>
         return PaxosState.propose(proposal);
     }
 
-    public void doVerb(Message<Commit> message)
+    void processMessage(Message<Commit> message)
     {
         Message<Boolean> reply = message.responseWith(doPropose(message.payload));
         MessagingService.instance().send(reply, message.from());

@@ -20,16 +20,16 @@
  */
 package org.apache.cassandra.service.paxos;
 
-import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tracing.Tracing;
 
-public class CommitVerbHandler implements IVerbHandler<Commit>
+public class CommitVerbHandler extends AbstractPaxosVerbHandler
 {
     public static final CommitVerbHandler instance = new CommitVerbHandler();
 
-    public void doVerb(Message<Commit> message)
+    @Override
+    void processMessage(Message<Commit> message)
     {
         PaxosState.commit(message.payload);
 
