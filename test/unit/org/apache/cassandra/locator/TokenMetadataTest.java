@@ -358,7 +358,6 @@ public class TokenMetadataTest
         assertEquals(0, tokenMetadata.getSizeOfMovingEndpoints());
     }
 
-
     @Test
     public void testRemoveEndpointTokenChange() throws Exception
     {

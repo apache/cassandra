@@ -21,8 +21,16 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.Iterator;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.schema.TableMetadata;
@@ -30,7 +38,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 
 /**
  * Utility class to handle deserializing atom from sstables.
- *
+ * <p>
  * Note that this is not a full fledged UnfilteredRowIterator. It's also not closeable, it is always
  * the job of the user to close the underlying ressources.
  */
@@ -123,6 +131,30 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
             {
                 throw new IOError(e);
             }
+        }
+    }
+
+    @VisibleForTesting
+    public static class EmptySSTableSimpleIterator extends SSTableSimpleIterator
+    {
+        public EmptySSTableSimpleIterator(TableMetadata metadata)
+        {
+            super(metadata, null, null);
+        }
+
+        public Row readStaticRow()
+        {
+            return Rows.EMPTY_STATIC_ROW;
+        }
+
+        protected Unfiltered computeNext()
+        {
+            return null;
+        }
+
+        public boolean hasNext()
+        {
+            return false;
         }
     }
 }

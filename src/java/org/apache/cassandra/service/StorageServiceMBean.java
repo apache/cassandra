@@ -1069,4 +1069,22 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     boolean getEnforceNativeDeadlineForHints();
     void setEnforceNativeDeadlineForHints(boolean value);
+
+    /**
+     * Toggles to turn on the logging or rejection of operations for token ranges that the node does not own,
+     * or is not about to acquire.
+     */
+    boolean isOutOfTokenRangeRequestLoggingEnabled();
+    void setOutOfTokenRangeRequestLoggingEnabled(boolean enabled);
+
+    boolean isOutOfTokenRangeRequestRejectionEnabled();
+    void setOutOfTokenRangeRequestRejectionEnabled(boolean enabled);
+
+    /**
+     * Get the per-keyspace counts of operations that the node has received for tokens outside of
+     * its owned ranges. Represented as a Map<String, long[]>, keys are keyspace names and the
+     * values are the counts for read, write and paxos ops respectivly.
+     * e.g. keyspace_name -> [reads, writes, paxos].
+     */
+    Map<String, long[]> getOutOfRangeOperationCounts();
 }
