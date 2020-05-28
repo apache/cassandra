@@ -21,19 +21,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.Dispatcher;
 
-public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
+public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<CounterMutation>
 {
     public static final CounterMutationVerbHandler instance = new CounterMutationVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    public void doVerb(final Message<CounterMutation> message)
+    @Override
+    protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
@@ -48,7 +49,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
         // it's own in that case.
         StorageProxy.applyCounterMutationOnLeader(cm,
                                                   localDataCenter,
-                                                  () -> MessagingService.instance().send(message.emptyResponse(), message.from()),
+                                                  () -> MessagingService.instance().send(message.emptyResponse(), respondToAddress),
                                                   Dispatcher.RequestTime.forImmediateExecution());
     }
 }
