@@ -48,7 +48,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Hex;
 
 import static org.apache.cassandra.Util.clustering;
 import static org.apache.cassandra.Util.dk;
@@ -170,6 +169,32 @@ public class RepairedDataInfoTest
         assertArrayEquals(manualDigest.digest(), fromRepairedInfo);
     }
 
+    @Test
+    public void digestOfFullyPurgedPartition()
+    {
+        int deletionTime = nowInSec - cfs.metadata().params.gcGraceSeconds - 1;
+        DeletionTime deletion = new DeletionTime(((long)deletionTime * 1000), deletionTime);
+        Row staticRow = staticRow(nowInSec, deletion);
+        Row row = row(1, nowInSec, deletion);
+        UnfilteredRowIterator partition = partitionWithStaticRow(bytes(0), staticRow, row);
+
+        // The partition is fully purged, so nothing should be added to the digest
+        byte[] fromRepairedInfo = consume(partition);
+        assertEquals(0, fromRepairedInfo.length);
+    }
+
+    @Test
+    public void digestOfEmptyPartition()
+    {
+        // Static row is read greedily during transformation and if the underlying
+        // SSTableIterator doesn't contain the partition, an empty but non-null
+        // static row is read and digested.
+        UnfilteredRowIterator partition = partition(bytes(0));
+        // The partition is completely empty, so nothing should be added to the digest
+        byte[] fromRepairedInfo = consume(partition);
+        assertEquals(0, fromRepairedInfo.length);
+    }
+
     private RepairedDataInfo info()
     {
         return new RepairedDataInfo(DataLimits.NONE.newCounter(nowInSec, false, false, false));
@@ -182,7 +207,7 @@ public class RepairedDataInfoTest
                                Unfiltered...unfiltereds)
     {
         Digest perPartitionDigest = Digest.forRepairedDataTracking();
-        if (!staticRow.isEmpty())
+        if (staticRow != null && !staticRow.isEmpty())
             staticRow.digest(perPartitionDigest);
         perPartitionDigest.update(partitionKey);
         deletion.digest(perPartitionDigest);
@@ -232,11 +257,27 @@ public class RepairedDataInfoTest
         return builder.build();
     }
 
+    private Row staticRow(int nowInSec, DeletionTime deletion)
+    {
+        Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(Clustering.STATIC_CLUSTERING);
+        builder.addRowDeletion(new Row.Deletion(deletion, false));
+        return builder.build();
+    }
+
     private Row row(int clustering, int value, int nowInSec)
     {
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(clustering(metadata.comparator, Integer.toString(clustering)));
         builder.addCell(cell(valueMetadata, Integer.toString(value)));
+        return builder.build();
+    }
+
+    private Row row(int clustering, int nowInSec, DeletionTime deletion)
+    {
+        Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(clustering(metadata.comparator, Integer.toString(clustering)));
+        builder.addRowDeletion(new Row.Deletion(deletion, false));
         return builder.build();
     }
 
