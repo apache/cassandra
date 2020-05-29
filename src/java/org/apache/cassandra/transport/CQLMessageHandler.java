@@ -20,6 +20,7 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ import io.netty.channel.Channel;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.AbstractMessageHandler;
+import org.apache.cassandra.net.Crc;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameEncoder;
@@ -39,12 +41,15 @@ import org.apache.cassandra.net.ShareableBytes;
 import org.apache.cassandra.transport.Flusher.FlushItem.Framed;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class CQLMessageHandler extends AbstractMessageHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
+
     private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
     private final Message.ProtocolDecoder messageDecoder;
     private final Message.ProtocolEncoder messageEncoder;
@@ -248,47 +253,31 @@ public class CQLMessageHandler extends AbstractMessageHandler
     }
 
     /*
-     * We can handle some corrupt frames gracefully without dropping the connection and losing all the
-     * queued up messages, but not others.
-     *
-     * Corrupt frames that *ARE NOT* safe to skip gracefully and require the connection to be dropped:
-     *  - any frame with corrupt header (!frame.isRecoverable())
-     *  - first corrupt-payload frame of a large message (impossible to infer message size, and without it
-     *    impossible to skip the message safely
-     *
-     * Corrupt frames that *ARE* safe to skip gracefully, without reconnecting:
-     *  - any self-contained frame with a corrupt payload (but not header): we lose all the messages in the
-     *    frame, but that has no effect on subsequent ones
-     *  - any non-first payload-corrupt frame of a large message: we know the size of the large message in
-     *    flight, so we just skip frames until we've seen all its bytes; we only lose the large message
+     * Although it would be possible to recover when certain types of corrupt frame are encountered,
+     * this could cause problems for clients as the payload may contain CQL messages from multiple
+     * streams. Simply dropping the corrupt frame or returning an error response would not give the
+     * client enough information to map back to inflight requests, leading to timeouts.
+     * Instead, we need to fail fast, possibly dropping the connection whenever a corrupt frame is
+     * encountered. Consequently, we throw whenever a corrupt frame is encountered, regardless of its
+     * type.
      */
-//    private void processCorruptFrame(FrameDecoder.CorruptFrame frame) throws Crc.InvalidCrc
-//    {
-//        if (!frame.isRecoverable())
-//        {
-//            corruptFramesUnrecovered++;
-//            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
-//        }
-//        else if (frame.isSelfContained)
-//        {
-//            receivedBytes += frame.frameSize;
-//            corruptFramesRecovered++;
-//            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading messages (corrupted self-contained frame)", id());
-//        }
-//        else if (null == largeMessage) // first frame of a large message
-//        {
-//            receivedBytes += frame.frameSize;
-//            corruptFramesUnrecovered++;
-//            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages (corrupted first frame of a large message)", id());
-//            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
-//        }
-//        else // subsequent frame of a large message
-//        {
-//            processSubsequentFrameOfLargeMessage(frame);
-//            corruptFramesRecovered++;
-//            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading a large message", id());
-//        }
-//    }
+    protected void processCorruptFrame(FrameDecoder.CorruptFrame frame) throws Crc.InvalidCrc
+    {
+        corruptFramesUnrecovered++;
+        if (!frame.isRecoverable())
+        {
+            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected in frame header", id());
+            logger.error("{} invalid, unrecoverable CRC mismatch detected in frame header", id());
+            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+        }
+        else
+        {
+            receivedBytes += frame.frameSize;
+            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected in frame body", id());
+            logger.error("{} invalid, unrecoverable CRC mismatch detected in frame header", id());
+            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+        }
+    }
 
     private static int frameSize(Frame.Header header)
     {

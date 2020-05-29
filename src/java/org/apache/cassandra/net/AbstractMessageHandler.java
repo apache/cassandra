@@ -168,9 +168,9 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
     // wait queue handle, non-null if we overrun endpoint or global capacity and request to be resumed once it's released
     private WaitQueue.Ticket ticket = null;
 
-    long corruptFramesRecovered, corruptFramesUnrecovered;
-    long receivedCount, receivedBytes;
-    long throttledCount, throttledNanos;
+    protected long corruptFramesRecovered, corruptFramesUnrecovered;
+    protected long receivedCount, receivedBytes;
+    protected long throttledCount, throttledNanos;
 
     private boolean isClosed;
 
