@@ -59,6 +59,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.Index.IndexBuildingSupport;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -144,6 +145,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * The indexes that are available for querying.
      */
     private final Set<String> queryableIndexes = Sets.newConcurrentHashSet();
+    
+    /**
+     * The indexes that are available for writing.
+     */
+    private final Map<String, Index> writableIndexes = Maps.newConcurrentMap();
 
     /**
      * The count of pending index builds for each index.
@@ -207,6 +213,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         final Index index = createInstance(indexDef);
         index.register(this);
+        if (writableIndexes.put(index.getIndexMetadata().name, index) == null)
+            logger.info("Index [{}] registered and writable.", index.getIndexMetadata().name);
 
         markIndexesBuilding(ImmutableSet.of(index), true, isNewCF);
 
@@ -220,7 +228,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             }
             catch (Throwable t)
             {
-                logAndMarkIndexesFailed(Collections.singleton(index), t);
+                logAndMarkIndexesFailed(Collections.singleton(index), t, true);
                 throw t;
             }
         }
@@ -239,7 +247,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             @Override
             public void onFailure(Throwable t)
             {
-                logAndMarkIndexesFailed(Collections.singleton(index), t);
+                logAndMarkIndexesFailed(Collections.singleton(index), t, true);
                 initialization.setException(t);
             }
 
@@ -273,11 +281,22 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * Checks if the specified index is queryable.
      *
      * @param index the index
-     * @return <code>true</code> if the specified index is registered, <code>false</code> otherwise
+     * @return <code>true</code> if the specified index is queryable, <code>false</code> otherwise
      */
     public boolean isIndexQueryable(Index index)
     {
         return queryableIndexes.contains(index.getIndexMetadata().name);
+    }
+    
+    /**
+     * Checks if the specified index is writable.
+     *
+     * @param index the index
+     * @return <code>true</code> if the specified index is writable, <code>false</code> otherwise
+     */
+    public boolean isIndexWritable(Index index)
+    {
+        return writableIndexes.containsKey(index.getIndexMetadata().name);
     }
 
     /**
@@ -326,8 +345,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
-     * Does a blocking full rebuild of the specifed indexes from all the sstables in the base table.
-     * Note also that this method of (re)building indexes:
+     * Does a blocking full rebuild/recovery of the specifed indexes from all the sstables in the base table.
+     * Note also that this method of (re)building/recovering indexes:
      * a) takes a set of index *names* rather than Indexers
      * b) marks existing indexes removed prior to rebuilding
      * c) fails if such marking operation conflicts with any ongoing index builds, as full rebuilds cannot be run
@@ -337,19 +356,40 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public void rebuildIndexesBlocking(Set<String> indexNames)
     {
+        // Get the set of indexes that require blocking build
+        Set<Index> toRebuild = indexes.values()
+                                      .stream()
+                                      .filter(index -> indexNames.contains(index.getIndexMetadata().name))
+                                      .filter(Index::shouldBuildBlocking)
+                                      .collect(Collectors.toSet());
+
+        if (toRebuild.isEmpty())
+        {
+            logger.info("No defined indexes with the supplied names: {}", Joiner.on(',').join(indexNames));
+            return;
+        }
+
+        // Optimistically mark the indexes as writable, so we don't miss incoming writes
+        boolean needsFlush = false;
+        for (Index index : toRebuild)
+        {
+            String name = index.getIndexMetadata().name;
+            if (writableIndexes.put(name, index) == null)
+            {
+                logger.info("Index [{}] became writable starting recovery.", name);
+                needsFlush = true;
+            }
+        }
+
+        // Once we are tracking new writes, flush any memtable contents to not miss them from the sstable-based rebuild
+        if (needsFlush)
+            baseCfs.forceBlockingFlush();
+
+        // Now that we are tracking new writes and we haven't left untracked contents on the memtables, we are ready to
+        // index the sstables
         try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
              Refs<SSTableReader> allSSTables = viewFragment.refs)
         {
-            Set<Index> toRebuild = indexes.values().stream()
-                                          .filter(index -> indexNames.contains(index.getIndexMetadata().name))
-                                          .filter(Index::shouldBuildBlocking)
-                                          .collect(Collectors.toSet());
-            if (toRebuild.isEmpty())
-            {
-                logger.info("No defined indexes with the supplied names: {}", Joiner.on(',').join(indexNames));
-                return;
-            }
-
             buildIndexesBlocking(allSSTables, toRebuild, true);
         }
     }
@@ -426,8 +466,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
-     * Performs a blocking (re)indexing of the specified SSTables for the specified indexes.
+     * Performs a blocking (re)indexing/recovery of the specified SSTables for the specified indexes.
      *
+     * If the index doesn't support ALL {@link Index.LoadType} it performs a recovery {@link Index#getRecoveryTaskSupport()}
+     * instead of a build {@link Index#getBuildTaskSupport()}
+     * 
      * @param sstables      the SSTables to be (re)indexed
      * @param indexes       the indexes to be (re)built for the specifed SSTables
      * @param isFullRebuild True if this method is invoked as a full index rebuild, false otherwise
@@ -443,15 +486,16 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         markIndexesBuilding(indexes, isFullRebuild, false);
 
         // Build indexes in a try/catch, so that any index not marked as either built or failed will be marked as failed:
-        final Set<Index> builtIndexes = new HashSet<>();
-        final Set<Index> unbuiltIndexes = new HashSet<>();
+        final Set<Index> builtIndexes = Sets.newConcurrentHashSet();
+        final Set<Index> unbuiltIndexes = Sets.newConcurrentHashSet();
 
         // Any exception thrown during index building that could be suppressed by the finally block
         Exception accumulatedFail = null;
 
         try
         {
-            logger.info("Submitting index build of {} for data in {}",
+            logger.info("Submitting index {} of {} for data in {}",
+                        isFullRebuild ? "recovery" : "build",
                         indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(",")),
                         sstables.stream().map(SSTableReader::toString).collect(Collectors.joining(",")));
 
@@ -459,7 +503,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
             for (Index index : indexes)
             {
-                Set<Index> stored = byType.computeIfAbsent(index.getBuildTaskSupport(), i -> new HashSet<>());
+                IndexBuildingSupport buildOrRecoveryTask = isFullRebuild
+                                                           ? index.getBuildTaskSupport()
+                                                           : index.getRecoveryTaskSupport();
+                Set<Index> stored = byType.computeIfAbsent(buildOrRecoveryTask, i -> new HashSet<>());
                 stored.add(index);
             }
 
@@ -474,7 +521,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                    @Override
                                    public void onFailure(Throwable t)
                                    {
-                                       logAndMarkIndexesFailed(groupedIndexes, t);
+                                       logAndMarkIndexesFailed(groupedIndexes, t, false);
                                        unbuiltIndexes.addAll(groupedIndexes);
                                        build.setException(t);
                                    }
@@ -507,7 +554,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 Set<Index> failedIndexes = Sets.difference(indexes, Sets.union(builtIndexes, unbuiltIndexes));
                 if (!failedIndexes.isEmpty())
                 {
-                    logAndMarkIndexesFailed(failedIndexes, accumulatedFail);
+                    logAndMarkIndexesFailed(failedIndexes, accumulatedFail, false);
                 }
 
                 // Flush all built indexes with an aynchronous callback to log the success or failure of the flush
@@ -571,8 +618,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * the SecondaryIndexManager instance, it means all invocations for all different indexes will go through the same
      * lock, but this is fine as the work done while holding such lock is trivial.
      * <p>
-     * {@link #markIndexBuilt(Index, boolean)} or {@link #markIndexFailed(Index)} should be always called after the
-     * rebuilding has finished, so that the index build state can be correctly managed and the index rebuilt.
+     * {@link #markIndexBuilt(Index, boolean)} or {@link #markIndexFailed(Index, boolean)} should be always called after
+     * the rebuilding has finished, so that the index build state can be correctly managed and the index rebuilt.
      *
      * @param indexes the index to be marked as building
      * @param isFullRebuild {@code true} if this method is invoked as a full index rebuild, {@code false} otherwise
@@ -620,7 +667,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         String indexName = index.getIndexMetadata().name;
         if (isFullRebuild)
-            queryableIndexes.add(indexName);
+        {
+            if (queryableIndexes.add(indexName))
+                logger.info("Index [{}] became queryable after successful build.", indexName);
+
+            if (writableIndexes.put(indexName, index) == null)
+                logger.info("Index [{}] became writable after successful build.", indexName);
+        }
         
         AtomicInteger counter = inProgressBuilds.get(indexName);
         if (counter != null)
@@ -640,10 +693,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * {@link #markIndexesBuilding(Set, boolean, boolean)} should always be invoked before this method.
      *
      * @param index the index to be marked as built
+     * @param isInitialBuild {@code true} if the index failed during its initial build, {@code false} otherwise
      */
-    private synchronized void markIndexFailed(Index index)
+    private synchronized void markIndexFailed(Index index, boolean isInitialBuild)
     {
         String indexName = index.getIndexMetadata().name;
+
         AtomicInteger counter = inProgressBuilds.get(indexName);
         if (counter != null)
         {
@@ -655,17 +710,23 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
 
             needsFullRebuild.add(indexName);
+
+            if (!index.getSupportedLoadTypeOnFailure(isInitialBuild).supportsWrites() && writableIndexes.remove(indexName) != null)
+                logger.info("Index [{}] became not-writable because of failed build.", indexName);
+
+            if (!index.getSupportedLoadTypeOnFailure(isInitialBuild).supportsReads() && queryableIndexes.remove(indexName))
+                logger.info("Index [{}] became not-queryable because of failed build.", indexName);
         }
     }
 
-    private void logAndMarkIndexesFailed(Set<Index> indexes, Throwable indexBuildFailure)
+    private void logAndMarkIndexesFailed(Set<Index> indexes, Throwable indexBuildFailure, boolean isInitialBuild)
     {
         JVMStabilityInspector.inspectThrowable(indexBuildFailure);
         if (indexBuildFailure != null)
             logger.warn("Index build of {} failed. Please run full index rebuild to fix it.", getIndexNames(indexes), indexBuildFailure);
         else
             logger.warn("Index build of {} failed. Please run full index rebuild to fix it.", getIndexNames(indexes));
-        indexes.forEach(SecondaryIndexManager.this::markIndexFailed);
+        indexes.forEach(i -> this.markIndexFailed(i, isInitialBuild));
     }
 
     /**
@@ -677,6 +738,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
         queryableIndexes.remove(indexName);
+        writableIndexes.remove(indexName);
         needsFullRebuild.remove(indexName);
         inProgressBuilds.remove(indexName);
     }
@@ -1081,9 +1143,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             index.validate(update);
     }
 
-    /**
+    /*
      * IndexRegistry methods
      */
+
     public void registerIndex(Index index)
     {
         String name = index.getIndexMetadata().name;
@@ -1113,7 +1176,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return ImmutableSet.copyOf(indexes.values());
     }
 
-    /**
+    /*
      * Handling of index updates.
      * Implementations of the various IndexTransaction interfaces, for keeping indexes in sync with base data
      * during updates, compaction and cleanup. Plus factory methods for obtaining transaction instances.
@@ -1126,17 +1189,19 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         if (!hasIndexes())
             return UpdateTransaction.NO_OP;
-
-        Index.Indexer[] indexers = indexes.values().stream()
-                                          .map(i -> i.indexerFor(update.partitionKey(),
-                                                                 update.columns(),
-                                                                 nowInSec,
-                                                                 ctx,
-                                                                 IndexTransaction.Type.UPDATE))
-                                          .filter(Objects::nonNull)
-                                          .toArray(Index.Indexer[]::new);
-
-        return indexers.length == 0 ? UpdateTransaction.NO_OP : new WriteTimeTransaction(indexers);
+        
+        ArrayList<Index.Indexer> idxrs = new ArrayList<>();
+        for (Index i : writableIndexes.values())
+        {
+            Index.Indexer idxr = i.indexerFor(update.partitionKey(), update.columns(), nowInSec, ctx, IndexTransaction.Type.UPDATE);
+            if (idxr != null)
+                idxrs.add(idxr);
+        }
+        
+        if (idxrs.size() == 0)
+            return UpdateTransaction.NO_OP;
+        else
+            return new WriteTimeTransaction(idxrs.toArray(new Index.Indexer[idxrs.size()]));
     }
 
     /**
@@ -1148,7 +1213,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                                           int nowInSec)
     {
         // the check for whether there are any registered indexes is already done in CompactionIterator
-        return new IndexGCTransaction(key, regularAndStaticColumns, keyspace, versions, nowInSec, listIndexes());
+        return new IndexGCTransaction(key, regularAndStaticColumns, keyspace, versions, nowInSec, writableIndexes.values());
     }
 
     /**
@@ -1161,7 +1226,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (!hasIndexes())
             return CleanupTransaction.NO_OP;
 
-        return new CleanupGCTransaction(key, regularAndStaticColumns, keyspace, nowInSec, listIndexes());
+        return new CleanupGCTransaction(key, regularAndStaticColumns, keyspace, nowInSec, writableIndexes.values());
     }
 
     /**
@@ -1283,7 +1348,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         private IndexGCTransaction(DecoratedKey key,
                                    RegularAndStaticColumns columns,
-                                   Keyspace keyspace, int versions,
+                                   Keyspace keyspace,
+                                   int versions,
                                    int nowInSec,
                                    Collection<Index> indexes)
         {
@@ -1388,7 +1454,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         private CleanupGCTransaction(DecoratedKey key,
                                      RegularAndStaticColumns columns,
-                                     Keyspace keyspace, int nowInSec,
+                                     Keyspace keyspace,
+                                     int nowInSec,
                                      Collection<Index> indexes)
         {
             this.key = key;

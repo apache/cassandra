@@ -19,7 +19,6 @@ package org.apache.cassandra.index.sasi;
 
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import com.googlecode.concurrenttrees.common.Iterables;

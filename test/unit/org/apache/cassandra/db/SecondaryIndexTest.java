@@ -484,7 +484,7 @@ public class SecondaryIndexTest
                    .build();
         MigrationManager.announceTableUpdate(updated, true);
 
-        // fait for the index to be built
+        // wait for the index to be built
         Index index = cfs.indexManager.getIndex(indexDef);
         do
         {
