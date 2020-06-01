@@ -3,7 +3,7 @@
 cassandra-rackdc.properties file 
 ================================
 
-Several :term:`snitch` options use the `cassandra-rackdc.properties` configuration file to determine which :term:`datacenters` and racks cluster nodes belong to. Information about the 
+Several :term:`snitch` options use the ``cassandra-rackdc.properties`` configuration file to determine which :term:`datacenters` and racks cluster nodes belong to. Information about the 
 network topology allows requests to be routed efficiently and to distribute replicas evenly. The following snitches can be configured here:
 
 - GossipingPropertyFileSnitch
