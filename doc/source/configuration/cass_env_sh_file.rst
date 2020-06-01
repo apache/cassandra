@@ -5,12 +5,8 @@ cassandra-env.sh file
 
 The ``cassandra-env.sh`` file can be used to pass additional options to the Java virtual machine (JVM), such as maximum and minimum heap size, rather than setting them in the environment.
 
-To see the relationship of the file to the parameters used on Cassandra startup, look at the following example.
-
-. Add the following to the cassandra-env.sh file:
-JVM_OPTS="$JVM_OPTS -Dcassandra.load_ring_state=false"
-. Now run the command-line ``cassandra`` to start. Because the option is set in the ``cassandra-env.sh`` file, this is equivalent to starting Cassandra with the command-line options
-``cassandra -Dcassandra.load_ring_state=false``
+For example, add the following to the cassandra-env.sh file: ``JVM_OPTS="$JVM_OPTS -Dcassandra.load_ring_state=false"``
+and run the command-line ``cassandra`` to start. The option is set from the ``cassandra-env.sh`` file, and is equivalent to starting Cassandra with the command-line option ``cassandra -Dcassandra.load_ring_state=false``.
 
 The ``-D`` option specifies the start-up parameters in both the command line and ``cassandra-env.sh`` file. The following options are available:
 
