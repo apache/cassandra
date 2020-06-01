@@ -309,7 +309,10 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         public void shutdown()
         {
-            cdcSizeCalculationExecutor.shutdown();
+            if (cdcSizeCalculationExecutor != null && !cdcSizeCalculationExecutor.isShutdown())
+            {
+                cdcSizeCalculationExecutor.shutdown();
+            }
         }
 
         private void addSize(long toAdd)
