@@ -176,6 +176,13 @@ elif [ $DEFINED_XMN -ne 0 ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
 fi
 
+# We fail to start if -Xmn is used with G1 GC is being used
+# See comments for -Xmn in jvm-server.options
+if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
+    echo "It is not recommended to set -Xmn with the G1 garbage collector. See comments for -Xmn in jvm-server.options for details."
+    exit 1
+fi
+
 if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -XX:+UseCondCardMark"
 fi

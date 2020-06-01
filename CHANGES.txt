@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Fail startup if -Xmn is set when the G1 garbage collector is used (CASSANDRA-15839)
  * Fix Cassandra restart from rpm install (CASSANDRA-15830)
  * Improve handling of 2i initialization failures (CASSANDRA-13606)
  * Add completion_ratio column to sstable_tasks virtual table (CASANDRA-15759)
