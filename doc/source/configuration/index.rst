@@ -25,3 +25,4 @@ This section describes how to configure Apache Cassandra.
    cass_yaml_file
    cass_rackdc_file
    cass_env_sh_file
+   cass_topo_file
