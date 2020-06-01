@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
@@ -59,6 +60,8 @@ public class CQLSSTableWriterTest
     @BeforeClass
     public static void setup() throws Exception
     {
+        // CASSANDRA-5841 With cdc we need to start this to prevent NPE
+        CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
         StorageService.instance.initServer();
