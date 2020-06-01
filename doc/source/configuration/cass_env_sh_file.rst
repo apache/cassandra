@@ -1,7 +1,7 @@
 .. _cassandra-envsh:
 
 cassandra-env.sh file 
-================================
+=====================
 
 The ``cassandra-env.sh`` file can be used to pass additional options to the Java virtual machine (JVM), such as maximum and minimum heap size, rather than setting them in the environment.
 
