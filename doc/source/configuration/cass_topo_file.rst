@@ -16,33 +16,33 @@ Example
 ===========================
 This example uses three datacenters:
 
-.. code-block:: plaintext
+.. code-block:: bash
 
-# datacenter One
+   # datacenter One
 
-175.56.12.105=DC1:RAC1
-175.50.13.200=DC1:RAC1
-175.54.35.197=DC1:RAC1
+   175.56.12.105=DC1:RAC1
+   175.50.13.200=DC1:RAC1
+   175.54.35.197=DC1:RAC1
 
-120.53.24.101=DC1:RAC2
-120.55.16.200=DC1:RAC2
-120.57.102.103=DC1:RAC2
+   120.53.24.101=DC1:RAC2
+   120.55.16.200=DC1:RAC2
+   120.57.102.103=DC1:RAC2
 
-# datacenter Two
+   # datacenter Two
 
-110.56.12.120=DC2:RAC1
-110.50.13.201=DC2:RAC1
-110.54.35.184=DC2:RAC1
+   110.56.12.120=DC2:RAC1
+   110.50.13.201=DC2:RAC1
+   110.54.35.184=DC2:RAC1
 
-50.33.23.120=DC2:RAC2
-50.45.14.220=DC2:RAC2
-50.17.10.203=DC2:RAC2
+   50.33.23.120=DC2:RAC2
+   50.45.14.220=DC2:RAC2
+   50.17.10.203=DC2:RAC2
 
-# datacenter Three
+   # datacenter Three
 
-172.106.12.120=DC3:RAC1
-172.106.12.121=DC3:RAC1
-172.106.12.122=DC3:RAC1
+   172.106.12.120=DC3:RAC1
+   172.106.12.121=DC3:RAC1
+   172.106.12.122=DC3:RAC1
 
-# default for unknown nodes 
-default =DC3:RAC1
+   # default for unknown nodes 
+   default =DC3:RAC1
