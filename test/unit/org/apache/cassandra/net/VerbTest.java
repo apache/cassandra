@@ -16,40 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.serializers;
+package org.apache.cassandra.net;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.junit.Test;
 
-import java.nio.ByteBuffer;
+import static org.junit.Assert.assertEquals;
 
-public class EmptySerializer implements TypeSerializer<Void>
+public class VerbTest
 {
-    public static final EmptySerializer instance = new EmptySerializer();
-
-    public Void deserialize(ByteBuffer bytes)
+    @Test
+    public void idsMatch()
     {
-        validate(bytes);
-        return null;
-    }
-
-    public ByteBuffer serialize(Void value)
-    {
-        return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        if (bytes.remaining() > 0)
-            throw new MarshalException("EmptyType only accept empty values");
-    }
-
-    public String toString(Void value)
-    {
-        return "";
-    }
-
-    public Class<Void> getType()
-    {
-        return Void.class;
+        for (Verb v : Verb.values())
+            assertEquals(v, Verb.fromId(v.id));
     }
 }

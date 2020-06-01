@@ -66,8 +66,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.AsyncOneResponse;
-
 
 
 public class FBUtilities
@@ -634,11 +632,20 @@ public class FBUtilities
         return FBUtilities.construct(className, "network authorizer");
     }
     
-    public static IAuditLogger newAuditLogger(String className) throws ConfigurationException
+    public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.audit." + className;
-        return FBUtilities.construct(className, "Audit logger");
+
+        try
+        {
+            Class<?> auditLoggerClass = Class.forName(className);
+            return (IAuditLogger) auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IAuditLogger.", ex);
+        }
     }
 
     public static boolean isAuditLoggerClassExists(String className)
