@@ -1,5 +1,7 @@
 .. glossary::
 
+Glossary
+========
 	Cassandra
 	   Apache Cassandra is a distributed, high-available, eventually consistent NoSQL open-source database.
 	
