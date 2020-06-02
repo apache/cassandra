@@ -363,6 +363,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return DatabaseDescriptor.getReadRpcTimeout(unit);
     }
 
+    public boolean isReversed()
+    {
+        return clusteringIndexFilter.isReversed();
+    }
+
     @Override
     public SinglePartitionReadCommand forPaging(Clustering lastReturned, DataLimits limits)
     {

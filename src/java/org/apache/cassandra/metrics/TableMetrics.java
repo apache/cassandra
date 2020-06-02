@@ -329,6 +329,7 @@ public class TableMetrics
 
     public final Meter readRepairRequests;
     public final Meter shortReadProtectionRequests;
+    public final Meter replicaSideFilteringProtectionRequests;
 
     public final EnumMap<SamplerType, Sampler<?>> samplers;
     /**
@@ -949,8 +950,9 @@ public class TableMetrics
             return 0.0;
         });
 
-        readRepairRequests = Metrics.meter(factory.createMetricName("ReadRepairRequests"));
-        shortReadProtectionRequests = Metrics.meter(factory.createMetricName("ShortReadProtectionRequests"));
+        readRepairRequests = createTableMeter("ReadRepairRequests");
+        shortReadProtectionRequests = createTableMeter("ShortReadProtectionRequests");
+        replicaSideFilteringProtectionRequests = createTableMeter("ReplicaSideFilteringProtectionRequests");
 
         confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
         unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
@@ -1073,6 +1075,18 @@ public class TableMetrics
             });
         }
         return cfCounter;
+    }
+
+    private Meter createTableMeter(final String name)
+    {
+        return createTableMeter(name, name);
+    }
+
+    private Meter createTableMeter(final String name, final String alias)
+    {
+        Meter tableMeter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
+        register(name, alias, tableMeter);
+        return tableMeter;
     }
 
     /**
