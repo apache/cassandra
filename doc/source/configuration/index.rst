@@ -28,3 +28,4 @@ This section describes how to configure Apache Cassandra.
    cass_topo_file
    cass_cl_archive_file
    cass_logback_xml_file
+   cass_jvm_options_file
