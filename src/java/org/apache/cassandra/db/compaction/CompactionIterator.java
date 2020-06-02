@@ -205,11 +205,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     {
                     }
 
-                    public void onMergedRows(Row merged, Row[] versions)
+                    public Row onMergedRows(Row merged, Row[] versions)
                     {
                         indexTransaction.start();
                         indexTransaction.onRowMerge(merged, versions);
                         indexTransaction.commit();
+                        return merged;
                     }
 
                     public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker mergedMarker, RangeTombstoneMarker[] versions)
