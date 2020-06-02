@@ -8,7 +8,7 @@ The ``PropertyFileSnitch`` :term:`snitch` option uses the ``cassandra-topologies
 
 Include every node in the cluster in the properties file, defining your datacenter names as in the keyspace definition. The datacenter and rack names are case-sensitive.
 
-The ``cassandra-topologies.properties` file must be copied identically to every node in the cluster.
+The ``cassandra-topologies.properties`` file must be copied identically to every node in the cluster.
 
 
 ===========================

@@ -27,3 +27,4 @@ This section describes how to configure Apache Cassandra.
    cass_env_sh_file
    cass_topo_file
    cass_cl_archive_file
+   cass_logback_xml_file
