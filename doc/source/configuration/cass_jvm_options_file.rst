@@ -9,4 +9,4 @@ See each file for examples of settings.
 
 ..note::
 
-The ``jvm-*`` files replace the :ref:`cassandra-env.sh file` used in Cassandra versions prior to Cassandra 3.0. The ``cassandra-env.sh`` bash script file is still useful if JVM settings must be dynamically calculated based on system settings. The ``jvm-*`` files only store static JVM settings.
+The ``jvm-*`` files replace the :ref:`cassandra-envsh` file used in Cassandra versions prior to Cassandra 3.0. The ``cassandra-env.sh`` bash script file is still useful if JVM settings must be dynamically calculated based on system settings. The ``jvm-*`` files only store static JVM settings.
