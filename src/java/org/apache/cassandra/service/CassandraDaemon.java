@@ -578,7 +578,10 @@ public class CassandraDaemon
             StorageService.instance.setRpcReady(true);
         }
         else
+        {
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
+            StorageService.instance.setRpcReady(false);
+        }
     }
 
     /**
@@ -732,12 +735,14 @@ public class CassandraDaemon
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
         else
             nativeTransportService.start();
+            StorageService.instance.setRpcReady(true);
     }
 
     public void stopNativeTransport()
     {
         if (nativeTransportService != null)
             nativeTransportService.stop();
+            StorageService.instance.setRpcReady(false);
     }
 
     public boolean isNativeTransportRunning()
