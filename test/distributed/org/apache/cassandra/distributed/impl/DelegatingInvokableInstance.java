@@ -33,6 +33,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 public abstract class DelegatingInvokableInstance implements IInvokableInstance
@@ -56,6 +57,11 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public Object[][] executeInternal(String query, Object... args)
     {
         return delegate().executeInternal(query, args);
+    }
+
+    public SimpleQueryResult executeInternalWithResult(String query, Object... args)
+    {
+        return delegate().executeInternalWithResult(query, args);
     }
 
     @Override
