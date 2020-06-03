@@ -230,6 +230,22 @@ class OutboundMessageQueue
                 return oldTime;
         });
     }
+    
+    /**
+     * Update {@code nextExpirationDeadline} with the given {@code candidateDeadline} if less than the current 
+     * deadline, unless the current deadline is passed in relation to {@code nowNanos}: this is needed
+     * to resolve a race where both {@link #add(org.apache.cassandra.net.Message) } and {@link #pruneInternalQueueWithLock(long) }
+     * try to update the expiration deadline.
+     */
+    private long maybeUpdateNextExpirationDeadline(long nowNanos, long candidateDeadline)
+    {
+        return nextExpirationDeadlineUpdater.accumulateAndGet(this, candidateDeadline, (oldDeadline, newDeadline) -> {
+            if (clock.isAfter(nowNanos, oldDeadline))
+                return newDeadline;
+            else
+                return min(oldDeadline, newDeadline);
+        });
+    }
 
     /*
      * Drain external queue into the internal one and prune the latter in-place.
@@ -268,7 +284,7 @@ class OutboundMessageQueue
         Pruner pruner = new Pruner();
         internalQueue.prune(pruner);
 
-        nextExpirationDeadlineUpdater.set(this, maybeUpdateEarliestExpiryTime(nowNanos, pruner.earliestExpiresAt));
+        maybeUpdateNextExpirationDeadline(nowNanos, maybeUpdateEarliestExpiryTime(nowNanos, pruner.earliestExpiresAt));
     }
 
     @VisibleForTesting
