@@ -42,6 +42,7 @@ import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -2039,7 +2040,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             if (null == expectedVersion)
                 expectedVersion = remoteVersion;
 
-            if (null == expectedVersion || !expectedVersion.equals(remoteVersion))
+            // CASSANDRA-15845 Did the schema change under our feet but nodes don't report the new version yet bc races?
+            // Check against SchemaKeyspace.calculateSchemaDigest() to make sure
+            if (null == expectedVersion || !expectedVersion.equals(remoteVersion) || !expectedVersion.equals(SchemaKeyspace.calculateSchemaDigest()))
                 return false;
         }
 
