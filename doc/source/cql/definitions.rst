@@ -108,7 +108,7 @@ In other words:
 - Integer, float and boolean constant are defined as expected. Note however than float allows the special ``NaN`` and
   ``Infinity`` constants.
 - CQL supports UUID_ constants.
-- Blobs content are provided in hexadecimal and prefixed by ``0x``.
+- Blob contents are provided in hexadecimal and are prefixed by ``0x``.
 - The special ``NULL`` constant denotes the absence of value.
 
 For how these constants are typed, see the :ref:`data-types` section.
