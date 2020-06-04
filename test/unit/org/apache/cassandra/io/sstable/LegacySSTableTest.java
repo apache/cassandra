@@ -845,6 +845,43 @@ public class LegacySSTableTest
         cfs.loadNewSSTables();
     }
 
+
+    /**
+     * Test for CASSANDRA-15778
+     */
+    @Test
+    public void testReadLegacyCqlCreatedTableWithBytes() throws Exception {
+        String table = "legacy_ka_cql_created_dense_table_with_bytes";
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables." + table + " (" +
+                                       " k int," +
+                                       " v text," +
+                                       " PRIMARY KEY(k, v)) WITH COMPACT STORAGE");
+        loadLegacyTable("legacy_%s_cql_created_dense_table_with_bytes%s", "ka", "");
+        QueryProcessor.executeInternal("ALTER TABLE legacy_tables." + table + " ALTER value TYPE 'org.apache.cassandra.db.marshal.BytesType';");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM legacy_tables." + table);
+        Assert.assertNotNull(rs);
+        assertEquals(1, rs.size());
+        assertEquals(ByteBufferUtil.bytes("byte string"), rs.one().getBytes("value"));
+    }
+
+    /**
+     * Test for CASSANDRA-15778
+     */
+    @Test
+    public void testReadLegacyCqlCreatedTableWithInt() throws Exception {
+        String table = "legacy_ka_cql_created_dense_table_with_int";
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables." + table + " (" +
+                                       " k int," +
+                                       " v text," +
+                                       " PRIMARY KEY(k, v)) WITH COMPACT STORAGE");
+        loadLegacyTable("legacy_%s_cql_created_dense_table_with_int%s", "ka", "");
+        QueryProcessor.executeInternal("ALTER TABLE legacy_tables." + table + " ALTER value TYPE 'org.apache.cassandra.db.marshal.BytesType';");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM legacy_tables." + table);
+        Assert.assertNotNull(rs);
+        assertEquals(1, rs.size());
+        assertEquals(ByteBufferUtil.bytes(0xaabbcc), rs.one().getBytes("value"));
+    }
+
     /**
      * Generates sstables for 8 CQL tables (see {@link #createTables(String)}) in <i>current</i>
      * sstable format (version) into {@code test/data/legacy-sstables/VERSION}, where
