@@ -39,6 +39,7 @@
 Merged from 3.11:
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
+ * Fix replica-side filtering returning stale data with CL > ONE (CASSANDRA-8272, CASSANDRA-8273)
  * Rely on snapshotted session infos on StreamResultFuture.maybeComplete to avoid race conditions (CASSANDRA-15667)
  * EmptyType doesn't override writeValue so could attempt to write bytes when expected not to (CASSANDRA-15790)
  * Fix index queries on partition key columns when some partitions contains only static data (CASSANDRA-13666)
