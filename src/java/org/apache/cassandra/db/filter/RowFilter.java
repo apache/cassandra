@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
@@ -128,6 +129,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
+    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec);
+
     /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
      * are included in the resulting iterator.
@@ -136,7 +139,23 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public abstract UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec);
+    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+    {
+        return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(iter.metadata(), nowInSec));
+    }
+
+    /**
+     * Filters the provided iterator so that only the row satisfying the expression of this filter
+     * are included in the resulting iterator.
+     *
+     * @param iter the iterator to filter
+     * @param nowInSec the time of query in seconds.
+     * @return the filtered iterator.
+     */
+    public PartitionIterator filter(PartitionIterator iter, TableMetadata metadata, int nowInSec)
+    {
+        return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(metadata, nowInSec));
+    }
 
     /**
      * Whether the provided row in the provided partition satisfies this filter.
@@ -256,13 +275,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(expressions);
         }
 
-        public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec)
         {
-            if (expressions.isEmpty())
-                return iter;
-
-            final TableMetadata metadata = iter.metadata();
-
             List<Expression> partitionLevelExpressions = new ArrayList<>();
             List<Expression> rowLevelExpressions = new ArrayList<>();
             for (Expression e: expressions)
@@ -276,12 +290,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             long numberOfRegularColumnExpressions = rowLevelExpressions.size();
             final boolean filterNonStaticColumns = numberOfRegularColumnExpressions > 0;
 
-            class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
+            return new Transformation<BaseRowIterator<?>>()
             {
                 DecoratedKey pk;
 
                 @SuppressWarnings("resource")
-                public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+                protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
                     pk = partition.partitionKey();
 
@@ -293,7 +307,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                             return null;
                         }
 
-                    UnfilteredRowIterator iterator = Transformation.apply(partition, this);
+                    BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
+                                                  ? Transformation.apply((UnfilteredRowIterator) partition, this)
+                                                  : Transformation.apply((RowIterator) partition, this);
+
                     if (filterNonStaticColumns && !iterator.hasNext())
                     {
                         iterator.close();
@@ -315,9 +332,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
                     return row;
                 }
-            }
-
-            return Transformation.apply(iter, new IsSatisfiedFilter());
+            };
         }
 
         protected RowFilter withNewExpressions(List<Expression> expressions)

@@ -204,13 +204,13 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         }
     }
 
-    public void onMergedRows(Row merged, Row[] versions)
+    public Row onMergedRows(Row merged, Row[] versions)
     {
         // If a row was shadowed post merged, it must be by a partition level or range tombstone, and we handle
         // those case directly in their respective methods (in other words, it would be inefficient to send a row
         // deletion as repair when we know we've already send a partition level or range tombstone that covers it).
         if (merged.isEmpty())
-            return;
+            return merged;
 
         Rows.diff(diffListener, merged, versions);
         for (int i = 0; i < currentRows.length; i++)
@@ -222,6 +222,8 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             }
         }
         Arrays.fill(currentRows, null);
+
+        return merged;
     }
 
     private DeletionTime currentDeletion()

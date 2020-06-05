@@ -240,6 +240,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         return DatabaseDescriptor.getRangeRpcTimeout(unit);
     }
 
+    public boolean isReversed()
+    {
+        return dataRange.isReversed();
+    }
+
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
     {
         return StorageProxy.getRangeSlice(this, consistency, queryStartNanoTime);
