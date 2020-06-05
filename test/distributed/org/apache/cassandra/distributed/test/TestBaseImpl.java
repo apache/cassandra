@@ -23,8 +23,6 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.shared.Builder;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
 public class TestBaseImpl extends DistributedTestBase
@@ -40,9 +38,9 @@ public class TestBaseImpl extends DistributedTestBase
     }
 
     @Override
-    public <I extends IInstance, C extends ICluster> Builder<I, C> builder() {
+    public Cluster.Builder builder() {
         // This is definitely not the smartest solution, but given the complexity of the alternatives and low risk, we can just rely on the
         // fact that this code is going to work accross _all_ versions.
-        return (Builder<I, C>) Cluster.build();
+        return Cluster.build();
     }
 }
