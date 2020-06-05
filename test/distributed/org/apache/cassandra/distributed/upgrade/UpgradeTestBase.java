@@ -30,16 +30,14 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
-import org.apache.cassandra.distributed.shared.Builder;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
-import static org.apache.cassandra.distributed.shared.Versions.Version;
+
 import static org.apache.cassandra.distributed.shared.Versions.Major;
+import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
 
 public class UpgradeTestBase extends DistributedTestBase
@@ -58,9 +56,9 @@ public class UpgradeTestBase extends DistributedTestBase
     }
 
 
-    public <I extends IInstance, C extends ICluster> Builder<I, C> builder()
+    public UpgradeableCluster.Builder builder()
     {
-        return (Builder<I, C>) UpgradeableCluster.build();
+        return UpgradeableCluster.build();
     }
 
     public static interface RunOnCluster
