@@ -342,6 +342,13 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
     protected abstract int oldestUnrepairedTombstone();
 
+    /**
+     * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
+     *
+     * @return whether the underlying {@code ClusteringIndexFilter} is reversed or not.
+     */
+    public abstract boolean isReversed();
+
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
