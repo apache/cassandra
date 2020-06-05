@@ -18,18 +18,13 @@
 
 package org.apache.cassandra.distributed;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
-import org.apache.cassandra.distributed.shared.Builder;
-import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.Versions;
 
 /**
@@ -39,9 +34,9 @@ import org.apache.cassandra.distributed.shared.Versions;
 public class Cluster extends AbstractCluster<IInvokableInstance>
 {
 
-    private Cluster(File root, Versions.Version version, List<IInstanceConfig> configs, ClassLoader sharedClassLoader)
+    private Cluster(Builder builder)
     {
-        super(root, version, configs, sharedClassLoader);
+        super(builder);
     }
 
     protected IInvokableInstance newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config)
@@ -49,22 +44,12 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
         return new Wrapper(generation, version, config);
     }
 
-    public static Builder<IInvokableInstance, Cluster> build()
+    public static Builder build()
     {
-        return new Builder<IInvokableInstance, Cluster>(Cluster::new)
-        {
-            {
-                withVersion(CURRENT_VERSION);
-            }
-
-            protected IInstanceConfig generateConfig(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
-            {
-                return InstanceConfig.generate(nodeNum, ipAddress, networkTopology, root, token, seedIp);
-            }
-        };
+        return new Builder();
     }
 
-    public static Builder<IInvokableInstance, Cluster> build(int nodeCount)
+    public static Builder build(int nodeCount)
     {
         return build().withNodes(nodeCount);
     }
@@ -77,6 +62,15 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
     public static Cluster create(int nodeCount) throws Throwable
     {
         return build(nodeCount).start();
+    }
+
+    public static final class Builder extends AbstractBuilder<IInvokableInstance, Cluster, Builder>
+    {
+        public Builder()
+        {
+            super(Cluster::new);
+            withVersion(CURRENT_VERSION);
+        }
     }
 }
 
