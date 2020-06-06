@@ -1,4 +1,5 @@
 3.0.21
+ * Avoid hinted handoff per-host throttle being arounded to 0 in large cluster (CASSANDRA-15859)
  * Avoid emitting empty range tombstones from RangeTombstoneList (CASSANDRA-15924)
  * Avoid thread starvation, and improve compare-and-swap performance, in the slab allocators (CASSANDRA-15922)
  * Fix broken KEYS 2i queries after DROP COMPACT STORAGE (CASSANDRA-15906)
