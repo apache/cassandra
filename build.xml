@@ -694,6 +694,7 @@
                              sourcesFilesetId="test-dependency-sources"
                              cacheDependencyRefs="true"
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
+        <localrepo />
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
       </artifact:dependencies>
