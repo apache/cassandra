@@ -108,6 +108,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -565,6 +566,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
+            );
+            error = parallelRun(error, executor,
+                                () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor))
             );
 
             Throwables.maybeFail(error);
