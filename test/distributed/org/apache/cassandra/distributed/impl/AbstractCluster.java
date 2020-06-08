@@ -667,7 +667,19 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
         previousHandler = null;
 
+        //checkForThreadLeaks();
         //withThreadLeakCheck(futures);
+    }
+
+    private void checkForThreadLeaks()
+    {
+        //This is an alternate version of the thread leak check that just checks to see if any threads are still alive
+        // with the context classloader.
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        threadSet.stream().filter(t->t.getContextClassLoader() instanceof InstanceClassLoader).forEach(t->{
+            t.setContextClassLoader(null);
+            throw new RuntimeException("Unterminated thread detected " + t.getName() + " in group " + t.getThreadGroup().getName());
+        });
     }
 
     // We do not want this check to run every time until we fix problems with tread stops
