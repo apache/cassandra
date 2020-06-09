@@ -32,7 +32,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
@@ -56,7 +55,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
@@ -507,14 +505,14 @@ public abstract class Message
 
         private static class FlushItem
         {
-            final ChannelHandlerContext ctx;
+            final Channel channel;
             final Message response;
             final Frame sourceFrame;
             final Dispatcher dispatcher;
 
-            private FlushItem(ChannelHandlerContext ctx, Message response, Frame sourceFrame, Dispatcher dispatcher)
+            private FlushItem(Channel channel, Message response, Frame sourceFrame, Dispatcher dispatcher)
             {
-                this.ctx = ctx;
+                this.channel = channel;
                 this.sourceFrame = sourceFrame;
                 this.response = response;
                 this.dispatcher = dispatcher;
@@ -531,10 +529,10 @@ public abstract class Message
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
             final AtomicBoolean scheduled = new AtomicBoolean(false);
-            final HashSet<ChannelHandlerContext> channels = new HashSet<>();
+            final HashSet<Channel> channels = new HashSet<>();
             final List<FlushItem> flushed = new ArrayList<>();
             final ProtocolEncoder messageEncoder = ProtocolEncoder.instance;
-            final Map<ChannelHandlerContext, FrameEncoder.Payload> payloads = new HashMap<>();
+            final Map<Channel, FrameEncoder.Payload> payloads = new HashMap<>();
 
             void start()
             {
@@ -554,11 +552,11 @@ public abstract class Message
                 Frame outbound = messageEncoder.encodeMessage(flush.response, version);
                 if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= FrameEncoder.Payload.MAX_SIZE)
                 {
-                    flushLargeMessage(flush.ctx, outbound, flush.dispatcher.framePayloadAllocator);
+                    flushLargeMessage(flush.channel, outbound, flush.dispatcher.framePayloadAllocator);
                 }
                 else
                 {
-                    FrameEncoder.Payload sending = payloads.get(flush.ctx);
+                    FrameEncoder.Payload sending = payloads.get(flush.channel);
                     if (null == sending)
                     {
                         sending = flush.dispatcher.framePayloadAllocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
@@ -566,16 +564,16 @@ public abstract class Message
                         // object if buffer.remaining is >= MAX_SIZE.
                         // TODO a better way to deal with this
                         sending.buffer.limit(FrameEncoder.Payload.MAX_SIZE - 1);
-                        payloads.put(flush.ctx, sending);
+                        payloads.put(flush.channel, sending);
                     }
 
                     if (sending.remaining() < Frame.Header.LENGTH + outbound.header.bodySizeInBytes)
                     {
                         sending.finish();
-                        flush.ctx.write(sending, flush.ctx.voidPromise());
+                        flush.channel.write(sending, flush.channel.voidPromise());
                         sending.release();
                         sending = flush.dispatcher.framePayloadAllocator.allocate(true, FrameEncoder.Payload.MAX_SIZE - 1);
-                        payloads.put(flush.ctx, sending);
+                        payloads.put(flush.channel, sending);
                     }
 
                     outbound.encodeInto(sending.buffer);
@@ -583,7 +581,7 @@ public abstract class Message
                 }
             }
 
-            protected void flushLargeMessage(ChannelHandlerContext ctx, Frame outbound, FrameEncoder.PayloadAllocator allocator)
+            protected void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
             {
                 FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
                 ByteBuffer buf = largePayload.buffer;
@@ -594,7 +592,7 @@ public abstract class Message
                 ByteBuf body = outbound.body;
                 buf.put(body.slice(body.readerIndex(), capacityRemaining).nioBuffer());
                 largePayload.finish();
-                ctx.writeAndFlush(largePayload, ctx.voidPromise());
+                channel.writeAndFlush(largePayload, channel.voidPromise());
                 body.readerIndex(capacityRemaining);
                 int idx = body.readerIndex();
 
@@ -608,7 +606,7 @@ public abstract class Message
                     body.readerIndex(idx + remaining);
                     idx = body.readerIndex();
                     largePayload.finish();
-                    ctx.writeAndFlush(largePayload, ctx.voidPromise());
+                    channel.writeAndFlush(largePayload, channel.voidPromise());
                     largePayload.release();
                 }
 
@@ -619,15 +617,15 @@ public abstract class Message
                     buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
                     buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
                     largePayload.finish();
-                    ctx.writeAndFlush(largePayload, ctx.voidPromise());
+                    channel.writeAndFlush(largePayload, channel.voidPromise());
                     largePayload.release();
                 }
             }
 
             protected void writeUnframedResponse(FlushItem flush)
             {
-                flush.ctx.write(flush.response, flush.ctx.voidPromise());
-                channels.add(flush.ctx);
+                flush.channel.write(flush.response, flush.channel.voidPromise());
+                channels.add(flush.channel);
             }
 
             protected void processItem(FlushItem flush)
@@ -643,18 +641,18 @@ public abstract class Message
             protected void flushWrittenChannels()
             {
                 // flush the channels pre-V5 to which messages were written in writeSingleResponse
-                for (ChannelHandlerContext channel : channels)
+                for (Channel channel : channels)
                     channel.flush();
 
                 // Framed messages (V5) are accumulated into payloads which may now need to be written & flushed
-                for (Map.Entry<ChannelHandlerContext, FrameEncoder.Payload> entry : payloads.entrySet())
+                for (Map.Entry<Channel, FrameEncoder.Payload> entry : payloads.entrySet())
                 {
-                    ChannelHandlerContext ctx = entry.getKey();
+                    Channel channel = entry.getKey();
                     FrameEncoder.Payload sending = entry.getValue();
                     sending.finish();
-                    ctx.writeAndFlush(sending, ctx.voidPromise());
+                    channel.writeAndFlush(sending, channel.voidPromise());
                     sending.release();
-                    payloads.remove(ctx);
+                    payloads.remove(channel);
                 }
 
                 for (FlushItem item : flushed)
@@ -759,12 +757,12 @@ public abstract class Message
         {
             // if we decide to handle this message, process it outside of the netty event loop
             if (shouldHandleRequest(ctx, request))
-                dispatch(ctx, request);
+                dispatch(ctx.channel(), request);
         }
 
-        public void dispatch(ChannelHandlerContext ctx, Request request)
+        public void dispatch(Channel channel, Request request)
         {
-            requestExecutor.submit( () -> processRequest(ctx, request));
+            requestExecutor.submit( () -> processRequest(channel, request));
         }
 
         /** This check for inflight payload to potentially discard the request should have been ideally in one of the
@@ -834,7 +832,7 @@ public abstract class Message
             // note: this path is only relevant when part of a pre-V5 pipeline, as only in this case is
             // paused ever set to true. In pipelines configured for V5 or later, backpressure and control
             // over the inbound pipeline's autoread status are handled by the FrameDecoder/FrameProcessor.
-            ChannelConfig config = item.ctx.channel().config();
+            ChannelConfig config = item.channel.config();
             if (paused && (channelPayloadBytesInFlight == 0 || endpointGlobalReleaseOutcome == ResourceLimits.Outcome.BELOW_LIMIT))
             {
                 paused = false;
@@ -846,7 +844,7 @@ public abstract class Message
         /**
          * Note: this method is not expected to execute on the netty event loop.
          */
-        void processRequest(ChannelHandlerContext ctx, Request request)
+        void processRequest(Channel channel, Request request)
         {
             final Response response;
             final ServerConnection connection;
@@ -859,8 +857,8 @@ public abstract class Message
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), true);
-                flush(new FlushItem(ctx, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame(), this));
+                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(channel, true);
+                flush(new FlushItem(channel, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame(), this));
                 return;
             }
             finally
@@ -869,7 +867,7 @@ public abstract class Message
             }
 
             logger.trace("Responding: {}, v={}", response, connection.getVersion());
-            flush(new FlushItem(ctx, response, request.getSourceFrame(), this));
+            flush(new FlushItem(channel, response, request.getSourceFrame(), this));
         }
 
         /**
@@ -907,7 +905,7 @@ public abstract class Message
 
         private void flush(FlushItem item)
         {
-            EventLoop loop = item.ctx.channel().eventLoop();
+            EventLoop loop = item.channel.eventLoop();
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {

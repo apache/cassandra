@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -52,6 +53,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoderCrc;
@@ -333,15 +335,14 @@ public class SimpleClient implements Closeable
             BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
             Channel channel = ctx.channel();
             channel.config().setOption(ChannelOption.ALLOCATOR, allocator);
-            ResourceLimits.EndpointAndGlobal limits =
-                new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Basic(1024 * 1024 * 64),
-                                                      new ResourceLimits.Basic(1024 * 1024 * 64));
+            ResourceLimits.Limit endpointReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
+            ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
 
             Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
             FrameDecoder messageFrameDecoder = frameDecoder(ctx, allocator);
             FrameEncoder messageFrameEncoder = frameEncoder(ctx);
-            Consumer<Message> messageConsumer = message -> {
-                responseHandler.handleResponse(ctx, (Message.Response)message);
+            BiConsumer<Channel, Message> messageConsumer = (c, message) -> {
+                responseHandler.handleResponse(c, (Message.Response)message);
             };
 
             CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
@@ -349,7 +350,11 @@ public class SimpleClient implements Closeable
                                                                 cqlFrameDecoder,
                                                                 messageDecoder,
                                                                 messageConsumer,
-                                                                limits,
+                                                                endpointReserve,
+                                                                globalReserve,
+                                                                AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
+                                                                AbstractMessageHandler.WaitQueue.global(globalReserve),
+                                                                handler -> {},
                                                                 ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload());
 
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
@@ -358,7 +363,7 @@ public class SimpleClient implements Closeable
             pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator()));
             pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
             pipeline.remove(this);
-            messageConsumer.accept(response);
+            messageConsumer.accept(channel, response);
         }
 
         private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)
@@ -489,10 +494,10 @@ public class SimpleClient implements Closeable
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
         {
-            handleResponse(ctx, r);
+            handleResponse(ctx.channel(), r);
         }
 
-        public void handleResponse(ChannelHandlerContext ctx, Message.Response r)
+        public void handleResponse(Channel channel, Message.Response r)
         {
             try
             {

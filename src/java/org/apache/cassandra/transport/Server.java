@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import com.google.common.base.Strings;
@@ -64,6 +65,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.FrameDecoder;
@@ -73,6 +75,7 @@ import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
+import org.apache.cassandra.net.InboundMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -665,21 +668,27 @@ public class Server implements CassandraDaemon.Server
                                                                    tracker,
                                                                    messageFrameEncoder.allocator());
 
-            Consumer<Message> messageConsumer = message -> {
-                dispatcher.dispatch(ctx, (Message.Request)message);
+            BiConsumer<Channel, Message> messageConsumer = (channel, message) -> {
+                dispatcher.dispatch(channel, (Message.Request)message);
             };
             ChannelPipeline pipeline = ctx.channel().pipeline();
             pipeline.remove("frameEncoder");
             pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
             pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
 
+            ResourceLimits.Limit endpointReserve = tracker.endpointAndGlobalPayloadsInFlight.endpoint();
+            ResourceLimits.Limit globalReserve = tracker.endpointAndGlobalPayloadsInFlight.global();
             boolean throwOnOverload = "1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD));
             CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
                                                                 messageFrameDecoder,
                                                                 frameDecoder,
                                                                 messageDecoder,
                                                                 messageConsumer,
-                                                                tracker.endpointAndGlobalPayloadsInFlight,
+                                                                endpointReserve,
+                                                                globalReserve,
+                                                                AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
+                                                                AbstractMessageHandler.WaitQueue.global(globalReserve),
+                                                                handler -> {},
                                                                 throwOnOverload);
             pipeline.addBefore("initial", "cqlProcessor", processor);
             pipeline.remove(this);
