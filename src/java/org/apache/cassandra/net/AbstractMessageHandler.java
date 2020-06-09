@@ -18,8 +18,6 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -27,7 +25,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -37,25 +34,18 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
-import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.exceptions.IncompatibleSchemaException;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.FrameDecoder.Frame;
 import org.apache.cassandra.net.FrameDecoder.FrameProcessor;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
-import org.apache.cassandra.tracing.TraceState;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.Crc.InvalidCrc;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
@@ -574,20 +564,20 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
      * accumulated frames, or in gathering more - so we release the ones we already have, and
      * skip any remaining ones, alongside with returning memory permits early.
      */
-    protected abstract class LargeMessage<T>
+    protected abstract class LargeMessage<H>
     {
-        private final int size;
-        private final T header;
+        protected final int size;
+        protected final H header;
 
         protected final List<ShareableBytes> buffers = new ArrayList<>();
-        private int received;
+        protected int received;
 
-        private final long expiresAtNanos;
+        protected final long expiresAtNanos;
 
         protected boolean isExpired;
         protected boolean isCorrupt;
 
-        protected LargeMessage(int size, T header, long expiresAtNanos, boolean isExpired)
+        protected LargeMessage(int size, H header, long expiresAtNanos, boolean isExpired)
         {
             this.size = size;
             this.header = header;
@@ -595,7 +585,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             this.isExpired = isExpired;
         }
 
-        protected LargeMessage(int size, T header, long expiresAtNanos, ShareableBytes bytes)
+        protected LargeMessage(int size, H header, long expiresAtNanos, ShareableBytes bytes)
         {
             this(size, header, expiresAtNanos, false);
             buffers.add(bytes);

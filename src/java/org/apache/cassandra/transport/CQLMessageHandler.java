@@ -290,7 +290,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
 
         private LargeMessage(Frame.Header header)
         {
-            super(frameSize(header), header, Long.MAX_VALUE, false);
+            super(frameSize(header), header, EXPIRES_AT, false);
         }
 
         private LargeMessage(Frame.Header header, ShareableBytes bytes)
