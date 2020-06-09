@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import com.google.common.base.Strings;
 import org.slf4j.Logger;
@@ -37,8 +36,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
-import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
@@ -47,8 +44,6 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -75,7 +70,6 @@ import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
-import org.apache.cassandra.net.InboundMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -83,7 +77,6 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
-import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.transport.messages.SupportedMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -608,7 +601,7 @@ public class Server implements CassandraDaemon.Server
                     if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     {
                         assert connection instanceof ServerConnection;
-                        final Message.Response response = Message.Dispatcher.processRequest((ServerConnection) connection, startup);
+                        final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup);
                         payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(frame.header.bodySizeInBytes);
                         ChannelPromise promise = AsyncChannelPromise.withListener(ctx, future -> {
                             if (future.isSuccess())
@@ -662,15 +655,16 @@ public class Server implements CassandraDaemon.Server
             String compression = options.get(StartupMessage.COMPRESSION);
             FrameDecoder messageFrameDecoder = frameDecoder(compression, allocator);
             FrameEncoder messageFrameEncoder = frameEncoder(compression);
+            FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
 
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
-            Message.Dispatcher dispatcher = new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                                   tracker,
-                                                                   messageFrameEncoder.allocator());
+            Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
+            Dispatcher dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
 
-            BiConsumer<Channel, Message> messageConsumer = (channel, message) -> {
-                dispatcher.dispatch(channel, (Message.Request)message);
+            CQLMessageHandler.MessageConsumer messageConsumer = (channel, message, converter) -> {
+                dispatcher.dispatch(channel, (Message.Request)message, converter);
             };
+
             ChannelPipeline pipeline = ctx.channel().pipeline();
             pipeline.remove("frameEncoder");
             pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
@@ -683,7 +677,9 @@ public class Server implements CassandraDaemon.Server
                                                                 messageFrameDecoder,
                                                                 frameDecoder,
                                                                 messageDecoder,
+                                                                messageEncoder,
                                                                 messageConsumer,
+                                                                payloadAllocator,
                                                                 endpointReserve,
                                                                 globalReserve,
                                                                 AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
@@ -722,9 +718,8 @@ public class Server implements CassandraDaemon.Server
             pipeline.addBefore("initial", "frameCompressor", Frame.Compressor.instance);
             pipeline.addBefore("initial", "messageDecoder", Message.ProtocolDecoder.instance);
             pipeline.addBefore("initial", "messageEncoder", Message.ProtocolEncoder.instance);
-            pipeline.addBefore("initial", "executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                                             tracker,
-                                                                             FrameEncoder.PayloadAllocator.simple));
+            Dispatcher dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
+            pipeline.addBefore("initial", "executor", new LegacyDispatchHandler(dispatcher, tracker));
             pipeline.remove(this);
         }
     }

@@ -323,6 +323,7 @@ public class SimpleClient implements Closeable
 
         private void configureModernPipeline(ChannelHandlerContext ctx, Frame frame)
         {
+            Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
             Message response = messageDecoder.decodeMessage(ctx.channel(), frame);
             logger.info("Configuring modern pipeline");
@@ -341,7 +342,9 @@ public class SimpleClient implements Closeable
             Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
             FrameDecoder messageFrameDecoder = frameDecoder(ctx, allocator);
             FrameEncoder messageFrameEncoder = frameEncoder(ctx);
-            BiConsumer<Channel, Message> messageConsumer = (c, message) -> {
+            FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
+
+            CQLMessageHandler.MessageConsumer messageConsumer = (c, message , converter) -> {
                 responseHandler.handleResponse(c, (Message.Response)message);
             };
 
@@ -349,7 +352,9 @@ public class SimpleClient implements Closeable
                                                                 messageFrameDecoder,
                                                                 cqlFrameDecoder,
                                                                 messageDecoder,
+                                                                messageEncoder,
                                                                 messageConsumer,
+                                                                payloadAllocator,
                                                                 endpointReserve,
                                                                 globalReserve,
                                                                 AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
@@ -363,7 +368,7 @@ public class SimpleClient implements Closeable
             pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator()));
             pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
             pipeline.remove(this);
-            messageConsumer.accept(channel, response);
+            messageConsumer.accept(channel, response, (ch, req, resp) -> null);
         }
 
         private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)

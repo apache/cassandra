@@ -20,7 +20,6 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.function.BiConsumer;
 
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
@@ -37,6 +36,7 @@ import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.ResourceLimits.Limit;
 import org.apache.cassandra.net.ShareableBytes;
+import org.apache.cassandra.transport.Flusher.FlushItem.Framed;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -47,17 +47,26 @@ public class CQLMessageHandler extends AbstractMessageHandler
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);
     private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
     private final Message.ProtocolDecoder messageDecoder;
-    private final BiConsumer<Channel, Message> dispatcher;
+    private final Message.ProtocolEncoder messageEncoder;
+    private final FrameEncoder.PayloadAllocator payloadAllocator;
+    private final MessageConsumer dispatcher;
     private final boolean throwOnOverload;
 
     long receivedCount, receivedBytes;
     long channelPayloadBytesInFlight;
 
+    interface MessageConsumer
+    {
+        void accept(Channel channel, Message message, Dispatcher.FlushItemConverter toFlushItem);
+    }
+
     CQLMessageHandler(Channel channel,
                       FrameDecoder decoder,
                       Frame.Decoder cqlFrameDecoder,
                       Message.ProtocolDecoder messageDecoder,
-                      BiConsumer<Channel, Message> dispatcher,
+                      Message.ProtocolEncoder messageEncoder,
+                      MessageConsumer dispatcher,
+                      FrameEncoder.PayloadAllocator payloadAllocator,
                       Limit endpointReserve,
                       Limit globalReserve,
                       WaitQueue endpointWaitQueue,
@@ -76,6 +85,8 @@ public class CQLMessageHandler extends AbstractMessageHandler
               onClosed);
         this.cqlFrameDecoder    = cqlFrameDecoder;
         this.messageDecoder     = messageDecoder;
+        this.messageEncoder     = messageEncoder;
+        this.payloadAllocator   = payloadAllocator;
         this.dispatcher         = dispatcher;
         this.throwOnOverload    = throwOnOverload;
     }
@@ -139,13 +150,33 @@ public class CQLMessageHandler extends AbstractMessageHandler
     private void processCqlFrame(Frame frame)
     {
         Message message = messageDecoder.decodeMessage(channel, frame);
-        dispatcher.accept(channel, message);
+        // TODO throw ProtocolException if not a Message.Request
+        dispatcher.accept(channel, message, this::toFlushItem);
+    }
+
+    // Acts as a Dispatcher.FlushItemConverter
+    private Framed toFlushItem(Channel channel, Message.Request request, Message.Response response)
+    {
+        // Returns a FlushItem.Framed instance which wraps a Consumer<FlushItem> that performs
+        // the work of returning the capacity allocated for processing the request.
+        // The Dispatcher will call this to obtain the FlushItem to enqueue with its Flusher once
+        // a dispatched request has been processed.
+        return new Framed(channel,
+                          messageEncoder.encodeMessage(response, request.getSourceFrame().header.version),
+                          request.getSourceFrame(),
+                          payloadAllocator,
+                          this::releaseAfterFlush);
+    }
+
+    private void releaseAfterFlush(Flusher.FlushItem<Frame> flushItem)
+    {
+        releaseCapacity(Ints.checkedCast(flushItem.sourceFrame.header.bodySizeInBytes));
+        flushItem.sourceFrame.body.release();
     }
 
     /*
      * Handling of multi-frame large messages
      */
-
     protected boolean processFirstFrameOfLargeMessage(IntactFrame frame, Limit endpointReserve, Limit globalReserve) throws IOException
     {
         ShareableBytes bytes = frame.contents;
