@@ -48,17 +48,6 @@ public abstract class Message
 {
     protected static final Logger logger = LoggerFactory.getLogger(Message.class);
 
-    /**
-     * When we encounter an unexpected IOException we look for these {@link Throwable#getMessage() messages}
-     * (because we have no better way to distinguish) and log them at DEBUG rather than INFO, since they
-     * are generally caused by unclean client disconnects rather than an actual problem.
-     */
-    private static final Set<String> ioExceptionsAtDebugLevel = ImmutableSet.<String>builder().
-            add("Connection reset by peer").
-            add("Broken pipe").
-            add("Connection timed out").
-            build();
-
     public interface Codec<M extends Message> extends CBCodec<M> {}
 
     public enum Direction
@@ -466,101 +455,4 @@ public abstract class Message
         }
     }
 
-    @ChannelHandler.Sharable
-    public static final class ExceptionHandler extends ChannelInboundHandlerAdapter
-    {
-
-        @Override
-        public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
-        {
-            // Provide error message to client in case channel is still open
-            UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
-            ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
-            if (ctx.channel().isOpen())
-            {
-                ChannelFuture future = ctx.writeAndFlush(errorMessage);
-                // On protocol exception, close the channel as soon as the message have been sent
-                if (cause instanceof ProtocolException)
-                {
-                    future.addListener(new ChannelFutureListener()
-                    {
-                        public void operationComplete(ChannelFuture future)
-                        {
-                            ctx.close();
-                        }
-                    });
-                }
-            }
-        }
-    }
-
-    /**
-     * Include the channel info in the logged information for unexpected errors, and (if {@link #alwaysLogAtError} is
-     * false then choose the log level based on the type of exception (some are clearly client issues and shouldn't be
-     * logged at server ERROR level)
-     */
-    static final class UnexpectedChannelExceptionHandler implements Predicate<Throwable>
-    {
-        private final Channel channel;
-        private final boolean alwaysLogAtError;
-
-        UnexpectedChannelExceptionHandler(Channel channel, boolean alwaysLogAtError)
-        {
-            this.channel = channel;
-            this.alwaysLogAtError = alwaysLogAtError;
-        }
-
-        @Override
-        public boolean apply(Throwable exception)
-        {
-            String message;
-            try
-            {
-                message = "Unexpected exception during request; channel = " + channel;
-            }
-            catch (Exception ignore)
-            {
-                // We don't want to make things worse if String.valueOf() throws an exception
-                message = "Unexpected exception during request; channel = <unprintable>";
-            }
-
-            // netty wraps SSL errors in a CodecExcpetion
-            boolean isIOException = exception instanceof IOException || (exception.getCause() instanceof IOException);
-            if (!alwaysLogAtError && isIOException)
-            {
-                String errorMessage = exception.getMessage();
-                boolean logAtTrace = false;
-
-                for (String ioException : ioExceptionsAtDebugLevel)
-                {
-                    // exceptions thrown from the netty epoll transport add the name of the function that failed
-                    // to the exception string (which is simply wrapping a JDK exception), so we can't do a simple/naive comparison
-                    if (errorMessage.contains(ioException))
-                    {
-                        logAtTrace = true;
-                        break;
-                    }
-                }
-
-                if (logAtTrace)
-                {
-                    // Likely unclean client disconnects
-                    logger.trace(message, exception);
-                }
-                else
-                {
-                    // Generally unhandled IO exceptions are network issues, not actual ERRORS
-                    logger.info(message, exception);
-                }
-            }
-            else
-            {
-                // Anything else is probably a bug in server of client binary protocol handling
-                logger.error(message, exception);
-            }
-
-            // We handled the exception.
-            return true;
-        }
-    }
 }

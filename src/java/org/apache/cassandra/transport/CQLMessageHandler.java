@@ -55,14 +55,19 @@ public class CQLMessageHandler extends AbstractMessageHandler
     private final Message.ProtocolEncoder messageEncoder;
     private final FrameEncoder.PayloadAllocator payloadAllocator;
     private final MessageConsumer dispatcher;
+    private final ErrorHandler errorHandler;
     private final boolean throwOnOverload;
 
-    long receivedCount, receivedBytes;
     long channelPayloadBytesInFlight;
 
     interface MessageConsumer
     {
         void accept(Channel channel, Message message, Dispatcher.FlushItemConverter toFlushItem);
+    }
+
+    interface ErrorHandler
+    {
+        void accept(Throwable error);
     }
 
     CQLMessageHandler(Channel channel,
@@ -77,6 +82,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
                       WaitQueue endpointWaitQueue,
                       WaitQueue globalWaitQueue,
                       OnHandlerClosed onClosed,
+                      ErrorHandler errorHandler,
                       boolean throwOnOverload)
     {
         super(decoder,
@@ -93,6 +99,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
         this.messageEncoder     = messageEncoder;
         this.payloadAllocator   = payloadAllocator;
         this.dispatcher         = dispatcher;
+        this.errorHandler       = errorHandler;
         this.throwOnOverload    = throwOnOverload;
     }
 
@@ -125,6 +132,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
 
         return true;
     }
+
 
     // for various reasons, it's possible for a large message to be contained in a single frame
     private void processLargeMessage(Frame frame)
@@ -176,6 +184,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
     private void releaseAfterFlush(Flusher.FlushItem<Frame> flushItem)
     {
         releaseCapacity(Ints.checkedCast(flushItem.sourceFrame.header.bodySizeInBytes));
+        channelPayloadBytesInFlight -= flushItem.sourceFrame.header.bodySizeInBytes;
         flushItem.sourceFrame.body.release();
     }
 
@@ -279,7 +288,14 @@ public class CQLMessageHandler extends AbstractMessageHandler
         }
     }
 
-    private static int frameSize(Frame.Header header)
+    protected void fatalExceptionCaught(Throwable cause)
+    {
+        decoder.discard();
+        logger.warn("Unrecoverable exception caught in CQL message processing pipeline, closing the connection", cause);
+        channel.close();
+    }
+
+    static int frameSize(Frame.Header header)
     {
         return Frame.Header.LENGTH + Ints.checkedCast(header.bodySizeInBytes);
     }

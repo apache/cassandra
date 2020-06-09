@@ -348,6 +348,10 @@ public class SimpleClient implements Closeable
                 responseHandler.handleResponse(c, (Message.Response)message);
             };
 
+            CQLMessageHandler.ErrorHandler errorHandler = (error) -> {
+                throw new RuntimeException("Unexpected error", error);
+            };
+
             CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
                                                                 messageFrameDecoder,
                                                                 cqlFrameDecoder,
@@ -360,6 +364,7 @@ public class SimpleClient implements Closeable
                                                                 AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
                                                                 AbstractMessageHandler.WaitQueue.global(globalReserve),
                                                                 handler -> {},
+                                                                errorHandler,
                                                                 ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload());
 
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);

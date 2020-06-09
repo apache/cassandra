@@ -41,7 +41,6 @@ import org.apache.cassandra.net.FrameDecoder.FrameProcessor;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.Math.max;
@@ -337,9 +336,11 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         }
         catch (Throwable t)
         {
-            exceptionCaught(t);
+            fatalExceptionCaught(t);
         }
     }
+
+    protected abstract void fatalExceptionCaught(Throwable t);
 
     // return true if the handler should be reactivated - if no new hurdles were encountered,
     // like running out of the other kind of reserve capacity
@@ -504,32 +505,6 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         releaseCapacity(size);
     }
 
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
-    {
-        try
-        {
-            exceptionCaught(cause);
-        }
-        catch (Throwable t)
-        {
-            logger.error("Unexpected exception in {}.exceptionCaught", this.getClass().getSimpleName(), t);
-        }
-    }
-
-    private void exceptionCaught(Throwable cause)
-    {
-        decoder.discard();
-
-        JVMStabilityInspector.inspectThrowable(cause, false);
-
-        if (cause instanceof Message.InvalidLegacyProtocolMagic)
-            logger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages - closing the connection", id());
-        else
-            logger.error("{} unexpected exception caught while processing inbound messages; terminating connection", id(), cause);
-
-        channel.close();
-    }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx)

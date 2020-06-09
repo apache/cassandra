@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.exceptions.IncompatibleSchemaException;
@@ -299,6 +300,33 @@ public class InboundMessageHandler extends AbstractMessageHandler
     protected String id()
     {
         return SocketFactory.channelId(peer, self, type, channel.id().asShortText());
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+    {
+        try
+        {
+            fatalExceptionCaught(cause);
+        }
+        catch (Throwable t)
+        {
+            logger.error("Unexpected exception in {}.exceptionCaught", this.getClass().getSimpleName(), t);
+        }
+    }
+
+    protected void fatalExceptionCaught(Throwable cause)
+    {
+        decoder.discard();
+
+        JVMStabilityInspector.inspectThrowable(cause, false);
+
+        if (cause instanceof Message.InvalidLegacyProtocolMagic)
+            logger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages - closing the connection", id());
+        else
+            logger.error("{} unexpected exception caught while processing inbound messages; terminating connection", id(), cause);
+
+        channel.close();
     }
 
     /*

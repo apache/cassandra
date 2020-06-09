@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 
 import com.google.common.base.Strings;
 import org.slf4j.Logger;
@@ -426,7 +425,6 @@ public class Server implements CassandraDaemon.Server
     {
         // Stateless handlers
         private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
-        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
 
         private final Server server;
 
@@ -471,7 +469,7 @@ public class Server implements CassandraDaemon.Server
             // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
             // correctly handled before the handler itself is removed.
             // See https://issues.apache.org/jira/browse/CASSANDRA-13649
-            pipeline.addLast("exceptionHandler", exceptionHandler);
+            pipeline.addLast("exceptionHandler", ExceptionHandlers.preV5Handler());
         }
     }
 
@@ -603,13 +601,14 @@ public class Server implements CassandraDaemon.Server
                         assert connection instanceof ServerConnection;
                         final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup);
                         payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(frame.header.bodySizeInBytes);
+
                         ChannelPromise promise = AsyncChannelPromise.withListener(ctx, future -> {
                             if (future.isSuccess())
                             {
                                 logger.debug("{} response to STARTUP sent, configuring pipeline for {}",
                                             response.type,
                                             frame.header.version);
-                                configureModernPipeline(ctx, decoder, startup.options, payloadTracker);
+                                configureModernPipeline(ctx, decoder, frame.header.version, startup.options, payloadTracker);
                                 payloadTracker.endpointAndGlobalPayloadsInFlight.release(frame.header.bodySizeInBytes);
                             }
                             else
@@ -620,7 +619,8 @@ public class Server implements CassandraDaemon.Server
                                 logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
                                 ErrorMessage error = ErrorMessage.fromException(cause);
                                 Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
-                                ctx.writeAndFlush(errorFrame);
+                                ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
+                                ctx.writeAndFlush(errorFrame, closeChannel);
                             }
                         });
                         outbound = Message.ProtocolEncoder.instance.encodeMessage(response, frame.header.version);
@@ -646,6 +646,7 @@ public class Server implements CassandraDaemon.Server
 
         void configureModernPipeline(final ChannelHandlerContext ctx,
                                      final Frame.Decoder frameDecoder,
+                                     final ProtocolVersion version,
                                      final Map<String, String> options,
                                      final Server.EndpointPayloadTracker tracker)
         {
@@ -656,19 +657,28 @@ public class Server implements CassandraDaemon.Server
             FrameDecoder messageFrameDecoder = frameDecoder(compression, allocator);
             FrameEncoder messageFrameEncoder = frameEncoder(compression);
             FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
+            ChannelInboundHandlerAdapter exceptionHandler = ExceptionHandlers.postV5Handler(payloadAllocator, version);
 
             Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
             Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
             Dispatcher dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
 
-            CQLMessageHandler.MessageConsumer messageConsumer = (channel, message, converter) -> {
-                dispatcher.dispatch(channel, (Message.Request)message, converter);
-            };
-
             ChannelPipeline pipeline = ctx.channel().pipeline();
             pipeline.remove("frameEncoder");
             pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
             pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
+
+            CQLMessageHandler.MessageConsumer messageConsumer = (channel, message, converter) -> {
+                dispatcher.dispatch(channel, (Message.Request)message, converter);
+            };
+
+            // Any non-fatal errors caught in CQLMessageHandler propagate back to the client
+            // via the pipeline. Firing the exceptionCaught event on an inbound handler context
+            // (in this case, the initial context) will cause it to propagate to to the
+            // exceptionHandler provided none of the the intermediate handlers drop it
+            // in their exceptionCaught implementation
+            final ChannelHandlerContext firstContext = pipeline.firstContext();
+            CQLMessageHandler.ErrorHandler errorHandler = firstContext::fireExceptionCaught;
 
             ResourceLimits.Limit endpointReserve = tracker.endpointAndGlobalPayloadsInFlight.endpoint();
             ResourceLimits.Limit globalReserve = tracker.endpointAndGlobalPayloadsInFlight.global();
@@ -685,8 +695,10 @@ public class Server implements CassandraDaemon.Server
                                                                 AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
                                                                 AbstractMessageHandler.WaitQueue.global(globalReserve),
                                                                 handler -> {},
+                                                                errorHandler,
                                                                 throwOnOverload);
             pipeline.addBefore("initial", "cqlProcessor", processor);
+            pipeline.replace("exceptionHandler", "exceptionHandler", exceptionHandler);
             pipeline.remove(this);
         }
 
