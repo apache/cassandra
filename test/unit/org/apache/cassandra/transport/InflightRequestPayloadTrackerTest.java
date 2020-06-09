@@ -21,6 +21,7 @@ package org.apache.cassandra.transport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,7 +33,11 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.assertj.core.api.Fail.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InflightRequestPayloadTrackerTest extends CQLTester
@@ -40,13 +45,24 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
     private static long LOW_LIMIT = 600L;
     private static long HIGH_LIMIT = 5000000000L;
+    private static ResourceLimits.Limit GLOBAL_LIMITS;
 
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(600);
-        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(600);
+        DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
+        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(LOW_LIMIT);
+        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(LOW_LIMIT);
         requireNetwork();
+        try
+        {
+            GLOBAL_LIMITS = (ResourceLimits.Limit)FBUtilities.getProtectedField(Server.class, "globalRequestPayloadInFlight").get(null);
+        }
+        catch (IllegalAccessException e)
+        {
+            e.printStackTrace();
+            fail("Unable to access global resource limits during test testup");
+        }
     }
 
     @AfterClass
@@ -54,6 +70,13 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     {
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(3000000000L);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(HIGH_LIMIT);
+    }
+
+    @Before
+    public void setLimits()
+    {
+        Server.EndpointPayloadTracker.setGlobalLimit(LOW_LIMIT);
+        Server.EndpointPayloadTracker.setEndpointLimit(LOW_LIMIT);
     }
 
     @After
@@ -139,6 +162,9 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     @Test
     public void testQueryExecutionWithoutThrowOnOverloadAndInflightLimitedExceeded() throws Throwable
     {
+        // Make sure we can only exceed the per-endpoint limit
+        Server.EndpointPayloadTracker.setGlobalLimit(HIGH_LIMIT);
+
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
                                                ProtocolVersion.V5,
@@ -175,6 +201,9 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     @Test
     public void testOverloadedExceptionForEndpointInflightLimit() throws Throwable
     {
+        // Make sure we can only exceed the per-endpoint limit
+        Server.EndpointPayloadTracker.setGlobalLimit(HIGH_LIMIT);
+
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
                                                ProtocolVersion.V5,
@@ -219,6 +248,9 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     @Test
     public void testOverloadedExceptionForOverallInflightLimit() throws Throwable
     {
+        // Bump the per-endpoint limit to make sure we exhaust the global
+        Server.EndpointPayloadTracker.setEndpointLimit(HIGH_LIMIT);
+
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
                                                ProtocolVersion.V5,

@@ -556,91 +556,103 @@ public class Server implements CassandraDaemon.Server
         }
         protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> list) throws Exception
         {
-            Frame frame = decoder.decodeFrame(buffer);
-            if (frame == null)
+            Frame inbound = decoder.decodeFrame(buffer);
+            if (inbound == null)
                 return;
 
-            Frame outbound;
-            switch(frame.header.type)
+            try
             {
-                case OPTIONS:
-                    logger.debug("OPTIONS received {}", frame.header.version);
-                    List<String> cqlVersions = new ArrayList<>();
-                    cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
+                Frame outbound;
+                switch (inbound.header.type)
+                {
+                    case OPTIONS:
+                        logger.debug("OPTIONS received {}", inbound.header.version);
+                        List<String> cqlVersions = new ArrayList<>();
+                        cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
-                    List<String> compressions = new ArrayList<>();
-                    if (FrameCompressor.SnappyCompressor.instance != null)
-                        compressions.add("snappy");
-                    // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
-                    compressions.add("lz4");
+                        List<String> compressions = new ArrayList<>();
+                        if (FrameCompressor.SnappyCompressor.instance != null)
+                            compressions.add("snappy");
+                        // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
+                        compressions.add("lz4");
 
-                    Map<String, List<String>> supportedOptions = new HashMap<>();
-                    supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
-                    supportedOptions.put(StartupMessage.COMPRESSION, compressions);
-                    supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
-                    SupportedMessage supported = new SupportedMessage(supportedOptions);
-                    outbound = Message.ProtocolEncoder.instance.encodeMessage(supported, frame.header.version);
-                    ctx.writeAndFlush(outbound);
-                    break;
+                        Map<String, List<String>> supportedOptions = new HashMap<>();
+                        supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
+                        supportedOptions.put(StartupMessage.COMPRESSION, compressions);
+                        supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+                        SupportedMessage supported = new SupportedMessage(supportedOptions);
+                        outbound = Message.ProtocolEncoder.instance.encodeMessage(supported, inbound.header.version);
+                        ctx.writeAndFlush(outbound);
+                        break;
 
-                case STARTUP:
-                    Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
-                    Connection connection = attrConn.get();
-                    if (connection == null)
-                    {
-                        connection = factory.newConnection(ctx.channel(), frame.header.version);
-                        attrConn.set(connection);
-                    }
-
-                    StartupMessage startup = (StartupMessage) Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), frame);
-                    InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
-                    final Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
-
-                    if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                    {
+                    case STARTUP:
+                        Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
+                        Connection connection = attrConn.get();
+                        if (connection == null)
+                        {
+                            connection = factory.newConnection(ctx.channel(), inbound.header.version);
+                            attrConn.set(connection);
+                        }
                         assert connection instanceof ServerConnection;
+
+                        StartupMessage startup = (StartupMessage) Message.ProtocolDecoder.instance.decodeMessage(ctx.channel(), inbound);
+                        InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
+                        final Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
+
+                        ChannelPromise promise;
+                        if (inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                        {
+                            // in this case we need to defer configuring the pipeline until after the response
+                            // has been sent, as the frame encoding specified in v5 should not be applied to
+                            // the STARTUP response.
+                            payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(inbound.header.bodySizeInBytes);
+                            promise = AsyncChannelPromise.withListener(ctx, future -> {
+                                if (future.isSuccess())
+                                {
+                                    logger.debug("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
+                                    configureModernPipeline(ctx, decoder, inbound.header.version, startup.options, payloadTracker);
+                                    payloadTracker.endpointAndGlobalPayloadsInFlight.release(inbound.header.bodySizeInBytes);
+                                }
+                                else
+                                {
+                                    Throwable cause = future.cause();
+                                    if (null == cause)
+                                        cause = new ServerError("Unexpected error establishing connection");
+                                    logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
+                                    ErrorMessage error = ErrorMessage.fromException(cause);
+                                    Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, inbound.header.version);
+                                    ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
+                                    ctx.writeAndFlush(errorFrame, closeChannel);
+                                    if (ctx.channel().isOpen())
+                                        ctx.channel().close();
+                                }
+                            });
+                        }
+                        else
+                        {
+                            // no need to configure the pipeline asynchronously in this case
+                            configureLegacyPipeline(ctx.channel(), decoder, payloadTracker);
+                            promise = new VoidChannelPromise(ctx.channel(), false);
+                        }
+
                         final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup);
-                        payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(frame.header.bodySizeInBytes);
-
-                        ChannelPromise promise = AsyncChannelPromise.withListener(ctx, future -> {
-                            if (future.isSuccess())
-                            {
-                                logger.debug("{} response to STARTUP sent, configuring pipeline for {}",
-                                            response.type,
-                                            frame.header.version);
-                                configureModernPipeline(ctx, decoder, frame.header.version, startup.options, payloadTracker);
-                                payloadTracker.endpointAndGlobalPayloadsInFlight.release(frame.header.bodySizeInBytes);
-                            }
-                            else
-                            {
-                                Throwable cause = future.cause();
-                                if (null == cause)
-                                    cause = new ServerError("Unexpected error establishing connection");
-                                logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
-                                ErrorMessage error = ErrorMessage.fromException(cause);
-                                Frame errorFrame = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
-                                ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
-                                ctx.writeAndFlush(errorFrame, closeChannel);
-                            }
-                        });
-                        outbound = Message.ProtocolEncoder.instance.encodeMessage(response, frame.header.version);
+                        outbound = Message.ProtocolEncoder.instance.encodeMessage(response, inbound.header.version);
                         ctx.writeAndFlush(outbound, promise);
-                    }
-                    else
-                    {
-                        configureLegacyPipeline(ctx.channel(), decoder, payloadTracker);
-                        ctx.pipeline().context(Message.ProtocolDecoder.class).fireChannelRead(startup);
-                    }
-                    logger.debug("Configured pipeline: {}", ctx.pipeline());
-                    break;
+                        logger.debug("Configured pipeline: {}", ctx.pipeline());
+                        break;
 
-                default:
-                    ErrorMessage error =
+                    default:
+                        ErrorMessage error =
                         ErrorMessage.fromException(
-                            new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
-                                                                frame.header.type)));
-                    outbound = Message.ProtocolEncoder.instance.encodeMessage(error, frame.header.version);
-                    ctx.writeAndFlush(outbound);
+                        new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
+                                                            inbound.header.type)));
+                        outbound = Message.ProtocolEncoder.instance.encodeMessage(error, inbound.header.version);
+                        ctx.writeAndFlush(outbound);
+                }
+            }
+            finally
+            {
+                inbound.release();
             }
         }
 
@@ -680,6 +692,7 @@ public class Server implements CassandraDaemon.Server
             final ChannelHandlerContext firstContext = pipeline.firstContext();
             CQLMessageHandler.ErrorHandler errorHandler = firstContext::fireExceptionCaught;
 
+            int queueCapacity = DatabaseDescriptor.getNativeTransportReceiveQueueCapacityInBytes();
             ResourceLimits.Limit endpointReserve = tracker.endpointAndGlobalPayloadsInFlight.endpoint();
             ResourceLimits.Limit globalReserve = tracker.endpointAndGlobalPayloadsInFlight.global();
             boolean throwOnOverload = "1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD));
@@ -690,6 +703,7 @@ public class Server implements CassandraDaemon.Server
                                                                 messageEncoder,
                                                                 messageConsumer,
                                                                 payloadAllocator,
+                                                                queueCapacity,
                                                                 endpointReserve,
                                                                 globalReserve,
                                                                 AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),

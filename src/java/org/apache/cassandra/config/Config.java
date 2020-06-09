@@ -190,9 +190,10 @@ public class Config
     public volatile boolean native_transport_allow_older_protocols = true;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    public int native_transport_receive_queue_capacity_in_bytes = 1 << 22; // 4MiB
+
     @Deprecated
     public Integer native_transport_max_negotiable_protocol_version = null;
-
 
     /**
      * Max size of values in SSTables, in MegaBytes.

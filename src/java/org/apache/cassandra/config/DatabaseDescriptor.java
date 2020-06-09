@@ -2167,6 +2167,16 @@ public class DatabaseDescriptor
         conf.commitlog_sync_group_window_in_ms = windowMillis;
     }
 
+    public static int getNativeTransportReceiveQueueCapacityInBytes()
+    {
+        return conf.native_transport_receive_queue_capacity_in_bytes;
+    }
+
+    public static void setNativeTransportReceiveQueueCapacityInBytes(int queueSize)
+    {
+        conf.native_transport_receive_queue_capacity_in_bytes = queueSize;
+    }
+
     public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
     {
         return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;

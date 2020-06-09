@@ -336,6 +336,7 @@ public class SimpleClient implements Closeable
             BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
             Channel channel = ctx.channel();
             channel.config().setOption(ChannelOption.ALLOCATOR, allocator);
+            int queueCapacity = 1 << 20;  // 1MiB
             ResourceLimits.Limit endpointReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
             ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
 
@@ -359,6 +360,7 @@ public class SimpleClient implements Closeable
                                                                 messageEncoder,
                                                                 messageConsumer,
                                                                 payloadAllocator,
+                                                                queueCapacity,
                                                                 endpointReserve,
                                                                 globalReserve,
                                                                 AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),

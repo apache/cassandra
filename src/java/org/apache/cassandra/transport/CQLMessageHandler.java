@@ -36,6 +36,7 @@ import org.apache.cassandra.net.Crc;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameEncoder;
+import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.net.ResourceLimits.Limit;
 import org.apache.cassandra.net.ShareableBytes;
 import org.apache.cassandra.transport.Flusher.FlushItem.Framed;
@@ -77,6 +78,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
                       Message.ProtocolEncoder messageEncoder,
                       MessageConsumer dispatcher,
                       FrameEncoder.PayloadAllocator payloadAllocator,
+                      int queueCapacity,
                       Limit endpointReserve,
                       Limit globalReserve,
                       WaitQueue endpointWaitQueue,
@@ -88,7 +90,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
         super(decoder,
               channel,
               FrameEncoder.Payload.MAX_SIZE - 1,
-              1 << 22,                           // TODO check default and add to DD
+              queueCapacity,
               endpointReserve,
               globalReserve,
               endpointWaitQueue,
@@ -110,29 +112,64 @@ public class CQLMessageHandler extends AbstractMessageHandler
             return false;
 
         // max (CQL) frame size defaults to 256mb, so should be safe to downcast
-        int size = Ints.checkedCast(frame.header.bodySizeInBytes);
+        int frameSize = Ints.checkedCast(frame.header.bodySizeInBytes);
 
-        if (!acquireCapacity(frame.header, endpointReserve, globalReserve))
+        if (throwOnOverload)
         {
-            // we're over allocated here, but process the message
-            // anyway because we didn't throw any exception
-            receivedCount++;
-            receivedBytes += size;
-            processCqlFrame(frame);
-            return false;
+            if (!acquireCapacity(frame.header, endpointReserve, globalReserve))
+            {
+                // discard the request and throw an exception
+                ClientMetrics.instance.markRequestDiscarded();
+                logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
+                             frameSize,
+                             channelPayloadBytesInFlight,
+                             endpointReserve.using(),
+                             globalReserve.using(),
+                             frame.header);
+
+                RuntimeException wrapped =
+                    ErrorMessage.wrap(
+                        new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
+                                                frame.header.streamId);
+                errorHandler.accept(wrapped);
+                // Don't stop processing incoming frames, rely on the client to apply
+                // backpressure when it receives OverloadedException
+                return true;
+            }
+        }
+        else
+        {
+            if (!acquireCapacityAndQueueOnFailure(frame.header, endpointReserve, globalReserve))
+            {
+                // force overallocation so we can process this one message, then return false
+                // so that we stop processing further frames from the decoder
+                forceOverAllocation(endpointReserve, globalReserve, frameSize);
+                ClientMetrics.instance.pauseConnection();
+                channelPayloadBytesInFlight += frameSize;
+
+                // we're over allocated here, but process the message
+                // anyway because we didn't throw any exception
+                receivedCount++;
+                receivedBytes += frameSize;
+                processFrame(frameSize, frame);
+                return false;
+            }
         }
 
+        channelPayloadBytesInFlight += frameSize;
         receivedCount++;
-        receivedBytes += size;
-
-        if (size <= FrameEncoder.Payload.MAX_SIZE)
-            processCqlFrame(frame);
-        else
-            processLargeMessage(frame);
-
+        receivedBytes += frameSize;
+        processFrame(frameSize, frame);
         return true;
     }
 
+    private void processFrame(int frameSize, Frame frame)
+    {
+        if (frameSize <= FrameEncoder.Payload.MAX_SIZE)
+            processCqlFrame(frame);
+        else
+            processLargeMessage(frame);
+    }
 
     // for various reasons, it's possible for a large message to be contained in a single frame
     private void processLargeMessage(Frame frame)
@@ -220,45 +257,22 @@ public class CQLMessageHandler extends AbstractMessageHandler
 
     protected String id()
     {
-        // TODO
         return channel.id().asShortText();
     }
 
-    private boolean acquireCapacity(Frame.Header header, Limit endpointReserve, Limit globalReserve)
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private boolean acquireCapacityAndQueueOnFailure(Frame.Header header, Limit endpointReserve, Limit globalReserve)
     {
         int frameSize = Ints.checkedCast(header.bodySizeInBytes);
         long currentTimeNanos = approxTime.now();
-        boolean acquired = acquireCapacity(endpointReserve, globalReserve, frameSize, currentTimeNanos, Long.MAX_VALUE);
+        return acquireCapacity(endpointReserve, globalReserve, frameSize, currentTimeNanos, Long.MAX_VALUE);
+    }
 
-        // check for overloaded state by trying to allocate framesize to inflight payload trackers
-        if (!acquired)
-        {
-            if (throwOnOverload)
-            {
-                // discard the request and throw an exception
-                ClientMetrics.instance.markRequestDiscarded();
-                logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
-                             frameSize,
-                             channelPayloadBytesInFlight,
-                             endpointReserve.using(),
-                             globalReserve.using(),
-                             header);
-                decoder.discard();
-                throw ErrorMessage.wrap(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
-                                        header.streamId);
-            }
-            else
-            {
-                // force overallocation so we can process this one message, then return false
-                // so that we stop processing further frames from the decoder
-                endpointReserve.allocate(frameSize);
-                ClientMetrics.instance.pauseConnection();
-                channelPayloadBytesInFlight += frameSize;
-                return false;
-            }
-        }
-        channelPayloadBytesInFlight += frameSize;
-        return true;
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private boolean acquireCapacity(Frame.Header header, Limit endpointReserve, Limit globalReserve)
+    {
+        int frameSize = Ints.checkedCast(header.bodySizeInBytes);
+        return acquireCapacity(endpointReserve, globalReserve, frameSize) == ResourceLimits.Outcome.SUCCESS;
     }
 
     /*
