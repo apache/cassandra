@@ -613,7 +613,7 @@ public class Server implements CassandraDaemon.Server
         private void send(InetAddressAndPort endpoint, Event.NodeEvent event)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Sending event for endpoint {}, rpc address {}", endpoint, event.nodeAddressAndPort());
+                logger.trace("Sending event for endpoint {}, rpc address {}", endpoint, event.nodeAddress());
 
             // If the endpoint is not the local node, extract the node address
             // and if it is the same as our own RPC broadcast address (which defaults to the rcp address)
@@ -621,7 +621,7 @@ public class Server implements CassandraDaemon.Server
             // which is not useful to any driver and in fact may cauase serious problems to some drivers,
             // see CASSANDRA-10052
             if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) &&
-                event.nodeAddressAndPort().equals(FBUtilities.getBroadcastNativeAddressAndPort()))
+                event.nodeAddress().equals(FBUtilities.getJustBroadcastNativeAddress()))
                 return;
 
             send(event);

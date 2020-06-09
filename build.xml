@@ -633,7 +633,6 @@
           <dependency groupId="com.beust" artifactId="jcommander" version="1.30"/>
           <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
           <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0"/>
-          <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3" />
 
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
@@ -719,7 +718,6 @@
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom"/>
         <dependency groupId="org.assertj" artifactId="assertj-core"/>
-        <dependency groupId="org.awaitility" artifactId="awaitility"/>
       </artifact:pom>
       <!-- this build-deps-pom-sources "artifact" is the same as build-deps-pom but only with those
            artifacts that have "-source.jar" files -->
@@ -739,7 +737,6 @@
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" />
         <dependency groupId="org.assertj" artifactId="assertj-core"/>
-        <dependency groupId="org.awaitility" artifactId="awaitility"/>
       </artifact:pom>
 
       <artifact:pom id="coverage-deps-pom"

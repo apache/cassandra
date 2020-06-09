@@ -1,5 +1,4 @@
 4.0-alpha5
- * Fix missing topology events when running multiple nodes on the same network interface (CASSANDRA-15677)
  * Create config.yml.MIDRES (CASSANDRA-15712)
  * Fix handling of fully purged static rows in repaired data tracking (CASSANDRA-15848)
  * Prevent validation request submission from blocking ANTI_ENTROPY stage (CASSANDRA-15812)

@@ -90,9 +90,9 @@ public abstract class Event
     {
         public final InetSocketAddress node;
 
-        public InetAddressAndPort nodeAddressAndPort()
+        public InetAddress nodeAddress()
         {
-            return InetAddressAndPort.getByAddressOverrideDefaults(node.getAddress(), node.getPort());
+            return node.getAddress();
         }
 
         private NodeEvent(Type type, InetSocketAddress node)
