@@ -450,7 +450,8 @@ public class CassandraDaemon
     public void initializeNativeTransport()
     {
         // Native transport
-        nativeTransportService = new NativeTransportService();
+        if (nativeTransportService == null)
+            nativeTransportService = new NativeTransportService();
     }
 
     /*
