@@ -1317,20 +1317,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 @Override
                 public void onSuccess(StreamState streamState)
                 {
-                    bootstrapFinished();
-                    if (isSurveyMode)
+                    try
                     {
-                        logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
+                        bootstrapFinished();
+                        if (isSurveyMode)
+                        {
+                            logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
+                        }
+                        else
+                        {
+                            isSurveyMode = false;
+                            progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
+                            finishJoiningRing(bootstrapTokens);
+                        }
+                        progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
+                        if (!isNativeTransportRunning())
+                            daemon.initializeNativeTransport();
+                        daemon.start();
+                        logger.info("Resume complete");
                     }
-                    else
+                    catch(Exception e)
                     {
-                        isSurveyMode = false;
-                        progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
-                        finishJoiningRing(bootstrapTokens);
+                        onFailure(e);
+                        throw e;
                     }
-                    progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
-                    daemon.start();
-                    logger.info("Resume complete");
                 }
 
                 @Override
