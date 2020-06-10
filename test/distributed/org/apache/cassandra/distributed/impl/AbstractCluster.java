@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -116,6 +117,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     // mutated by user-facing API
     private final MessageFilters filters;
+    private final BiConsumer<ClassLoader, Integer> instanceInitializer;
+
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
 
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
@@ -152,6 +155,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         private IInvokableInstance newInstance(int generation)
         {
             ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader);
+            if (instanceInitializer != null)
+                instanceInitializer.accept(classLoader, config.num());
             return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, IInvokableInstance>)Instance::new, classLoader)
                                         .apply(config, classLoader);
         }
@@ -261,6 +266,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.instanceMap = new HashMap<>();
         this.initialVersion = builder.getVersion();
         this.filters = new MessageFilters();
+        this.instanceInitializer = builder.getInstanceInitializer();
 
         int generation = GENERATION.incrementAndGet();
         for (int i = 0; i < builder.getNodeCount(); ++i)
