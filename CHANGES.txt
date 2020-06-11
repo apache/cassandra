@@ -1,4 +1,5 @@
 4.0-beta3
+ * Abort repairs when getting a truncation request (CASSANDRA-15854)
  * Remove bad assert when getting active compactions for an sstable (CASSANDRA-15457)
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Prevent NPE in StreamMessage in type lookup (CASSANDRA-16131)
