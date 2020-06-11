@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -351,6 +352,10 @@ public class ColumnFilter
                     s.put(subSelection.column().name, subSelection);
             }
 
+            // see CASSANDRA-15833
+            if (isFetchAll && Gossiper.instance.isAnyNodeOn30())
+                queried = null;
+
             return new ColumnFilter(isFetchAll, isFetchAll ? metadata.partitionColumns() : null, queried, s);
         }
     }
@@ -494,6 +499,10 @@ public class ColumnFilter
                     subSelections.put(subSel.column().name, subSel);
                 }
             }
+
+            // See CASSANDRA-15833
+            if (version <= MessagingService.VERSION_3014 && isFetchAll)
+                queried = null;
 
             return new ColumnFilter(isFetchAll, fetched, queried, subSelections);
         }

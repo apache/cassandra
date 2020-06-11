@@ -54,9 +54,6 @@ public class ColumnFilterTest
 
         testRoundTrip(ColumnFilter.selection(metadata.partitionColumns().without(v1)), metadata, MessagingService.VERSION_30);
         testRoundTrip(ColumnFilter.selection(metadata.partitionColumns().without(v1)), metadata, MessagingService.VERSION_3014);
-
-        testRoundTrip(ColumnFilter.selection(metadata, metadata.partitionColumns().without(v1)), metadata, MessagingService.VERSION_30);
-        testRoundTrip(ColumnFilter.selection(metadata, metadata.partitionColumns().without(v1)), metadata, MessagingService.VERSION_3014);
     }
 
     static void testRoundTrip(ColumnFilter columnFilter, CFMetaData metadata, int version) throws Exception
