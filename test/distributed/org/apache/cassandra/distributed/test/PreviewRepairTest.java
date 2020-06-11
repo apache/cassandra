@@ -323,7 +323,7 @@ public class PreviewRepairTest extends TestBaseImpl
         }
     }
 
-    private static void insert(ICoordinator coordinator, int start, int count)
+    static void insert(ICoordinator coordinator, int start, int count)
     {
         insert(coordinator, start, count, "tbl");
     }
