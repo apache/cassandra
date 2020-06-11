@@ -25,21 +25,22 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
+public class DisallowedDirectories implements DisallowedDirectoriesMBean
 {
-    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=BlacklistedDirectories";
-    private static final Logger logger = LoggerFactory.getLogger(BlacklistedDirectories.class);
-    private static final BlacklistedDirectories instance = new BlacklistedDirectories();
+    public static final String DEPRECATED_MBEAN_NAME = "org.apache.cassandra.db:type=BlacklistedDirectories";
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=DisallowedDirectories";
+    private static final Logger logger = LoggerFactory.getLogger(DisallowedDirectories.class);
+    private static final DisallowedDirectories instance = new DisallowedDirectories();
 
     private final Set<File> unreadableDirectories = new CopyOnWriteArraySet<File>();
     private final Set<File> unwritableDirectories = new CopyOnWriteArraySet<File>();
 
-    private BlacklistedDirectories()
+    private DisallowedDirectories()
     {
         // Register this instance with JMX
+        MBeanWrapper.instance.registerMBean(this, DEPRECATED_MBEAN_NAME, MBeanWrapper.OnException.LOG);
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME, MBeanWrapper.OnException.LOG);
     }
 
@@ -57,14 +58,14 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
      * Adds parent directory of the file (or the file itself, if it is a directory)
      * to the set of unreadable directories.
      *
-     * @return the blacklisted directory or null if nothing has been added to the list.
+     * @return the disallowed directory or null if nothing has been added to the list.
      */
     public static File maybeMarkUnreadable(File path)
     {
         File directory = getDirectory(path);
         if (instance.unreadableDirectories.add(directory))
         {
-            logger.warn("Blacklisting {} for reads", directory);
+            logger.warn("Disallowing {} for reads", directory);
             return directory;
         }
         return null;
@@ -74,22 +75,22 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
      * Adds parent directory of the file (or the file itself, if it is a directory)
      * to the set of unwritable directories.
      *
-     * @return the blacklisted directory or null if nothing has been added to the list.
+     * @return the disallowed directory or null if nothing has been added to the list.
      */
     public static File maybeMarkUnwritable(File path)
     {
         File directory = getDirectory(path);
         if (instance.unwritableDirectories.add(directory))
         {
-            logger.warn("Blacklisting {} for writes", directory);
+            logger.warn("Disallowing {} for writes", directory);
             return directory;
         }
         return null;
     }
 
     /**
-     * Tells whether or not the directory is blacklisted for reads.
-     * @return whether or not the directory is blacklisted for reads.
+     * Tells whether or not the directory is disallowed for reads.
+     * @return whether or not the directory is disallowed for reads.
      */
     public static boolean isUnreadable(File directory)
     {
@@ -97,8 +98,8 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
     }
 
     /**
-     * Tells whether or not the directory is blacklisted for writes.
-     * @return whether or not the directory is blacklisted for reads.
+     * Tells whether or not the directory is disallowed for writes.
+     * @return whether or not the directory is disallowed for reads.
      */
     public static boolean isUnwritable(File directory)
     {

@@ -282,7 +282,7 @@ public class DirectoriesTest
             for (DataDirectory dd : Directories.dataDirectories)
             {
                 File file = new File(dd.location, new File(KS, "bad").getPath());
-                assertTrue(BlacklistedDirectories.isUnwritable(file));
+                assertTrue(DisallowedDirectories.isUnwritable(file));
             }
         } 
         finally 
