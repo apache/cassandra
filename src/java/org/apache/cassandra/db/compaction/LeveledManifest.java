@@ -546,7 +546,7 @@ public class LeveledManifest
 
     /**
      * @return highest-priority sstables to compact for the given level.
-     * If no compactions are possible (because of concurrent compactions or because some sstables are blacklisted
+     * If no compactions are possible (because of concurrent compactions or because some sstables are excluded
      * for prior failure), will return an empty list.  Never returns null.
      */
     private Collection<SSTableReader> getCandidatesFor(int level)

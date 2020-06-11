@@ -26,7 +26,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.After;
 import org.junit.Assert;
 
-import org.apache.cassandra.db.BlacklistedDirectories;
+import org.apache.cassandra.db.DisallowedDirectories;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -56,7 +56,7 @@ public class OutOfSpaceBase extends CQLTester
             for ( ; ; )
             {
                 DataDirectory dir = cfs.directories.getWriteableLocation(1);
-                BlacklistedDirectories.maybeMarkUnwritable(cfs.directories.getLocationForDisk(dir));
+                DisallowedDirectories.maybeMarkUnwritable(cfs.directories.getLocationForDisk(dir));
             }
         }
         catch (IOError e)

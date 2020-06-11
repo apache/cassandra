@@ -1,4 +1,5 @@
 2.2.18
+ * Fix nomenclature of allow and deny lists (CASSANDRA-15862)
  * Remove generated files from source artifact (CASSANDRA-15849)
  * Remove duplicated tools binaries from tarballs (CASSANDRA-15768)
  * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)

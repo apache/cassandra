@@ -26,7 +26,6 @@ import java.util.*;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -44,9 +43,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.Util.cellname;
 
-public class BlacklistingCompactionsTest
+public class CorruptedSSTablesCompactionsTest
 {
-    private static final String KEYSPACE1 = "BlacklistingCompactionsTest";
+    private static final String KEYSPACE1 = "CorruptedSSTablesCompactionsTest";
     private static final String CF_STANDARD1 = "Standard1";
     // seed hardcoded to one we know works:
     private static final Random random = new Random(1);
@@ -82,18 +81,18 @@ public class BlacklistingCompactionsTest
     }
 
     @Test
-    public void testBlacklistingWithSizeTieredCompactionStrategy() throws Exception
+    public void testCorruptedSSTablesWithSizeTieredCompactionStrategy() throws Exception
     {
-        testBlacklisting(SizeTieredCompactionStrategy.class.getCanonicalName());
+        testCorruptedSSTables(SizeTieredCompactionStrategy.class.getCanonicalName());
     }
 
     @Test
-    public void testBlacklistingWithLeveledCompactionStrategy() throws Exception
+    public void testCorruptedSSTablesWithLeveledCompactionStrategy() throws Exception
     {
-        testBlacklisting(LeveledCompactionStrategy.class.getCanonicalName());
+        testCorruptedSSTables(LeveledCompactionStrategy.class.getCanonicalName());
     }
 
-    public void testBlacklisting(String compactionStrategy) throws Exception
+    public void testCorruptedSSTables(String compactionStrategy) throws Exception
     {
         // this test does enough rows to force multiple block indexes to be used
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
