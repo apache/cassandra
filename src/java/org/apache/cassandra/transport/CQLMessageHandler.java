@@ -51,6 +51,8 @@ public class CQLMessageHandler extends AbstractMessageHandler
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
 
+    public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
+
     private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
     private final Message.ProtocolDecoder messageDecoder;
     private final Message.ProtocolEncoder messageEncoder;
@@ -89,7 +91,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
     {
         super(decoder,
               channel,
-              FrameEncoder.Payload.MAX_SIZE - 1,
+              LARGE_MESSAGE_THRESHOLD,
               queueCapacity,
               endpointReserve,
               globalReserve,
@@ -174,7 +176,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
     // for various reasons, it's possible for a large message to be contained in a single frame
     private void processLargeMessage(Frame frame)
     {
-//        new LargeMessage(header, bytes.sliceAndConsume(size).share()).schedule();
+        new LargeMessage(frame.header, ShareableBytes.wrap(frame.body.nioBuffer())).onComplete();
     }
 
     private Frame toCqlFrame(ShareableBytes bytes)
@@ -235,16 +237,45 @@ public class CQLMessageHandler extends AbstractMessageHandler
         try
         {
             Frame.Header header = cqlFrameDecoder.decodeHeader(Unpooled.wrappedBuffer(buf));
-
-            if (!acquireCapacity(header, endpointReserve, globalReserve))
-            {
-                receivedCount++;
-                receivedBytes += frame.frameSize;
-                return false;
-            }
-
+            // max (CQL) frame size defaults to 256mb, so should be safe to downcast
+            int frameSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedCount++;
             receivedBytes += buf.remaining();
+
+            if (throwOnOverload)
+            {
+                LargeMessage largeMessage = new LargeMessage(header);
+                if (!acquireCapacity(header, endpointReserve, globalReserve))
+                {
+                    // discard the request and throw an exception
+                    ClientMetrics.instance.markRequestDiscarded();
+                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
+                                 frameSize,
+                                 channelPayloadBytesInFlight,
+                                 endpointReserve.using(),
+                                 globalReserve.using(),
+                                 header);
+
+                    // mark as overloaded so that we consume
+                    // subsequent frames and then discard the message
+                    largeMessage.markOverloaded();
+                }
+                this.largeMessage = largeMessage;
+                largeMessage.supply(frame);
+                // Don't stop processing incoming frames, rely on the client to apply
+                // backpressure when it receives OverloadedException
+                return true;
+            }
+            else
+            {
+                if (!acquireCapacityAndQueueOnFailure(header, endpointReserve, globalReserve))
+                {
+                    receivedCount++;
+                    receivedBytes += frame.frameSize;
+                    return false;
+                }
+            }
+
             largeMessage = new LargeMessage(header);
             largeMessage.supply(frame);
             return true;
@@ -318,6 +349,8 @@ public class CQLMessageHandler extends AbstractMessageHandler
     {
         private static final long EXPIRES_AT = Long.MAX_VALUE;
 
+        private boolean overloaded = false;
+
         private LargeMessage(Frame.Header header)
         {
             super(frameSize(header), header, EXPIRES_AT, false);
@@ -338,9 +371,30 @@ public class CQLMessageHandler extends AbstractMessageHandler
             return cqlFrameDecoder.decodeFrame(concat);
         }
 
+        /**
+         * Used to indicate that a message should be dropped and not processed.
+         * We do this on receipt of the first frame of a large message if sufficient capacity
+         * cannot be acquired to process it and throwOnOverload is set for the connection.
+         * In this case, the client has elected to shed load rather than apply backpressure
+         * so we must ensure that subsequent frames are consumed from the channel. At that
+         * point an error response is returned to the client, rather than processing the message.
+         */
+        private void markOverloaded()
+        {
+            overloaded = true;
+        }
+
         protected void onComplete()
         {
-            if (!isCorrupt)
+            if (overloaded)
+            {
+                RuntimeException wrapped =
+                    ErrorMessage.wrap(
+                        new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
+                                                header.streamId);
+                errorHandler.accept(wrapped);
+            }
+            else if (!isCorrupt)
             {
                 try
                 {
@@ -348,11 +402,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
                 }
                 catch (Exception e)
                 {
-                    logger.warn("Error decoding CQL frame", e);
-                }
-                finally
-                {
-                    releaseBuffers();
+                    errorHandler.accept(e);
                 }
             }
         }

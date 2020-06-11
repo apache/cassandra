@@ -84,9 +84,11 @@ public class SimpleClient implements Closeable
     }
 
     private static final Logger logger = LoggerFactory.getLogger(SimpleClient.class);
+
     public final String host;
     public final int port;
     private final EncryptionOptions encryptionOptions;
+    private final int largeMessageThreshold;
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
     protected final Connection.Tracker tracker = new ConnectionTracker();
@@ -106,6 +108,67 @@ public class SimpleClient implements Closeable
             return connection;
         }
     };
+
+    public static class Builder
+    {
+        private final String host;
+        private final int port;
+        private EncryptionOptions encryptionOptions = new EncryptionOptions();
+        private ProtocolVersion version = ProtocolVersion.CURRENT;
+        private boolean useBeta = false;
+        private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
+
+        private Builder(String host, int port)
+        {
+            this.host = host;
+            this.port = port;
+        }
+
+        public Builder encryption(EncryptionOptions options)
+        {
+            this.encryptionOptions = options;
+            return this;
+        }
+
+        public Builder useBeta()
+        {
+            this.useBeta = true;
+            return this;
+        }
+
+        public Builder protocolVersion(ProtocolVersion version)
+        {
+            this.version = version;
+            return this;
+        }
+
+        public Builder largeMessageThreshold(int bytes)
+        {
+            largeMessageThreshold = bytes;
+            return this;
+        }
+
+        public SimpleClient build()
+        {
+            if (version.isBeta() && !useBeta)
+                throw new IllegalArgumentException(String.format("Beta version of server used (%s), but USE_BETA flag is not set", version));
+            return new SimpleClient(this);
+        }
+    }
+
+    public static Builder builder(String host, int port)
+    {
+        return new Builder(host, port);
+    }
+
+    private SimpleClient(Builder builder)
+    {
+        this.host = builder.host;
+        this.port = builder.port;
+        this.version = builder.version;
+        this.encryptionOptions = builder.encryptionOptions;
+        this.largeMessageThreshold = builder.largeMessageThreshold;
+    }
 
     public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
@@ -131,6 +194,7 @@ public class SimpleClient implements Closeable
 
         this.version = version;
         this.encryptionOptions = encryptionOptions;
+        this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
     }
 
     public SimpleClient(String host, int port)
@@ -179,11 +243,11 @@ public class SimpleClient implements Closeable
         // Configure the pipeline factory.
         if(encryptionOptions.enabled)
         {
-            bootstrap.handler(new SecureInitializer());
+            bootstrap.handler(new SecureInitializer(largeMessageThreshold));
         }
         else
         {
-            bootstrap.handler(new Initializer());
+            bootstrap.handler(new Initializer(largeMessageThreshold));
         }
         ChannelFuture future = bootstrap.connect(new InetSocketAddress(host, port));
 
@@ -286,10 +350,12 @@ public class SimpleClient implements Closeable
     {
         final ProtocolVersion version;
         final ResponseHandler responseHandler;
-        InitialHandler(ProtocolVersion version, ResponseHandler responseHandler)
+        final int largeMessageThreshold;
+        InitialHandler(ProtocolVersion version, ResponseHandler responseHandler, int largeMessageThreshold)
         {
             this.version = version;
             this.responseHandler = responseHandler;
+            this.largeMessageThreshold = largeMessageThreshold;
         }
 
         protected void decode(ChannelHandlerContext ctx, Frame frame, List<Object> results) throws Exception
@@ -372,7 +438,7 @@ public class SimpleClient implements Closeable
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
             pipeline.addLast("messageFrameEncoder", messageFrameEncoder);
             pipeline.addLast("processor", processor);
-            pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator()));
+            pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator(), largeMessageThreshold));
             pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
             pipeline.remove(this);
             messageConsumer.accept(channel, response, (ch, req, resp) -> null);
@@ -410,6 +476,12 @@ public class SimpleClient implements Closeable
 
     private class Initializer extends ChannelInitializer<Channel>
     {
+        private int largeMessageThreshold;
+        Initializer(int largeMessageThreshold)
+        {
+            this.largeMessageThreshold = largeMessageThreshold;
+        }
+
         protected void initChannel(Channel channel) throws Exception
         {
             connection = new Connection(channel, version, tracker);
@@ -419,7 +491,7 @@ public class SimpleClient implements Closeable
 //            pipeline.addLast("debug", new LoggingHandler(LogLevel.INFO));
             pipeline.addLast("frameDecoder", new Frame.Decoder());
             pipeline.addLast("frameEncoder", Frame.Encoder.instance);
-            pipeline.addLast("initial", new InitialHandler(version, responseHandler));
+            pipeline.addLast("initial", new InitialHandler(version, responseHandler, largeMessageThreshold));
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
             pipeline.addLast("responseHandler",  responseHandler);
@@ -428,6 +500,11 @@ public class SimpleClient implements Closeable
 
     private class SecureInitializer extends Initializer
     {
+        SecureInitializer(int largeMessageThreshold)
+        {
+            super(largeMessageThreshold);
+        }
+
         protected void initChannel(Channel channel) throws Exception
         {
             super.initChannel(channel);
@@ -440,20 +517,22 @@ public class SimpleClient implements Closeable
     private static class PayloadEncoder extends ChannelOutboundHandlerAdapter
     {
         private final FrameEncoder.PayloadAllocator allocator;
-        PayloadEncoder(FrameEncoder.PayloadAllocator allocator)
+        private final int largeMessageThreshold;
+        PayloadEncoder(FrameEncoder.PayloadAllocator allocator, int largeMessageThreshold)
         {
             this.allocator = allocator;
+            this.largeMessageThreshold = largeMessageThreshold;
         }
 
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
         {
             Frame outbound = (Frame)msg;
-            if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= FrameEncoder.Payload.MAX_SIZE)
+            if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= largeMessageThreshold)
             {
                 // Large message
-                FrameEncoder.Payload largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                FrameEncoder.Payload largePayload = allocator.allocate(false, largeMessageThreshold- 1);
                 ByteBuffer buf = largePayload.buffer;
-                buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
+                buf.limit(largeMessageThreshold - 1);
                 outbound.encodeHeaderInto(buf);
 
                 int capacityRemaining = buf.limit() - buf.position();
@@ -464,27 +543,27 @@ public class SimpleClient implements Closeable
                 body.readerIndex(capacityRemaining);
                 int idx = body.readerIndex();
 
-                while (body.readableBytes() >= FrameEncoder.Payload.MAX_SIZE)
+                while (body.readableBytes() >= largeMessageThreshold)
                 {
-                    largePayload = allocator.allocate(false, FrameEncoder.Payload.MAX_SIZE - 1);
+                    largePayload = allocator.allocate(false, largeMessageThreshold - 1 );
                     buf = largePayload.buffer;
-                    buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
+                    buf.limit(largeMessageThreshold - 1);
                     int remaining = Math.min(buf.remaining(), body.readableBytes()) ;
                     buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
                     body.readerIndex(idx + remaining);
                     idx = body.readerIndex();
                     largePayload.finish();
-                    ctx.writeAndFlush(largePayload, promise);
+                    ctx.writeAndFlush(largePayload);
                 }
 
                 if (body.readableBytes() > 0)
                 {
                     largePayload = allocator.allocate(false, body.readableBytes());
                     buf = largePayload.buffer;
-                    buf.limit(FrameEncoder.Payload.MAX_SIZE - 1);
+                    buf.limit(buf.position() + body.readableBytes());
                     buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
                     largePayload.finish();
-                    ctx.writeAndFlush(largePayload, promise);
+                    ctx.writeAndFlush(largePayload);
                 }
             }
             else

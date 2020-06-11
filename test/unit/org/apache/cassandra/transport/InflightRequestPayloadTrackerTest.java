@@ -293,6 +293,49 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     }
 
     @Test
+    public void testOverloadedExceptionForOverallInflightLimitAndLargeMessage() throws Throwable
+    {
+        // Bump the per-endpoint limit to make sure we exhaust the global
+        Server.EndpointPayloadTracker.setEndpointLimit(HIGH_LIMIT);
+
+        try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
+                                               .protocolVersion(ProtocolVersion.V5)
+                                               .useBeta()
+                                               .largeMessageThreshold(100)
+                                               .build())
+
+        {
+            client.connect(false, true);
+            QueryOptions queryOptions = QueryOptions.create(
+            QueryOptions.DEFAULT.getConsistency(),
+            QueryOptions.DEFAULT.getValues(),
+            QueryOptions.DEFAULT.skipMetadata(),
+            QueryOptions.DEFAULT.getPageSize(),
+            QueryOptions.DEFAULT.getPagingState(),
+            QueryOptions.DEFAULT.getSerialConsistency(),
+            ProtocolVersion.V5,
+            KEYSPACE);
+
+            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
+                                                         queryOptions);
+            client.execute(queryMessage);
+
+            queryMessage = new QueryMessage("INSERT INTO atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
+                                            queryOptions);
+            try
+            {
+                client.execute(queryMessage);
+                Assert.fail();
+            }
+            catch (RuntimeException e)
+            {
+                Assert.assertTrue(e.getCause() instanceof OverloadedException);
+            }
+        }
+    }
+
+
+    @Test
     public void testChangingLimitsAtRuntime() throws Throwable
     {
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),

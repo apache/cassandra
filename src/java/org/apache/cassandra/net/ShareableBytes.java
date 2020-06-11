@@ -166,7 +166,7 @@ public class ShareableBytes
         return new ShareableBytes(owner.retain(), slice);
     }
 
-    static ShareableBytes wrap(ByteBuffer buffer)
+    public static ShareableBytes wrap(ByteBuffer buffer)
     {
         return new ShareableBytes(buffer);
     }
