@@ -324,10 +324,10 @@ public class Directories
 
     /**
      * Basically the same as calling {@link #getWriteableLocationAsFile(long)} with an unknown size ({@code -1L}),
-     * which may return any non-blacklisted directory - even a data directory that has no usable space.
+     * which may return any allowed directory - even a data directory that has no usable space.
      * Do not use this method in production code.
      *
-     * @throws FSWriteError if all directories are blacklisted.
+     * @throws FSWriteError if all directories are disallowed.
      */
     public File getDirectoryForNewSSTables()
     {
@@ -335,9 +335,9 @@ public class Directories
     }
 
     /**
-     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space.
+     * Returns an allowed directory that _currently_ has {@code writeSize} bytes as usable space.
      *
-     * @throws FSWriteError if all directories are blacklisted.
+     * @throws FSWriteError if all directories are disallowed.
      */
     public File getWriteableLocationAsFile(long writeSize)
     {
@@ -352,9 +352,9 @@ public class Directories
      * data directory then use that one as data directory otherwise use {@link #getWriteableLocationAsFile(long)} to
      * find suitable data directory.
      *
-     * Also makes sure returned directory is non-blacklisted.
+     * Also makes sure returned directory is not disallowed.
      *
-     * @throws FSWriteError if all directories are blacklisted
+     * @throws FSWriteError if all directories are disallowed.
      */
     public File getWriteableLocationToLoadFile(final File sourceFile)
     {
@@ -363,7 +363,7 @@ public class Directories
             final FileStore srcFileStore = Files.getFileStore(sourceFile.toPath());
             for (final File dataPath : dataPaths)
             {
-                if (BlacklistedDirectories.isUnwritable(dataPath))
+                if (DisallowedDirectories.isUnwritable(dataPath))
                 {
                     continue;
                 }
@@ -383,11 +383,11 @@ public class Directories
     }
 
     /**
-     * Returns a temporary subdirectory on non-blacklisted data directory
+     * Returns a temporary subdirectory on allowed data directory
      * that _currently_ has {@code writeSize} bytes as usable space.
      * This method does not create the temporary directory.
      *
-     * @throws IOError if all directories are blacklisted.
+     * @throws IOError if all directories are disallowed.
      */
     public File getTemporaryWriteableDirectoryAsFile(long writeSize)
     {
@@ -411,10 +411,9 @@ public class Directories
     }
 
     /**
-     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space, null if
-     * there is not enough space left in all directories.
+     * Returns an allowed data directory that _currently_ has {@code writeSize} bytes as usable space.
      *
-     * @throws FSWriteError if all directories are blacklisted.
+     * @throws FSWriteError if all directories are disallowed.
      */
     public DataDirectory getWriteableLocation(long writeSize)
     {
@@ -422,13 +421,13 @@ public class Directories
 
         long totalAvailable = 0L;
 
-        // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
+        // pick directories with enough space and so that resulting sstable dirs aren't disallowed for writes.
         boolean tooBig = false;
         for (DataDirectory dataDir : paths)
         {
-            if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
+            if (DisallowedDirectories.isUnwritable(getLocationForDisk(dataDir)))
             {
-                logger.trace("removing blacklisted candidate {}", dataDir.location);
+                logger.trace("removing disallowed candidate {}", dataDir.location);
                 continue;
             }
             DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
@@ -447,7 +446,7 @@ public class Directories
             if (tooBig)
                 throw new FSDiskFullWriteError(new IOException("Insufficient disk space to write " + writeSize + " bytes"), "");
             else
-                throw new FSWriteError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"), "");
+                throw new FSWriteError(new IOException("All configured data directories have been disallowed as unwritable for erroring out"), "");
 
         // shortcut for single data directory systems
         if (candidates.size() == 1)
@@ -492,8 +491,8 @@ public class Directories
 
         for (DataDirectory dataDir : paths)
         {
-            if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
-                continue;
+            if (DisallowedDirectories.isUnwritable(getLocationForDisk(dataDir)))
+                  continue;
             DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
             // exclude directory if its total writeSize does not fit to data directory
             if (candidate.availableSpace < writeSize)
@@ -505,14 +504,14 @@ public class Directories
 
     public DataDirectory[] getWriteableLocations()
     {
-        List<DataDirectory> nonBlacklistedDirs = new ArrayList<>();
+        List<DataDirectory> allowedDirs = new ArrayList<>();
         for (DataDirectory dir : paths)
         {
-            if (!BlacklistedDirectories.isUnwritable(dir.location))
-                nonBlacklistedDirs.add(dir);
+            if (!DisallowedDirectories.isUnwritable(dir.location))
+                allowedDirs.add(dir);
         }
 
-        Collections.sort(nonBlacklistedDirs, new Comparator<DataDirectory>()
+        Collections.sort(allowedDirs, new Comparator<DataDirectory>()
         {
             @Override
             public int compare(DataDirectory o1, DataDirectory o2)
@@ -520,7 +519,7 @@ public class Directories
                 return o1.location.compareTo(o2.location);
             }
         });
-        return nonBlacklistedDirs.toArray(new DataDirectory[nonBlacklistedDirs.size()]);
+        return allowedDirs.toArray(new DataDirectory[allowedDirs.size()]);
     }
 
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
@@ -780,7 +779,7 @@ public class Directories
 
             for (File location : dataPaths)
             {
-                if (BlacklistedDirectories.isUnreadable(location))
+                if (DisallowedDirectories.isUnreadable(location))
                     continue;
 
                 if (snapshotName != null)

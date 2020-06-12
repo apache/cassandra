@@ -242,7 +242,7 @@ final class HintsDispatchExecutor
                 {
                     logger.error(String.format("Failed to dispatch hints file %s: file is corrupted", descriptor.fileName()), e);
                     store.cleanUp(descriptor);
-                    store.blacklist(descriptor);
+                    store.markCorrupted(descriptor);
                     throw e;
                 }
             }

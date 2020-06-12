@@ -1256,7 +1256,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             throw new IllegalArgumentException("Unknown host specified " + stringHost, ex);
                         }
                     }
-                    streamer.addSourceFilter(new RangeStreamer.WhitelistedSourcesFilter(sources));
+                    streamer.addSourceFilter(new RangeStreamer.AllowedSourcesFilter(sources));
                 }
 
                 streamer.addRanges(keyspace, streamRanges.build());
