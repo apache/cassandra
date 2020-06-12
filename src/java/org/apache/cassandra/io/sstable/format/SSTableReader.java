@@ -1687,7 +1687,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public void markSuspect()
     {
         if (logger.isTraceEnabled())
-            logger.trace("Marking {} as a suspect for blacklisting.", getFilename());
+            logger.trace("Marking {} as a suspect to be excluded from reads.", getFilename());
 
         isSuspect.getAndSet(true);
     }
