@@ -32,7 +32,6 @@ import javax.management.ObjectName;
 import javax.security.auth.Subject;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,7 +68,7 @@ import org.apache.cassandra.service.StorageService;
  * MBeanServer::getDomains is primarily a function of the MBeanServer itself. This class makes
  * such a distinction in order to identify which JMXResource the subject requires permissions on.
  *
- * Certain operations are never allowed for users and these are recorded in a blacklist so that we
+ * Certain operations are never allowed for users and these are recorded in a deny list so that we
  * can short circuit authorization process if one is attempted by a remote subject.
  *
  */
@@ -78,30 +77,30 @@ public class AuthorizationProxy implements InvocationHandler
     private static final Logger logger = LoggerFactory.getLogger(AuthorizationProxy.class);
 
     /*
-     A whitelist of permitted methods on the MBeanServer interface which *do not* take an ObjectName
+     A list of permitted methods on the MBeanServer interface which *do not* take an ObjectName
      as their first argument. These methods can be thought of as relating to the MBeanServer itself,
-     rather than to the MBeans it manages. All of the whitelisted methods are essentially descriptive,
+     rather than to the MBeans it manages. All of the allowed methods are essentially descriptive,
      hence they require the Subject to have the DESCRIBE permission on the root JMX resource.
      */
-    private static final Set<String> MBEAN_SERVER_METHOD_WHITELIST = ImmutableSet.of("getDefaultDomain",
-                                                                                     "getDomains",
-                                                                                     "getMBeanCount",
-                                                                                     "hashCode",
-                                                                                     "queryMBeans",
-                                                                                     "queryNames",
-                                                                                     "toString");
+    private static final Set<String> MBEAN_SERVER_ALLOWED_METHODS = ImmutableSet.of("getDefaultDomain",
+                                                                                    "getDomains",
+                                                                                    "getMBeanCount",
+                                                                                    "hashCode",
+                                                                                    "queryMBeans",
+                                                                                    "queryNames",
+                                                                                    "toString");
 
     /*
-     A blacklist of method names which are never permitted to be executed by a remote user,
+     A list of method names which are never permitted to be executed by a remote user,
      regardless of privileges they may be granted.
      */
-    private static final Set<String> METHOD_BLACKLIST = ImmutableSet.of("createMBean",
-                                                                        "deserialize",
-                                                                        "getClassLoader",
-                                                                        "getClassLoaderFor",
-                                                                        "instantiate",
-                                                                        "registerMBean",
-                                                                        "unregisterMBean");
+    private static final Set<String> DENIED_METHODS = ImmutableSet.of("createMBean",
+                                                                      "deserialize",
+                                                                      "getClassLoader",
+                                                                      "getClassLoaderFor",
+                                                                      "instantiate",
+                                                                      "registerMBean",
+                                                                      "unregisterMBean");
 
     private static final JMXPermissionsCache permissionsCache = new JMXPermissionsCache();
     private MBeanServer mbs;
@@ -203,9 +202,9 @@ public class AuthorizationProxy implements InvocationHandler
             return true;
 
         // Restrict access to certain methods by any remote user
-        if (METHOD_BLACKLIST.contains(methodName))
+        if (DENIED_METHODS.contains(methodName))
         {
-            logger.trace("Access denied to blacklisted method {}", methodName);
+            logger.trace("Access denied to restricted method {}", methodName);
             return false;
         }
 
@@ -233,7 +232,7 @@ public class AuthorizationProxy implements InvocationHandler
 
     /**
      * Authorize execution of a method on the MBeanServer which does not take an MBean ObjectName
-     * as its first argument. The whitelisted methods that match this criteria are generally
+     * as its first argument. The allowed methods that match this criteria are generally
      * descriptive methods concerned with the MBeanServer itself, rather than with any particular
      * set of MBeans managed by the server and so we check the DESCRIBE permission on the root
      * JMXResource (representing the MBeanServer)
@@ -247,8 +246,8 @@ public class AuthorizationProxy implements InvocationHandler
     private boolean authorizeMBeanServerMethod(RoleResource subject, String methodName)
     {
         logger.trace("JMX invocation of {} on MBeanServer requires permission {}", methodName, Permission.DESCRIBE);
-        return (MBEAN_SERVER_METHOD_WHITELIST.contains(methodName) &&
-            hasPermission(subject, Permission.DESCRIBE, JMXResource.root()));
+        return (MBEAN_SERVER_ALLOWED_METHODS.contains(methodName) &&
+                hasPermission(subject, Permission.DESCRIBE, JMXResource.root()));
     }
 
     /**

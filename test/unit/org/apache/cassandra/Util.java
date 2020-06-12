@@ -680,14 +680,14 @@ public class Util
             for ( ; ; )
             {
                 DataDirectory dir = cfs.getDirectories().getWriteableLocation(1);
-                BlacklistedDirectories.maybeMarkUnwritable(cfs.getDirectories().getLocationForDisk(dir));
+                DisallowedDirectories.maybeMarkUnwritable(cfs.getDirectories().getLocationForDisk(dir));
             }
         }
         catch (IOError e)
         {
             // Expected -- marked all directories as unwritable
         }
-        return () -> BlacklistedDirectories.clearUnwritableUnsafe();
+        return () -> DisallowedDirectories.clearUnwritableUnsafe();
     }
 
     public static PagingState makeSomePagingState(ProtocolVersion protocolVersion)

@@ -343,7 +343,7 @@ public class AuthorizationProxyTest
     }
 
     @Test
-    public void rejectInvocationOfBlacklistedMethods() throws Throwable
+    public void rejectInvocationOfRestrictedMethods() throws Throwable
     {
         String[] methods = { "createMBean",
                              "deserialize",
@@ -441,7 +441,7 @@ public class AuthorizationProxyTest
         for (String method : methods)
             assertEquals(withPermission, proxy.authorize(subject(role1.getRoleName()), method, new Object[]{ null }));
 
-        // non-whitelisted methods should be rejected regardless.
+        // non-allowed methods should be rejected regardless.
         // This isn't exactly comprehensive, but it's better than nothing
         String[] notAllowed = { "fooMethod", "barMethod", "bazMethod" };
         for (String method : notAllowed)

@@ -125,18 +125,18 @@ public class RangeStreamer
     /**
      * Source filter which only includes endpoints contained within a provided set.
      */
-    public static class WhitelistedSourcesFilter implements ISourceFilter
+    public static class AllowedSourcesFilter implements ISourceFilter
     {
-        private final Set<InetAddress> whitelistedSources;
+        private final Set<InetAddress> allowedSources;
 
-        public WhitelistedSourcesFilter(Set<InetAddress> whitelistedSources)
+        public AllowedSourcesFilter(Set<InetAddress> allowedSources)
         {
-            this.whitelistedSources = whitelistedSources;
+            this.allowedSources = allowedSources;
         }
 
         public boolean shouldInclude(InetAddress endpoint)
         {
-            return whitelistedSources.contains(endpoint);
+            return allowedSources.contains(endpoint);
         }
     }
 
