@@ -49,7 +49,7 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Before
     public void setup()
     {
-        BlacklistedDirectories.clearUnwritableUnsafe();
+        DisallowedDirectories.clearUnwritableUnsafe();
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddress());
         createTable("create table %s (id int primary key, x text)");
@@ -69,12 +69,12 @@ public class DiskBoundaryManagerTest extends CQLTester
     }
 
     @Test
-    public void blackListTest()
+    public void disallowedDirectoriesTest()
     {
         DiskBoundaries dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(3, dbv.positions.size());
         assertEquals(dbv.directories, dirs.getWriteableLocations());
-        BlacklistedDirectories.maybeMarkUnwritable(new File("/tmp/3"));
+        DisallowedDirectories.maybeMarkUnwritable(new File("/tmp/3"));
         dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(2, dbv.positions.size());
         Assert.assertEquals(Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
