@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.dht.tokenallocator;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Queue;
-import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -153,10 +153,11 @@ final class TokenAllocatorDiagnostics
                                                       tokenInfo));
     }
 
-    static <Unit> void randomTokensGenerated(TokenAllocatorBase<Unit> allocator,
-                                             int numTokens, Queue<Weighted<UnitInfo>> sortedUnits,
-                                             NavigableMap<Token, Unit> sortedTokens, Unit newUnit,
-                                             Set<Token> tokens)
+    static <Unit> void splitsGenerated(TokenAllocatorBase<Unit> allocator,
+                                       int numTokens, Queue<Weighted<UnitInfo>> sortedUnits,
+                                       NavigableMap<Token, Unit> sortedTokens,
+                                       Unit newUnit,
+                                       Collection<Token> tokens)
     {
         if (isEnabled(TokenAllocatorEventType.RANDOM_TOKENS_GENERATED))
             service.publish(new TokenAllocatorEvent<>(TokenAllocatorEventType.RANDOM_TOKENS_GENERATED,
@@ -170,10 +171,10 @@ final class TokenAllocatorDiagnostics
                                                       null));
     }
 
-    static <Unit> void randomTokensGenerated(TokenAllocatorBase<Unit> allocator,
-                                             int numTokens, Multimap<Unit, Token> unitToTokens,
-                                             NavigableMap<Token, Unit> sortedTokens, Unit newUnit,
-                                             Set<Token> tokens)
+    static <Unit> void splitsGenerated(TokenAllocatorBase<Unit> allocator,
+                                       int numTokens, Multimap<Unit, Token> unitToTokens,
+                                       NavigableMap<Token, Unit> sortedTokens, Unit newUnit,
+                                       Collection<Token> tokens)
     {
         if (isEnabled(TokenAllocatorEventType.RANDOM_TOKENS_GENERATED))
             service.publish(new TokenAllocatorEvent<>(TokenAllocatorEventType.RANDOM_TOKENS_GENERATED,

@@ -523,12 +523,12 @@ abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocator
         SummaryStatistics unitStat = new SummaryStatistics();
         for (Map.Entry<Unit, Double> en : ownership.entrySet())
             unitStat.addValue(en.getValue() * inverseAverage / t.unitToTokens.get(en.getKey()).size());
-        su.update(unitStat);
+        su.update(unitStat, t.unitCount());
 
         SummaryStatistics tokenStat = new SummaryStatistics();
         for (Token tok : t.sortedTokens.keySet())
             tokenStat.addValue(replicatedTokenOwnership(tok, t.sortedTokens, t.strategy) * inverseAverage);
-        st.update(tokenStat);
+        st.update(tokenStat, t.unitCount());
 
         if (print)
         {

@@ -41,13 +41,6 @@ public class RandomReplicationAwareTokenAllocatorTest extends AbstractReplicatio
     @Test
     public void testNewClusterr()
     {
-        Util.flakyTest(this::flakyTestNewCluster,
-                       3,
-                       "It tends to fail sometimes due to the random selection of the tokens in the first few nodes.");
-    }
-
-    private void flakyTestNewCluster()
-    {
         testNewCluster(new RandomPartitioner(), MAX_VNODE_COUNT);
     }
 
