@@ -46,7 +46,7 @@ public class DiskBoundaryManager
     public DiskBoundaries getDiskBoundaries(ColumnFamilyStore cfs)
     {
         if (!cfs.getPartitioner().splitter().isPresent())
-            return new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(), BlacklistedDirectories.getDirectoriesVersion());
+            return new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(), DisallowedDirectories.getDirectoriesVersion());
         if (diskBoundaries == null || diskBoundaries.isOutOfDate())
         {
             synchronized (this)
@@ -101,10 +101,10 @@ public class DiskBoundaryManager
         Directories.DataDirectory[] dirs;
         do
         {
-            directoriesVersion = BlacklistedDirectories.getDirectoriesVersion();
+            directoriesVersion = DisallowedDirectories.getDirectoriesVersion();
             dirs = cfs.getDirectories().getWriteableLocations();
         }
-        while (directoriesVersion != BlacklistedDirectories.getDirectoriesVersion()); // if directoriesVersion has changed we need to recalculate
+        while (directoriesVersion != DisallowedDirectories.getDirectoriesVersion()); // if directoriesVersion has changed we need to recalculate
 
         if (localRanges == null || localRanges.isEmpty())
             return new DiskBoundaries(cfs, dirs, null, ringVersion, directoriesVersion);

@@ -48,13 +48,13 @@ import org.apache.cassandra.schema.*;
 
 import static org.junit.Assert.assertTrue;
 
-public class BlacklistingCompactionsTest
+public class CorruptedSSTablesCompactionsTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(BlacklistingCompactionsTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(CorruptedSSTablesCompactionsTest.class);
 
     private static Random random;
 
-    private static final String KEYSPACE1 = "BlacklistingCompactionsTest";
+    private static final String KEYSPACE1 = "CorruptedSSTablesCompactionsTest";
     private static final String STANDARD_STCS = "Standard_STCS";
     private static final String STANDARD_LCS = "Standard_LCS";
     private static int maxValueSize;
@@ -113,18 +113,19 @@ public class BlacklistingCompactionsTest
     }
 
     @Test
-    public void testBlacklistingWithSizeTieredCompactionStrategy() throws Exception
+    public void testCorruptedSSTablesWithSizeTieredCompactionStrategy() throws Exception
     {
-        testBlacklisting(STANDARD_STCS);
+        testCorruptedSSTables(STANDARD_STCS);
     }
 
     @Test
-    public void testBlacklistingWithLeveledCompactionStrategy() throws Exception
+    public void testCorruptedSSTablesWithLeveledCompactionStrategy() throws Exception
     {
-        testBlacklisting(STANDARD_LCS);
+        testCorruptedSSTables(STANDARD_LCS);
     }
 
-    private void testBlacklisting(String tableName) throws Exception
+
+    public void testCorruptedSSTables(String tableName) throws Exception
     {
         // this test does enough rows to force multiple block indexes to be used
         Keyspace keyspace = Keyspace.open(KEYSPACE1);

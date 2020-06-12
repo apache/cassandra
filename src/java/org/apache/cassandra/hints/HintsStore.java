@@ -52,7 +52,7 @@ final class HintsStore
 
     private final Map<HintsDescriptor, InputPosition> dispatchPositions;
     private final Deque<HintsDescriptor> dispatchDequeue;
-    private final Queue<HintsDescriptor> blacklistedFiles;
+    private final Queue<HintsDescriptor> corruptedFiles;
 
     // last timestamp used in a descriptor; make sure to not reuse the same timestamp for new descriptors.
     private volatile long lastUsedTimestamp;
@@ -66,7 +66,7 @@ final class HintsStore
 
         dispatchPositions = new ConcurrentHashMap<>();
         dispatchDequeue = new ConcurrentLinkedDeque<>(descriptors);
-        blacklistedFiles = new ConcurrentLinkedQueue<>();
+        corruptedFiles = new ConcurrentLinkedQueue<>();
 
         //noinspection resource
         lastUsedTimestamp = descriptors.stream().mapToLong(d -> d.timestamp).max().orElse(0L);
@@ -119,7 +119,7 @@ final class HintsStore
             delete(descriptor);
         }
 
-        while ((descriptor = blacklistedFiles.poll()) != null)
+        while ((descriptor = corruptedFiles.poll()) != null)
         {
             cleanUp(descriptor);
             delete(descriptor);
@@ -158,9 +158,9 @@ final class HintsStore
         dispatchPositions.remove(descriptor);
     }
 
-    void blacklist(HintsDescriptor descriptor)
+    void markCorrupted(HintsDescriptor descriptor)
     {
-        blacklistedFiles.add(descriptor);
+        corruptedFiles.add(descriptor);
     }
 
     /*

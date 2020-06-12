@@ -216,24 +216,24 @@ public class RangeStreamer
     /**
      * Source filter which only includes endpoints contained within a provided set.
      */
-    public static class WhitelistedSourcesFilter implements SourceFilter
+    public static class AllowedSourcesFilter implements SourceFilter
     {
-        private final Set<InetAddressAndPort> whitelistedSources;
+        private final Set<InetAddressAndPort> allowedSources;
 
-        public WhitelistedSourcesFilter(Set<InetAddressAndPort> whitelistedSources)
+        public AllowedSourcesFilter(Set<InetAddressAndPort> allowedSources)
         {
-            this.whitelistedSources = whitelistedSources;
+            this.allowedSources = allowedSources;
         }
 
         public boolean apply(Replica replica)
         {
-            return whitelistedSources.contains(replica.endpoint());
+            return allowedSources.contains(replica.endpoint());
         }
 
         @Override
         public String message(Replica replica)
         {
-            return "Filtered " + replica + " out because it was not whitelisted, whitelisted sources: " + whitelistedSources;
+            return "Filtered " + replica + " out because it was not in the allowed set: " + allowedSources;
         }
     }
 

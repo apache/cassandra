@@ -56,6 +56,7 @@ Merged from 3.0:
  * cqlsh return non-zero status when STDIN CQL fails (CASSANDRA-15623)
  * Don't skip sstables in slice queries based only on local min/max/deletion timestamp (CASSANDRA-15690)
 Merged from 2.2:
+ * Fix nomenclature of allow and deny lists (CASSANDRA-15862)
  * Remove generated files from source artifact (CASSANDRA-15849)
  * Remove duplicated tools binaries from tarballs (CASSANDRA-15768)
  * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)

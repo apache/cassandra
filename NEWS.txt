@@ -252,6 +252,14 @@ Upgrading
       break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
 
 
+Deprecation
+-----------
+
+    - The JMX MBean org.apache.cassandra.db:type=BlacklistedDirectories has been
+      deprecated in favor of org.apache.cassandra.db:type=DisallowedDirectories
+      and will be removed in a subsequent major version.
+
+
 Materialized Views
 -------------------
     - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
