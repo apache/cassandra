@@ -1,4 +1,5 @@
 3.11.7
+ * Upgrade Jackson to 2.9.10 (CASSANDRA-15867)
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
 Merged from 3.0:

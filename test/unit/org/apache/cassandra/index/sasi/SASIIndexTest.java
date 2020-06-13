@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -1187,13 +1188,12 @@ public class SASIIndexTest
         }});
         rm.apply();
 
-        store.forceBlockingFlush();
-
-        Set<String> rows = getIndexed(store, 10, buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("a")),
-                                                 buildExpression(age, Operator.GTE, Int32Type.instance.decompose(26)));
-
-        // index is expected to have 0 results because age value was of wrong type
-        Assert.assertEquals(0, rows.size());
+        try {
+            store.forceBlockingFlush();
+            Assert.fail("It was possible to insert data of wrong type into a column!");
+        } catch (final Throwable ex) {
+            Assert.assertTrue(ex.getMessage().endsWith("Expected exactly 4 bytes, but was 8"));
+        }
     }
 
 
