@@ -19,7 +19,7 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.*;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 
 import com.google.common.collect.Lists;
@@ -221,7 +221,7 @@ public class MetadataSerializer implements IMetadataSerializer
     }
 
     @Override
-    public void mutate(Descriptor descriptor, Function<StatsMetadata, StatsMetadata> transform) throws IOException
+    public void mutate(Descriptor descriptor, UnaryOperator<StatsMetadata> transform) throws IOException
     {
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);

@@ -24,6 +24,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
@@ -723,7 +724,7 @@ public class CompactionManager implements CompactionManagerMBean
      * the pending repair id and remove them from the transaction
      */
     private static void mutateFullyContainedSSTables(ColumnFamilyStore cfs,
-                                                     Refs<SSTableReader> refs,
+                                                     Refs<SSTableReader> validatedForRepair,
                                                      Iterator<SSTableReader> sstableIterator,
                                                      Collection<Range<Token>> ranges,
                                                      LifecycleTransaction txn,
@@ -737,12 +738,13 @@ public class CompactionManager implements CompactionManagerMBean
 
         Set<SSTableReader> fullyContainedSSTables = findSSTablesToAnticompact(sstableIterator, normalizedRanges, sessionID);
 
-        cfs.metric.bytesMutatedAnticompaction.inc(SSTableReader.getTotalBytes(fullyContainedSSTables));
-        cfs.getCompactionStrategyManager().mutateRepaired(fullyContainedSSTables, UNREPAIRED_SSTABLE, sessionID, isTransient);
-        // since we're just re-writing the sstable metdata for the fully contained sstables, we don't want
-        // them obsoleted when the anti-compaction is complete. So they're removed from the transaction here
-        txn.cancel(fullyContainedSSTables);
-        refs.release(fullyContainedSSTables);
+        UnaryOperator<StatsMetadata> transform = stats -> stats.mutateRepairedMetadata(UNREPAIRED_SSTABLE, sessionID, isTransient);
+        // split the fully contained sstables from orginal txn, so that it won't interfere with anti-compaction.
+        try (LifecycleTransaction split = txn.split(fullyContainedSSTables))
+        {
+            StatsMutationCompaction.performStatsMutationCompaction(cfs, split, transform);
+            validatedForRepair.release(fullyContainedSSTables);
+        }
     }
 
     /**
@@ -781,7 +783,6 @@ public class CompactionManager implements CompactionManagerMBean
             mutateFullyContainedSSTables(cfs, validatedForRepair, sstables.iterator(), replicas.onlyFull().ranges(), txn, sessionID, false);
             mutateFullyContainedSSTables(cfs, validatedForRepair, sstables.iterator(), replicas.onlyTransient().ranges(), txn, sessionID, true);
 
-            assert txn.originals().equals(sstables);
             if (!sstables.isEmpty())
                 doAntiCompaction(cfs, replicas, txn, sessionID, isCancelled);
             txn.finish();
@@ -1472,11 +1473,11 @@ public class CompactionManager implements CompactionManagerMBean
      * Splits up an sstable into two new sstables. The first of the new tables will store repaired ranges, the second
      * will store the non-repaired ranges. Once anticompation is completed, the original sstable is marked as compacted
      * and subsequently deleted.
-     * @param cfs
-     * @param txn a transaction over the repaired sstables to anticompact
+     * @param cfs table to be anti-compacted
      * @param ranges full and transient ranges to be placed into one of the new sstables. The repaired table will be tracked via
-     *   the {@link org.apache.cassandra.io.sstable.metadata.StatsMetadata#pendingRepair} field.
-     * @param sessionID the repair session we're anti-compacting for
+     *   the {@link StatsMetadata#pendingRepair} field.
+     * @param txn a transaction over the repaired sstables to anticompact
+     * @param pendingRepair the repair session we're anti-compacting for
      * @param isCancelled function that indicates if active anti-compaction should be canceled
      */
     private void doAntiCompaction(ColumnFamilyStore cfs,

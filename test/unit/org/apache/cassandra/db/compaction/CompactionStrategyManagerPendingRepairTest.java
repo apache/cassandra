@@ -20,9 +20,11 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -245,6 +247,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertTrue(pendingContains(sstable));
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(sstable.isRepaired());
+        Set<SSTableReader> before = cfs.getLiveSSTables();
 
         cfs.getCompactionStrategyManager().enable(); // enable compaction to fetch next background task
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
@@ -254,17 +257,22 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         // run the compaction
         compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
-        Assert.assertTrue(repairedContains(sstable));
-        Assert.assertFalse(unrepairedContains(sstable));
-        Assert.assertFalse(pendingContains(sstable));
+        // a new sstable is created when stats metadata is mutated
+        Assert.assertFalse(cfs.getLiveSSTables().contains(sstable));
+        SSTableReader compacted = Iterables.getOnlyElement(Sets.difference(cfs.getLiveSSTables(), before));
+        Assert.assertNotEquals(sstable, compacted);
+
+        Assert.assertTrue(repairedContains(compacted));
+        Assert.assertFalse(unrepairedContains(compacted));
+        Assert.assertFalse(pendingContains(compacted));
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertFalse(hasTransientStrategiesFor(repairID));
 
         // sstable should have pendingRepair cleared, and repairedAt set correctly
         long expectedRepairedAt = ActiveRepairService.instance.getParentRepairSession(repairID).repairedAt;
-        Assert.assertFalse(sstable.isPendingRepair());
-        Assert.assertTrue(sstable.isRepaired());
-        Assert.assertEquals(expectedRepairedAt, sstable.getSSTableMetadata().repairedAt);
+        Assert.assertFalse(compacted.isPendingRepair());
+        Assert.assertTrue(compacted.isRepaired());
+        Assert.assertEquals(expectedRepairedAt, compacted.getSSTableMetadata().repairedAt);
     }
 
     /**
@@ -286,6 +294,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertTrue(pendingContains(sstable));
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(sstable.isRepaired());
+        Set<SSTableReader> before = cfs.getLiveSSTables();
 
         cfs.getCompactionStrategyManager().enable(); // enable compaction to fetch next background task
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
@@ -295,15 +304,20 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         // run the compaction
         compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
-        Assert.assertFalse(repairedContains(sstable));
-        Assert.assertTrue(unrepairedContains(sstable));
+        // a new sstable is created when stats metadata is mutated
+        Assert.assertFalse(cfs.getLiveSSTables().contains(sstable));
+        SSTableReader compacted = Iterables.getOnlyElement(Sets.difference(cfs.getLiveSSTables(), before));
+        Assert.assertNotEquals(sstable, compacted);
+
+        Assert.assertFalse(repairedContains(compacted));
+        Assert.assertTrue(unrepairedContains(compacted));
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertFalse(hasTransientStrategiesFor(repairID));
 
         // sstable should have pendingRepair cleared, and repairedAt set correctly
-        Assert.assertFalse(sstable.isPendingRepair());
-        Assert.assertFalse(sstable.isRepaired());
-        Assert.assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getSSTableMetadata().repairedAt);
+        Assert.assertFalse(compacted.isPendingRepair());
+        Assert.assertFalse(compacted.isRepaired());
+        Assert.assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, compacted.getSSTableMetadata().repairedAt);
     }
 
     @Test
@@ -354,6 +368,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
+        Set<SSTableReader> before = cfs.getLiveSSTables();
 
         cfs.getCompactionStrategyManager().enable(); // enable compaction to fetch next background task
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
@@ -363,12 +378,17 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         // run the compaction
         compactionTask.execute(ActiveCompactionsTracker.NOOP);
 
+        // a new sstable is created when stats metadata is mutated
+        Assert.assertFalse(cfs.getLiveSSTables().contains(sstable));
+        SSTableReader compacted = Iterables.getOnlyElement(Sets.difference(cfs.getLiveSSTables(), before));
+        Assert.assertNotEquals(sstable, compacted);
+
         Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertFalse(hasTransientStrategiesFor(repairID));
-        Assert.assertFalse(transientContains(sstable));
-        Assert.assertFalse(pendingContains(sstable));
-        Assert.assertFalse(repairedContains(sstable));
-        Assert.assertTrue(unrepairedContains(sstable));
+        Assert.assertFalse(transientContains(compacted));
+        Assert.assertFalse(pendingContains(compacted));
+        Assert.assertFalse(repairedContains(compacted));
+        Assert.assertTrue(unrepairedContains(compacted));
     }
 }

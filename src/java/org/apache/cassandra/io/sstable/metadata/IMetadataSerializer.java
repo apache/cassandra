@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -65,14 +65,18 @@ public interface IMetadataSerializer
     /**
      * Mutate SSTable Metadata
      *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming.
+     *
      * @param descriptor SSTable descriptor
      * @param transform function to mutate sstable metadata
      * @throws IOException
      */
-    public void mutate(Descriptor descriptor, Function<StatsMetadata, StatsMetadata> transform) throws IOException;
+    public void mutate(Descriptor descriptor, UnaryOperator<StatsMetadata> transform) throws IOException;
 
     /**
      * Mutate SSTable level
+     *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming.
      *
      * @param descriptor SSTable descriptor
      * @param newLevel new SSTable level
@@ -81,7 +85,9 @@ public interface IMetadataSerializer
     void mutateLevel(Descriptor descriptor, int newLevel) throws IOException;
 
     /**
-     * Mutate the repairedAt time, pendingRepair ID, and transient status
+     * Mutate the repairedAt time, pendingRepair ID, and transient status.
+     *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming.
      */
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException;
 

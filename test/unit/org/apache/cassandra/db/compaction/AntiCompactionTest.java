@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -73,6 +72,7 @@ import static org.apache.cassandra.Util.assertOnDiskState;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -372,7 +372,7 @@ public class AntiCompactionTest
     {
         ColumnFamilyStore store = prepareColumnFamilyStore();
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
-        assertEquals(store.getLiveSSTables().size(), sstables.size());
+        assertEquals(store.getLiveSSTables(), sstables);
         // the sstables start at "0".getBytes() = 48, we need to include that first token, with "/".getBytes() = 47
         Range<Token> range = new Range<Token>(new BytesToken("/".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
@@ -385,6 +385,7 @@ public class AntiCompactionTest
             CompactionManager.instance.performAnticompaction(store, atEndpoint(ranges, NO_RANGES), refs, txn, pendingRepair, () -> false);
         }
 
+        assertNotEquals(store.getLiveSSTables(), sstables);
         assertThat(store.getLiveSSTables().size(), is(1));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isRepaired(), is(false));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isPendingRepair(), is(true));

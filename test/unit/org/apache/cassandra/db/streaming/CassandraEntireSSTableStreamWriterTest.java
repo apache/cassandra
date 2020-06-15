@@ -24,7 +24,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 
+import com.google.common.collect.Iterables;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -40,14 +44,21 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.StatsMutationCompaction;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
+import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.DefaultConnectionFactory;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionInfo;
@@ -60,8 +71,10 @@ import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class CassandraEntireSSTableStreamWriterTest
@@ -72,6 +85,8 @@ public class CassandraEntireSSTableStreamWriterTest
     public static final String CF_STANDARDLOWINDEXINTERVAL = "StandardLowIndexInterval";
 
     private static SSTableReader sstable;
+    private static Descriptor descriptor;
+    private static Ref<SSTableReader> ref;
     private static ColumnFamilyStore store;
 
     @BeforeClass
@@ -104,6 +119,22 @@ public class CassandraEntireSSTableStreamWriterTest
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();
+        descriptor = sstable.descriptor;
+        // avoid sstable being removed by stats mutation compaction
+        ref = sstable.ref();
+    }
+
+    @After
+    public void reset() throws IOException
+    {
+        // reset repair info to avoid test interfering each other
+        descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, 0, ActiveRepairService.NO_PENDING_REPAIR, false);
+    }
+
+    @AfterClass
+    public static void teardown()
+    {
+        ref.release();
     }
 
     @Test
@@ -125,10 +156,56 @@ public class CassandraEntireSSTableStreamWriterTest
     @Test
     public void testBlockReadingAndWritingOverWire() throws Exception
     {
+        testBlockReadingAndWritingOverWire(null);
+    }
+
+    /**
+     * Entire-sstable-streaming receiver throws checksum validation failure because concurrent stats metadata modification
+     * cause the actual transfered file size to be different from the one in {@link ComponentManifest}
+     */
+    @Test(expected = CorruptSSTableException.class)
+    public void testBlockReadingAndWritingOverWireWithDirectStatsMutation() throws Exception
+    {
+        testBlockReadingAndWritingOverWire(() -> {
+
+            long before = descriptor.fileFor(Component.STATS).length();
+            descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, 0, UUID.randomUUID(), false);
+
+            long after = sstable.descriptor.fileFor(Component.STATS).length();
+            assertNotEquals(before, after);
+
+            return null;
+        });
+    }
+
+    @Test
+    public void testBlockReadingAndWritingOverWireWithStatsMutationCompaction() throws Exception
+    {
+        testBlockReadingAndWritingOverWire(() -> {
+
+            long before = descriptor.fileFor(Component.STATS).length();
+            try (LifecycleTransaction txn = store.getTracker().tryModify(sstable, OperationType.ANTICOMPACTION))
+            {
+                StatsMutationCompaction.performStatsMutationCompaction(store, txn, stats -> stats.mutateRepairedMetadata(0, UUID.randomUUID(), false));
+            }
+            long after = Iterables.getOnlyElement(store.getLiveSSTables()).descriptor.fileFor(Component.STATS).length();
+            assertNotEquals(before, after);
+
+            return null;
+        });
+    }
+
+    public void testBlockReadingAndWritingOverWire(Callable<?> concurrentStatsMutation) throws Exception
+    {
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
+        ComponentManifest manifest = CassandraOutgoingFile.getComponentManifest(sstable);
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, manifest);
+
+        // stats metadata may get modified after manifest is sent to receiver.
+        if (concurrentStatsMutation != null)
+            concurrentStatsMutation.call();
 
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
@@ -147,7 +224,7 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withEstimatedKeys(sstable.estimatedKeys())
                                  .withSections(Collections.emptyList())
                                  .withSerializationHeader(sstable.header.toComponent())
-                                 .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                 .withComponentManifest(manifest)
                                  .isEntireSSTable(true)
                                  .withFirstKey(sstable.first)
                                  .withTableId(sstable.metadata().id)

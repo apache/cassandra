@@ -119,6 +119,11 @@ public class Descriptor
         return baseFilename() + separator + component.name();
     }
 
+    public File fileFor(Component component)
+    {
+        return new File(filenameFor(component));
+    }
+
     public String baseFilename()
     {
         StringBuilder buff = new StringBuilder();

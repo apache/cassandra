@@ -71,26 +71,25 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
         if (level == metadataBefore.sstableLevel)
         {
             logger.info("Not compacting {}, level is already {}", sstable, level);
+            cancelTransaction(sstable);
         }
         else
         {
             try
             {
                 logger.info("Changing level on {} from {} to {}", sstable, metadataBefore.sstableLevel, level);
-                sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, level);
-                sstable.reloadSSTableMetadata();
+                // even though mutating level didn't change stats file length, aka. won't affect entire-sstable-streaming,
+                // but it's good to make stats file immutable.
+                StatsMutationCompaction.performStatsMutationCompaction(cfs, transaction, stats -> stats.mutateLevel(level));
             }
             catch (Throwable t)
             {
-                transaction.abort();
                 throw new CorruptSSTableException(t, sstable.descriptor.filenameFor(Component.DATA));
             }
-            cfs.getTracker().notifySSTableMetadataChanged(sstable, metadataBefore);
         }
-        finishTransaction(sstable);
     }
 
-    private void finishTransaction(SSTableReader sstable)
+    private void cancelTransaction(SSTableReader sstable)
     {
         // we simply cancel the transaction since no sstables are added or removed - we just
         // write a new sstable metadata above and then atomically move the new file on top of the old

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,12 +33,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.dht.IPartitioner;
@@ -53,7 +57,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -61,12 +67,29 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class CancelCompactionsTest extends CQLTester
 {
+    private static final String KEYSPACE1 = "CancelCompactionsTest";
+    private static final String CF = "CancelCompactionsTest";
+
+    private static TableMetadata metadata;
+    private static ColumnFamilyStore table;
+
+    @BeforeClass
+    public static void defineSchema()
+    {
+        SchemaLoader.prepareServer();
+        metadata = SchemaLoader.standardCFMD(KEYSPACE1, CF).build();
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), metadata);
+        table = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        table.disableAutoCompaction();
+    }
+
     /**
      * makes sure we only cancel compactions if the precidate says we have overlapping sstables
      */
@@ -228,44 +251,46 @@ public class CancelCompactionsTest extends CQLTester
         }
     }
 
+    /**
+     * cannot use mock sstable as {@link StatsMutationCompaction} needs to open valid sstable.
+     */
     @Test
     public void testAnticompaction() throws InterruptedException, ExecutionException
     {
-        ColumnFamilyStore cfs = MockSchema.newCFS();
-        List<SSTableReader> sstables = createSSTables(cfs, 10, 0);
-        List<SSTableReader> alreadyRepairedSSTables = createSSTables(cfs, 10, 10);
+        List<SSTableReader> sstables = generateSStable(10);
+        List<SSTableReader> alreadyRepairedSSTables = generateSStable(10);
         for (SSTableReader sstable : alreadyRepairedSSTables)
             AbstractPendingRepairTest.mutateRepaired(sstable, System.currentTimeMillis());
-        assertEquals(20, cfs.getLiveSSTables().size());
+        assertEquals(20, table.getLiveSSTables().size());
         List<TestCompactionTask> tcts = new ArrayList<>();
-        tcts.add(new TestCompactionTask(cfs, new HashSet<>(sstables.subList(0, 2))));
-        tcts.add(new TestCompactionTask(cfs, new HashSet<>(sstables.subList(3, 4))));
-        tcts.add(new TestCompactionTask(cfs, new HashSet<>(sstables.subList(5, 7))));
-        tcts.add(new TestCompactionTask(cfs, new HashSet<>(sstables.subList(8, 9))));
+        tcts.add(new TestCompactionTask(table, new HashSet<>(sstables.subList(0, 2))));
+        tcts.add(new TestCompactionTask(table, new HashSet<>(sstables.subList(3, 4))));
+        tcts.add(new TestCompactionTask(table, new HashSet<>(sstables.subList(5, 7))));
+        tcts.add(new TestCompactionTask(table, new HashSet<>(sstables.subList(8, 9))));
 
         List<TestCompactionTask> nonAffectedTcts = new ArrayList<>();
-        nonAffectedTcts.add(new TestCompactionTask(cfs, new HashSet<>(alreadyRepairedSSTables)));
+        nonAffectedTcts.add(new TestCompactionTask(table, new HashSet<>(alreadyRepairedSSTables)));
 
         try
         {
             tcts.forEach(TestCompactionTask::start);
             nonAffectedTcts.forEach(TestCompactionTask::start);
-            List<CompactionInfo.Holder> activeCompactions = getActiveCompactionsForTable(cfs);
+            List<CompactionInfo.Holder> activeCompactions = getActiveCompactionsForTable(table);
             assertEquals(5, activeCompactions.size());
-            // make sure that sstables are fully contained so that the metadata gets mutated
-            Range<Token> range = new Range<>(token(-1), token(49));
+            // make sure that sstables are fully contained (sstables 0,1 and 3) so that the metadata gets mutated
+            Range<Token> range = new Range<>(sstables.get(0).first.getToken(), sstables.get(4).last.getToken());
 
             UUID prsid = UUID.randomUUID();
-            ActiveRepairService.instance.registerParentRepairSession(prsid, InetAddressAndPort.getLocalHost(), Collections.singletonList(cfs), Collections.singleton(range), true, 1, true, PreviewKind.NONE);
+            ActiveRepairService.instance.registerParentRepairSession(prsid, InetAddressAndPort.getLocalHost(), Collections.singletonList(table), Collections.singleton(range), true, 1, true, PreviewKind.NONE);
 
             InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
             RangesAtEndpoint rae = RangesAtEndpoint.builder(local).add(new Replica(local, range, true)).build();
 
-            PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs), rae, Executors.newSingleThreadExecutor(), () -> false);
+            PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(table), rae, Executors.newSingleThreadExecutor(), () -> false);
             Future<?> fut = pac.run();
             Thread.sleep(600);
             List<TestCompactionTask> toAbort = new ArrayList<>();
-            for (CompactionInfo.Holder holder : getActiveCompactionsForTable(cfs))
+            for (CompactionInfo.Holder holder : getActiveCompactionsForTable(table))
             {
                 if (holder.getCompactionInfo().getSSTables().stream().anyMatch(sstable -> sstable.intersects(Collections.singleton(range)) && !sstable.isRepaired() && !sstable.isPendingRepair()))
                 {
@@ -281,7 +306,25 @@ public class CancelCompactionsTest extends CQLTester
             toAbort.forEach(TestCompactionTask::abort);
             fut.get();
             for (SSTableReader sstable : sstables)
-                assertTrue(!sstable.intersects(Collections.singleton(range)) || sstable.isPendingRepair());
+            {
+                // sstable should stay immutable
+                assertFalse(sstable.isPendingRepair());
+                // if sstable is fully contained, it must be removed and new sstable is created.
+                if (sstable.intersects(Collections.singleton(range)))
+                    assertFalse(table.getLiveSSTables().contains(sstable));
+            }
+
+            // anti-compacted sstables should have pending repair info
+            List<SSTableReader> antiCompacted = table.getLiveSSTables().stream()
+                                                     .filter(s -> !sstables.contains(s) && !alreadyRepairedSSTables.contains(s))
+                                                     .collect(Collectors.toList());
+
+            assertNotEquals(0, antiCompacted.size());
+            for (SSTableReader sstable : antiCompacted)
+            {
+                assertTrue(sstable.intersects(Collections.singleton(range)));
+                assertTrue(sstable.isPendingRepair());
+            }
         }
         finally
         {
@@ -527,5 +570,28 @@ public class CancelCompactionsTest extends CQLTester
                                                 .stream()
                                                 .filter(holder -> holder.getCompactionInfo().getTable().orElse("unknown").equalsIgnoreCase(cfs.name))
                                                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Generate given num of sstables sorted by token
+     */
+    public static List<SSTableReader> generateSStable(int num)
+    {
+        Set<SSTableReader> before = table.getLiveSSTables();
+        for (int i = 0; i < num; i++)
+        {
+            new RowUpdateBuilder(metadata, System.currentTimeMillis(), Integer.toString(i))
+            .clustering("c")
+            .add("val", "val")
+            .build().applyUnsafe();
+
+            table.forceBlockingFlush();
+        }
+
+        List<SSTableReader> flushed = new ArrayList<>(Sets.difference(table.getLiveSSTables(), before));
+        flushed.sort(Comparator.comparing(s -> s.first));
+        assertEquals(num, flushed.size());
+
+        return flushed;
     }
 }

@@ -350,6 +350,14 @@ public abstract class SSTable
         components.addAll(componentsToAdd);
     }
 
+    /**
+     * @return all components attached to the sstable
+     */
+    public Set<Component> components()
+    {
+        return Collections.unmodifiableSet(components);
+    }
+
     public AbstractBounds<Token> getBounds()
     {
         return AbstractBounds.bounds(first.getToken(), true, last.getToken(), true);

@@ -1190,7 +1190,10 @@ public class CompactionStrategyManager implements INotificationConsumer
     /**
      * Mutates sstable repairedAt times and notifies listeners of the change with the writeLock held. Prevents races
      * with other processes between when the metadata is changed and when sstables are moved between strategies.
-      */
+     *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming.
+     */
+    @VisibleForTesting
     public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, UUID pendingRepair, boolean isTransient) throws IOException
     {
         Set<SSTableReader> changed = new HashSet<>();

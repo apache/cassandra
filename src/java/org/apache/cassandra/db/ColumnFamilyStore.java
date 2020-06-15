@@ -715,7 +715,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return sstableImporter.importNewSSTables(options);
     }
 
-    Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
+    public Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
     {
         Descriptor newDescriptor;
         do
