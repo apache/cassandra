@@ -41,9 +41,11 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
+import org.apache.cassandra.db.streaming.ComponentManifest;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -60,6 +62,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class EntireSSTableStreamingCorrectFilesCountTest
@@ -123,11 +126,16 @@ public class EntireSSTableStreamingCorrectFilesCountTest
         DataOutputStreamPlus out = constructDataOutputStream();
 
         for (OutgoingStream outgoingStream : outgoingStreams)
+        {
             outgoingStream.write(session, out, MessagingService.VERSION_40);
+            // verify hardlinks are removed after streaming
+            Descriptor descriptor = ((CassandraOutgoingFile) outgoingStream).getRef().get().descriptor;
+            assertTrue(descriptor.getTemporaryFiles().isEmpty());
+        }
 
         int totalNumberOfFiles = session.transfers.get(store.metadata.id).getTotalNumberOfFiles();
 
-        assertEquals(CassandraOutgoingFile.getComponentManifest(sstable).components().size(), totalNumberOfFiles);
+        assertEquals(ComponentManifest.create(sstable, false).components().size(), totalNumberOfFiles);
         assertEquals(streamEventHandler.fileNames.size(), totalNumberOfFiles);
     }
 

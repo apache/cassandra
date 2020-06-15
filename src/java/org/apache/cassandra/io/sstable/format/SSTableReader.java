@@ -26,6 +26,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.UnaryOperator;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -1002,7 +1004,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (summariesFile.exists())
             FileUtils.deleteWithConfirm(summariesFile);
 
-        try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile));)
+        try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile)))
         {
             IndexSummary.serializer.serialize(summary, oStream);
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
@@ -1040,6 +1042,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 FileUtils.deleteWithConfirm(filterFile);
         }
 
+    }
+
+    /**
+     * Execute provided task with sstable lock to avoid racing with index summary redistribution, SEE CASSANDRA-15861.
+     *
+     * @param task to be guarded by sstable lock
+     */
+    public <R> R runWithReadLock(CheckedFunction<Descriptor, R, IOException> task) throws IOException
+    {
+        return tidy.global.runWithReadLock(task);
     }
 
     public void setReplaced()
@@ -1232,9 +1244,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         "no adjustments to min/max_index_interval");
             }
 
-            // Always save the resampled index
-            saveSummary(newSummary);
-
+            // Always save the resampled index with write lock to avoid racing with entire-sstable streaming
+            tidy.global.runWithWriteLock((desc) -> {
+                saveSummary(newSummary);
+                return null;
+            });
             return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
         }
     }
@@ -2068,6 +2082,30 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     /**
+     * Mutate sstable level with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
+     */
+    public void mutateAndReloadStats(int newLevel) throws IOException
+    {
+        tidy.global.runWithWriteLock((descriptor) -> {
+            descriptor.getMetadataSerializer().mutateLevel(descriptor, newLevel);
+            reloadSSTableMetadata();
+            return null;
+        });
+    }
+
+    /**
+     * Mutate sstable repair metadata with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
+     */
+    public void mutateAndReloadStats(long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
+    {
+        tidy.global.runWithWriteLock((descriptor) -> {
+            descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, newRepairedAt, newPendingRepair, isTransient);
+            reloadSSTableMetadata();
+            return null;
+        });
+    }
+
+    /**
      * Reloads the sstable metadata from disk.
      *
      * Called after level is changed on sstable, for example if the sstable is dropped to L0
@@ -2334,6 +2372,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // shared state managing if the logical sstable has been compacted; this is used in cleanup
         private volatile Runnable obsoletion;
 
+        // used to guard entire-sstable-streaming and concurrent logical sstable component mutations.
+        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+        private final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+        private final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+
         GlobalTidy(final SSTableReader reader)
         {
             this.desc = reader.descriptor;
@@ -2413,6 +2456,42 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 throw new AssertionError();
             }
             return refc;
+        }
+
+        /**
+         * Execute provided task with sstable lock to avoid racing with entire-sstable-streaming, SEE CASSANDRA-15861.
+         *
+         * @param task to be guarded by sstable lock
+         */
+        public <R> R runWithWriteLock(CheckedFunction<Descriptor, R, IOException> task) throws IOException
+        {
+            this.writeLock.lock();
+            try
+            {
+                return task.apply(desc);
+            }
+            finally
+            {
+                this.writeLock.unlock();
+            }
+        }
+
+        /**
+         * Execute provided task with sstable lock to avoid racing with index summary redistribution, SEE CASSANDRA-15861.
+         *
+         * @param task to be guarded by sstable lock
+         */
+        public <R> R runWithReadLock(CheckedFunction<Descriptor, R, IOException> task) throws IOException
+        {
+            this.readLock.lock();
+            try
+            {
+                return task.apply(desc);
+            }
+            finally
+            {
+                this.readLock.unlock();
+            }
         }
     }
 

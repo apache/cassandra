@@ -42,10 +42,10 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamReader;
 import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamWriter;
-import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.db.streaming.CassandraStreamWriter;
+import org.apache.cassandra.db.streaming.ComponentManifest;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -119,7 +119,7 @@ public class ZeroCopyStreamingBenchmark
 
             sstable = store.getLiveSSTables().iterator().next();
             session = setupStreamingSessionForTest();
-            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, ComponentManifest.create(sstable, false));
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
             AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(blockStreamCaptureChannel);
@@ -137,7 +137,7 @@ public class ZeroCopyStreamingBenchmark
                                      .withEstimatedKeys(sstable.estimatedKeys())
                                      .withSections(Collections.emptyList())
                                      .withSerializationHeader(sstable.header.toComponent())
-                                     .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                     .withComponentManifest(ComponentManifest.create(sstable, false))
                                      .isEntireSSTable(true)
                                      .withFirstKey(sstable.first)
                                      .withTableId(sstable.metadata().id)

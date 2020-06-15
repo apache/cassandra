@@ -119,6 +119,11 @@ public class CassandraStreamHeader
             for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
                 transferSize += chunk.length + 4; // 4 bytes for CRC
         }
+        // Delay the creation of compressionInfo at sender to reduce GC pressure, see CASSANDRA-10680.
+        else if (compressionMetadata != null)
+        {
+            transferSize = compressionMetadata.getTotalSizeForSections(sections);
+        }
         else
         {
             for (SSTableReader.PartitionPositionBounds section : sections)

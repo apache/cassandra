@@ -164,8 +164,7 @@ public class LeveledManifest
             try
             {
                 logger.debug("Could not add sstable {} in level {} - dropping to 0", reader, reader.getSSTableLevel());
-                reader.descriptor.getMetadataSerializer().mutateLevel(reader.descriptor, 0);
-                reader.reloadSSTableMetadata();
+                reader.mutateAndReloadStats(0);
             }
             catch (IOException e)
             {
@@ -281,8 +280,7 @@ public class LeveledManifest
         remove(sstable);
         try
         {
-            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 0);
-            sstable.reloadSSTableMetadata();
+            sstable.mutateAndReloadStats(0);
             add(sstable);
         }
         catch (IOException e)

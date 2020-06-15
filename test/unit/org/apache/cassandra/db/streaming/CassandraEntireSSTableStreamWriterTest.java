@@ -63,7 +63,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class CassandraEntireSSTableStreamWriterTest
 {
@@ -112,15 +111,17 @@ public class CassandraEntireSSTableStreamWriterTest
     {
         StreamSession session = setupStreamingSessionForTest();
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, ComponentManifest.create(sstable, false));
 
         EmbeddedChannel channel = new EmbeddedChannel();
-        AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
-        writer.write(out);
+        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
+        {
+            writer.write(out);
 
-        Queue msgs = channel.outboundMessages();
+            Queue msgs = channel.outboundMessages();
 
-        assertTrue(msgs.peek() instanceof DefaultFileRegion);
+            assertTrue(msgs.peek() instanceof DefaultFileRegion);
+        }
     }
 
     @Test
@@ -129,18 +130,18 @@ public class CassandraEntireSSTableStreamWriterTest
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, ComponentManifest.create(sstable, false));
 
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
-        AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
+        {
+            writer.write(out);
 
-        writer.write(out);
+            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
 
-        session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
-
-        CassandraStreamHeader header =
+            CassandraStreamHeader header =
             CassandraStreamHeader.builder()
                                  .withSSTableFormat(sstable.descriptor.formatType)
                                  .withSSTableVersion(sstable.descriptor.version)
@@ -148,18 +149,19 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withEstimatedKeys(sstable.estimatedKeys())
                                  .withSections(Collections.emptyList())
                                  .withSerializationHeader(sstable.header.toComponent())
-                                 .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                 .withComponentManifest(ComponentManifest.create(sstable, false))
                                  .isEntireSSTable(true)
                                  .withFirstKey(sstable.first)
                                  .withTableId(sstable.metadata().id)
                                  .build();
 
-        CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null), header, session);
+            CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null), header, session);
 
-        SSTableMultiWriter sstableWriter = reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
-        Collection<SSTableReader> newSstables = sstableWriter.finished();
+            SSTableMultiWriter sstableWriter = reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
+            Collection<SSTableReader> newSstables = sstableWriter.finished();
 
-        assertEquals(1, newSstables.size());
+            assertEquals(1, newSstables.size());
+        }
     }
 
     private EmbeddedChannel createMockNettyChannel(ByteBuf serializedFile) throws Exception

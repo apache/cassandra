@@ -76,11 +76,8 @@ public class CassandraEntireSSTableStreamWriter
 
         for (Component component : manifest.components())
         {
-            @SuppressWarnings("resource") // this is closed after the file is transferred by AsyncChannelOutputPlus
-            FileChannel in = new RandomAccessFile(sstable.descriptor.filenameFor(component), "r").getChannel();
-
             // Total Length to transmit for this file
-            long length = in.size();
+            long length = manifest.sizeOf(component);
 
             // tracks write progress
             logger.debug("[Stream #{}] Streaming {}.{} gen {} component {} size {}", session.planId(),
@@ -90,7 +87,9 @@ public class CassandraEntireSSTableStreamWriter
                          component,
                          prettyPrintMemory(length));
 
-            long bytesWritten = out.writeFileToChannel(in, limiter);
+            @SuppressWarnings("resource") // this is closed after the file is transferred by AsyncChannelOutputPlus
+            FileChannel channel = manifest.channel(sstable.descriptor, component);
+            long bytesWritten = out.writeFileToChannel(channel, limiter);
             progress += bytesWritten;
 
             session.progress(sstable.descriptor.filenameFor(component), ProgressInfo.Direction.OUT, bytesWritten, length);
