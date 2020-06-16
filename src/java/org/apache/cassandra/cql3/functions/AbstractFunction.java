@@ -127,12 +127,12 @@ public abstract class AbstractFunction implements Function
                               .toString();
     }
 
-    public String getElementKeyspace()
+    public String elementKeyspace()
     {
         return name.keyspace;
     }
 
-    public String getElementName()
+    public String elementName()
     {
         return new CqlBuilder().append(name.name)
                                .append('(')

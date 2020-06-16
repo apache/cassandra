@@ -204,19 +204,19 @@ public final class ViewMetadata implements SchemaElement
     }
 
     @Override
-    public SchemaElementType getElementType()
+    public SchemaElementType elementType()
     {
         return SchemaElementType.MATERIALIZED_VIEW;
     }
 
     @Override
-    public String getElementKeyspace()
+    public String elementKeyspace()
     {
         return keyspace();
     }
 
     @Override
-    public String getElementName()
+    public String elementName()
     {
         return name();
     }

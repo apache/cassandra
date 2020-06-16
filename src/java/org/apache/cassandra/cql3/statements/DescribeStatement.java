@@ -343,8 +343,13 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         try (DataInputBuffer in = new DataInputBuffer(pagingState.partitionKey, false))
         {
             checkTrue(in.readShort() == PAGING_STATE_VERSION, "Incompatible paging state");
-            checkTrue(in.readUTF().equals(FBUtilities.getReleaseVersionString()),
-                      "The server version of the paging state is different from the one of the server");
+
+            final String pagingStateServerVersion = in.readUTF();
+            final String releaseVersion = FBUtilities.getReleaseVersionString();
+            checkTrue(pagingStateServerVersion.equals(releaseVersion),
+                      "The server version of the paging state %s is different from the one of the server %s",
+                      pagingStateServerVersion,
+                      releaseVersion);
 
             byte[] bytes = new byte[UUIDGen.UUID_LEN];
             in.read(bytes);
@@ -406,9 +411,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         @Override
         protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
         {
-            return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
-                                    bytes(element.getElementType().toString()),
-                                    bytes(element.getElementNameQuotedIfNeeded()));
+            return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
+                                    bytes(element.elementType().toString()),
+                                    bytes(element.elementNameQuotedIfNeeded()));
         }
     }
 
@@ -466,9 +471,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             @Override
             protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
             {
-                return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
-                                        bytes(element.getElementType().toString()),
-                                        bytes(element.getElementNameQuotedIfNeeded()));
+                return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
+                                        bytes(element.elementType().toString()),
+                                        bytes(element.elementNameQuotedIfNeeded()));
             }
         };
     }
@@ -498,9 +503,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             @Override
             protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
             {
-                return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
-                                        bytes(element.getElementType().toString()),
-                                        bytes(element.getElementNameQuotedIfNeeded()),
+                return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
+                                        bytes(element.elementType().toString()),
+                                        bytes(element.elementNameQuotedIfNeeded()),
                                         bytes(element.toCqlString(withInternals)));
             }
         };
@@ -548,9 +553,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         @Override
         protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
         {
-            return ImmutableList.of(bytes(element.getElementKeyspaceQuotedIfNeeded()),
-                                    bytes(element.getElementType().toString()),
-                                    bytes(element.getElementNameQuotedIfNeeded()),
+            return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
+                                    bytes(element.elementType().toString()),
+                                    bytes(element.elementNameQuotedIfNeeded()),
                                     bytes(element.toCqlString(withInternals)));
         }
     }
@@ -683,19 +688,19 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         return new SchemaElement()
                 {
                     @Override
-                    public SchemaElementType getElementType()
+                    public SchemaElementType elementType()
                     {
                         return SchemaElementType.INDEX;
                     }
 
                     @Override
-                    public String getElementKeyspace()
+                    public String elementKeyspace()
                     {
                         return table.keyspace;
                     }
 
                     @Override
-                    public String getElementName()
+                    public String elementName()
                     {
                         return index.name;
                     }
@@ -778,6 +783,26 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     {
         return new DescribeStatement<List<Object>>()
         {
+            /**
+             * The column index of the cluster name
+             */
+            private static final int CLUSTER_NAME_INDEX = 0;
+
+            /**
+             * The column index of the partitioner name
+             */
+            private static final int PARTITIONER_NAME_INDEX = 1;
+
+            /**
+             * The column index of the snitch class
+             */
+            private static final int SNITCH_CLASS_INDEX = 2;
+
+            /**
+             * The range ownerships index
+             */
+            private static final int RANGE_OWNERSHIPS_INDEX = 3;
+
             @Override
             protected Stream<List<Object>> describe(ClientState state, Keyspaces keyspaces)
             {
@@ -828,9 +853,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             {
                 ImmutableList.Builder<ByteBuffer> builder = ImmutableList.builder(); 
 
-                builder.add(UTF8Type.instance.decompose((String) elements.get(0)),
-                            UTF8Type.instance.decompose((String) elements.get(1)),
-                            UTF8Type.instance.decompose((String) elements.get(2)));
+                builder.add(UTF8Type.instance.decompose((String) elements.get(CLUSTER_NAME_INDEX)),
+                            UTF8Type.instance.decompose((String) elements.get(PARTITIONER_NAME_INDEX)),
+                            UTF8Type.instance.decompose((String) elements.get(SNITCH_CLASS_INDEX)));
 
                 if (elements.size() > 3)
                 {
@@ -838,7 +863,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                                                                                            ListType.getInstance(UTF8Type.instance, false),
                                                                                            false);
 
-                    builder.add(rangeOwnershipType.decompose((Map<String, List<String>>) elements.get(3)));
+                    builder.add(rangeOwnershipType.decompose((Map<String, List<String>>) elements.get(RANGE_OWNERSHIPS_INDEX)));
                 }
 
                 return builder.build();

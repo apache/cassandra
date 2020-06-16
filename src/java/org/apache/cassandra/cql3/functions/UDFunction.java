@@ -303,7 +303,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     }
 
     @Override
-    public SchemaElementType getElementType()
+    public SchemaElementType elementType()
     {
         return SchemaElementType.FUNCTION;
     }

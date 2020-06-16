@@ -20,8 +20,6 @@ package org.apache.cassandra.cql3;
 import java.util.Comparator;
 import java.util.Locale;
 
-import org.apache.cassandra.cql3.SchemaElement.SchemaElementType;
-
 /**
  * A schema element (keyspace, udt, udf, uda, table, index, view).
  */
@@ -30,7 +28,7 @@ public interface SchemaElement
     /**
      * Comparator used to sort {@code Describable} name.
      */
-    Comparator<SchemaElement> NAME_COMPARATOR = (o1, o2) -> o1.getElementName().compareToIgnoreCase(o2.getElementName());
+    Comparator<SchemaElement> NAME_COMPARATOR = (o1, o2) -> o1.elementName().compareToIgnoreCase(o2.elementName());
 
     enum SchemaElementType
     {
@@ -54,27 +52,27 @@ public interface SchemaElement
      *
      * @return the schema element type
      */
-    SchemaElementType getElementType();
+    SchemaElementType elementType();
 
     /**
      * Returns the CQL name of the keyspace to which this schema element belong.
      *
      * @return the keyspace name.
      */
-    String getElementKeyspace();
+    String elementKeyspace();
 
     /**
      * Returns the CQL name of this schema element.
      *
      * @return the name of this schema element.
      */
-    String getElementName();
+    String elementName();
 
-    default String getElementNameQuotedIfNeeded()
+    default String elementNameQuotedIfNeeded()
     {
-        String name = getElementName();
-        if (getElementType() == SchemaElementType.FUNCTION
-                || getElementType() == SchemaElementType.AGGREGATE)
+        String name = elementName();
+        if (elementType() == SchemaElementType.FUNCTION
+                || elementType() == SchemaElementType.AGGREGATE)
         {
             int index = name.indexOf('(');
             return ColumnIdentifier.maybeQuote(name.substring(0, index)) + name.substring(index);
@@ -83,9 +81,9 @@ public interface SchemaElement
         return ColumnIdentifier.maybeQuote(name);
     }
 
-    default String getElementKeyspaceQuotedIfNeeded()
+    default String elementKeyspaceQuotedIfNeeded()
     {
-        return ColumnIdentifier.maybeQuote(getElementKeyspace());
+        return ColumnIdentifier.maybeQuote(elementKeyspace());
     }
 
     /**

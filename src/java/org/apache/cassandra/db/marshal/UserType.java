@@ -444,19 +444,19 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
-    public SchemaElementType getElementType()
+    public SchemaElementType elementType()
     {
         return SchemaElementType.TYPE;
     }
 
     @Override
-    public String getElementKeyspace()
+    public String elementKeyspace()
     {
         return keyspace;
     }
 
     @Override
-    public String getElementName()
+    public String elementName()
     {
         return getNameAsString();
     }

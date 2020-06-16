@@ -233,19 +233,19 @@ public final class KeyspaceMetadata implements SchemaElement
     }
 
     @Override
-    public SchemaElementType getElementType()
+    public SchemaElementType elementType()
     {
         return SchemaElementType.KEYSPACE;
     }
 
     @Override
-    public String getElementKeyspace()
+    public String elementKeyspace()
     {
         return name;
     }
 
     @Override
-    public String getElementName()
+    public String elementName()
     {
         return name;
     }

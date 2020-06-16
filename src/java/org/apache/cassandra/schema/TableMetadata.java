@@ -1153,19 +1153,19 @@ public final class TableMetadata implements SchemaElement
     }
 
     @Override
-    public SchemaElementType getElementType()
+    public SchemaElementType elementType()
     {
         return SchemaElementType.TABLE;
     }
 
     @Override
-    public String getElementKeyspace()
+    public String elementKeyspace()
     {
         return keyspace;
     }
 
     @Override
-    public String getElementName()
+    public String elementName()
     {
         return name;
     }

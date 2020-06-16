@@ -326,7 +326,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
     }
 
     @Override
-    public SchemaElementType getElementType()
+    public SchemaElementType elementType()
     {
         return SchemaElementType.AGGREGATE;
     }
