@@ -43,6 +43,7 @@
 Merged from 3.11:
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
+ * Catch exception on bootstrap resume and init native transport (CASSANDRA-15863)
  * Fix replica-side filtering returning stale data with CL > ONE (CASSANDRA-8272, CASSANDRA-8273)
  * Rely on snapshotted session infos on StreamResultFuture.maybeComplete to avoid race conditions (CASSANDRA-15667)
  * EmptyType doesn't override writeValue so could attempt to write bytes when expected not to (CASSANDRA-15790)
