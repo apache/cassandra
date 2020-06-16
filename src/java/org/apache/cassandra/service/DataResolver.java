@@ -770,11 +770,12 @@ public class DataResolver extends ResponseResolver
             return executeReadCommand(cmd);
         }
 
-        // Counts the number of rows for regular queries and the number of groups for GROUP BY queries
+        /** Returns the number of results counted by the counter */
         private int counted(Counter counter)
         {
+            // We are interested by the number of rows but for GROUP BY queries 'counted' returns the number of groups.
             return command.limits().isGroupByLimit()
-                 ? counter.rowCounted()
+                 ? counter.rowsCounted()
                  : counter.counted();
         }
 
@@ -915,11 +916,13 @@ public class DataResolver extends ResponseResolver
                 return UnfilteredPartitionIterators.getOnlyElement(executeReadCommand(cmd), cmd);
             }
 
-            // Counts the number of rows for regular queries and the number of groups for GROUP BY queries
+            /** Returns the number of results counted in the partition by the counter */
             private int countedInCurrentPartition(Counter counter)
             {
+                // We are interested by the number of rows but for GROUP BY queries 'countedInCurrentPartition' returns
+                // the number of groups in the current partition.
                 return command.limits().isGroupByLimit()
-                     ? counter.rowCountedInCurrentPartition()
+                     ? counter.rowsCountedInCurrentPartition()
                      : counter.countedInCurrentPartition();
             }
 

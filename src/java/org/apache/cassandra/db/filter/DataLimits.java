@@ -257,7 +257,7 @@ public abstract class DataLimits
         private final boolean enforceStrictLiveness;
 
         // false means we do not propagate our stop signals onto the iterator, we only count
-        private boolean enforceLimits = true;
+        protected boolean enforceLimits = true;
 
         protected Counter(int nowInSec, boolean assumeLiveData, boolean enforceStrictLiveness)
         {
@@ -308,14 +308,14 @@ public abstract class DataLimits
          *
          * @return the number of rows counted.
          */
-        public abstract int rowCounted();
+        public abstract int rowsCounted();
 
         /**
          * The number of rows counted in the current partition.
          *
          * @return the number of rows counted in the current partition.
          */
-        public abstract int rowCountedInCurrentPartition();
+        public abstract int rowsCountedInCurrentPartition();
 
         public abstract boolean isDone();
         public abstract boolean isDoneForPartition();
@@ -483,8 +483,8 @@ public abstract class DataLimits
 
         protected class CQLCounter extends Counter
         {
-            protected int rowCounted;
-            protected int rowInCurrentPartition;
+            protected int rowsCounted;
+            protected int rowsInCurrentPartition;
             protected final boolean countPartitionsWithOnlyStaticData;
 
             protected boolean hasLiveStaticRow;
@@ -501,7 +501,7 @@ public abstract class DataLimits
             @Override
             public void applyToPartition(DecoratedKey partitionKey, Row staticRow)
             {
-                rowInCurrentPartition = 0;
+                rowsInCurrentPartition = 0;
                 hasLiveStaticRow = !staticRow.isEmpty() && isLive(staticRow);
             }
 
@@ -519,47 +519,47 @@ public abstract class DataLimits
                 // Normally, we don't count static rows as from a CQL point of view, it will be merge with other
                 // rows in the partition. However, if we only have the static row, it will be returned as one row
                 // so count it.
-                if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && rowInCurrentPartition == 0)
+                if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && rowsInCurrentPartition == 0)
                     incrementRowCount();
                 super.onPartitionClose();
             }
 
             protected void incrementRowCount()
             {
-                if (++rowCounted >= rowLimit)
+                if (++rowsCounted >= rowLimit)
                     stop();
-                if (++rowInCurrentPartition >= perPartitionLimit)
+                if (++rowsInCurrentPartition >= perPartitionLimit)
                     stopInPartition();
             }
 
             public int counted()
             {
-                return rowCounted;
+                return rowsCounted;
             }
 
             public int countedInCurrentPartition()
             {
-                return rowInCurrentPartition;
+                return rowsInCurrentPartition;
             }
 
-            public int rowCounted()
+            public int rowsCounted()
             {
-                return rowCounted;
+                return rowsCounted;
             }
 
-            public int rowCountedInCurrentPartition()
+            public int rowsCountedInCurrentPartition()
             {
-                return rowInCurrentPartition;
+                return rowsInCurrentPartition;
             }
 
             public boolean isDone()
             {
-                return rowCounted >= rowLimit;
+                return rowsCounted >= rowLimit;
             }
 
             public boolean isDoneForPartition()
             {
-                return isDone() || rowInCurrentPartition >= perPartitionLimit;
+                return isDone() || rowsInCurrentPartition >= perPartitionLimit;
             }
         }
 
@@ -639,7 +639,7 @@ public abstract class DataLimits
             {
                 if (partitionKey.getKey().equals(lastReturnedKey))
                 {
-                    rowInCurrentPartition = perPartitionLimit - lastReturnedKeyRemaining;
+                    rowsInCurrentPartition = perPartitionLimit - lastReturnedKeyRemaining;
                     // lastReturnedKey is the last key for which we're returned rows in the first page.
                     // So, since we know we have returned rows, we know we have accounted for the static row
                     // if any already, so force hasLiveStaticRow to false so we make sure to not count it
@@ -825,7 +825,7 @@ public abstract class DataLimits
         @Override
         public boolean isExhausted(Counter counter)
         {
-            return ((GroupByAwareCounter) counter).rowCounted < rowLimit
+            return ((GroupByAwareCounter) counter).rowsCounted < rowLimit
                     && counter.counted() < groupLimit;
         }
 
@@ -843,12 +843,12 @@ public abstract class DataLimits
             /**
              * The number of rows counted so far.
              */
-            protected int rowCounted;
+            protected int rowsCounted;
 
             /**
              * The number of rows counted so far in the current partition.
              */
-            protected int rowCountedInCurrentPartition;
+            protected int rowsCountedInCurrentPartition;
 
             /**
              * The number of groups counted so far. A group is counted only once it is complete
@@ -919,12 +919,12 @@ public abstract class DataLimits
                     hasLiveStaticRow = !staticRow.isEmpty() && isLive(staticRow);
                 }
                 currentPartitionKey = partitionKey;
-                // If we are done we need to preserve the groupInCurrentPartition and rowCountedInCurrentPartition
+                // If we are done we need to preserve the groupInCurrentPartition and rowsCountedInCurrentPartition
                 // because the pager need to retrieve the count associated to the last value it has returned.
                 if (!isDone())
                 {
                     groupInCurrentPartition = 0;
-                    rowCountedInCurrentPartition = 0;
+                    rowsCountedInCurrentPartition = 0;
                 }
             }
 
@@ -934,7 +934,7 @@ public abstract class DataLimits
                 // It's possible that we're "done" if the partition we just started bumped the number of groups (in
                 // applyToPartition() above), in which case Transformation will still call this method. In that case, we
                 // want to ignore the static row, it should (and will) be returned with the next page/group if needs be.
-                if (isDone())
+                if (enforceLimits && isDone())
                 {
                     hasLiveStaticRow = false; // The row has not been returned
                     return Rows.EMPTY_STATIC_ROW;
@@ -960,7 +960,7 @@ public abstract class DataLimits
 
                 // That row may have made us increment the group count, which may mean we're done for this partition, in
                 // which case we shouldn't count this row (it won't be returned).
-                if (isDoneForPartition())
+                if (enforceLimits && isDoneForPartition())
                 {
                     hasGroupStarted = false;
                     return null;
@@ -989,21 +989,21 @@ public abstract class DataLimits
             }
 
             @Override
-            public int rowCounted()
+            public int rowsCounted()
             {
-                return rowCounted;
+                return rowsCounted;
             }
 
             @Override
-            public int rowCountedInCurrentPartition()
+            public int rowsCountedInCurrentPartition()
             {
-                return rowCountedInCurrentPartition;
+                return rowsCountedInCurrentPartition;
             }
 
             protected void incrementRowCount()
             {
-                rowCountedInCurrentPartition++;
-                if (++rowCounted >= rowLimit)
+                rowsCountedInCurrentPartition++;
+                if (++rowsCounted >= rowLimit)
                     stop();
             }
 
@@ -1058,7 +1058,7 @@ public abstract class DataLimits
                 // 2) the end of the data is reached
                 // We know that the end of the data is reached if the group limit has not been reached
                 // and the number of rows counted is smaller than the internal page size.
-                if (hasGroupStarted && groupCounted < groupLimit && rowCounted < rowLimit)
+                if (hasGroupStarted && groupCounted < groupLimit && rowsCounted < rowLimit)
                 {
                     incrementGroupCount();
                     incrementGroupInCurrentPartitionCount();
@@ -1311,12 +1311,12 @@ public abstract class DataLimits
                 return cellsInCurrentPartition;
             }
 
-            public int rowCounted()
+            public int rowsCounted()
             {
                 throw new UnsupportedOperationException();
             }
 
-            public int rowCountedInCurrentPartition()
+            public int rowsCountedInCurrentPartition()
             {
                 throw new UnsupportedOperationException();
             }
