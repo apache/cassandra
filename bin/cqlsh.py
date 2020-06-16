@@ -1255,7 +1255,94 @@ class Shell(cmd.Cmd):
     def do_describe(self, parsed):
 
         """
-        Handle the DESCRIBE queries by forwarding them to the server and formatting the returned output.
+        DESCRIBE [cqlsh only]
+
+        (DESC may be used as a shorthand.)
+
+          Outputs information about the connected Cassandra cluster, or about
+          the data objects stored in the cluster. Use in one of the following ways:
+
+        DESCRIBE KEYSPACES
+
+          Output the names of all keyspaces.
+
+        DESCRIBE KEYSPACE [<keyspacename>]
+
+          Output CQL commands that could be used to recreate the given keyspace,
+          and the objects in it (such as tables, types, functions, etc.).
+          In some cases, as the CQL interface matures, there will be some metadata
+          about a keyspace that is not representable with CQL. That metadata will not be shown.
+          The '<keyspacename>' argument may be omitted, in which case the current
+          keyspace will be described.
+
+        DESCRIBE TABLES
+
+          Output the names of all tables in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
+
+        DESCRIBE TABLE [<keyspace>.]<tablename>
+
+          Output CQL commands that could be used to recreate the given table.
+          In some cases, as above, there may be table metadata which is not
+          representable and which will not be shown.
+
+        DESCRIBE INDEX <indexname>
+
+          Output the CQL command that could be used to recreate the given index.
+          In some cases, there may be index metadata which is not representable
+          and which will not be shown.
+
+        DESCRIBE MATERIALIZED VIEW <viewname>
+
+          Output the CQL command that could be used to recreate the given materialized view.
+          In some cases, there may be materialized view metadata which is not representable
+          and which will not be shown.
+
+        DESCRIBE CLUSTER
+
+          Output information about the connected Cassandra cluster, such as the
+          cluster name, and the partitioner and snitch in use. When you are
+          connected to a non-system keyspace, also shows endpoint-range
+          ownership information for the Cassandra ring.
+
+        DESCRIBE [FULL] SCHEMA
+
+          Output CQL commands that could be used to recreate the entire (non-system) schema.
+          Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
+          k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
+
+        DESCRIBE TYPES
+
+          Output the names of all user-defined-types in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
+
+        DESCRIBE TYPE [<keyspace>.]<type>
+
+          Output the CQL command that could be used to recreate the given user-defined-type.
+
+        DESCRIBE FUNCTIONS
+
+          Output the names of all user-defined-functions in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
+
+        DESCRIBE FUNCTION [<keyspace>.]<function>
+
+          Output the CQL command that could be used to recreate the given user-defined-function.
+
+        DESCRIBE AGGREGATES
+
+          Output the names of all user-defined-aggregates in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
+
+        DESCRIBE AGGREGATE [<keyspace>.]<aggregate>
+
+          Output the CQL command that could be used to recreate the given user-defined-aggregate.
+
+        DESCRIBE <objname>
+
+          Output CQL commands that could be used to recreate the entire object schema,
+          where object can be either a keyspace or a table or an index or a materialized
+          view (in this order).
         """
         stmt = SimpleStatement(parsed.extract_orig(), consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE, fetch_size=self.page_size if self.use_paging else None)
         future = self.session.execute_async(stmt)
