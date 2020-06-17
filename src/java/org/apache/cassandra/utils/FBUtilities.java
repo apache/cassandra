@@ -26,6 +26,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -958,6 +961,87 @@ public class FBUtilities
     {
         long negbit = index >> 63;
         return (index ^ negbit) - negbit;
+    }
+
+    /**
+     * Produces a columnized output showing the input strings.
+     *
+     * The literally sorted first element is shown in the upper left "corner" and
+     * the last element in the lower right.
+     *
+     * Columns are separated by two spaces.
+     *
+     * @param input input elements to sort and arrange in columns
+     * @param width maximum line length
+     * @return stream of lines
+     */
+    public static Stream<String> columnize(Stream<String> input, int width)
+    {
+        List<String> in = input.sorted()
+                               .collect(Collectors.toList());
+
+        int size = in.size();
+
+        if (size == 0)
+            return Stream.of("<empty>");
+
+        if (size == 1)
+            return Stream.of(in.get(0));
+
+        boolean found = false;
+        int nrows;
+        int ncols = 1;
+        int[] colwidths = null;
+        for (nrows = 1; nrows < size; nrows++)
+        {
+            ncols = size / nrows;
+            if ((size % nrows) != 0)
+                ncols++;
+
+            colwidths = new int[ncols];
+            int totwidth = -2;
+            for (int col = 0; col < ncols; col++)
+            {
+                int colwidth = 0;
+                for (int row = 0; row < nrows; row++)
+                {
+                    int i = row + nrows * col;
+                    if (i >= size)
+                        break;
+                    String x = in.get(i);
+                    colwidth = Math.max(colwidth, x.length());
+                }
+                colwidths[col] = colwidth;
+                totwidth += colwidth + 2;
+                if (totwidth > width)
+                    break;
+            }
+            if (totwidth <= width)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return in.stream();
+
+        List<StringBuilder> rowBuilders = IntStream.range(0, nrows).mapToObj(i -> new StringBuilder()).collect(Collectors.toList());
+        for (int row = 0; row < nrows; row++)
+        {
+            for (int col = 0; col < ncols; col++)
+            {
+                int i = row + nrows * col;
+                if (i < size)
+                {
+                    StringBuilder rowBuilder = rowBuilders.get(row);
+                    if (rowBuilder.length() > 0)
+                        rowBuilder.append("  ");
+                    rowBuilder.append(Strings.padEnd(in.get(i), colwidths[col], ' '));
+                }
+            }
+        }
+
+        return rowBuilders.stream().map(sb -> sb.toString().trim());
     }
 
     private static final class WrappedCloseableIterator<T>

@@ -119,15 +119,30 @@ public abstract class AbstractFunction implements Function
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(name).append(" : (");
+        sb.append(name).append(" : ");
+        signaturePart(sb);
+        sb.append(" -> ").append(returnType.asCQL3Type());
+        return sb.toString();
+    }
+
+    public String toCQLString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name().toCQLString());
+        signaturePart(sb);
+        return sb.toString();
+    }
+
+    private void signaturePart(StringBuilder sb)
+    {
+        sb.append('(');
         for (int i = 0; i < argTypes.size(); i++)
         {
             if (i > 0)
                 sb.append(", ");
             sb.append(argTypes.get(i).asCQL3Type());
         }
-        sb.append(") -> ").append(returnType.asCQL3Type());
-        return sb.toString();
+        sb.append(')');
     }
 
     @Override

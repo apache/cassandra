@@ -246,6 +246,7 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st38=createMaterializedViewStatement { $stmt = st38; }
     | st39=dropMaterializedViewStatement   { $stmt = st39; }
     | st40=alterMaterializedViewStatement  { $stmt = st40; }
+    | st41=describeStatement               { $stmt = st41; }
     ;
 
 /*
@@ -1299,6 +1300,47 @@ userPassword[RoleOptions opts]
     :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     ;
 
+/**
+ * DESCRIBE statement(s)
+ *
+ * Must be in sync with the javadoc for org.apache.cassandra.cql3.statements.DescribeStatement and the
+ * cqlsh syntax definition in for cqlsh_describe_cmd_syntax_rules pylib/cqlshlib/cqlshhandling.py.
+ */
+describeStatement returns [DescribeStatement stmt]
+    @init {
+        boolean fullSchema = false;
+        boolean pending = false;
+        boolean config = false;
+        boolean only = false;
+        QualifiedName gen = new QualifiedName();
+    }
+    : ( K_DESCRIBE | K_DESC )
+    ( ( K_CLUSTER                                   { $stmt = new DescribeStatement.Cluster(); } )
+    | ( (K_FULL { fullSchema=true; })? K_SCHEMA     { $stmt = new DescribeStatement.TheSchema(fullSchema); } )
+    | ( K_KEYSPACES                                 { $stmt = new DescribeStatement.TheKeyspaces(); } )
+    | ( (K_ONLY { only=true; })? K_KEYSPACE ( ks=keyspaceName )?
+                                                    { $stmt = new DescribeStatement.Keyspace(ks, only); } )
+    | ( K_TABLES                                    { $stmt = new DescribeStatement.Tables(); } )
+    | ( K_COLUMNFAMILY cf=columnFamilyName          { $stmt = new DescribeStatement.Table(cf); } )
+    | ( K_INDEX idx=columnFamilyName                { $stmt = new DescribeStatement.Index(idx); } )
+    | ( K_MATERIALIZED K_VIEW view=columnFamilyName { $stmt = new DescribeStatement.View(view); } )
+    | ( K_TYPES                                     { $stmt = new DescribeStatement.Types(); } )
+    | ( K_TYPE tn=userTypeName                      { $stmt = new DescribeStatement.Type(tn); } )
+    | ( K_FUNCTIONS                                 { $stmt = new DescribeStatement.Functions(); } )
+    | ( K_FUNCTION fn=functionName                  { $stmt = new DescribeStatement.Function(fn); } )
+    | ( K_AGGREGATES                                { $stmt = new DescribeStatement.Aggregates(); } )
+    | ( K_AGGREGATE ag=functionName                 { $stmt = new DescribeStatement.Aggregate(ag); } )
+    | ( ( ( ksT=IDENT                       { gen.setKeyspace($ksT.text, false);}
+          | ksT=QUOTED_NAME                 { gen.setKeyspace($ksT.text, true);}
+          | ksK=unreserved_keyword_describe { gen.setKeyspace(ksK, false);} ) '.' )?
+        ( tT=IDENT                          { gen.setName($tT.text, false);}
+        | tT=QUOTED_NAME                    { gen.setName($tT.text, true);}
+        | tK=unreserved_keyword_describe    { gen.setName(tK, false);} )
+                                                    { $stmt = new DescribeStatement.Generic(gen); } )
+    )
+    ( K_WITH K_INTERNALS { $stmt.withInternalDetails(); } )?
+    ;
+
 /** DEFINITIONS **/
 
 // Column Identifiers.  These need to be treated differently from other
@@ -1799,6 +1841,12 @@ non_type_ident returns [ColumnIdentifier id]
     | kk=K_KEY                   { $id = new ColumnIdentifier($kk.text, false); }
     ;
 
+unreserved_keyword_describe returns [String str]
+    : u=basic_unreserved_keyword_describe { $str = u; }
+    | t=native_type                       { $str = t.toString(); }
+    | k=(K_TTL | K_COUNT | K_WRITETIME | K_KEY | K_CAST | K_JSON | K_DISTINCT) { $str = $k.text; }
+    ;
+
 unreserved_keyword returns [String str]
     : u=unreserved_function_keyword     { $str = u; }
     | k=(K_TTL | K_COUNT | K_WRITETIME | K_KEY | K_CAST | K_JSON | K_DISTINCT) { $str = $k.text; }
@@ -1810,6 +1858,24 @@ unreserved_function_keyword returns [String str]
     ;
 
 basic_unreserved_keyword returns [String str]
+    : nd=basic_unreserved_keyword_not_describe { $str = nd; }
+    | d=basic_unreserved_keyword_describe      { $str = d; }
+    ;
+
+// Keywords that are not suitable for 'DESCRIBE <object>' as these unreserved keywords are already part of the
+// statement syntax.
+basic_unreserved_keyword_not_describe returns [String str]
+    : k=( K_CLUSTER
+        | K_TABLES
+        | K_KEYSPACES
+        | K_TYPES
+        | K_FUNCTIONS
+        | K_AGGREGATES
+        ) { $str = $k.text; }
+    ;
+
+// Unreserved keywords that are suitable for 'DESCRIBE <object>'.
+basic_unreserved_keyword_describe returns [String str]
     : k=( K_KEYS
         | K_AS
         | K_CLUSTERING
@@ -1822,7 +1888,6 @@ basic_unreserved_keyword returns [String str]
         | K_FILTERING
         | K_PERMISSION
         | K_PERMISSIONS
-        | K_KEYSPACES
         | K_ALL
         | K_USER
         | K_USERS
@@ -1838,11 +1903,12 @@ basic_unreserved_keyword returns [String str]
         | K_CUSTOM
         | K_TRIGGER
         | K_CONTAINS
+        | K_INTERNALS
+        | K_ONLY
         | K_STATIC
         | K_FROZEN
         | K_TUPLE
         | K_FUNCTION
-        | K_FUNCTIONS
         | K_AGGREGATE
         | K_SFUNC
         | K_STYPE

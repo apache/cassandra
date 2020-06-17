@@ -23,6 +23,8 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -34,6 +36,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.primitives.Ints;
 
@@ -226,6 +230,36 @@ public class FBUtilitiesTest
         {
             executor.shutdown();
         }
+    }
+
+    @Test
+    public void testColumnize()
+    {
+        List<String> res;
+
+        res = FBUtilities.columnize(Stream.of("12345"), 20)
+                         .collect(Collectors.toList());
+        Assert.assertEquals(Collections.singletonList("12345"), res);
+
+        res = FBUtilities.columnize(Stream.of("aaaaa", "bbbbb", "ccccc", "ddddd"), 20)
+                         .collect(Collectors.toList());
+        Assert.assertEquals(Arrays.asList("aaaaa  ccccc", "bbbbb  ddddd"), res);
+
+        res = FBUtilities.columnize(Stream.of("aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee"), 20)
+                         .collect(Collectors.toList());
+        Assert.assertEquals(Arrays.asList("aaaaa  ccccc  eeeee", "bbbbb  ddddd"), res);
+
+        res = FBUtilities.columnize(Stream.of("aaaaa", "bbbbb", "ccccccccccccc", "ddddd"), 20)
+                         .collect(Collectors.toList());
+        Assert.assertEquals(Arrays.asList("aaaaa  ccccccccccccc", "bbbbb  ddddd"), res);
+
+        res = FBUtilities.columnize(Stream.of("aaaaa", "bbbbb", "cccccccccccccccccccc", "ddddd"), 20)
+                         .collect(Collectors.toList());
+        Assert.assertEquals(Arrays.asList("aaaaa", "bbbbb", "cccccccccccccccccccc", "ddddd"), res);
+
+        res = FBUtilities.columnize(Stream.of("aaaaa", "bbbbb", "ccccccccccccccccccccc", "ddddd"), 20)
+                         .collect(Collectors.toList());
+        Assert.assertEquals(Arrays.asList("aaaaa", "bbbbb", "ccccccccccccccccccccc", "ddddd"), res);
     }
 
 }

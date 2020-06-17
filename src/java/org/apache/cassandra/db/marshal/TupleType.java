@@ -126,6 +126,12 @@ public class TupleType extends AbstractType<ByteBuffer>
         return types.size();
     }
 
+    @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return types;
+    }
+
     public List<AbstractType<?>> allTypes()
     {
         return types;
