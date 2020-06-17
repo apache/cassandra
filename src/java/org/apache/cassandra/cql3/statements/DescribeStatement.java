@@ -31,7 +31,6 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -60,136 +59,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
- * Implements the foundations for all concrete {@code DESCRIBE} statement implementations.
- *
- * <p>
- * Returns a result set that consists of a single column {@code schema_part} of type {@code text}
- * and represents a part of the whole {@code DESCRIBE} result.
- * The get the whole DDL as a single string, the contents of the {@code schema_part} column of all
- * rows must be concatenated on the client side. Whitespaces (incl newlines) must not be inserted
- * by a client between each rows' {@code schema_part} value as the row separation is arbitrary and
- * can happen anywhere in the whole result output.
- * </p>
- *
- * <p>
- * Paging is implemented to avoid result sets that are too big.
- * The paging state must not be interpreted on the client side.
- * Only row-level paging is supported. Byte-level paging will result in an error.
- * If the schema changes between two pages, the following page will return an error, as the
- * consistency and correctness of the whole output can no longer be guaranteed.
- * </p>
- *
- * Syntax description (copied from {@code cqlsh}):
- *
- * PLEASE KEEP THIS IN SYNC WITH {@code cqlsh.Shell#do_describe} IN {@code bin/cqlsh.py}
- * AND {@code resources/cassandra/bin/cqlsh.py} !
- *
- * <pre><code>
- *         </code>{@link TheKeyspaces DESCRIBE KEYSPACES}<code>
- *
- *           Output the names of all keyspaces.
- *
- *         </code>{@link Keyspace DESCRIBE [ONLY] KEYSPACE [&lt;keyspacename&gt;] [WITH INTERNALS]}<code>
- *
- *           Output CQL commands that could be used to recreate the given keyspace,
- *           and the objects in it (such as tables, types, functions, etc.).
- *           In some cases, as the CQL interface matures, there will be some metadata
- *           about a keyspace that is not representable with CQL. That metadata will not be shown.
- *
- *           The '<keyspacename>' argument may be omitted, in which case the current
- *           keyspace will be described.
- *
- *           If WITH INTERNALS is specified, the output contains the table IDs and is
- *           adopted to represent the DDL necessary to "re-create" dropped columns.
- *
- *           If ONLY is specified, only the DDL to recreate the keyspace will be created.
- *           All keyspace elements, like tables, types, functions, etc will be omitted.
- *
- *         </code>{@link Tables DESCRIBE TABLES}<code>
- *
- *           Output the names of all tables in the current keyspace, or in all
- *           keyspaces if there is no current keyspace.
- *
- *         </code>{@link Table DESCRIBE TABLE [&lt;keyspace&gt;.]&lt;tablename&gt; [WITH INTERNALS]}<code>
- *
- *           Output CQL commands that could be used to recreate the given table.
- *           In some cases, as above, there may be table metadata which is not
- *           representable and which will not be shown.
- *
- *           If WITH INTERNALS is specified, the output contains the table ID and is
- *           adopted to represent the DDL necessary to "re-create" dropped columns.
- *
- *         </code>{@link Index DESCRIBE INDEX &lt;indexname&gt;}<code>
- *
- *           Output the CQL command that could be used to recreate the given index.
- *           In some cases, there may be index metadata which is not representable
- *           and which will not be shown.
- *
- *         </code>{@link View DESCRIBE MATERIALIZED VIEW &lt;viewname&gt; [WITH INTERNALS]}<code>
- *
- *           Output the CQL command that could be used to recreate the given materialized view.
- *           In some cases, there may be materialized view metadata which is not representable
- *           and which will not be shown.
- *
- *           If WITH INTERNALS is specified, the output contains the table ID and is
- *           adopted to represent the DDL necessary to "re-create" dropped columns.
- *
- *         </code>{@link Cluster DESCRIBE CLUSTER}<code>
- *
- *           Output information about the connected Cassandra cluster, such as the
- *           cluster name, and the partitioner and snitch in use. When you are
- *           connected to a non-system keyspace, also shows endpoint-range
- *           ownership information for the Cassandra ring.
- *
- *         </code>{@link TheSchema DESCRIBE [FULL] SCHEMA [WITH INTERNALS]}<code>
- *
- *           Output CQL commands that could be used to recreate the entire (non-system) schema.
- *           Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
- *           k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
- *
- *           If WITH INTERNALS is specified, the output contains the table IDs and is
- *           adopted to represent the DDL necessary to "re-create" dropped columns.
- *
- *         </code>{@link Types DESCRIBE TYPES}<code>
- *
- *           Output the names of all user-defined-types in the current keyspace, or in all
- *           keyspaces if there is no current keyspace.
- *
- *         </code>{@link Type DESCRIBE TYPE [&lt;keyspace&gt;.]&lt;type&gt;}<code>
- *
- *           Output the CQL command that could be used to recreate the given user-defined-type.
- *
- *         </code>{@link Functions DESCRIBE FUNCTIONS}<code>
- *
- *           Output the names of all user-defined-functions in the current keyspace, or in all
- *           keyspaces if there is no current keyspace.
- *
- *         </code>{@link Function DESCRIBE FUNCTION [&lt;keyspace&gt;.]&lt;function&gt;}<code>
- *
- *           Output the CQL command that could be used to recreate the given user-defined-function.
- *
- *         </code>{@link Aggregates DESCRIBE AGGREGATES}<code>
- *
- *           Output the names of all user-defined-aggregates in the current keyspace, or in all
- *           keyspaces if there is no current keyspace.
- *
- *         </code>{@link Aggregate DESCRIBE AGGREGATE [&lt;keyspace&gt;.]&lt;aggregate&gt;}<code>
- *
- *           Output the CQL command that could be used to recreate the given user-defined-aggregate.
- *
- *         </code>{@link Generic DESCRIBE &lt;objname&gt; [WITH INTERNALS]}<code>
- *
- *           Output CQL commands that could be used to recreate the entire object schema,
- *           where object can be either a keyspace or a table or an index or a materialized
- *           view (in this order).
- *
- *           If WITH INTERNALS is specified and &lt;objname&gt; represents a keyspace, table
- *           materialized view, the output contains the table IDs and is
- *           adopted to represent the DDL necessary to "re-create" dropped columns.
- *
- *           &lt;objname&gt; (obviously) cannot be any of the "describe what" qualifiers like
- *           "cluster", "table", etc.
- * </code></pre>
+ * The differents <code>DESCRIBE</code> statements parsed from a CQL statement.
  */
 public abstract class DescribeStatement<T> extends CQLStatement.Raw implements CQLStatement
 {
