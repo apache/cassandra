@@ -46,6 +46,8 @@ Go to ``Manage Jenkins -> Manage Plugins -> Available`` and install the followin
 * Throttle Concurrent Builds Plug-in
 * Test stability history
 * Hudson Post build task
+* Slack Notification
+* Copy artifact
 
 
 Configure Throttle Category
