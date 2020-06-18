@@ -103,7 +103,7 @@ public class RepairJobTest
     // memory retention from CASSANDRA-14096
     private static class MeasureableRepairSession extends RepairSession
     {
-        List<Callable<?>> onSyncComplete = new ArrayList<>();
+        private final List<Callable<?>> syncCompleteCallbacks = new ArrayList<>();
 
         public MeasureableRepairSession(UUID parentRepairSession, UUID id, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
@@ -122,7 +122,7 @@ public class RepairJobTest
         @Override
         public void syncComplete(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
         {
-            for (Callable<?> callback : onSyncComplete)
+            for (Callable<?> callback : syncCompleteCallbacks)
             {
                 try
                 {
@@ -138,7 +138,7 @@ public class RepairJobTest
 
         public void registerSyncCompleteCallback(Callable<?> callback)
         {
-            onSyncComplete.add(callback);
+            syncCompleteCallbacks.add(callback);
         }
     }
 
@@ -182,7 +182,6 @@ public class RepairJobTest
     @After
     public void reset()
     {
-        session.onSyncComplete.clear();
         ActiveRepairService.instance.terminateSessions();
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
