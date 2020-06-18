@@ -259,7 +259,10 @@ public final class TableParams
 
     public void appendCqlTo(CqlBuilder builder)
     {
-        builder.append("bloom_filter_fp_chance = ").append(bloomFilterFpChance)
+        // option names should be in alphabetical order
+        builder.append("additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString())
+               .newLine()
+               .append("AND bloom_filter_fp_chance = ").append(bloomFilterFpChance)
                .newLine()
                .append("AND caching = ").append(caching.asMap())
                .newLine()
@@ -291,9 +294,8 @@ public final class TableParams
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
-               .newLine()
-               .append("AND additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString());
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+
     }
 
     public static final class Builder

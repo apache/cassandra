@@ -1362,7 +1362,8 @@ class Shell(cmd.Cmd):
                 self.describe_element(result)
 
         except CQL_ERRORS as err:
-            self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
+            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+            self.printerr(err_msg.partition("message=")[2].strip('"'))
         except Exception:
             import traceback
             self.printerr(traceback.format_exc())
@@ -1406,12 +1407,11 @@ class Shell(cmd.Cmd):
             print('')
 
     def print_keyspace_element_names(self, keyspace, names):
-            print('')
-            if self.current_keyspace is None:
-                print('Keyspace %s' % (keyspace))
-                print('---------%s' % ('-' * len(keyspace)))
-            cmd.Cmd.columnize(self, names)
-
+        print('')
+        if self.current_keyspace is None:
+            print('Keyspace %s' % (keyspace))
+            print('---------%s' % ('-' * len(keyspace)))
+        cmd.Cmd.columnize(self, names)
 
     def describe_element(self, rows):
         """
@@ -1431,10 +1431,8 @@ class Shell(cmd.Cmd):
         """
         for row in rows:
             print('\nCluster: %s' % row['cluster'])
-            print('\nPartitioner: %s' % row['partitioner'])
-            print ('\nSnitch: %s' % row['snitch'])
-            print('')
-
+            print('Partitioner: %s' % row['partitioner'])
+            print('Snitch: %s\n' % row['snitch'])
             if 'range_ownership' in row:
                 print("Range ownership:")
                 for entry in list(row['range_ownership'].items()):

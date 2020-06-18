@@ -296,6 +296,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true),
                    containsString("CLUSTERING ORDER BY (cl1 ASC)\n" +
+                            "    AND additional_write_policy = 'ALWAYS'\n" +
                             "    AND bloom_filter_fp_chance = 1.0\n" +
                             "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                             "    AND cdc = false\n" +
@@ -310,8 +311,7 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND memtable_flush_period_in_ms = 8\n" +
                             "    AND min_index_interval = 6\n" +
                             "    AND read_repair = 'BLOCKING'\n" +
-                            "    AND speculative_retry = 'ALWAYS'\n" +
-                            "    AND additional_write_policy = 'ALWAYS';"
+                            "    AND speculative_retry = 'ALWAYS';"
                    ));
     }
 
@@ -422,7 +422,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    ck1 varint,\n" +
                           "    ck2 varint,\n" +
                           "    reg2 int,\n" +
-                          "    reg1 type_3,\n" +
+                          "    reg1 " + typeC+ ",\n" +
                           "    reg3 int,\n" +
                           "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
                           ") WITH ID = " + cfs.metadata.id + "\n" +
@@ -430,8 +430,8 @@ public class SchemaCQLHelperTest extends CQLTester
 
         assertThat(schema,
                    allOf(startsWith(expected),
-                         containsString("ALTER TABLE cql_test_keyspace.table_4 DROP reg3 USING TIMESTAMP 10000;"),
-                         containsString("ALTER TABLE cql_test_keyspace.table_4 ADD reg3 int;")));
+                         containsString("ALTER TABLE " + keyspace() + "." + tableName + " DROP reg3 USING TIMESTAMP 10000;"),
+                         containsString("ALTER TABLE " + keyspace() + "." + tableName + " ADD reg3 int;")));
 
         JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(cfs.getDirectories().getSnapshotManifestFile(SNAPSHOT)));
         JSONArray files = (JSONArray) manifest.get("files");

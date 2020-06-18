@@ -1229,9 +1229,12 @@ public final class TableMetadata implements SchemaElement
                .newLine()
                .increaseIndent();
 
-        appendColumnDefinitions(builder, includeDroppedColumns);
+        boolean hasSingleColumnPrimaryKey = partitionKeyColumns.size() == 1 && clusteringColumns.isEmpty();
 
-        appendPrimaryKey(builder);
+        appendColumnDefinitions(builder, includeDroppedColumns, hasSingleColumnPrimaryKey);
+
+        if (!hasSingleColumnPrimaryKey)
+            appendPrimaryKey(builder);
 
         builder.decreaseIndent()
                .append(')');
@@ -1250,7 +1253,9 @@ public final class TableMetadata implements SchemaElement
             appendDropColumns(builder);
     }
 
-    private void appendColumnDefinitions(CqlBuilder builder, boolean includeDroppedColumns)
+    private void appendColumnDefinitions(CqlBuilder builder,
+                                         boolean includeDroppedColumns,
+                                         boolean hasSingleColumnPrimaryKey)
     {
         Iterator<ColumnMetadata> iter = allColumnsInCreateOrder();
         while (iter.hasNext())
@@ -1264,17 +1269,28 @@ public final class TableMetadata implements SchemaElement
                 continue;
 
             column.appendCqlTo(builder, isStaticCompactTable());
-            builder.append(',')
-                   .newLine();
+
+            if (hasSingleColumnPrimaryKey && column.isPartitionKey())
+                builder.append(" PRIMARY KEY");
+
+            if (!hasSingleColumnPrimaryKey || (includeDroppedColumns && !droppedColumns.isEmpty()) || iter.hasNext())
+                builder.append(',');
+
+            builder.newLine();
         }
 
         if (includeDroppedColumns)
         {
-            for (DroppedColumn droppedColumn : droppedColumns.values())
+            Iterator<DroppedColumn> iterDropped = droppedColumns.values().iterator();
+            while (iterDropped.hasNext())
             {
-                droppedColumn.column.appendCqlTo(builder, isStaticCompactTable());
-                builder.append(',')
-                       .newLine();
+                DroppedColumn dropped = iterDropped.next();
+                dropped.column.appendCqlTo(builder, isStaticCompactTable());
+
+                if (!hasSingleColumnPrimaryKey || iter.hasNext())
+                    builder.append(',');
+
+                builder.newLine();
             }
         }
     }

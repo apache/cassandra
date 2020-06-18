@@ -338,7 +338,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
         builder.append("CREATE AGGREGATE ")
                .append(name())
                .append('(')
-               .appendWithSeparators(argTypes(), ", ")
+               .appendWithSeparators(argTypes, (b, t) -> b.append(toCqlString(t)), ", ")
                .append(')')
                .newLine()
                .increaseIndent()
@@ -346,7 +346,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
                .append(stateFunction().name().name)
                .newLine()
                .append("STYPE ")
-               .append(stateType());
+               .append(toCqlString(stateType()));
 
         if (finalFunction() != null)
             builder.newLine()

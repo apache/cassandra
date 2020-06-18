@@ -247,7 +247,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     private static KeyspaceMetadata validateKeyspace(String ks, Keyspaces keyspaces)
     {
         return keyspaces.get(ks)
-                        .orElseThrow(() -> new KeyspaceNotDefinedException(format("Keyspace '%s' not found", ks)));
+                        .orElseThrow(() -> new KeyspaceNotDefinedException(format("'%s' not found in keyspaces", ks)));
     }
 
     /**

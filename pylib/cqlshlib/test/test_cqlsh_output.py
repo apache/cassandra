@@ -599,6 +599,7 @@ class TestCqlshOutput(BaseTestCase):
                              "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
     def test_describe_keyspace_output(self):
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             ks = get_keyspace()
             qks = quote_name(ks)
             for cmd in ('describe keyspace', 'desc keyspace'):
@@ -665,13 +666,13 @@ class TestCqlshOutput(BaseTestCase):
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
                 AND crc_check_chance = 1.0
                 AND default_time_to_live = 0
+                AND extensions = {}
                 AND gc_grace_seconds = 864000
                 AND max_index_interval = 2048
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
                 AND read_repair = 'BLOCKING'
-                AND speculative_retry = '99p';
-            """ % quote_name(get_keyspace()))
+                AND speculative_retry = '99p';""" % quote_name(get_keyspace()))
 
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
@@ -729,13 +730,14 @@ class TestCqlshOutput(BaseTestCase):
             \n
             Cluster: [ ] (?P<clustername> .* ) \n
             Partitioner: [ ] (?P<partitionername> .* ) \n
+            Snitch: [ ] (?P<snitchname> .* ) \n
             \n
         '''
 
         ringinfo_re = r'''
             Range[ ]ownership: \n
             (
-              [ ] .*? [ ][ ] \[ ( \d+ \. ){3} \d+ \] \n
+              [ ] .*? [ ][ ] \[ ( \d+ \. ){3} \d+ : \d+ \] \n
             )+
             \n
         '''

@@ -24,8 +24,10 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.CQL3Type.Tuple;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.CqlBuilder.Appender;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.commons.lang3.text.StrBuilder;
@@ -121,7 +123,7 @@ public abstract class AbstractFunction implements Function
     {
         return new CqlBuilder().append(name)
                               .append(" : (")
-                              .appendWithSeparators(argTypes, ", ")
+                              .appendWithSeparators(argTypes, (b, t) -> b.append(toCqlString(t)), ", ")
                               .append(") -> ")
                               .append(returnType)
                               .toString();
@@ -136,9 +138,24 @@ public abstract class AbstractFunction implements Function
     {
         return new CqlBuilder().append(name.name)
                                .append('(')
-                               .appendWithSeparators(argTypes, ", ")
+                               .appendWithSeparators(argTypes, (b, t) -> b.append(toCqlString(t)), ", ")
                                .append(')')
                                .toString();
+    }
+
+    /**
+     * Converts the specified type into its CQL representation.
+     *
+     * <p>For user function and aggregates tuples need to be handle in a special way as they are frozen by nature
+     * but the frozen keyword should not appear in their CQL definition.</p>
+     *
+     * @param type the type
+     * @return the CQL representation of the specified type
+     */
+    protected String toCqlString(AbstractType<?> type)
+    {
+        return type.isTuple() ? ((Tuple) type.asCQL3Type()).toString(false)
+                              : type.asCQL3Type().toString();
     }
 
     @Override

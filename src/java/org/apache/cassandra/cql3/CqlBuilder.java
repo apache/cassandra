@@ -177,11 +177,6 @@ public final class CqlBuilder
         return this;
     }
 
-    public CqlBuilder appendWithSeparators(Iterable<? extends AbstractType<?>> iterable, String separator)
-    {
-        return appendWithSeparators(iterable, (b, t) -> b.append(t), separator);
-    }
-
     public <T> CqlBuilder appendWithSeparators(Iterable<T> iterable, Appender<T> appender, String separator)
     {
         return appendWithSeparators(iterable.iterator(), appender, separator);

@@ -275,14 +275,11 @@ public final class KeyspaceMetadata implements SchemaElement
         {
             builder.append("CREATE KEYSPACE ")
                    .appendQuotingIfNeeded(name)
-                   .newLine()
-                   .increaseIndent()
-                   .append("WITH replication = ");
+                   .append(" WITH replication = ");
 
             params.replication.appendCqlTo(builder);
 
-            builder.newLine()
-                   .append(" AND durable_writes = ")
+            builder.append("  AND durable_writes = ")
                    .append(params.durableWrites)
                    .append(';')
                    .toString();

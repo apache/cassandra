@@ -26,14 +26,12 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Token;
@@ -50,7 +48,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class DescribeStatementTest extends CQLTester
 {
     @Test
@@ -204,6 +201,28 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
+    public void testDescribeFunctionWithTuples() throws Throwable
+    {
+        String function = createFunction(KEYSPACE,
+                                         "tuple<int>, list<frozen<tuple<int, text>>>, tuple<frozen<tuple<int, text>>, text>",
+                                         "CREATE OR REPLACE FUNCTION %s(t tuple<int>, l list<frozen<tuple<int, text>>>, nt tuple<frozen<tuple<int, text>>, text>) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS tuple<int, text> " +
+                                         "LANGUAGE java " +
+                                         "AS 'throw new RuntimeException();';");
+
+            assertRowsNet(executeDescribeNet("DESCRIBE FUNCTION " + function),
+                          row(KEYSPACE,
+                              "function",
+                              shortFunctionName(function) + "(tuple<int>, list<frozen<tuple<int, text>>>, tuple<frozen<tuple<int, text>>, text>)",
+                              "CREATE FUNCTION " + function + "(t tuple<int>, l list<frozen<tuple<int, text>>>, nt tuple<frozen<tuple<int, text>>, text>)\n" +
+                              "    CALLED ON NULL INPUT\n" +
+                              "    RETURNS tuple<int, text>\n" +
+                              "    LANGUAGE java\n" +
+                              "    AS $$throw new RuntimeException();$$;"));
+    }
+
+    @Test
     public void testDescribeMaterializedView() throws Throwable
     {
         assertRowsNet(executeDescribeNet("DESCRIBE ONLY KEYSPACE system_virtual_schema;"), 
@@ -259,13 +278,13 @@ public class DescribeStatementTest extends CQLTester
 
             Object[][] testSchemaOutput = rows(
                           row(KEYSPACE, "keyspace", KEYSPACE,
-                              "CREATE KEYSPACE " + KEYSPACE + "\n" +
-                                  "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
-                                  "     AND durable_writes = true;"),
+                              "CREATE KEYSPACE " + KEYSPACE +
+                                  " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                                  "  AND durable_writes = true;"),
                           row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST,
-                              "CREATE KEYSPACE " + KEYSPACE_PER_TEST + "\n" +
-                                  "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
-                                  "     AND durable_writes = true;"),
+                              "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
+                                  " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                                  "  AND durable_writes = true;"),
                           row("test", "keyspace", "test", keyspaceOutput()),
                           row("test", "table", "has_all_types", allTypesTable()),
                           row("test", "table", "\"Test\"", testTableOutput()),
@@ -315,7 +334,7 @@ public class DescribeStatementTest extends CQLTester
                 assertRowsNet(executeDescribeNet(describeKeyword + " KEYSPACE test"), testKeyspaceOutput);
                 assertRowsNet(executeDescribeNet(describeKeyword + " test"), testKeyspaceOutput);
 
-                describeError(describeKeyword + " test2", "Keyspace 'test2' not found");
+                describeError(describeKeyword + " test2", "'test2' not found in keyspaces");
             }
 
             // Test describe tables/table
@@ -492,6 +511,52 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
+    public void testPrimaryKeyPositionWithAndWithoutInternals() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (pk text, v1 text, v2 int, v3 int, PRIMARY KEY (pk))");
+
+        TableId id = Schema.instance.getTableMetadata(KEYSPACE, table).id;
+
+        String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                      "    pk text PRIMARY KEY,\n" +
+                                      "    v1 text,\n" +
+                                      "    v2 int,\n" +
+                                      "    v3 int\n" +
+                                      ") WITH ID = " + id + "\n" +
+                                      "    AND " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatement));
+
+        String dropStatement = "ALTER TABLE " + KEYSPACE + "." + table + " DROP v3 USING TIMESTAMP 1589286942065000;";
+
+        execute(dropStatement);
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatement + "\n" +
+                          dropStatement));
+
+        String tableCreateStatementWithoutDroppedColumn = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                                          "    pk text PRIMARY KEY,\n" +
+                                                          "    v1 text,\n" +
+                                                          "    v2 int\n" +
+                                                          ") WITH " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatementWithoutDroppedColumn));
+    }
+
+    
+    @Test
     public void testDescribeMissingKeyspace() throws Throwable
     {
         describeError("DESCRIBE TABLE foop",
@@ -521,7 +586,7 @@ public class DescribeStatementTest extends CQLTester
                       format("'%s' not found in keyspace '%s'", "func_foo", KEYSPACE));
 
         describeError(format("DESCRIBE %s", "foo"),
-                      format("Keyspace '%s' not found", "foo"));
+                      format("'%s' not found in keyspaces", "foo"));
     }
 
     @Test
@@ -551,9 +616,9 @@ public class DescribeStatementTest extends CQLTester
                                                        ");"));
 
             assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE KEYSPACE " + KEYSPACE),
-                          row(KEYSPACE, "keyspace", KEYSPACE, "CREATE KEYSPACE " + KEYSPACE + "\n" +
-                                                          "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
-                                                          "     AND durable_writes = true;"),
+                          row(KEYSPACE, "keyspace", KEYSPACE, "CREATE KEYSPACE " + KEYSPACE +
+                                                          " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                                                          "  AND durable_writes = true;"),
                           row(KEYSPACE, "type", type2, "CREATE TYPE " + KEYSPACE + "." + type2 + " (\n" +
                                                        "    x text,\n" + 
                                                        "    y text\n" +
@@ -609,7 +674,7 @@ public class DescribeStatementTest extends CQLTester
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +
-               "    num int,\n" +
+               "    num int PRIMARY KEY,\n" +
                "    asciicol ascii,\n" +
                "    bigintcol bigint,\n" +
                "    blobcol blob,\n" +
@@ -632,8 +697,7 @@ public class DescribeStatementTest extends CQLTester
                "    varintcol varint,\n" +
                "    listcol list<decimal>,\n" +
                "    mapcol map<timestamp, timeuuid>,\n" +
-               "    setcol set<tinyint>,\n" +
-               "    PRIMARY KEY (num)\n" +
+               "    setcol set<tinyint>\n" +
                ") WITH " + tableParametersCql();
     }
 
@@ -656,24 +720,22 @@ public class DescribeStatementTest extends CQLTester
     private static String usersMvTableOutput()
     {
         return "CREATE TABLE test.users_mv (\n" +
-               "    username text,\n" +
+               "    username text PRIMARY KEY,\n" +
                "    birth_year bigint,\n" +
                "    gender text,\n" +
                "    password text,\n" +
                "    session_token text,\n" +
-               "    state text,\n" +
-               "    PRIMARY KEY (username)\n" +
+               "    state text\n" +
                ") WITH " + tableParametersCql();
     }
 
     private static String userTableOutput()
     {
         return "CREATE TABLE test.users (\n" +
-               "    userid text,\n" +
+               "    userid text PRIMARY KEY,\n" +
                "    age int,\n" +
                "    firstname text,\n" +
-               "    lastname text,\n" +
-               "    PRIMARY KEY (userid)\n" +
+               "    lastname text\n" +
                ") WITH " + tableParametersCql();
     }
 
@@ -690,7 +752,8 @@ public class DescribeStatementTest extends CQLTester
 
     private static String tableParametersCql()
     {
-        return "bloom_filter_fp_chance = 0.01\n" +
+        return "additional_write_policy = '99p'\n" +
+               "    AND bloom_filter_fp_chance = 0.01\n" +
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
@@ -704,15 +767,12 @@ public class DescribeStatementTest extends CQLTester
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p'\n" +
-               "    AND additional_write_policy = '99p';";
+               "    AND speculative_retry = '99p';";
     }
 
     private static String keyspaceOutput()
     {
-        return "CREATE KEYSPACE test\n" +
-               "    WITH replication = {'class': 'org.apache.cassandra.locator.SimpleStrategy', 'replication_factor': '1'}\n" +
-               "     AND durable_writes = true;";
+        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;";
     }
 
     private void describeError(String cql, String msg) throws Throwable

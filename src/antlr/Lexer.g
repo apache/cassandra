@@ -92,7 +92,8 @@ K_KEYSPACE:    ( K E Y S P A C E
 K_KEYSPACES:   K E Y S P A C E S;
 K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
-K_TABLES:      T A B L E S;
+K_TABLES:      ( C O L U M N F A M I L I E S
+                 | T A B L E S );
 K_MATERIALIZED:M A T E R I A L I Z E D;
 K_VIEW:        V I E W;
 K_INDEX:       I N D E X;

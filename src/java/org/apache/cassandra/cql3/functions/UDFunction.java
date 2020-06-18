@@ -322,7 +322,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                 builder.append(", ");
             builder.append(argNames().get(i))
                    .append(' ')
-                   .append(argTypes().get(i));
+                   .append(toCqlString(argTypes().get(i)));
         }
 
         builder.append(')')
@@ -332,7 +332,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                .append(" ON NULL INPUT")
                .newLine()
                .append("RETURNS ")
-               .append(returnType())
+               .append(toCqlString(returnType()))
                .newLine()
                .append("LANGUAGE ")
                .append(language())

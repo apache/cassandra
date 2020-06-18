@@ -604,7 +604,7 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
-        String typeName = "type_" + seqNumber.getAndIncrement();
+        String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
         String fullQuery = String.format(query, KEYSPACE + "." + typeName);
         types.add(typeName);
         logger.info(fullQuery);
@@ -614,7 +614,7 @@ public abstract class CQLTester
 
     protected String createFunction(String keyspace, String argTypes, String query) throws Throwable
     {
-        String functionName = keyspace + ".function_" + seqNumber.getAndIncrement();
+        String functionName = String.format("%s.function_%02d", keyspace, seqNumber.getAndIncrement());
         createFunctionOverload(functionName, argTypes, query);
         return functionName;
     }
@@ -629,7 +629,7 @@ public abstract class CQLTester
 
     protected String createAggregate(String keyspace, String argTypes, String query) throws Throwable
     {
-        String aggregateName = keyspace + "." + "aggregate_" + seqNumber.getAndIncrement();
+        String aggregateName = String.format("%s.aggregate_%02d", keyspace, seqNumber.getAndIncrement());
         createAggregateOverload(aggregateName, argTypes, query);
         return aggregateName;
     }
@@ -667,7 +667,7 @@ public abstract class CQLTester
     
     protected String createKeyspaceName()
     {
-        String currentKeyspace = "keyspace_" + seqNumber.getAndIncrement();
+        String currentKeyspace = String.format("keyspace_%02d", seqNumber.getAndIncrement());
         keyspaces.add(currentKeyspace);
         return currentKeyspace;
     }
@@ -688,7 +688,7 @@ public abstract class CQLTester
 
     protected String createTableName()
     {
-        String currentTable = "table_" + seqNumber.getAndIncrement();
+        String currentTable = String.format("table_%02d", seqNumber.getAndIncrement());
         tables.add(currentTable);
         return currentTable;
     }

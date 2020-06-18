@@ -132,8 +132,10 @@ public final class ReplicationParams
 
     public void appendCqlTo(CqlBuilder builder)
     {
+        String classname = "org.apache.cassandra.locator".equals(klass.getPackage().getName()) ? klass.getSimpleName()
+                                                                                               : klass.getName();
         builder.append("{'class': ")
-               .appendWithSingleQuotes(klass.getName());
+               .appendWithSingleQuotes(classname);
 
         options.forEach((k, v) -> {
             builder.append(", ")
