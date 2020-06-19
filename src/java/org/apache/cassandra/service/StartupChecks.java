@@ -29,11 +29,13 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.schema.TableMetadata;
@@ -83,6 +85,7 @@ public class StartupChecks
     // always want the system keyspace check run last, as this actually loads the schema for that
     // keyspace. All other checks should not require any schema initialization.
     private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkJemalloc,
+                                                                      checkLz4Native,
                                                                       checkValidLaunchDate,
                                                                       checkJMXPorts,
                                                                       checkJMXProperties,
@@ -137,6 +140,17 @@ public class StartupChecks
                 logger.info("jemalloc preload explicitly disabled");
             else
                 logger.info("jemalloc seems to be preloaded from {}", jemalloc);
+        }
+    };
+
+    public static final StartupCheck checkLz4Native = () -> {
+        try
+        {
+            LZ4Factory.nativeInstance(); // make sure native loads
+        }
+        catch (AssertionError e)
+        {
+            logger.warn("lz4-java was unable to load native librarires; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
         }
     };
 
