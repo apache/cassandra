@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Authenticator;
+import com.datastax.driver.core.EndPoint;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLTester;
@@ -121,7 +122,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     {
         SaslNegotiator negotiator = authenticator.newSaslNegotiator(null);
         Authenticator clientAuthenticator = (new PlainTextAuthProvider(username, password))
-                                            .newAuthenticator(null, null);
+                                            .newAuthenticator((EndPoint) null, null);
 
         negotiator.evaluateResponse(clientAuthenticator.initialResponse());
         negotiator.getAuthenticatedUser();
