@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.UUIDGen;
-import org.codehaus.jackson.map.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 public class JsonConversionTest
