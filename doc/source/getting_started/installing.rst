@@ -180,14 +180,14 @@ Installing the Debian packages
 
 ::
 
-   $ echo "deb http://www.apache.org/dist/cassandra/debian 40x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
-   deb http://www.apache.org/dist/cassandra/debian 40x main
+   $ echo "deb http://downloads.apache.org/cassandra/debian 40x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+   deb http://downloads.apache.org/cassandra/debian 40x main
 
 3. Add the Apache Cassandra repository keys to the list of trusted keys on the server:
 
 ::
 
-   $ curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+   $ curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                     Dload  Upload   Total   Spent    Left  Speed
    100  266k  100  266k    0     0   320k      0 --:--:-- --:--:-- --:--:--  320k
