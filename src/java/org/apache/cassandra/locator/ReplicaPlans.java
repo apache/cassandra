@@ -570,11 +570,11 @@ public class ReplicaPlans
     /**
      * Construct a plan for reading from a single node - this permits no speculation or read-repair
      */
-    public static ReplicaPlan.ForRangeRead forSingleReplicaRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica)
+    public static ReplicaPlan.ForRangeRead forSingleReplicaRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica, int vnodeCount)
     {
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
         EndpointsForRange one = EndpointsForRange.of(replica);
-        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one);
+        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one, vnodeCount);
     }
 
     /**
@@ -601,13 +601,13 @@ public class ReplicaPlans
      *
      * There is no speculation for range read queries at present, so we never 'always speculate' here, and a failed response fails the query.
      */
-    public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range)
+    public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, int vnodeCount)
     {
         EndpointsForRange candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(keyspace, range).natural());
         EndpointsForRange contacts = contactForRead(keyspace, consistencyLevel, false, candidates);
 
         assureSufficientLiveReplicasForRead(keyspace, consistencyLevel, contacts);
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates, contacts);
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates, contacts, vnodeCount);
     }
 
     /**
@@ -630,6 +630,6 @@ public class ReplicaPlans
             return null;
 
         // If we get there, merge this range and the next one
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts);
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts, left.vnodeCount() + right.vnodeCount());
     }
 }

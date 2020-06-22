@@ -28,13 +28,11 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -1323,7 +1321,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas));
+        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas, 1));
     }
 
     private static void resolveAndConsume(DataResolver resolver)
