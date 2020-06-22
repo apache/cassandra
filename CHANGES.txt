@@ -47,6 +47,7 @@ Merged from 3.11:
  * Upgrade Jackson to 2.9.10 (CASSANDRA-15867)
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
+ * Fixed range read concurrency factor computation and capped as 10 times tpc cores (CASSANDRA-15752)
  * Catch exception on bootstrap resume and init native transport (CASSANDRA-15863)
  * Fix replica-side filtering returning stale data with CL > ONE (CASSANDRA-8272, CASSANDRA-8273)
  * Rely on snapshotted session infos on StreamResultFuture.maybeComplete to avoid race conditions (CASSANDRA-15667)
