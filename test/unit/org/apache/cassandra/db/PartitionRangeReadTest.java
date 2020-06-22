@@ -19,26 +19,41 @@
 package org.apache.cassandra.db;
 
 import java.math.BigInteger;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.collect.Iterators;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.apache.cassandra.db.ConsistencyLevel.ONE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class PartitionRangeReadTest
 {
@@ -47,6 +62,8 @@ public class PartitionRangeReadTest
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARDINT = "StandardInteger1";
     public static final String CF_COMPACT1 = "Compact1";
+
+    private static final List<InetAddress> LOCAL = Collections.singletonList(FBUtilities.getBroadcastAddress());
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -388,5 +405,131 @@ public class PartitionRangeReadTest
 //        assertColumnNames(row1, "c1", "c2");
 //        assertColumnNames(row2, "c1");
 //    }
+
+    @Test
+    public void testComputeConcurrencyFactor()
+    {
+        int maxConcurrentRangeRequest = 32;
+
+        // no live row returned, fetch all remaining ranges but hit the max instead
+        int cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 30, maxConcurrentRangeRequest, 500, 0);
+        assertEquals(maxConcurrentRangeRequest, cf); // because 100 - 30 = 70 > maxConccurrentRangeRequest
+
+        // no live row returned, fetch all remaining ranges
+        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 80, maxConcurrentRangeRequest, 500, 0);
+        assertEquals(20, cf); // because 100-80 = 20 < maxConccurrentRangeRequest
+
+        // returned half rows, fetch rangesQueried again but hit the max instead
+        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 60, maxConcurrentRangeRequest, 480, 240);
+        assertEquals(maxConcurrentRangeRequest, cf); // because 60 > maxConccurrentRangeRequest
+
+        // returned half rows, fetch rangesQueried again
+        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 30, maxConcurrentRangeRequest, 480, 240);
+        assertEquals(30, cf); // because 30 < maxConccurrentRangeRequest
+
+        // returned most of rows, 1 more range to fetch
+        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 1, maxConcurrentRangeRequest, 480, 479);
+        assertEquals(1, cf); // because 1 < maxConccurrentRangeRequest
+    }
+
+    @Test
+    public void testRangeCountWithRangeMerge()
+    {
+        List<Token> tokens = setTokens(Arrays.asList(100, 200, 300, 400));
+        int vnodeCount = 0;
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        List<StorageProxy.RangeForQuery> ranges = new ArrayList<>();
+        for (int i = 0; i + 1 < tokens.size(); i++)
+        {
+            Range<PartitionPosition> range = Range.makeRowRange(tokens.get(i), tokens.get(i + 1));
+            ranges.add(new StorageProxy.RangeForQuery(range, LOCAL, LOCAL, 1));
+            vnodeCount++;
+        }
+
+        StorageProxy.RangeMerger merge = new StorageProxy.RangeMerger(ranges.iterator(), keyspace, ONE);
+        StorageProxy.RangeForQuery mergedRange = Iterators.getOnlyElement(merge);
+        // all ranges are merged as test has only one node.
+        assertEquals(vnodeCount, mergedRange.vnodeCount());
+    }
+
+    @Test
+    public void testRangeQueried()
+    {
+        List<Token> tokens = setTokens(Arrays.asList(100, 200, 300, 400));
+        int vnodeCount = tokens.size() + 1; // n tokens divide token ring into n+1 ranges
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        cfs.clearUnsafe();
+
+        int rows = 100;
+        for (int i = 0; i < rows; ++i)
+        {
+            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 10, String.valueOf(i));
+            builder.clustering("c");
+            builder.add("val", String.valueOf(i));
+            builder.build().applyUnsafe();
+        }
+        cfs.forceBlockingFlush();
+
+        PartitionRangeReadCommand command = (PartitionRangeReadCommand) Util.cmd(cfs).build();
+
+        // without range merger, there will be 2 batches requested: 1st batch with 1 range and 2nd batch with remaining ranges
+        Iterator<StorageProxy.RangeForQuery> ranges = rangeIterator(command, keyspace, false);
+        StorageProxy.RangeCommandIterator data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1000, vnodeCount, keyspace, ONE, System.nanoTime());
+        verifyRangeCommandIterator(data, rows, 2, vnodeCount);
+
+        // without range merger and initial cf=5, there will be 1 batches requested: 5 vnode ranges for 1st batch
+        ranges = rangeIterator(command, keyspace, false);
+        data = new StorageProxy.RangeCommandIterator(ranges, command, vnodeCount, 1000, vnodeCount, keyspace, ONE, System.nanoTime());
+        verifyRangeCommandIterator(data, rows, 1, vnodeCount);
+
+        // without range merger and max cf=1, there will be 5 batches requested: 1 vnode range per batch
+        ranges = rangeIterator(command, keyspace, false);
+        data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1, vnodeCount, keyspace, ONE, System.nanoTime());
+        verifyRangeCommandIterator(data, rows, vnodeCount, vnodeCount);
+
+        // with range merger, there will be only 1 batch requested, as all ranges share the same replica - localhost
+        ranges = rangeIterator(command, keyspace, true);
+        data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1000, vnodeCount, keyspace, ONE, System.nanoTime());
+        verifyRangeCommandIterator(data, rows, 1, vnodeCount);
+
+        // with range merger and max cf=1, there will be only 1 batch requested, as all ranges share the same replica - localhost
+        ranges = rangeIterator(command, keyspace, true);
+        data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1, vnodeCount, keyspace, ONE, System.nanoTime());
+        verifyRangeCommandIterator(data, rows, 1, vnodeCount);
+    }
+
+    private Iterator<StorageProxy.RangeForQuery> rangeIterator(PartitionRangeReadCommand command, Keyspace keyspace, boolean withRangeMerger)
+    {
+        Iterator<StorageProxy.RangeForQuery> ranges = new StorageProxy.RangeIterator(command, keyspace, ONE);
+        if (withRangeMerger)
+            ranges = new StorageProxy.RangeMerger(ranges, keyspace, ONE);
+
+        return  ranges;
+    }
+
+    private void verifyRangeCommandIterator(StorageProxy.RangeCommandIterator data, int rows, int batches, int vnodeCount)
+    {
+        int num = Util.size(data);
+        assertEquals(rows, num);
+        assertEquals(batches, data.batchesRequested());
+        assertEquals(vnodeCount, data.rangesQueried());
+    }
+
+    private List<Token> setTokens(List<Integer> values)
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        List<Token> tokens = new ArrayList<>(values.size());
+        for (Integer val : values)
+            tokens.add(partitioner.getToken(ByteBufferUtil.bytes(val)));
+
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+        tmd.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
+
+        return tokens;
+    }
 }
 
