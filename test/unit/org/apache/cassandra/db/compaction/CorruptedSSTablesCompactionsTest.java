@@ -72,8 +72,11 @@ public class CorruptedSSTablesCompactionsTest
     public static void defineSchema() throws ConfigurationException
     {
         long seed = System.nanoTime();
+
         //long seed = 754271160974509L; // CASSANDRA-9530: use this seed to reproduce compaction failures if reading empty rows
         //long seed = 2080431860597L; // CASSANDRA-12359: use this seed to reproduce undetected corruptions
+        //long seed = 9823169134884L; // CASSANDRA-15879: use this seed to reproduce duplicate clusterings
+
         logger.info("Seed {}", seed);
         random = new Random(seed);
 
@@ -149,7 +152,7 @@ public class CorruptedSSTablesCompactionsTest
         {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++)
             {
-                DecoratedKey key = Util.dk(String.valueOf(i));
+                DecoratedKey key = Util.dk(String.valueOf(i), LongType.instance);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
                 new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
                         .clustering(Long.valueOf(i))
