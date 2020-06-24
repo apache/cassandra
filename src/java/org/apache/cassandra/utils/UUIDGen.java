@@ -78,6 +78,7 @@ public class UUIDGen
     private UUIDGen()
     {
         // make sure someone didn't whack the clockSeqAndNode by changing the order of instantiation.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         if (clockSeqAndNode == 0) throw new RuntimeException("singleton instantiation is misplaced.");
     }
 
@@ -98,6 +99,7 @@ public class UUIDGen
      */
     public static UUID getTimeUUID(long when)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5667
         return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
     }
 
@@ -114,6 +116,7 @@ public class UUIDGen
      */
     public static UUID getTimeUUIDFromMicros(long whenInMicros)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9649
         long whenInMillis = whenInMicros / 1000;
         long nanos = (whenInMicros - (whenInMillis * 1000)) * 10;
         return getTimeUUID(whenInMillis, nanos);
@@ -152,12 +155,15 @@ public class UUIDGen
     /** creates a type 1 uuid from raw bytes. */
     public static UUID getUUID(ByteBuffer raw)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
     }
 
     public static ByteBuffer toByteBuffer(UUID uuid)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         ByteBuffer buffer = ByteBuffer.allocate(UUID_LEN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         buffer.putLong(uuid.getMostSignificantBits());
         buffer.putLong(uuid.getLeastSignificantBits());
         buffer.flip();
@@ -186,6 +192,7 @@ public class UUIDGen
      */
     public static byte[] getTimeUUIDBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2099
         return createTimeUUIDBytes(instance.createTimeSafe());
     }
 
@@ -271,6 +278,7 @@ public class UUIDGen
      */
     public static byte[] getTimeUUIDBytes(long timeMillis, int nanos)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
         if (nanos >= 10000)
             throw new IllegalArgumentException();
         return createTimeUUIDBytes(instance.createTimeUnsafe(timeMillis, nanos));
@@ -278,6 +286,7 @@ public class UUIDGen
 
     private static byte[] createTimeUUIDBytes(long msb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         long lsb = clockSeqAndNode;
         byte[] uuidBytes = new byte[16];
 
@@ -299,6 +308,7 @@ public class UUIDGen
      */
     public static long getAdjustedTimestamp(UUID uuid)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2099
         if (uuid.version() != 1)
             throw new IllegalArgumentException("incompatible with uuid version: "+uuid.version());
         return (uuid.timestamp() / 10000) + START_EPOCH;
@@ -307,6 +317,7 @@ public class UUIDGen
     private static long makeClockSeqAndNode()
     {
         long clock = new SecureRandom().nextLong();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11518
 
         long lsb = 0;
         lsb |= 0x8000000000000000L;                 // variant (2 bits)
@@ -319,6 +330,7 @@ public class UUIDGen
     // we can generate at most 10k UUIDs per ms.
     private long createTimeSafe()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11517
         long newLastNanos;
         while (true)
         {
@@ -346,6 +358,7 @@ public class UUIDGen
 
     private long createTimeUnsafe(long when, int nanos)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
         long nanosSince = ((when - START_EPOCH) * 10000) + nanos;
         return createTime(nanosSince);
     }
@@ -373,6 +386,7 @@ public class UUIDGen
         * instanciation and the UUID generator is used in Stress for instance,
         * where we don't want to require the yaml.
         */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14226
         Collection<InetAddressAndPort> localAddresses = getAllLocalAddresses();
         if (localAddresses.isEmpty())
             throw new RuntimeException("Cannot generate the node component of the UUID because cannot retrieve any IP addresses.");
@@ -393,6 +407,7 @@ public class UUIDGen
     {
         // Identify the host.
         Hasher hasher = Hashing.md5().newHasher();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14226
         for(InetAddressAndPort addr : data)
         {
             hasher.putBytes(addr.addressBytes);
@@ -400,10 +415,12 @@ public class UUIDGen
         }
 
         // Identify the process on the load: we use both the PID and class loader hash.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         long pid = NativeLibrary.getProcessID();
         if (pid < 0)
             pid = new Random(System.currentTimeMillis()).nextLong();
         updateWithLong(hasher, pid);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
 
         ClassLoader loader = UUIDGen.class.getClassLoader();
         int loaderId = loader != null ? System.identityHashCode(loader) : 0;
@@ -437,6 +454,7 @@ public class UUIDGen
      **/
     public static Collection<InetAddressAndPort> getAllLocalAddresses()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14226
         Set<InetAddressAndPort> localAddresses = new HashSet<>();
         try
         {

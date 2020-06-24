@@ -725,6 +725,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
                                        "     org.apache.cassandra.cql3.functions.types.UDTValue udtVal = (com.datastax.driver.core.UDTValue)lst.get(1);" +
                                        "     return udtVal.getString(\"txt\");$$;");
         String fName2 = createFunction(KEYSPACE, "set<frozen<" + type + ">>",
@@ -733,6 +734,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
                                        "     com.datastax.driver.core.UDTValue udtVal = (org.apache.cassandra.cql3.functions.types.UDTValue)st.iterator().next();" +
                                        "     return udtVal.getString(\"txt\");$$;");
         String fName3 = createFunction(KEYSPACE, "map<int, frozen<" + type + ">>",
@@ -741,6 +743,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
                                        "     org.apache.cassandra.cql3.functions.types.UDTValue udtVal = (com.datastax.driver.core.UDTValue)mp.get(Integer.valueOf(3));" +
                                        "     return udtVal.getString(\"txt\");$$;");
 

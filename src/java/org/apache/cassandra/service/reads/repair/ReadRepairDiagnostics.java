@@ -44,6 +44,8 @@ final class ReadRepairDiagnostics
         if (service.isEnabled(ReadRepairEvent.class, ReadRepairEventType.START_REPAIR))
             service.publish(new ReadRepairEvent(ReadRepairEventType.START_REPAIR,
                                                 readRepair,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                                 fullPlan.contacts().endpoints(),
                                                 fullPlan.candidates().endpoints(), digestResolver));
     }

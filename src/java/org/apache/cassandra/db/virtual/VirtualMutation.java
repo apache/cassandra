@@ -79,6 +79,7 @@ public final class VirtualMutation implements IMutation
     @Override
     public long getTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getWriteRpcTimeout(unit);
     }
 

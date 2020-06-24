@@ -43,8 +43,10 @@ public class NativeLibraryWindows implements NativeLibraryWrapper
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
             Native.register(com.sun.jna.NativeLibrary.getInstance("kernel32", Collections.emptyMap()));
             available = true;
         }
@@ -116,6 +118,7 @@ public class NativeLibraryWindows implements NativeLibraryWrapper
      */
     public long callGetpid() throws UnsatisfiedLinkError, RuntimeException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         return GetCurrentProcessId();
     }
 

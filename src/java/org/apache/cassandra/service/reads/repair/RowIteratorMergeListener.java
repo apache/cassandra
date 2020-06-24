@@ -87,6 +87,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         this.partitionKey = partitionKey;
         this.columns = columns;
         this.isReversed = isReversed;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         this.readPlan = readPlan;
         this.writePlan = ReplicaPlans.forReadRepair(partitionKey.getToken(), readPlan);
 
@@ -119,6 +120,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         {
             public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14698
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addPrimaryKeyLivenessInfo(merged);
             }
@@ -180,6 +182,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     @Inline
     private void applyToPartition(int i, Consumer<PartitionUpdate.Builder> f)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         if (writeBackTo.get(i))
         {
             if (repairs[i] == null)
@@ -217,6 +220,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         {
             if (currentRows[i] != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
                 Row row = currentRows[i].build();
                 applyToPartition(i, p -> p.add(row));
             }
@@ -345,6 +349,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     private void closeOpenMarker(int i, ClusteringBound close)
     {
         ClusteringBound open = markerToRepair[i];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         RangeTombstone rt = new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), currentDeletion());
         applyToPartition(i, p -> p.add(rt));
         markerToRepair[i] = null;
@@ -363,6 +368,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             fullDiffRepair = repairs[repairs.length - 1].build();
 
         Map<Replica, Mutation> mutations = Maps.newHashMapWithExpectedSize(writePlan.contacts().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
         ObjectIntHashMap<InetAddressAndPort> sourceIds = new ObjectIntHashMap<>(((repairs.length + 1) * 4) / 3);
         for (int i = 0 ; i < readPlan.contacts().size() ; ++i)
             sourceIds.put(readPlan.contacts().get(i).endpoint(), 1 + i);

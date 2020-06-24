@@ -32,6 +32,7 @@ import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public enum RequestFailureReason
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     UNKNOWN                  (0),
     READ_TOO_MANY_TOMBSTONES (1),
     TIMEOUT                  (2),

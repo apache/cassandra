@@ -113,6 +113,7 @@ public class SettingsPopulation implements Serializable
 
         public SequentialOptions(String defaultLimit)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10828
             populate = new OptionSimple("seq=", "[0-9]+[MBK]?\\.\\.+[0-9]+[MBK]?",
                     "1.." + defaultLimit,
                     "Generate all seeds in sequence", true);
@@ -129,6 +130,7 @@ public class SettingsPopulation implements Serializable
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         if (distribution != null)
         {
             out.println("  Distribution: " +distribution.getConfigAsString());
@@ -155,6 +157,7 @@ public class SettingsPopulation implements Serializable
         String[] params = clArgs.remove("-pop");
         if (params == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8524
             if (command instanceof SettingsCommandUser && ((SettingsCommandUser)command).hasInsertOnly())
             {
                 return new SettingsPopulation(new SequentialOptions(defaultLimit));

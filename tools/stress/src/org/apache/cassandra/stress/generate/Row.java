@@ -30,6 +30,7 @@ public class Row
 
     public Row(Object[] partitionKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
         this.partitionKey = partitionKey;
         this.row = EMPTY_ROW_DATA;
     }
@@ -49,6 +50,7 @@ public class Row
 
     public Row copy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
         return new Row(partitionKey.clone(), row.clone());
     }
 }

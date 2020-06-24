@@ -57,9 +57,12 @@ public class SizeTieredCompactionStrategyTest
         System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
 
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 
@@ -100,6 +103,7 @@ public class SizeTieredCompactionStrategyTest
             pairs.add(pair);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6109
         List<List<String>> buckets = getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(3, buckets.size());
 
@@ -120,6 +124,7 @@ public class SizeTieredCompactionStrategyTest
             pairs.add(pair);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6109
         buckets = getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(2, buckets.size());
 
@@ -148,6 +153,8 @@ public class SizeTieredCompactionStrategyTest
     @Test
     public void testPrepBucket() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String ksname = KEYSPACE1;
         String cfname = "Standard1";
         Keyspace keyspace = Keyspace.open(ksname);
@@ -169,12 +176,14 @@ public class SizeTieredCompactionStrategyTest
         }
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
         Pair<List<SSTableReader>, Double> bucket;
 
         List<SSTableReader> interestingBucket = mostInterestingBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32);
         assertTrue("nothing should be returned when all buckets are below the min threshold", interestingBucket.isEmpty());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         sstrs.get(0).overrideReadMeter(new RestorableMeter(100.0, 100.0));
         sstrs.get(1).overrideReadMeter(new RestorableMeter(200.0, 200.0));
         sstrs.get(2).overrideReadMeter(new RestorableMeter(300.0, 300.0));

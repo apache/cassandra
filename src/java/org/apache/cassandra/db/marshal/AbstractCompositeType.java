@@ -40,11 +40,13 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
     protected AbstractCompositeType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -59,6 +61,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         int i = 0;
 
         ByteBuffer previous = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
 
         while (bb1.remaining() > 0 && bb2.remaining() > 0)
         {
@@ -72,6 +75,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
                 return cmp;
 
             previous = value1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
 
             byte b1 = bb1.get();
             byte b2 = bb2.get();
@@ -97,6 +101,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
      */
     public ByteBuffer[] split(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3761
         List<ByteBuffer> l = new ArrayList<ByteBuffer>();
         ByteBuffer bb = name.duplicate();
         readIsStatic(bb);
@@ -121,9 +126,11 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
      */
     public static String escape(String input)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4842
         if (input.isEmpty())
             return input;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         String res = COLON_PAT.matcher(input).replaceAll(ESCAPED_COLON);
         char last = res.charAt(res.length() - 1);
         return last == '\\' || last == '!' ? res + '!' : res;
@@ -138,6 +145,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         if (input.isEmpty())
             return input;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         String res = ESCAPED_COLON_PAT.matcher(input).replaceAll(COLON);
         char last = res.charAt(res.length() - 1);
         return last == '!' ? res.substring(0, res.length() - 1) : res;
@@ -185,6 +193,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             byte b = bb.get();
             if (b != 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
                 sb.append(b < 0 ? ":_" : ":!");
                 break;
             }
@@ -209,6 +218,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
                 lastByteIsOne = true;
                 break;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             else if (part.equals("_"))
             {
                 lastByteIsMinusOne = true;
@@ -216,9 +226,11 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             }
 
             ParsedComparator p = parseComparator(i, part);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
             AbstractType<?> type = p.getAbstractType();
             part = p.getRemainingPart();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4842
             ByteBuffer component = type.fromString(unescape(part));
             totalLength += p.getComparatorSerializedSize() + 2 + component.remaining() + 1;
             components.add(component);
@@ -238,6 +250,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         }
         if (lastByteIsOne)
             bb.put(bb.limit() - 1, (byte)1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
         else if (lastByteIsMinusOne)
             bb.put(bb.limit() - 1, (byte)-1);
 
@@ -248,6 +261,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     @Override
     public Term fromJSONObject(Object parsed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         throw new UnsupportedOperationException();
     }
 
@@ -264,6 +278,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         readIsStatic(bb);
 
         int i = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
         ByteBuffer previous = null;
         while (bb.remaining() > 0)
         {
@@ -278,6 +293,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             ByteBuffer value = ByteBufferUtil.readBytes(bb, length);
 
             comparator.validateCollectionMember(value, previous);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
 
             if (bb.remaining() == 0)
                 throw new MarshalException("Not enough bytes to read the end-of-component byte of component" + i);
@@ -294,6 +310,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
     public TypeSerializer<ByteBuffer> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         return BytesSerializer.instance;
     }
 

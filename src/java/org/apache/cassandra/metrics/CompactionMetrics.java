@@ -66,6 +66,7 @@ public class CompactionMetrics
 
     public CompactionMetrics(final ThreadPoolExecutor... collectors)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
         {
             public Integer getValue()
@@ -75,9 +76,11 @@ public class CompactionMetrics
                 for (String keyspaceName : Schema.instance.getKeyspaces())
                 {
                     for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                         n += cfs.getCompactionStrategyManager().getEstimatedRemainingTasks();
                 }
                 // add number of currently running compactions
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 return n + CompactionManager.instance.active.getCompactions().size();
             }
         });
@@ -90,6 +93,7 @@ public class CompactionMetrics
             {
                 Map<String, Map<String, Integer>> resultMap = new HashMap<>();
                 // estimation of compactions need to be done
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                 for (String keyspaceName : Schema.instance.getKeyspaces())
                 {
                     for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
@@ -107,9 +111,11 @@ public class CompactionMetrics
                 }
 
                 // currently running compactions
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 for (CompactionInfo.Holder compaction : CompactionManager.instance.active.getCompactions())
                 {
                     TableMetadata metaData = compaction.getCompactionInfo().getTableMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11961
                     if (metaData == null)
                     {
                         continue;
@@ -134,6 +140,7 @@ public class CompactionMetrics
             }
         });
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
         {
             public Long getValue()
@@ -144,10 +151,12 @@ public class CompactionMetrics
                 return completedTasks;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
 
         // compaction failure metrics
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13015
         compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));
         sstablesDropppedFromCompactions = Metrics.counter(factory.createMetricName("SSTablesDroppedFromCompaction"));
         compactionsAborted = Metrics.counter(factory.createMetricName("CompactionsAborted"));

@@ -36,6 +36,7 @@ public class CqlInserter extends CqlOperation<Integer>
 
     public CqlInserter(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         super(Command.WRITE, timer, generator, seedManager, settings);
     }
 
@@ -78,6 +79,7 @@ public class CqlInserter extends CqlOperation<Integer>
 
     public boolean isWrite()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return true;
     }
 }

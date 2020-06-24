@@ -26,6 +26,7 @@ import org.apache.cassandra.tracing.Tracing;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 class ResponseVerbHandler implements IVerbHandler
 {
     public static final ResponseVerbHandler instance = new ResponseVerbHandler();
@@ -58,6 +59,7 @@ class ResponseVerbHandler implements IVerbHandler
             cb.onResponse(message);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
         if (callbackInfo.callback.supportsBackPressure())
         {
             MessagingService.instance().updateBackPressureOnReceive(message.from(), cb, false);

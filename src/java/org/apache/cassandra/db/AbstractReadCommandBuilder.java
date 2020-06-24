@@ -124,6 +124,7 @@ public abstract class AbstractReadCommandBuilder
     {
         if (this.columns == null)
             this.columns = Sets.newHashSetWithExpectedSize(columns.length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
 
         for (String column : columns)
             this.columns.add(ColumnIdentifier.getInterned(column, true));
@@ -204,6 +205,7 @@ public abstract class AbstractReadCommandBuilder
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             Slice slice = Slice.make(lowerClusteringBound == null ? ClusteringBound.BOTTOM : lowerClusteringBound,
                                      upperClusteringBound == null ? ClusteringBound.TOP : upperClusteringBound);
             return new ClusteringIndexSliceFilter(Slices.with(cfs.metadata().comparator, slice), reversed);
@@ -244,6 +246,7 @@ public abstract class AbstractReadCommandBuilder
 
         public SinglePartitionSliceBuilder(ColumnFamilyStore cfs, DecoratedKey key)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
             super(cfs);
             this.partitionKey = key;
             sliceBuilder = new Slices.Builder(cfs.getComparator());
@@ -318,6 +321,7 @@ public abstract class AbstractReadCommandBuilder
             PartitionPosition start = startKey;
             if (start == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 start = cfs.getPartitioner().getMinimumToken().maxKeyBound();
                 startInclusive = false;
             }

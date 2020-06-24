@@ -35,6 +35,7 @@ import org.apache.cassandra.utils.Pair;
 
 public enum DataType
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     CUSTOM   (0,  null, ProtocolVersion.V1),
     ASCII    (1,  AsciiType.instance, ProtocolVersion.V1),
     BIGINT   (2,  LongType.instance, ProtocolVersion.V1),
@@ -56,6 +57,7 @@ public enum DataType
     TIME     (18, TimeType.instance, ProtocolVersion.V4),
     SMALLINT (19, ShortType.instance, ProtocolVersion.V4),
     BYTE     (20, ByteType.instance, ProtocolVersion.V4),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12850
     DURATION (21, DurationType.instance, ProtocolVersion.V5),
     LIST     (32, null, ProtocolVersion.V1),
     MAP      (33, null, ProtocolVersion.V1),
@@ -79,16 +81,19 @@ public enum DataType
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     DataType(int id, AbstractType type, ProtocolVersion protocolVersion)
     {
         this.id = id;
         this.type = type;
         this.protocolVersion = protocolVersion;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11428
         pair = Pair.create(this, null);
     }
 
     public int getId(ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (version.isSmallerThan(protocolVersion))
             return DataType.CUSTOM.getId(version);
         return id;
@@ -113,6 +118,7 @@ public enum DataType
                 String ks = CBUtil.readString(cb);
                 ByteBuffer name = UTF8Type.instance.decompose(CBUtil.readString(cb));
                 int n = cb.readUnsignedShort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 List<FieldIdentifier> fieldNames = new ArrayList<>(n);
                 List<AbstractType<?>> fieldTypes = new ArrayList<>(n);
                 for (int i = 0; i < n; i++)
@@ -121,6 +127,7 @@ public enum DataType
                     fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
                 }
                 return new UserType(ks, name, fieldNames, fieldTypes, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             case TUPLE:
                 n = cb.readUnsignedShort();
                 List<AbstractType<?>> types = new ArrayList<>(n);
@@ -135,8 +142,10 @@ public enum DataType
     public void writeValue(Object value, ByteBuf cb, ProtocolVersion version)
     {
         // Serialize as CUSTOM if client on the other side's version is < required for type
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (version.isSmallerThan(protocolVersion))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9219
             CBUtil.writeString(value.toString(), cb);
             return;
         }
@@ -160,8 +169,10 @@ public enum DataType
                 break;
             case UDT:
                 UserType udt = (UserType)value;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                 CBUtil.writeAsciiString(udt.keyspace, cb);
                 CBUtil.writeAsciiString(UTF8Type.instance.compose(udt.name), cb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
                 cb.writeShort(udt.size());
                 for (int i = 0; i < udt.size(); i++)
                 {
@@ -181,6 +192,7 @@ public enum DataType
     public int serializedValueSize(Object value, ProtocolVersion version)
     {
         // Serialize as CUSTOM if client on the other side's version is < required for type
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (version.isSmallerThan(protocolVersion))
             return CBUtil.sizeOfString(value.toString());
 
@@ -200,9 +212,11 @@ public enum DataType
             case UDT:
                 UserType udt = (UserType)value;
                 int size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                 size += CBUtil.sizeOfAsciiString(udt.keyspace);
                 size += CBUtil.sizeOfAsciiString(UTF8Type.instance.compose(udt.name));
                 size += 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
                 for (int i = 0; i < udt.size(); i++)
                 {
                     size += CBUtil.sizeOfAsciiString(udt.fieldName(i).toString());
@@ -228,6 +242,7 @@ public enum DataType
             type = ((ReversedType)type).baseType;
 
         // For compatibility sake, we still return DateType as the timestamp type in resultSet metadata (#5723)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7576
         if (type instanceof DateType)
             type = TimestampType.instance;
 
@@ -238,6 +253,7 @@ public enum DataType
             {
                 if (type instanceof ListType)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                     return Pair.<DataType, Object>create(LIST, ((ListType)type).getElementsType());
                 }
                 else if (type instanceof MapType)
@@ -252,6 +268,7 @@ public enum DataType
                 throw new AssertionError();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (type instanceof UserType && version.isGreaterOrEqualTo(UDT.protocolVersion))
                 return Pair.<DataType, Object>create(UDT, type);
 
@@ -263,8 +280,10 @@ public enum DataType
         else
         {
             // Fall back to CUSTOM if target doesn't know this data type
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isSmallerThan(dt.protocolVersion))
                 return Pair.<DataType, Object>create(CUSTOM, type.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11428
             return dt.pair;
         }
     }
@@ -278,20 +297,24 @@ public enum DataType
                 case CUSTOM:
                     return TypeParser.parse((String)entry.right);
                 case LIST:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                     return ListType.getInstance((AbstractType)entry.right, true);
                 case SET:
                     return SetType.getInstance((AbstractType)entry.right, true);
                 case MAP:
                     List<AbstractType> l = (List<AbstractType>)entry.right;
                     return MapType.getInstance(l.get(0), l.get(1), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                 case UDT:
                     return (AbstractType)entry.right;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
                 case TUPLE:
                     return (AbstractType)entry.right;
                 default:
                     return entry.left.type;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         catch (RequestValidationException e)
         {
             throw new ProtocolException(e.getMessage());
@@ -301,6 +324,7 @@ public enum DataType
     @VisibleForTesting
     public ProtocolVersion getProtocolVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9219
         return protocolVersion;
     }
 
@@ -310,6 +334,7 @@ public enum DataType
 
         public Codec()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12850
             DataType[] values = DataType.values();
             ids = new DataType[getMaxId(values) + 1];
             for (DataType opt : values)

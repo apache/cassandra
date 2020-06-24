@@ -51,12 +51,14 @@ public class DiskBoundaryManagerTest extends CQLTester
     {
         DisallowedDirectories.clearUnwritableUnsafe();
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddressAndPort());
         createTable("create table %s (id int primary key, x text)");
         dirs = new Directories(getCurrentColumnFamilyStore().metadata(), Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
                                                                                           new Directories.DataDirectory(new File("/tmp/2")),
                                                                                           new Directories.DataDirectory(new File("/tmp/3"))));
         mock = new MockCFS(getCurrentColumnFamilyStore(), dirs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14083
         dbm = mock.diskBoundaryManager;
     }
 
@@ -86,6 +88,7 @@ public class DiskBoundaryManagerTest extends CQLTester
     public void updateTokensTest() throws UnknownHostException
     {
         DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         StorageService.instance.getTokenMetadata().updateNormalTokens(BootStrapper.getRandomTokens(StorageService.instance.getTokenMetadata(), 10), InetAddressAndPort.getByName("127.0.0.10"));
         DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
         assertFalse(dbv1.equals(dbv2));
@@ -95,6 +98,7 @@ public class DiskBoundaryManagerTest extends CQLTester
     public void alterKeyspaceTest() throws Throwable
     {
         //do not use mock to since it will not be invalidated after alter keyspace
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14083
         DiskBoundaryManager dbm = getCurrentColumnFamilyStore().diskBoundaryManager;
         DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
         execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");

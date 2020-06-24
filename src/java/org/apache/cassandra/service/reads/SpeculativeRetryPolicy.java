@@ -25,10 +25,12 @@ public interface SpeculativeRetryPolicy
 {
     public enum Kind
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
         NEVER, FIXED, PERCENTILE, HYBRID, ALWAYS
     }
 
     long calculateThreshold(Snapshot latency, long existingValue);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14696
 
     Kind kind();
 

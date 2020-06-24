@@ -36,12 +36,14 @@ public class ChecksummedRandomAccessReaderTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
     public void readFully() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File data = FileUtils.createTempFile("testReadFully", "data");
         final File crc = FileUtils.createTempFile("testReadFully", "crc");
 
@@ -56,6 +58,7 @@ public class ChecksummedRandomAccessReaderTest
 
         assert data.exists();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc))
         {
             byte[] b = new byte[expected.length];
@@ -70,12 +73,14 @@ public class ChecksummedRandomAccessReaderTest
     @Test
     public void seek() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File data = FileUtils.createTempFile("testSeek", "data");
         final File crc = FileUtils.createTempFile("testSeek", "crc");
 
         final byte[] dataBytes = new byte[70 * 1024];   // bit more than crc chunk size
         ThreadLocalRandom.current().nextBytes(dataBytes);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new ChecksummedSequentialWriter(data, crc, null, SequentialWriterOption.DEFAULT))
         {
             writer.write(dataBytes);
@@ -84,6 +89,7 @@ public class ChecksummedRandomAccessReaderTest
 
         assert data.exists();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc))
         {
 
@@ -104,12 +110,15 @@ public class ChecksummedRandomAccessReaderTest
     @Test(expected = CorruptFileException.class)
     public void corruptionDetection() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File data = FileUtils.createTempFile("corruptionDetection", "data");
         final File crc = FileUtils.createTempFile("corruptionDetection", "crc");
 
         final byte[] expected = new byte[5 * 1024];
         Arrays.fill(expected, (byte) 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new ChecksummedSequentialWriter(data, crc, null, SequentialWriterOption.DEFAULT))
         {
             writer.write(expected);
@@ -125,6 +134,7 @@ public class ChecksummedRandomAccessReaderTest
             dataFile.write((byte) 5);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc))
         {
             byte[] b = new byte[expected.length];

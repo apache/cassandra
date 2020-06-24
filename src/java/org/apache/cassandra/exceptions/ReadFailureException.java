@@ -30,6 +30,7 @@ public class ReadFailureException extends RequestFailureException
 
     public ReadFailureException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15543
         super(ExceptionCode.READ_FAILURE, consistency, received, blockFor, ImmutableMap.copyOf(failureReasonByEndpoint));
         this.dataPresent = dataPresent;
     }

@@ -38,6 +38,7 @@ public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unf
                                             RegularAndStaticColumns columns,
                                             Row staticRow,
                                             boolean isReverseOrder,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                                             EncodingStats stats)
     {
         this.metadata = metadata;

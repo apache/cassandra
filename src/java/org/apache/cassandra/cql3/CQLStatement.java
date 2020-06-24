@@ -31,6 +31,7 @@ public interface CQLStatement
     /**
      * Returns all bind variables for the statement
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     default List<ColumnSpecification> getBindVariables()
     {
         return Collections.emptyList();
@@ -90,6 +91,7 @@ public interface CQLStatement
      * Provides the context needed for audit logging statements.
      */
     AuditLogContext getAuditLogContext();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
     /**
      * Whether or not this CQL Statement has LWT conditions
@@ -105,6 +107,7 @@ public interface CQLStatement
 
         public void setBindVariables(List<ColumnIdentifier> variables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             bindVariables = new VariableSpecifications(variables);
         }
 

@@ -51,6 +51,7 @@ public class Compact extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
         final boolean tokenProvided = !(startToken.isEmpty() && endToken.isEmpty());
         if (splitOutput && (userDefined || tokenProvided))
         {
@@ -63,6 +64,7 @@ public class Compact extends NodeToolCmd
 
         if (userDefined)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10660
             try
             {
                 String userDefinedFiles = String.join(",", args);
@@ -75,11 +77,13 @@ public class Compact extends NodeToolCmd
 
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
         for (String keyspace : keyspaces)
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
                 if (tokenProvided)
                 {
                     probe.forceKeyspaceCompactionForTokenRange(keyspace, startToken, endToken, tableNames);

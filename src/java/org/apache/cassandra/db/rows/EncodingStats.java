@@ -96,6 +96,7 @@ public class EncodingStats
     public EncodingStats mergeWith(EncodingStats that)
     {
         long minTimestamp = this.minTimestamp == TIMESTAMP_EPOCH
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
                             ? that.minTimestamp
                             : (that.minTimestamp == TIMESTAMP_EPOCH ? this.minTimestamp : Math.min(this.minTimestamp, that.minTimestamp));
 
@@ -107,6 +108,7 @@ public class EncodingStats
                      ? that.minTTL
                      : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         return new EncodingStats(minTimestamp, minDelTime, minTTL);
     }
 
@@ -119,6 +121,7 @@ public class EncodingStats
             return function.apply(values.get(0));
 
         Collector collector = new Collector();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
         for (int i=0, isize=values.size(); i<isize; i++)
         {
             V v = values.get(i);
@@ -141,6 +144,7 @@ public class EncodingStats
 
         EncodingStats that = (EncodingStats) o;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         return this.minLocalDeletionTime == that.minLocalDeletionTime
             && this.minTTL == that.minTTL
             && this.minTimestamp == that.minTimestamp;
@@ -237,11 +241,13 @@ public class EncodingStats
         {
             return new EncodingStats(isTimestampSet ? minTimestamp : TIMESTAMP_EPOCH,
                                      isDelTimeSet ? minDeletionTime : DELETION_TIME_EPOCH,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
                                      isTTLSet ? minTTL : TTL_EPOCH);
         }
 
         public static EncodingStats collect(Row staticRow, Iterator<Row> rows, DeletionInfo deletionInfo)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             Collector collector = new Collector();
             deletionInfo.collectStats(collector);
             if (!staticRow.isEmpty())
@@ -256,6 +262,7 @@ public class EncodingStats
     {
         public void serialize(EncodingStats stats, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             out.writeUnsignedVInt(stats.minTimestamp - TIMESTAMP_EPOCH);
             out.writeUnsignedVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
             out.writeUnsignedVInt(stats.minTTL - TTL_EPOCH);
@@ -273,6 +280,7 @@ public class EncodingStats
             long minTimestamp = in.readUnsignedVInt() + TIMESTAMP_EPOCH;
             int minLocalDeletionTime = (int)in.readUnsignedVInt() + DELETION_TIME_EPOCH;
             int minTTL = (int)in.readUnsignedVInt() + TTL_EPOCH;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
             return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         }
     }

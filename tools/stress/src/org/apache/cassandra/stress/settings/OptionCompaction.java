@@ -29,6 +29,7 @@ import org.apache.cassandra.schema.CompactionParams;
 /**
  * For specifying replication options
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
 class OptionCompaction extends OptionMulti
 {
 

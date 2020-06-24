@@ -48,17 +48,22 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
     public final ResponseResolver resolver;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
     final int blockFor; // TODO: move to replica plan as well?
     // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
     // may not be visible to the threads immediately, but ReplicaPlan only contains final fields, so they will never see an uninitialised object
     final ReplicaPlan.Shared<E, P> replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6281
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
     private volatile int received = 0;
     private static final AtomicIntegerFieldUpdater<ReadCallback> failuresUpdater
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
@@ -68,8 +73,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.command = command;
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         this.replicaPlan = replicaPlan;
         this.blockFor = replicaPlan.get().blockFor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
         assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contacts().size();
@@ -85,6 +93,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public boolean await(long timePastStart, TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         long time = unit.toNanos(timePastStart) - (System.nanoTime() - queryStartNanoTime);
         try
         {
@@ -106,6 +115,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (Tracing.isTracing())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             Tracing.trace("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockFor, gotData });
         }
         else if (logger.isDebugEnabled())
@@ -129,9 +140,12 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         resolver.preprocess(message);
         int n = waitingFor(message.from())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6281
               ? recievedUpdater.incrementAndGet(this)
               : received;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         if (n >= blockFor && resolver.isDataPresent())
             condition.signalAll();
     }
@@ -146,6 +160,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public void response(ReadResponse result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Verb kind = command.isRangeRequest() ? Verb.RANGE_RSP : Verb.READ_RSP;
         Message<ReadResponse> message = Message.internalResponse(kind, result);
         onResponse(message);
@@ -162,18 +177,23 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         int n = waitingFor(from)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
               ? failuresUpdater.incrementAndGet(this)
               : failures;
 
         failureReasonByEndpoint.put(from, failureReason);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         if (blockFor + n > replicaPlan().contacts().size())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5691
             condition.signalAll();
     }
 
     @Override
     public boolean invokeOnFailure()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return true;
     }
 }

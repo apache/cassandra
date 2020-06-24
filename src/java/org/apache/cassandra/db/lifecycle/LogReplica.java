@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.NativeLibrary;
  *
  * @see LogFile
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11594
 final class LogReplica implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(LogReplica.class);
@@ -70,6 +71,7 @@ final class LogReplica implements AutoCloseable
         return new LogReplica(file, folderFD);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     LogReplica(File file, int directoryDescriptor)
     {
         this.file = file;
@@ -81,6 +83,7 @@ final class LogReplica implements AutoCloseable
         return file;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     List<String> readLines()
     {
         return FileUtils.readLines(file);
@@ -99,6 +102,7 @@ final class LogReplica implements AutoCloseable
     void append(LogRecord record)
     {
         boolean existed = exists();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
         try
         {
             FileUtils.appendAndSync(file, record.toString());
@@ -155,6 +159,7 @@ final class LogReplica implements AutoCloseable
         return String.format("[%s] ", file);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     void setError(String line, String error)
     {
         errors.put(line, error);

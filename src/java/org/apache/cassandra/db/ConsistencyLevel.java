@@ -32,6 +32,7 @@ import static org.apache.cassandra.locator.Replicas.countInOurDc;
 
 public enum ConsistencyLevel
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4824
     ANY         (0),
     ONE         (1),
     TWO         (2),
@@ -95,11 +96,13 @@ public enum ConsistencyLevel
 
     public static int localQuorumForOurDc(Keyspace keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
         return localQuorumFor(keyspace, DatabaseDescriptor.getLocalDataCenter());
     }
 
     public static ObjectIntHashMap<String> eachQuorumForRead(Keyspace keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15791
         AbstractReplicationStrategy strategy = keyspace.getReplicationStrategy();
         if (strategy instanceof NetworkTopologyStrategy)
         {
@@ -138,12 +141,14 @@ public enum ConsistencyLevel
             case THREE:
                 return 3;
             case QUORUM:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6923
             case SERIAL:
                 return quorumFor(keyspace);
             case ALL:
                 return keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
             case LOCAL_QUORUM:
             case LOCAL_SERIAL:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
                 return localQuorumForOurDc(keyspace);
             case EACH_QUORUM:
                 if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
@@ -174,6 +179,7 @@ public enum ConsistencyLevel
                 break;
             case LOCAL_ONE: case LOCAL_QUORUM: case LOCAL_SERIAL:
                 // we will only count local replicas towards our response count, as these queries only care about local guarantees
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
                 blockFor += countInOurDc(pending).allReplicas();
                 break;
             case ONE: case TWO: case THREE:
@@ -191,6 +197,7 @@ public enum ConsistencyLevel
      */
     public boolean satisfies(ConsistencyLevel other, Keyspace keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
         return blockFor(keyspace) >= other.blockFor(keyspace);
     }
 
@@ -203,6 +210,7 @@ public enum ConsistencyLevel
     {
         switch (this)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5441
             case ANY:
                 throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
         }
@@ -212,7 +220,9 @@ public enum ConsistencyLevel
     {
         switch (this)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5441
             case SERIAL:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5797
             case LOCAL_SERIAL:
                 throw new InvalidRequestException("You must use conditional updates for serializable writes");
         }
@@ -226,6 +236,7 @@ public enum ConsistencyLevel
             case EACH_QUORUM:
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5797
             case SERIAL:
             case LOCAL_SERIAL:
                 throw new InvalidRequestException(this + " is not supported as conditional update commit consistency. Use ANY if you mean \"make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads\"");
@@ -254,6 +265,7 @@ public enum ConsistencyLevel
 
     private void requireNetworkTopologyStrategy(String keyspaceName) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
         if (!(strategy instanceof NetworkTopologyStrategy))
             throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)", this, strategy.getClass().getName()));

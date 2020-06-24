@@ -110,6 +110,7 @@ public class AntiCompactionTest
     private void registerParentRepairSession(UUID sessionID, Iterable<Range<Token>> ranges, long repairedAt, UUID pendingRepair) throws IOException
     {
         ActiveRepairService.instance.registerParentRepairSession(sessionID,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                  InetAddressAndPort.getByName("10.0.0.1"),
                                                                  Lists.newArrayList(cfs), ImmutableSet.copyOf(ranges),
                                                                  pendingRepair != null || repairedAt != UNREPAIRED_SSTABLE,
@@ -145,24 +146,29 @@ public class AntiCompactionTest
     {
         UUID sessionID = UUID.randomUUID();
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
             if (txn == null)
                 throw new IllegalStateException();
             registerParentRepairSession(sessionID, ranges.ranges(), FBUtilities.nowInSeconds(), sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, sessionID, () -> false);
         }
 
         SSTableStats stats = new SSTableStats();
         stats.numLiveSSTables = store.getLiveSSTables().size();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         Predicate<Token> fullContains = t -> Iterables.any(ranges.onlyFull().ranges(), r -> r.contains(t));
         Predicate<Token> transContains = t -> Iterables.any(ranges.onlyTransient().ranges(), r -> r.contains(t));
         for (SSTableReader sstable : store.getLiveSSTables())
         {
             assertFalse(sstable.isRepaired());
             assertEquals(sstable.isPendingRepair() ? sessionID : NO_PENDING_REPAIR, sstable.getPendingRepair());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
             try (ISSTableScanner scanner = sstable.getScanner())
             {
                 while (scanner.hasNext())
@@ -191,11 +197,14 @@ public class AntiCompactionTest
                 }
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : store.getLiveSSTables())
         {
             assertFalse(sstable.isMarkedCompacted());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
             assertEquals(1, sstable.selfRef().globalCount());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         assertEquals(0, store.getTracker().getCompacting().size());
         return stats;
     }
@@ -233,6 +242,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 0);
         assertEquals(stats.transKeys, 4);
         assertEquals(stats.unrepairedKeys, 6);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15004
         assertOnDiskState(store, 2);
     }
 
@@ -246,12 +256,15 @@ public class AntiCompactionTest
         cfs.addSSTable(s);
         Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
         List<Range<Token>> ranges = Arrays.asList(range);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         UUID parentRepairSession = UUID.randomUUID();
         registerParentRepairSession(parentRepairSession, ranges, UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             CompactionManager.instance.performAnticompaction(cfs, atEndpoint(ranges, NO_RANGES), refs, txn, parentRepairSession, () -> false);
         }
         long sum = 0;
@@ -263,6 +276,7 @@ public class AntiCompactionTest
         }
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(rows, 1000 * (1000 * 5));//See writeFile for how this number is derived
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15004
         assertOnDiskState(cfs, 2);
     }
 
@@ -281,6 +295,7 @@ public class AntiCompactionTest
                 writer.append(builder.build().unfilteredIterator());
 
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             Collection<SSTableReader> sstables = writer.finish(true);
             assertNotNull(sstables);
             assertEquals(1, sstables.size());
@@ -345,6 +360,7 @@ public class AntiCompactionTest
         assertEquals(stats.pendingKeys, 0);
         assertEquals(stats.transKeys, 40);
         assertEquals(stats.unrepairedKeys, 60);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15004
         assertOnDiskState(store, 10);
     }
 
@@ -370,18 +386,22 @@ public class AntiCompactionTest
     @Test
     public void shouldMutatePendingRepair() throws InterruptedException, IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7892
         ColumnFamilyStore store = prepareColumnFamilyStore();
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
         // the sstables start at "0".getBytes() = 48, we need to include that first token, with "/".getBytes() = 47
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14411
         Range<Token> range = new Range<Token>(new BytesToken("/".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
         UUID pendingRepair = UUID.randomUUID();
         registerParentRepairSession(pendingRepair, ranges, UNREPAIRED_SSTABLE, pendingRepair);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             CompactionManager.instance.performAnticompaction(store, atEndpoint(ranges, NO_RANGES), refs, txn, pendingRepair, () -> false);
         }
 
@@ -390,6 +410,7 @@ public class AntiCompactionTest
         assertThat(Iterables.get(store.getLiveSSTables(), 0).isPendingRepair(), is(true));
         assertThat(Iterables.get(store.getLiveSSTables(), 0).selfRef().globalCount(), is(1));
         assertThat(store.getTracker().getCompacting().size(), is(0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15004
         assertOnDiskState(store, 1);
     }
 
@@ -405,6 +426,10 @@ public class AntiCompactionTest
             generateSStable(store,Integer.toString(table));
         }
         int refCountBefore = Iterables.get(store.getLiveSSTables(), 0).selfRef().globalCount();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
 
@@ -416,6 +441,7 @@ public class AntiCompactionTest
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             CompactionManager.instance.performAnticompaction(store, atEndpoint(ranges, NO_RANGES), refs, txn, parentRepairSession, () -> false);
         }
         catch (IllegalStateException e)
@@ -437,6 +463,7 @@ public class AntiCompactionTest
         for (int i = 0; i < 10; i++)
         {
             new RowUpdateBuilder(metadata, System.currentTimeMillis(), Integer.toString(i))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 .clustering("c")
                 .add("val", "val")
                 .build()
@@ -456,6 +483,7 @@ public class AntiCompactionTest
 
     private static Set<SSTableReader> getUnrepairedSSTables(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         return ImmutableSet.copyOf(cfs.getTracker().getView().sstables(SSTableSet.LIVE, (s) -> !s.isRepaired()));
     }
 
@@ -465,6 +493,7 @@ public class AntiCompactionTest
     @Test
     public void missingParentRepairSession() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13688
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.disableAutoCompaction();
@@ -476,16 +505,19 @@ public class AntiCompactionTest
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(10, sstables.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10299
         Range<Token> range = new Range<Token>(new BytesToken("-1".getBytes()), new BytesToken("-10".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
         UUID missingRepairSession = UUIDGen.getTimeUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
             Assert.assertFalse(refs.isEmpty());
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                 CompactionManager.instance.performAnticompaction(store, atEndpoint(ranges, NO_RANGES), refs, txn, missingRepairSession, () -> false);
                 Assert.fail("expected RuntimeException");
             }

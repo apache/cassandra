@@ -89,6 +89,7 @@ public class EmptyType extends AbstractType<Void>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (!(parsed instanceof String))
             throw new MarshalException(String.format("Expected an empty string, but got: %s", parsed));
         if (!((String) parsed).isEmpty())
@@ -100,12 +101,14 @@ public class EmptyType extends AbstractType<Void>
     @Override
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         return CQL3Type.Native.EMPTY;
     }
 
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13592
         return "\"\"";
     }
 
@@ -117,6 +120,7 @@ public class EmptyType extends AbstractType<Void>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 0;
     }
 

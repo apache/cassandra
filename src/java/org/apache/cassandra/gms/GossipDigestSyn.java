@@ -35,6 +35,7 @@ public class GossipDigestSyn
     public static final IVersionedSerializer<GossipDigestSyn> serializer = new GossipDigestSynSerializer();
 
     final String clusterId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4282
     final String partioner;
     final List<GossipDigest> gDigests;
 
@@ -83,6 +84,7 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
     public void serialize(GossipDigestSyn gDigestSynMessage, DataOutputPlus out, int version) throws IOException
     {
         out.writeUTF(gDigestSynMessage.clusterId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
         out.writeUTF(gDigestSynMessage.partioner);
         GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests, out, version);
     }
@@ -91,6 +93,7 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
     {
         String clusterId = in.readUTF();
         String partioner = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
         partioner = in.readUTF();
         List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(in, version);
         return new GossipDigestSyn(clusterId, partioner, gDigests);
@@ -98,6 +101,7 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
 
     public long serializedSize(GossipDigestSyn syn, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         long size = TypeSizes.sizeof(syn.clusterId);
         size += TypeSizes.sizeof(syn.partioner);
         size += GossipDigestSerializationHelper.serializedSize(syn.gDigests, version);

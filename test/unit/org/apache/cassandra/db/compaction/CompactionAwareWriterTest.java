@@ -49,6 +49,7 @@ public class CompactionAwareWriterTest extends CQLTester
     public static void beforeClass() throws Throwable
     {
         // Disabling durable write since we don't care
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND durable_writes=false");
         schemaChange(String.format("CREATE TABLE %s.%s (k int, t int, v blob, PRIMARY KEY (k, t))", KEYSPACE, TABLE));
     }
@@ -73,8 +74,10 @@ public class CompactionAwareWriterTest extends CQLTester
         int rowCount = 1000;
         cfs.disableAutoCompaction();
         populate(rowCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         CompactionAwareWriter writer = new DefaultCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals());
         int rows = compact(cfs, txn, writer);
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -87,13 +90,16 @@ public class CompactionAwareWriterTest extends CQLTester
     @Test
     public void testMaxSSTableSizeWriter() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore cfs = getColumnFamilyStore();
         cfs.disableAutoCompaction();
         int rowCount = 1000;
         populate(rowCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/10;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, cfs.getDirectories(), txn, txn.originals(), sstableSize, 0);
         int rows = compact(cfs, txn, writer);
         assertEquals(10, cfs.getLiveSSTables().size());
@@ -105,12 +111,15 @@ public class CompactionAwareWriterTest extends CQLTester
     @Test
     public void testSplittingSizeTieredCompactionWriter() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore cfs = getColumnFamilyStore();
         cfs.disableAutoCompaction();
         int rowCount = 10000;
         populate(rowCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         CompactionAwareWriter writer = new SplittingSizeTieredCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals(), 0);
         int rows = compact(cfs, txn, writer);
         long expectedSize = beforeSize / 2;
@@ -127,6 +136,7 @@ public class CompactionAwareWriterTest extends CQLTester
         for (SSTableReader sstable : sortedSSTables)
         {
             // we dont create smaller files than this, everything will be in the last file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9225
             if (expectedSize > SplittingSizeTieredCompactionWriter.DEFAULT_SMALLEST_SSTABLE_BYTES)
                 assertEquals(expectedSize, sstable.onDiskLength(), expectedSize / 100); // allow 1% diff in estimated vs actual size
             expectedSize /= 2;
@@ -139,14 +149,17 @@ public class CompactionAwareWriterTest extends CQLTester
     @Test
     public void testMajorLeveledCompactionWriter() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore cfs = getColumnFamilyStore();
         cfs.disableAutoCompaction();
         int rowCount = 20000;
         int targetSSTableCount = 50;
         populate(rowCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/targetSSTableCount;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals(), sstableSize);
         int rows = compact(cfs, txn, writer);
         assertEquals(targetSSTableCount, cfs.getLiveSSTables().size());
@@ -158,6 +171,7 @@ public class CompactionAwareWriterTest extends CQLTester
         }
         assertEquals(0, levelCounts[0]);
         assertEquals(10, levelCounts[1]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9225
         assertEquals(targetSSTableCount - 10, levelCounts[2]); // note that if we want more levels, fix this
         for (int i = 3; i < levelCounts.length; i++)
             assertEquals(0, levelCounts[i]);
@@ -170,6 +184,7 @@ public class CompactionAwareWriterTest extends CQLTester
         assert txn.originals().size() == 1;
         int rowsWritten = 0;
         int nowInSec = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
@@ -180,6 +195,7 @@ public class CompactionAwareWriterTest extends CQLTester
                     rowsWritten++;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
         writer.finish();
         return rowsWritten;
     }
@@ -191,11 +207,13 @@ public class CompactionAwareWriterTest extends CQLTester
         ByteBuffer b = ByteBuffer.wrap(payload);
 
         for (int i = 0; i < count; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             for (int j = 0; j < ROW_PER_PARTITION; j++)
                 execute(String.format("INSERT INTO %s.%s(k, t, v) VALUES (?, ?, ?)", KEYSPACE, TABLE), i, j, b);
 
         ColumnFamilyStore cfs = getColumnFamilyStore();
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         if (cfs.getLiveSSTables().size() > 1)
         {
             // we want just one big sstable to avoid doing actual compaction in compact() above
@@ -208,6 +226,7 @@ public class CompactionAwareWriterTest extends CQLTester
                 throw new RuntimeException(t);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assert cfs.getLiveSSTables().size() == 1 : cfs.getLiveSSTables();
     }
 
@@ -215,6 +234,7 @@ public class CompactionAwareWriterTest extends CQLTester
     {
         for (int i = 0; i < rowCount; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             Object[][] expected = new Object[ROW_PER_PARTITION][];
             for (int j = 0; j < ROW_PER_PARTITION; j++)
                 expected[j] = row(i, j);

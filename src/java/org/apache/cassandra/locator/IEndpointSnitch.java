@@ -37,6 +37,7 @@ public interface IEndpointSnitch
     /**
      * returns a String representing the rack current endpoint belongs to
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
     default public String getLocalRack()
     {
         return getRack(FBUtilities.getBroadcastAddressAndPort());
@@ -84,6 +85,7 @@ public interface IEndpointSnitch
     /**
      * Determine if the datacenter or rack values in the current node's snitch conflict with those passed in parameters.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
     default boolean validate(Set<String> datacenters, Set<String> racks)
     {
         return true;

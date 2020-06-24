@@ -42,6 +42,7 @@ public interface IMetadataSerializer
      * @throws IOException
      */
     void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out, Version version) throws IOException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
 
     /**
      * Deserialize specified metadata components from given descriptor.
@@ -88,5 +89,6 @@ public interface IMetadataSerializer
     /**
      * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
     void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException;
 }

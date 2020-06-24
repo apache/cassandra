@@ -62,6 +62,7 @@ public class CDCTestReplayer extends CommitLogReplayer
             Mutation mutation;
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                 mutation = Mutation.serializer.deserialize(bufIn, desc.getMessagingVersion(), DeserializationHelper.Flag.LOCAL);
                 if (mutation.trackedByCDC())
                     sawCDCMutation = true;

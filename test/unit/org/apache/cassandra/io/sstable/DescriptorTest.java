@@ -43,6 +43,7 @@ public class DescriptorTest
     public DescriptorTest() throws IOException
     {
         // create CF directories, one without CFID and one with it
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         tempDataDir = FileUtils.createTempFile("DescriptorTest", null).getParentFile();
     }
 
@@ -77,6 +78,7 @@ public class DescriptorTest
     private void testFromFilenameFor(File dir)
     {
         checkFromFilename(new Descriptor(dir, ksname, cfname, 1, SSTableFormat.Type.BIG));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
         // secondary index
         String idxName = "myidx";
@@ -96,6 +98,7 @@ public class DescriptorTest
         assertEquals(original.cfname, desc.cfname);
         assertEquals(original.version, desc.version);
         assertEquals(original.generation, desc.generation);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         assertEquals(Component.DATA, pair.right);
     }
 
@@ -104,6 +107,7 @@ public class DescriptorTest
     {
         // Descriptor should be equal when parent directory points to the same directory
         File dir = new File(".");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         Descriptor desc1 = new Descriptor(dir, "ks", "cf", 1, SSTableFormat.Type.BIG);
         Descriptor desc2 = new Descriptor(dir.getAbsoluteFile(), "ks", "cf", 1, SSTableFormat.Type.BIG);
         assertEquals(desc1, desc2);
@@ -114,6 +118,7 @@ public class DescriptorTest
     public void validateNames()
     {
         String[] names = {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
              "ma-1-big-Data.db",
              // 2ndary index
              ".idx1" + File.separator + "ma-1-big-Data.db",

@@ -40,5 +40,6 @@ public interface BackPressureStrategy<S extends BackPressureState>
     /**
      * Creates a new {@link BackPressureState} initialized as needed by the specific implementation.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     S newState(InetAddressAndPort host);
 }

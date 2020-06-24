@@ -148,6 +148,7 @@ public class WriteResponseHandlerTest
         AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, System.nanoTime() - TimeUnit.DAYS.toNanos(1));
 
         //dc1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         //dc2
@@ -197,6 +198,8 @@ public class WriteResponseHandlerTest
         AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_QUORUM);
 
         //dc1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         awr.onResponse(createDummyMessage(2));
@@ -218,8 +221,10 @@ public class WriteResponseHandlerTest
     {
         ks.metric.idealCLWriteLatency.totalLatency.dec(ks.metric.idealCLWriteLatency.totalLatency.getCount());
         AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13421
 
         //Succeed in local DC
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         awr.onResponse(createDummyMessage(2));
@@ -240,6 +245,7 @@ public class WriteResponseHandlerTest
     public void failedIdealCLDoesNotIncrementsStatOnQueryFailure() throws Throwable
     {
         AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15696
 
         long startingCount = ks.metric.writeFailedIdealCL.getCount();
 
@@ -265,12 +271,15 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, long queryStartTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, targets, pending, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
                                                                    null, WriteType.SIMPLE, queryStartTime, ideal);
     }
 
     private static Message createDummyMessage(int target)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return Message.builder(Verb.ECHO_REQ, noPayload)
                       .from(targets.get(target).endpoint())
                       .build();

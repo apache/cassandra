@@ -72,6 +72,7 @@ public class BatchlogManagerTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         sw = Util.switchPartitioner(Murmur3Partitioner.instance);
         SchemaLoader.prepareServer();
@@ -95,6 +96,7 @@ public class BatchlogManagerTest
     public void setUp() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort localhost = InetAddressAndPort.getByName("127.0.0.1");
         metadata.updateNormalToken(Util.token("A"), localhost);
         metadata.updateHostId(UUIDGen.getTimeUUID(), localhost);
@@ -152,6 +154,7 @@ public class BatchlogManagerTest
                            ? (System.currentTimeMillis() - BatchlogManager.getBatchlogTimeout())
                            : (System.currentTimeMillis() + BatchlogManager.getBatchlogTimeout());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             BatchlogManager.store(Batch.createLocal(UUIDGen.getTimeUUID(timestamp, i), timestamp * 1000, mutations));
         }
 
@@ -229,6 +232,7 @@ public class BatchlogManagerTest
                 SystemKeyspace.saveTruncationRecord(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2),
                                                     timestamp,
                                                     CommitLogPosition.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
             // Adjust the timestamp (slightly) to make the test deterministic.
             if (i >= 500)
@@ -333,6 +337,8 @@ public class BatchlogManagerTest
         assertEquals(initialAllBatches, BatchlogManager.instance.countAllBatches());
 
         String query = String.format("SELECT count(*) FROM %s.%s where id = %s",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.BATCHES,
                                      uuid);
@@ -346,12 +352,17 @@ public class BatchlogManagerTest
     public void testReplayWithNoPeers() throws Exception
     {
         StorageService.instance.getTokenMetadata().removeEndpoint(InetAddressAndPort.getByName("127.0.0.1"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9223
         long initialAllBatches = BatchlogManager.instance.countAllBatches();
         long initialReplayedBatches = BatchlogManager.instance.getTotalBatchesReplayed();
 
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long timestamp = (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS) * 2) * 1000;
         UUID uuid = UUIDGen.getTimeUUID();
 
@@ -369,6 +380,8 @@ public class BatchlogManagerTest
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
         Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         assertEquals(1, BatchlogManager.instance.countAllBatches() - initialAllBatches);
         assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed() - initialReplayedBatches);

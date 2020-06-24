@@ -37,6 +37,7 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
     private final Range<Token> range;
     private EndpointsForRange(Range<Token> range, ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         super(list, byEndpoint);
         this.range = range;
         assert range != null;
@@ -50,6 +51,7 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
     @Override
     public Builder newBuilder(int initialCapacity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return new Builder(range, initialCapacity);
     }
 
@@ -133,6 +135,7 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
 
     public static EndpointsForRange empty(Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return new EndpointsForRange(range, EMPTY_LIST, EMPTY_MAP);
     }
 

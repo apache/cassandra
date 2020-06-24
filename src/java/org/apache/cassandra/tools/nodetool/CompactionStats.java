@@ -41,6 +41,7 @@ public class CompactionStats extends NodeToolCmd
 {
     @Option(title = "human_readable",
             name = {"-H", "--human-readable"},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
@@ -69,6 +70,7 @@ public class CompactionStats extends NodeToolCmd
             }
         }
         System.out.println();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable);
     }
 
@@ -78,10 +80,12 @@ public class CompactionStats extends NodeToolCmd
         {
             long remainingBytes = 0;
             TableBuilder table = new TableBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7950
 
             table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
             for (Map<String, String> c : compactions)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14457
                 long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
                 long completed = Long.parseLong(c.get(CompactionInfo.COMPLETED));
                 String taskType = c.get(CompactionInfo.TASK_TYPE);
@@ -89,10 +93,12 @@ public class CompactionStats extends NodeToolCmd
                 String columnFamily = c.get(CompactionInfo.COLUMNFAMILY);
                 String unit = c.get(CompactionInfo.UNIT);
                 boolean toFileSize = humanReadable && Unit.isFileSize(unit);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12244
                 String completedStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
                 String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                 String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
                 String id = c.get(CompactionInfo.COMPACTION_ID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7950
                 table.add(id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
                 if (taskType.equals(OperationType.COMPACTION.toString()))
                     remainingBytes += total - completed;

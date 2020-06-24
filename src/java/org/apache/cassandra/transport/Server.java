@@ -81,6 +81,7 @@ public class Server implements CassandraDaemon.Server
     {
         public Connection newConnection(Channel channel, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5778
             return new ServerConnection(channel, version, connectionTracker);
         }
     };
@@ -93,6 +94,7 @@ public class Server implements CassandraDaemon.Server
 
     private Server (Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
         this.socket = builder.getSocket();
         this.useSSL = builder.useSSL;
         if (builder.workerGroup != null)
@@ -107,6 +109,7 @@ public class Server implements CassandraDaemon.Server
                 workerGroup = new NioEventLoopGroup();
         }
         EventNotifier notifier = new EventNotifier(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4679
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
     }
@@ -124,12 +127,14 @@ public class Server implements CassandraDaemon.Server
 
     public synchronized void start()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
         if(isRunning())
             return;
 
         // Configure the server.
         ServerBootstrap bootstrap = new ServerBootstrap()
                                     .channel(useEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6861
                                     .childOption(ChannelOption.TCP_NODELAY, true)
                                     .childOption(ChannelOption.SO_LINGER, 0)
                                     .childOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
@@ -142,7 +147,10 @@ public class Server implements CassandraDaemon.Server
         if (this.useSSL)
         {
             final EncryptionOptions clientEnc = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10559
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10559
             if (clientEnc.optional)
             {
                 logger.info("Enabling optionally encrypted CQL connections between client and server");
@@ -150,6 +158,7 @@ public class Server implements CassandraDaemon.Server
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5425
                 logger.info("Enabling encrypted CQL connections between client and server");
                 bootstrap.childHandler(new SecureInitializer(this, clientEnc));
             }
@@ -160,20 +169,26 @@ public class Server implements CassandraDaemon.Server
         }
 
         // Bind and start to accept incoming connections.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6861
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
         logger.info("Starting listening for CQL clients on {} ({})...", socket, this.useSSL ? "encrypted" : "unencrypted");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7885
         ChannelFuture bindFuture = bootstrap.bind(socket);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14544
             throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()),
                                             bindFuture.cause());
 
         connectionTracker.allChannels.add(bindFuture.channel());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6618
         isRunning.set(true);
     }
 
     public int countConnectedClients()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         return connectionTracker.countConnectedClients();
     }
 
@@ -202,6 +217,7 @@ public class Server implements CassandraDaemon.Server
     @Override
     public void clearConnectionHistory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
         connectionTracker.protocolVersionTracker.clear();
     }
 
@@ -210,6 +226,7 @@ public class Server implements CassandraDaemon.Server
         // Close opened connections
         connectionTracker.closeAll();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5425
         logger.info("Stop listening for CQL clients");
     }
 
@@ -224,6 +241,7 @@ public class Server implements CassandraDaemon.Server
 
         public Builder withSSL(boolean useSSL)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
             this.useSSL = useSSL;
             return this;
         }
@@ -288,6 +306,7 @@ public class Server implements CassandraDaemon.Server
             allChannels.add(ch);
 
             if (ch.remoteAddress() instanceof InetSocketAddress)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
                 protocolVersionTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
         }
 
@@ -298,9 +317,11 @@ public class Server implements CassandraDaemon.Server
 
         public void send(Event event)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
             groups.get(event.type).writeAndFlush(new EventMessage(event));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         void closeAll()
         {
             allChannels.close().awaitUninterruptibly();
@@ -309,6 +330,7 @@ public class Server implements CassandraDaemon.Server
         int countConnectedClients()
         {
             /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5084
               - When server is running: allChannels contains all clients' connections (channels)
                 plus one additional channel used for the server's own bootstrap.
                - When server is stopped: the size is 0
@@ -316,8 +338,10 @@ public class Server implements CassandraDaemon.Server
             return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         Map<String, Integer> countConnectedClientsByUser()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13665
             Map<String, Integer> result = new HashMap<>();
             for (Channel c : allChannels)
             {
@@ -346,6 +370,7 @@ public class Server implements CassandraDaemon.Server
         private final AtomicInteger refCount = new AtomicInteger(0);
         private final InetAddress endpoint;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         final ResourceLimits.EndpointAndGlobal endpointAndGlobalPayloadsInFlight = new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Concurrent(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp()),
                                                                                                                          globalRequestPayloadInFlight);
 
@@ -368,6 +393,7 @@ public class Server implements CassandraDaemon.Server
 
         public static long getGlobalLimit()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
             return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes();
         }
 
@@ -427,8 +453,10 @@ public class Server implements CassandraDaemon.Server
         protected void initChannel(Channel channel) throws Exception
         {
             ChannelPipeline pipeline = channel.pipeline();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
 
             // Add the ConnectionLimitHandler to the pipeline if configured to do so.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8086
             if (DatabaseDescriptor.getNativeTransportMaxConcurrentConnections() > 0
                     || DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp() > 0)
             {
@@ -436,6 +464,7 @@ public class Server implements CassandraDaemon.Server
                 pipeline.addFirst("connectionLimitHandler", connectionLimitHandler);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11097
             long idleTimeout = DatabaseDescriptor.nativeTransportIdleTimeout();
             if (idleTimeout > 0)
             {
@@ -452,15 +481,18 @@ public class Server implements CassandraDaemon.Server
 
             //pipeline.addLast("debug", new LoggingHandler());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5778
             pipeline.addLast("frameDecoder", new Frame.Decoder(server.connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             pipeline.addLast("inboundFrameTransformer", inboundFrameTransformer);
             pipeline.addLast("outboundFrameTransformer", outboundFrameTransformer);
 
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
             pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
                                                                 EndpointPayloadTracker.get(((InetSocketAddress) channel.remoteAddress()).getAddress())));
 
@@ -486,6 +518,8 @@ public class Server implements CassandraDaemon.Server
 
         protected final SslHandler createSslHandler(ByteBufAllocator allocator) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
             SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth, SSLFactory.SocketType.SERVER);
             return sslContext.newHandler(allocator);
         }
@@ -495,6 +529,8 @@ public class Server implements CassandraDaemon.Server
     {
         public OptionalSecureInitializer(Server server, EncryptionOptions encryptionOptions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10559
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10559
             super(server, encryptionOptions);
         }
 
@@ -516,6 +552,7 @@ public class Server implements CassandraDaemon.Server
                     {
                         // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
                         // encryption.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
                         SslHandler sslHandler = createSslHandler(channel.alloc());
                         channelHandlerContext.pipeline().replace(this, "ssl", sslHandler);
                     }
@@ -539,7 +576,9 @@ public class Server implements CassandraDaemon.Server
 
         protected void initChannel(Channel channel) throws Exception
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
             SslHandler sslHandler = createSslHandler(channel.alloc());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
             super.initChannel(channel);
             channel.pipeline().addFirst("ssl", sslHandler);
         }
@@ -599,6 +638,7 @@ public class Server implements CassandraDaemon.Server
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 return InetAddressAndPort.getByName(StorageService.instance.getNativeaddress(endpoint, true));
             }
             catch (UnknownHostException e)
@@ -637,6 +677,7 @@ public class Server implements CassandraDaemon.Server
             if (!StorageService.instance.isRpcReady(endpoint))
                 endpointsPendingJoinedNotification.add(endpoint);
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 onTopologyChange(endpoint, Event.TopologyChange.newNode(getNativeAddress(endpoint)));
         }
 
@@ -652,6 +693,7 @@ public class Server implements CassandraDaemon.Server
 
         public void onUp(InetAddressAndPort endpoint)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11038
             if (endpointsPendingJoinedNotification.remove(endpoint))
                 onJoinCluster(endpoint);
 

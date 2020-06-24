@@ -53,6 +53,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     protected long bufferOffset;
     protected final ChannelProxy channel;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
     ChecksummedDataInput(ChannelProxy channel, BufferType bufferType)
     {
         super(BufferPool.get(RandomAccessReader.DEFAULT_BUFFER_SIZE, bufferType));
@@ -75,6 +76,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     @SuppressWarnings("resource")
     public static ChecksummedDataInput open(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
         ChannelProxy channel = new ChannelProxy(file);
         try
         {
@@ -94,6 +96,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     static class Position implements InputPosition
     {
         final long sourcePosition;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
 
         public Position(long sourcePosition)
         {
@@ -132,6 +135,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
 
     public void limit(long newLimit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         limitMark = getPosition();
         limit = limitMark + newLimit;
     }
@@ -150,6 +154,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
      */
     protected long getSourcePosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         return bufferOffset;
     }
 
@@ -206,6 +211,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     @Override
     protected void reBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         Preconditions.checkState(buffer.remaining() == 0);
         updateCrc();
         bufferOffset += buffer.limit();
@@ -244,6 +250,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     @Override
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         BufferPool.put(buffer);
         channel.close();
     }

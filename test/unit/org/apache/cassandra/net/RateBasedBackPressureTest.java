@@ -94,6 +94,7 @@ public class RateBasedBackPressureTest
         TestTimeSource timeSource = new TestTimeSource();
         RateBasedBackPressure strategy = new RateBasedBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "FAST"), timeSource, windowSize);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         RateBasedBackPressureState state = strategy.newState(InetAddressAndPort.getLoopbackAddress());
         state.onMessageSent(null);
         assertEquals(0, state.incomingRate.size());
@@ -117,6 +118,7 @@ public class RateBasedBackPressureTest
         TestTimeSource timeSource = new TestTimeSource();
         RateBasedBackPressure strategy = new RateBasedBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "FAST"), timeSource, windowSize);
         RateBasedBackPressureState state = strategy.newState(InetAddressAndPort.getLoopbackAddress());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // Get initial rate:
         double initialRate = state.rateLimiter.getRate();
@@ -141,6 +143,7 @@ public class RateBasedBackPressureTest
         TestTimeSource timeSource = new TestTimeSource();
         RateBasedBackPressure strategy = new RateBasedBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "FAST"), timeSource, windowSize);
         RateBasedBackPressureState state = strategy.newState(InetAddressAndPort.getLoopbackAddress());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // Get initial time:
         long current = state.getLastIntervalAcquire();
@@ -195,6 +198,8 @@ public class RateBasedBackPressureTest
         TestTimeSource timeSource = new TestTimeSource();
         RateBasedBackPressure strategy = new RateBasedBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "FAST"), timeSource, windowSize);
         RateBasedBackPressureState state = strategy.newState(InetAddressAndPort.getLoopbackAddress());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // Update incoming and outgoing rate so that the ratio is 0.5:
         state.incomingRate.update(50);
@@ -265,6 +270,8 @@ public class RateBasedBackPressureTest
         long windowSize = 6000;
         TestTimeSource timeSource = new TestTimeSource();
         TestableBackPressure strategy = new TestableBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "SLOW"), timeSource, windowSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         RateBasedBackPressureState state1 = strategy.newState(InetAddressAndPort.getByName("127.0.0.1"));
         RateBasedBackPressureState state2 = strategy.newState(InetAddressAndPort.getByName("127.0.0.2"));
         RateBasedBackPressureState state3 = strategy.newState(InetAddressAndPort.getByName("127.0.0.3"));
@@ -294,6 +301,7 @@ public class RateBasedBackPressureTest
         long windowSize = 6000;
         TestTimeSource timeSource = new TestTimeSource();
         TestableBackPressure strategy = new TestableBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "SLOW"), timeSource, windowSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         RateBasedBackPressureState state1 = strategy.newState(InetAddressAndPort.getByName("127.0.0.1"));
         RateBasedBackPressureState state2 = strategy.newState(InetAddressAndPort.getByName("127.0.0.2"));
         RateBasedBackPressureState state3 = strategy.newState(InetAddressAndPort.getByName("127.0.0.3"));
@@ -333,6 +341,7 @@ public class RateBasedBackPressureTest
         long windowSize = 10000;
         TestTimeSource timeSource = new TestTimeSource();
         TestableBackPressure strategy = new TestableBackPressure(ImmutableMap.of(HIGH_RATIO, "0.9", FACTOR, "10", FLOW, "SLOW"), timeSource, windowSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         RateBasedBackPressureState state1 = strategy.newState(InetAddressAndPort.getByName("127.0.0.1"));
         RateBasedBackPressureState state2 = strategy.newState(InetAddressAndPort.getByName("127.0.0.2"));
         RateBasedBackPressureState state3 = strategy.newState(InetAddressAndPort.getByName("127.0.0.3"));

@@ -52,6 +52,7 @@ public class MockMessagingService
      */
     public static void cleanup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
     }
@@ -64,6 +65,7 @@ public class MockMessagingService
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return to(InetAddressAndPort.getByName(address));
         }
         catch (UnknownHostException e)
@@ -86,6 +88,7 @@ public class MockMessagingService
      */
     public static Matcher<InetAddressAndPort> to(Predicate<InetAddressAndPort> predicate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         return (in, to) -> predicate.test(to);
     }
 
@@ -95,6 +98,7 @@ public class MockMessagingService
      */
     public static Matcher<Verb> verb(Verb verb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return (in, to) -> in.verb() == verb;
     }
 
@@ -127,6 +131,7 @@ public class MockMessagingService
      */
     public static <T> Matcher<?> all(Matcher<?>... matchers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return (Message<T> out, InetAddressAndPort to) -> {
             for (Matcher matcher : matchers)
             {
@@ -142,6 +147,7 @@ public class MockMessagingService
      */
     public static <T> Matcher<?> any(Matcher<?>... matchers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return (Message<T> out, InetAddressAndPort to) -> {
             for (Matcher matcher : matchers)
             {

@@ -55,6 +55,7 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
      */
     public boolean isTokenizing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         return false;
     }
 

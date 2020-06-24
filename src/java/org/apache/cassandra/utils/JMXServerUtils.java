@@ -103,6 +103,7 @@ public class JMXServerUtils
         //   - https://www.jclarity.com/2015/01/27/rmi-system-gc-unplugged/
         //   - https://bugs.openjdk.java.net/browse/JDK-6760712
         env.put("jmx.remote.x.daemon", "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14173
 
         // Set the port used to create subsequent connections to exported objects over RMI. This simplifies
         // configuration in firewalled environments, but it can't be used in conjuction with SSL sockets.
@@ -129,6 +130,7 @@ public class JMXServerUtils
         jmxServer.start();
 
         ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12454
         logJmxServiceUrl(serverAddress, port);
         return jmxServer;
     }
@@ -237,10 +239,12 @@ public class JMXServerUtils
 
     private static void logJmxServiceUrl(InetAddress serverAddress, int port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12454
         String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
         String hostName;
         if (serverAddress == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             hostName = FBUtilities.getJustBroadcastAddress() instanceof Inet6Address ? "[::]" : "0.0.0.0";
         }
         else
@@ -256,6 +260,7 @@ public class JMXServerUtils
 
     private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isDebugEnabled())
             logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
                          serverFactory.getEnabledProtocols() == null
@@ -272,6 +277,7 @@ public class JMXServerUtils
         private static final MethodHandle ctorHandle;
         static
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             try
             {
                 Class c = Class.forName("com.sun.jmx.remote.security.JMXPluggableAuthenticator");
@@ -292,6 +298,7 @@ public class JMXServerUtils
 
         public Subject authenticate(Object credentials)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             try
             {
                 JMXAuthenticator authenticator = (JMXAuthenticator) ctorHandle.invoke(env);

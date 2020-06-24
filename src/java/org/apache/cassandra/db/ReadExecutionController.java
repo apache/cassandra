@@ -43,6 +43,7 @@ public class ReadExecutionController implements AutoCloseable
     private final long createdAtNanos; // Only used while sampling
 
     private ReadExecutionController(ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
                                     OpOrder.Group baseOp,
                                     TableMetadata baseMetadata,
                                     ReadExecutionController indexController,
@@ -55,7 +56,9 @@ public class ReadExecutionController implements AutoCloseable
         this.baseOp = baseOp;
         this.baseMetadata = baseMetadata;
         this.indexController = indexController;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         this.writeContext = writeContext;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         this.command = command;
         this.createdAtNanos = createdAtNanos;
     }
@@ -67,6 +70,7 @@ public class ReadExecutionController implements AutoCloseable
 
     public WriteContext getWriteContext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         return writeContext;
     }
 
@@ -77,6 +81,7 @@ public class ReadExecutionController implements AutoCloseable
 
     public static ReadExecutionController empty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         return new ReadExecutionController(null, null, null, null, null, NO_SAMPLING);
     }
 
@@ -96,10 +101,13 @@ public class ReadExecutionController implements AutoCloseable
         ColumnFamilyStore indexCfs = maybeGetIndexCfs(baseCfs, command);
 
         long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.now() : NO_SAMPLING;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         if (indexCfs == null)
             return new ReadExecutionController(command, baseCfs.readOrdering.start(), baseCfs.metadata(), null, null, createdAtNanos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         OpOrder.Group baseOp = null;
         WriteContext writeContext = null;
         ReadExecutionController indexController = null;
@@ -136,12 +144,14 @@ public class ReadExecutionController implements AutoCloseable
 
     private static ColumnFamilyStore maybeGetIndexCfs(ColumnFamilyStore baseCfs, ReadCommand command)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         Index index = command.getIndex(baseCfs);
         return index == null ? null : index.getBackingTable().orElse(null);
     }
 
     public TableMetadata metadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12474
         return baseMetadata;
     }
 
@@ -162,11 +172,13 @@ public class ReadExecutionController implements AutoCloseable
                 }
                 finally
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                     writeContext.close();
                 }
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         if (createdAtNanos != NO_SAMPLING)
             addSample();
     }

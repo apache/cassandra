@@ -41,6 +41,7 @@ public interface ClusteringIndexFilter
 
     public enum Kind
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         SLICE (ClusteringIndexSliceFilter.deserializer),
         NAMES (ClusteringIndexNamesFilter.deserializer);
 

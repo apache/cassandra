@@ -94,6 +94,7 @@ public class Util
 
     public static IPartitioner testPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return DatabaseDescriptor.getPartitioner();
     }
 
@@ -124,16 +125,19 @@ public class Util
 
     public static Clustering clustering(ClusteringComparator comparator, Object... o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         return comparator.make(o);
     }
 
     public static Token token(String key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return testPartitioner().getToken(ByteBufferUtil.bytes(key));
     }
 
     public static Range<PartitionPosition> range(String left, String right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new Range<>(rp(left), rp(right));
     }
 
@@ -167,6 +171,8 @@ public class Util
 
     public static ByteBuffer getBytes(int v)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3031
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         byte[] bytes = new byte[4];
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         bb.putInt(v);
@@ -188,6 +194,7 @@ public class Util
 
         for (Mutation rm : mutations)
             rm.applyUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
 
         ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(tableId);
         store.forceBlockingFlush();
@@ -196,6 +203,7 @@ public class Util
 
     public static boolean equalsCounterId(CounterId n, ByteBuffer context, int offset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4647
         return CounterId.wrap(context, context.position() + offset).equals(n);
     }
 
@@ -203,7 +211,9 @@ public class Util
      * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
      */
     public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                          List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1216
         throws UnknownHostException
     {
         // Expand pool of host IDs as necessary
@@ -213,6 +223,8 @@ public class Util
         boolean endpointTokenPrefilled = endpointTokens != null && !endpointTokens.isEmpty();
         for (int i=0; i<howMany; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
             if(!endpointTokenPrefilled)
                 endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
@@ -221,7 +233,9 @@ public class Util
 
         for (int i=0; i<endpointTokens.size(); i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
             Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), 1);
             Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(endpointTokens.get(i))));
             ss.onChange(ep,
@@ -240,7 +254,9 @@ public class Util
 
     public static Future<?> compactAll(ColumnFamilyStore cfs, int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6008
         List<Descriptor> descriptors = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             descriptors.add(sstable.descriptor);
         return CompactionManager.instance.submitUserDefined(cfs, descriptors, gcBefore);
@@ -252,12 +268,14 @@ public class Util
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore))
         {
             for (AbstractCompactionTask task : tasks)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 task.execute(ActiveCompactionsTracker.NOOP);
         }
     }
 
     public static void expectEOF(Callable<?> callable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1717
         expectException(callable, EOFException.class);
     }
 
@@ -269,6 +287,7 @@ public class Util
         {
             callable.call();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         catch (Throwable e)
         {
             assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
@@ -285,6 +304,7 @@ public class Util
 
     public static AbstractReadCommandBuilder.PartitionRangeBuilder cmd(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new AbstractReadCommandBuilder.PartitionRangeBuilder(cfs);
     }
 
@@ -329,6 +349,7 @@ public class Util
 
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         List<ImmutableBTreePartition> results = new ArrayList<>();
         try (ReadExecutionController executionController = command.executionController();
              UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
@@ -372,6 +393,7 @@ public class Util
                 assert !iterator.hasNext() : "Expecting a single partition but got more";
 
                 assert partition.hasNext() : "Expecting one row in one partition but got an empty partition";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 Row row = ((Row)partition.next());
                 assert !partition.hasNext() : "Expecting a single row but got more";
                 return row;
@@ -389,6 +411,7 @@ public class Util
             {
                 assert !iterator.hasNext() : "Expecting a single partition but got more";
                 assert partition.hasNext() : "Expecting one row in one partition but got an empty partition";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 Row row = partition.next();
                 assert !partition.hasNext() : "Expecting a single row but got more";
                 return row;
@@ -405,6 +428,7 @@ public class Util
             try (UnfilteredRowIterator partition = iterator.next())
             {
                 assert !iterator.hasNext() : "Expecting a single partition but got more";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 return ImmutableBTreePartition.create(partition);
             }
         }
@@ -481,6 +505,7 @@ public class Util
     public static boolean equal(UnfilteredRowIterator a, UnfilteredRowIterator b)
     {
         return Objects.equals(a.columns(), b.columns())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
             && Objects.equals(a.stats(), b.stats())
             && sameContent(a, b);
     }
@@ -549,6 +574,7 @@ public class Util
     {
         assertNotNull(cell);
         assertEquals(0, ByteBufferUtil.compareUnsigned(cell.value(), ByteBufferUtil.bytes(value)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         assertEquals(timestamp, cell.timestamp());
     }
 
@@ -560,6 +586,7 @@ public class Util
 
     public static PartitionerSwitcher switchPartitioner(IPartitioner p)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return new PartitionerSwitcher(p);
     }
 
@@ -583,6 +610,7 @@ public class Util
 
     public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier, int timeoutInSeconds)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15630
         spinAssertEquals(null, expected, actualSupplier, timeoutInSeconds, TimeUnit.SECONDS);
     }
 
@@ -608,6 +636,7 @@ public class Util
 
     public static AssertionError runCatchingAssertionError(Runnable test)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12277
         try
         {
             test.run();
@@ -666,12 +695,14 @@ public class Util
     // for use with Optional in tests, can be used as an argument to orElseThrow
     public static Supplier<AssertionError> throwAssert(final String message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         return () -> new AssertionError(message);
     }
 
     public static class UnfilteredSource extends AbstractUnfilteredRowIterator implements UnfilteredRowIterator
     {
         Iterator<Unfiltered> content;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10059
 
         public UnfilteredSource(TableMetadata metadata, DecoratedKey partitionKey, Row staticRow, Iterator<Unfiltered> content)
         {
@@ -701,6 +732,7 @@ public class Util
 
     public static Closeable markDirectoriesUnwriteable(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         try
         {
             for ( ; ; )
@@ -742,6 +774,7 @@ public class Util
 
     public static void assertRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         assertTrue(a + " not equal to " + b, Iterables.elementsEqual(a, b));
     }
 

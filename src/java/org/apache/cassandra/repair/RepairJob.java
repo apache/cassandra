@@ -74,6 +74,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     public int getNowInSeconds()
     {
         int nowInSeconds = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15655
         if (session.previewKind == PreviewKind.REPAIRED)
         {
             return nowInSeconds + DatabaseDescriptor.getValidationPreviewPurgeHeadStartInSec();
@@ -92,6 +93,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     public void run()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13598
         Keyspace ks = Keyspace.open(desc.keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
         cfs.metric.repairsStarted.inc();
@@ -100,9 +102,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
         ListenableFuture<List<TreeResponse>> validations;
         // Create a snapshot at all nodes unless we're using pure parallel repairs
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8193
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
             ListenableFuture<List<InetAddressAndPort>> allSnapshotTasks;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
             if (session.isIncremental)
             {
                 // consistent repair does it's own "snapshotting"
@@ -111,6 +115,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             else
             {
                 // Request snapshot to all replica
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 List<ListenableFuture<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
                 for (InetAddressAndPort endpoint : allEndpoints)
                 {
@@ -122,6 +127,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
 
             // When all snapshot complete, send validation requests
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             validations = Futures.transformAsync(allSnapshotTasks, new AsyncFunction<List<InetAddressAndPort>, List<TreeResponse>>()
             {
                 public ListenableFuture<List<TreeResponse>> apply(List<InetAddressAndPort> endpoints)
@@ -141,6 +147,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
         // When all validations complete, submit sync tasks
         ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
                                                                               session.optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing,
                                                                               taskExecutor);
 
@@ -151,9 +158,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 if (!session.previewKind.isPreview())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                     logger.info("{} {}.{} is fully synced", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5839
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13598
                 cfs.metric.repairsCompleted.inc();
                 set(new RepairResult(desc, stats));
             }
@@ -165,9 +175,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 if (!session.previewKind.isPreview())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                     logger.warn("{} {}.{} sync failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5839
                     SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13598
                 cfs.metric.repairsCompleted.inc();
                 setException(t);
             }
@@ -181,6 +194,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
     private ListenableFuture<List<SyncStat>> standardSyncing(List<TreeResponse> trees)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         List<SyncTask> syncTasks = createStandardSyncTasks(desc,
                                                            trees,
                                                            FBUtilities.getLocalAddressAndPort(),
@@ -199,6 +213,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         long startedAt = System.currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
@@ -210,6 +225,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 TreeResponse r2 = trees.get(j);
 
                 // Avoid streming between two tansient replicas
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
                 if (isTransient.test(r1.endpoint) && isTransient.test(r2.endpoint))
                     continue;
 
@@ -234,6 +250,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     if (!requestRanges && !transferRanges)
                         continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
                     task = new LocalSyncTask(desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null,
                                              requestRanges, transferRanges, previewKind);
                 }
@@ -250,9 +267,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 }
                 syncTasks.add(task);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             trees.get(i).trees.release();
         }
         trees.get(trees.size() - 1).trees.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         logger.info("Created {} sync tasks based on {} merkle tree responses for {} (took: {}ms)",
                     syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
         return syncTasks;
@@ -292,6 +311,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                           boolean isIncremental,
                                                           PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         long startedAt = System.currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
@@ -300,16 +320,19 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         logger.debug("diffs = {}", diffHolder);
         PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
                                                 candidates.stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
                                                           .filter(node -> getDC.apply(streaming)
                                                                           .equals(getDC.apply(node)))
                                                           .collect(Collectors.toSet());
         ImmutableMap<InetAddressAndPort, HostDifferences> reducedDifferences = ReduceHelper.reduce(diffHolder, preferSameDCFilter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         for (int i = 0; i < trees.size(); i++)
         {
             InetAddressAndPort address = trees.get(i).endpoint;
 
             // we don't stream to transient replicas
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
             if (isTransient.test(address))
                 continue;
 
@@ -321,6 +344,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 {
                     List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
                     assert !toFetch.isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
 
                     logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
                     SyncTask task;
@@ -342,8 +366,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 logger.debug("Node {} has nothing to stream", address);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
                     syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         return syncTasks;
     }
 
@@ -361,10 +387,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int nowInSec = getNowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort endpoint : endpoints)
         {
             ValidationTask task = new ValidationTask(desc, endpoint, nowInSec, session.previewKind);
@@ -381,14 +409,17 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private ListenableFuture<List<TreeResponse>> sendSequentialValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int nowInSec = getNowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Queue<InetAddressAndPort> requests = new LinkedList<>(endpoints);
         InetAddressAndPort address = requests.poll();
         ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.previewKind);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         logger.info("{} Validating {}", session.previewKind.logPrefix(desc.sessionId), address);
         session.trackValidationCompletion(Pair.create(desc, address), firstTask);
         tasks.add(firstTask);
@@ -402,6 +433,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 public void onSuccess(TreeResponse result)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                     logger.info("{} Validating {}", session.previewKind.logPrefix(desc.sessionId), nextAddress);
                     session.trackValidationCompletion(Pair.create(desc, nextAddress), nextTask);
                     taskExecutor.execute(nextTask);
@@ -423,11 +455,13 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private ListenableFuture<List<TreeResponse>> sendDCAwareValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int nowInSec = getNowInSeconds();
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<String, Queue<InetAddressAndPort>> requestsByDatacenter = new HashMap<>();
         for (InetAddressAndPort endpoint : endpoints)
         {
@@ -441,17 +475,22 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             queue.add(endpoint);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Map.Entry<String, Queue<InetAddressAndPort>> entry : requestsByDatacenter.entrySet())
         {
             Queue<InetAddressAndPort> requests = entry.getValue();
             InetAddressAndPort address = requests.poll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
             ValidationTask firstTask = new ValidationTask(desc, address, nowInSec, session.previewKind);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
             logger.info("{} Validating {}", session.previewKind.logPrefix(session.getId()), address);
             session.trackValidationCompletion(Pair.create(desc, address), firstTask);
             tasks.add(firstTask);
             ValidationTask currentTask = firstTask;
             while (requests.size() > 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 final InetAddressAndPort nextAddress = requests.poll();
                 final ValidationTask nextTask = new ValidationTask(desc, nextAddress, nowInSec, session.previewKind);
                 tasks.add(nextTask);
@@ -459,6 +498,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 {
                     public void onSuccess(TreeResponse result)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                         logger.info("{} Validating {}", session.previewKind.logPrefix(session.getId()), nextAddress);
                         session.trackValidationCompletion(Pair.create(desc, nextAddress), nextTask);
                         taskExecutor.execute(nextTask);
@@ -466,6 +506,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
                     // failure is handled at root of job chain
                     public void onFailure(Throwable t) {}
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                 }, MoreExecutors.directExecutor());
                 currentTask = nextTask;
             }

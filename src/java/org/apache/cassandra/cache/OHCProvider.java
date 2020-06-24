@@ -38,6 +38,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
     {
         OHCacheBuilder<RowCacheKey, IRowCacheEntry> builder = OHCacheBuilder.newBuilder();
         builder.capacity(DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                .keySerializer(KeySerializer.instance)
                .valueSerializer(ValueSerializer.instance)
                .throwOOME(true);
@@ -66,6 +67,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
         public void put(RowCacheKey key, IRowCacheEntry value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             ohCache.put(key,  value);
         }
 
@@ -96,6 +98,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
         public long weightedSize()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13393
             return ohCache.memUsed();
         }
 
@@ -125,6 +128,8 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
         private static KeySerializer instance = new KeySerializer();
         public void serialize(RowCacheKey rowCacheKey, ByteBuffer buf)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9425
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13164
             try (DataOutputBuffer dataOutput = new DataOutputBufferFixed(buf))
             {
                 rowCacheKey.tableId.serialize(dataOutput);
@@ -142,6 +147,8 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
         {
             TableId tableId = null;
             String indexName = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9425
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13164
             try (DataInputBuffer dataInput = new DataInputBuffer(buf, false))
             {
                 tableId = TableId.deserialize(dataInput);
@@ -173,9 +180,12 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
         public void serialize(IRowCacheEntry entry, ByteBuffer buf)
         {
             assert entry != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             try (DataOutputBufferFixed out = new DataOutputBufferFixed(buf))
             {
                 boolean isSentinel = entry instanceof RowCacheSentinel;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                 out.writeBoolean(isSentinel);
                 if (isSentinel)
                     out.writeLong(((RowCacheSentinel) entry).sentinelId);
@@ -197,6 +207,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
                 boolean isSentinel = in.readBoolean();
                 if (isSentinel)
                     return new RowCacheSentinel(in.readLong());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 return CachedPartition.cacheSerializer.deserialize(in);
             }
             catch (IOException e)

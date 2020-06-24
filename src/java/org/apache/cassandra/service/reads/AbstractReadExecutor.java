@@ -75,6 +75,8 @@ public abstract class AbstractReadExecutor
     private   final int initialDataRequestCount;
     protected volatile PartitionIterator result = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
     AbstractReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, int initialDataRequestCount, long queryStartNanoTime)
     {
         this.command = command;
@@ -94,13 +96,17 @@ public abstract class AbstractReadExecutor
         // TODO: we need this when talking with pre-3.0 nodes. So if we preserve the digest format moving forward, we can get rid of this once
         // we stop being compatible with pre-3.0 nodes.
         int digestVersion = MessagingService.current_version;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         for (Replica replica : replicaPlan.contacts())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             digestVersion = Math.min(digestVersion, MessagingService.instance().versions.get(replica.endpoint()));
         command.setDigestVersion(digestVersion);
     }
 
     public DecoratedKey getKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
         Preconditions.checkState(command instanceof SinglePartitionReadCommand,
                                  "Can only get keys for SinglePartitionReadCommand");
         return ((SinglePartitionReadCommand) command).partitionKey();
@@ -114,11 +120,13 @@ public abstract class AbstractReadExecutor
     protected void makeFullDataRequests(ReplicaCollection<?> replicas)
     {
         assert all(replicas, Replica::isFull);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         makeRequests(command, replicas);
     }
 
     protected void makeTransientDataRequests(Iterable<Replica> replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
         makeRequests(command.copyAsTransientQuery(replicas), replicas);
     }
 
@@ -133,12 +141,15 @@ public abstract class AbstractReadExecutor
     {
         boolean hasLocalEndpoint = false;
         Message<ReadCommand> message = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         for (Replica replica: replicas)
         {
             assert replica.isFull() || readCommand.acceptsTransient();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
             InetAddressAndPort endpoint = replica.endpoint();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
             if (replica.isSelf())
             {
                 hasLocalEndpoint = true;
@@ -148,6 +159,7 @@ public abstract class AbstractReadExecutor
             if (traceState != null)
                 traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (null == message)
                 message = readCommand.createMessage(false);
 
@@ -158,6 +170,8 @@ public abstract class AbstractReadExecutor
         if (hasLocalEndpoint)
         {
             logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             Stage.READ.maybeExecuteImmediately(new LocalReadRunnable(command, handler));
         }
     }
@@ -173,9 +187,12 @@ public abstract class AbstractReadExecutor
      */
     public void executeAsync()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         makeTransientDataRequests(selected.filterLazily(Replica::isTransient));
         makeDigestRequests(selected.filterLazily(r -> r.isFull() && !fullDataRequests.contains(r)));
     }
@@ -190,6 +207,8 @@ public abstract class AbstractReadExecutor
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
         ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(keyspace, command.partitionKey().getToken(), consistencyLevel, retry);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
@@ -204,6 +223,7 @@ public abstract class AbstractReadExecutor
             return new NeverSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime, recordFailedSpeculation);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14293
         if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
             return new AlwaysSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
         else // PERCENTILE or CUSTOM.
@@ -217,12 +237,16 @@ public abstract class AbstractReadExecutor
     boolean shouldSpeculateAndMaybeWait()
     {
         // no latency information, or we're overloaded
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (cfs.sampleReadLatencyNanos > command.getTimeout(NANOSECONDS))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
 
         return !handler.await(cfs.sampleReadLatencyNanos, NANOSECONDS);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
     ReplicaPlan.ForTokenRead replicaPlan()
     {
         return replicaPlan.get();
@@ -241,12 +265,15 @@ public abstract class AbstractReadExecutor
 
         public NeverSpeculatingReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, long queryStartNanoTime, boolean logFailedSpeculation)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             super(cfs, command, replicaPlan, 1, queryStartNanoTime);
             this.logFailedSpeculation = logFailedSpeculation;
         }
 
         public void maybeTryAdditionalReplicas()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
             if (shouldSpeculateAndMaybeWait() && logFailedSpeculation)
             {
                 cfs.metric.speculativeInsufficientReplicas.inc();
@@ -260,6 +287,8 @@ public abstract class AbstractReadExecutor
 
         public SpeculatingReadExecutor(ColumnFamilyStore cfs,
                                        ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                        ReplicaPlan.ForTokenRead replicaPlan,
                                        long queryStartNanoTime)
         {
@@ -271,15 +300,20 @@ public abstract class AbstractReadExecutor
 
         public void maybeTryAdditionalReplicas()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
             if (shouldSpeculateAndMaybeWait())
             {
                 //Handle speculation stats first in case the callback fires immediately
                 cfs.metric.speculativeRetries.inc();
                 speculated = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 ReplicaPlan.ForTokenRead replicaPlan = replicaPlan();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
                 ReadCommand retryCommand;
                 Replica extraReplica;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 if (handler.resolver.isDataPresent())
                 {
                     extraReplica = replicaPlan.firstUncontactedCandidate(Predicates.alwaysTrue());
@@ -288,12 +322,16 @@ public abstract class AbstractReadExecutor
                     assert extraReplica != null;
 
                     retryCommand = extraReplica.isTransient()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
                             ? command.copyAsTransientQuery(extraReplica)
                             : command.copyAsDigestQuery(extraReplica);
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                     extraReplica = replicaPlan.firstUncontactedCandidate(Replica::isFull);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
                     retryCommand = command;
                     if (extraReplica == null)
                     {
@@ -308,15 +346,20 @@ public abstract class AbstractReadExecutor
                 // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
                 // nor would we be able to speculate a new 'write' if the repair writes are insufficient
                 super.replicaPlan.addToContacts(extraReplica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9479
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 MessagingService.instance().sendWithCallback(retryCommand.createMessage(false), extraReplica.endpoint(), handler);
             }
         }
 
         @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
         void onReadTimeout()
         {
             //Shouldn't be possible to get here without first attempting to speculate even if the
@@ -330,6 +373,8 @@ public abstract class AbstractReadExecutor
     {
         public AlwaysSpeculatingReadExecutor(ColumnFamilyStore cfs,
                                              ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                              ReplicaPlan.ForTokenRead replicaPlan,
                                              long queryStartNanoTime)
         {
@@ -351,6 +396,7 @@ public abstract class AbstractReadExecutor
         }
 
         @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
         void onReadTimeout()
         {
             cfs.metric.speculativeFailedRetries.inc();
@@ -359,6 +405,7 @@ public abstract class AbstractReadExecutor
 
     public void setResult(PartitionIterator result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         Preconditions.checkState(this.result == null, "Result can only be set once");
         this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().candidates().endpointList());
     }
@@ -368,6 +415,7 @@ public abstract class AbstractReadExecutor
      */
     public void awaitResponses() throws ReadTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
         try
         {
             handler.awaitResults();
@@ -400,6 +448,7 @@ public abstract class AbstractReadExecutor
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
             readRepair.awaitReads();
         }
         catch (ReadTimeoutException e)
@@ -410,12 +459,15 @@ public abstract class AbstractReadExecutor
                 logger.trace("Timed out waiting on digest mismatch repair requests");
             // the caught exception here will have CL.ALL from the repair command,
             // not whatever CL the initial command was at (CASSANDRA-7947)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.blockFor - 1, handler.blockFor, true);
         }
     }
 
     boolean isDone()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
         return result != null;
     }
 

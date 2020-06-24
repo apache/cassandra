@@ -38,12 +38,14 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 
     public PartitionerDefinedOrder(IPartitioner partitioner)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
     }
 
     public static AbstractType<?> getInstance(TypeParser parser)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Iterator<String> argIterator = parser.getKeyValueParameters().keySet().iterator();
         if (argIterator.hasNext())
@@ -63,11 +65,14 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public ByteBuffer decompose(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }
 
     public String getString(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2009
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return ByteBufferUtil.bytesToHex(bytes);
     }
 
@@ -79,35 +84,42 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public Term fromJSONObject(Object parsed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         throw new UnsupportedOperationException();
     }
 
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5923
         throw new UnsupportedOperationException();
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         // o1 and o2 can be empty so we need to use PartitionPosition, not DecoratedKey
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return PartitionPosition.ForKey.get(o1, partitioner).compareTo(PartitionPosition.ForKey.get(o2, partitioner));
     }
 
     @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1814
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         throw new IllegalStateException("You shouldn't be validating this.");
     }
 
     public TypeSerializer<ByteBuffer> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
 }

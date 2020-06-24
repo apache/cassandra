@@ -47,6 +47,7 @@ public class CoordinatorSessions
     {
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionId);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         Preconditions.checkArgument(!sessions.containsKey(sessionId),
                                     "A coordinator already exists for session %s", sessionId);
         Preconditions.checkArgument(!isForced || prs.repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE,

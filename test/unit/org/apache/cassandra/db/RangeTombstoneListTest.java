@@ -49,6 +49,7 @@ public class RangeTombstoneListTest
     public static void beforeClass()
     {
         // Needed to initialize initial_range_tombstone_allocation_size and range_tombstone_resize_factor
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15763
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -100,6 +101,8 @@ public class RangeTombstoneListTest
         assertRT(rt1, iter.next());
         assertRT(rt2, iter.next());
         assertRT(rtei(10, 13, 1), iter.next());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         assert !iter.hasNext();
     }
@@ -121,9 +124,11 @@ public class RangeTombstoneListTest
         l.add(rt(0, 15, 1));
 
         Iterator<RangeTombstone> iter = l.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertRT(rtie(0, 1, 1), iter.next());
         assertRT(rtie(1, 4, 2), iter.next());
         assertRT(rtie(4, 8, 3), iter.next());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
         assertRT(rt(8, 13, 4), iter.next());
         assertRT(rtei(13, 15, 1), iter.next());
         assert !iter.hasNext();
@@ -140,6 +145,7 @@ public class RangeTombstoneListTest
     {
         int N = 3000;
         // Test that the StackOverflow from #6181 is fixed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
         RangeTombstoneList l = new RangeTombstoneList(cmp, N);
         for (int i = 0; i < N; i++)
             l.add(rt(2*i+1, 2*i+2, 1));
@@ -156,6 +162,7 @@ public class RangeTombstoneListTest
         l1.add(rt(3, 7, 5));
 
         Iterator<RangeTombstone> iter1 = l1.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertRT(rtie(0, 3, 3), iter1.next());
         assertRT(rt(3, 7, 5), iter1.next());
         assertRT(rtei(7, 10, 3), iter1.next());
@@ -173,12 +180,14 @@ public class RangeTombstoneListTest
     @Test
     public void overlappingPreviousEndEqualsStartTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
         RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
         // add a RangeTombstone, so, last insert is not in insertion order
         l.add(rt(11, 12, 2));
         l.add(rt(1, 4, 2));
         l.add(rt(4, 10, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertEquals(2, l.searchDeletionTime(clustering(3)).markedForDeleteAt());
         assertEquals(5, l.searchDeletionTime(clustering(4)).markedForDeleteAt());
         assertEquals(5, l.searchDeletionTime(clustering(8)).markedForDeleteAt());
@@ -196,6 +205,7 @@ public class RangeTombstoneListTest
         l.add(rt(15, 17, 6));
 
         assertEquals(null, l.searchDeletionTime(clustering(-1)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         assertEquals(5, l.searchDeletionTime(clustering(0)).markedForDeleteAt());
         assertEquals(5, l.searchDeletionTime(clustering(3)).markedForDeleteAt());
@@ -228,6 +238,7 @@ public class RangeTombstoneListTest
         l1.addAll(l2);
 
         Iterator<RangeTombstone> iter = l1.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertRT(rtie(0, 3, 5), iter.next());
         assertRT(rt(3, 5, 7), iter.next());
         assertRT(rtie(6, 7, 2), iter.next());
@@ -235,6 +246,7 @@ public class RangeTombstoneListTest
         assertRT(rtei(8, 10, 2), iter.next());
         assertRT(rtei(10, 12, 1), iter.next());
         assertRT(rt(14, 17, 4), iter.next());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
 
         assert !iter.hasNext();
     }
@@ -251,6 +263,7 @@ public class RangeTombstoneListTest
         l1.addAll(l2);
 
         Iterator<RangeTombstone> iter = l1.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertRT(rtie(3, 5, 2), iter.next());
         assertRT(rt(5, 7, 7), iter.next());
 
@@ -279,6 +292,7 @@ public class RangeTombstoneListTest
     @Test
     public void addAllBugFrom9799()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9799
         RangeTombstoneList l1 = fromString("{ (6, 7]@4 - (7, 8)@1 - [12, 12]@0 - [13, 13]@0 - (20, 21)@3 - [27, 27]@2 - (33, 34)@2 - (35, 36]@4 - (40, 41]@0 - (42, 43)@2 - (44, 45)@3 - [47, 47]@1 - (47, 48)@0 - [55, 55]@4 - [61, 61]@4 - [67, 67]@0 - [70, 70]@4 - [77, 77]@1 - (83, 84)@1 - [90, 90]@0 - (91, 92]@4 - [93, 93]@0 - (94, 95)@2 - (100, 101]@3 - (103, 104]@0 - (108, 109]@2 - (115, 116]@3 - (116, 117]@3 - (118, 119)@4 - (125, 126)@2 - [131, 131]@1 - [132, 132]@3 - [139, 139]@0 - [145, 145]@1 - (145, 146]@3 - (147, 148]@4 - (150, 151]@1 - (156, 157)@2 - (158, 159)@2 - [164, 164]@4 - (168, 169)@0 - (171, 172)@4 - (173, 174]@0 - [179, 179]@1 - (186, 187]@4 - [191, 191]@1 }");
         RangeTombstoneList l2 = fromString("{ (1, 12)@8 - [12, 13)@8 - [13, 18]@7 }");
         l1.addAll(l2);
@@ -303,6 +317,7 @@ public class RangeTombstoneListTest
 
             // Now make sure we create meaningful ranges
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             if (prevEnd == nextStart)
                 startInclusive = !prevEndInclusive;
 
@@ -334,6 +349,7 @@ public class RangeTombstoneListTest
         int MAX_IT_DISTANCE = 10;
         int MAX_MARKEDAT = 10;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9485
         long seed = System.nanoTime();
         Random rand = new Random(seed);
 
@@ -364,6 +380,7 @@ public class RangeTombstoneListTest
     @Test
     public void nonSortedAdditionTestWithOneTombstoneWithEmptyEnd()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         nonSortedAdditionTestWithOneRangeWithEmptyEnd(0);
         nonSortedAdditionTestWithOneRangeWithEmptyEnd(10);
     }
@@ -560,6 +577,7 @@ public class RangeTombstoneListTest
     public void testSetResizeFactor()
     {
         double original = DatabaseDescriptor.getRangeTombstoneListGrowthFactor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15763
         final StorageService storageService = StorageService.instance;
         final Consumer<Throwable> expectIllegalStateExceptio = exception -> {
             assertSame(IllegalStateException.class, exception.getClass());
@@ -624,6 +642,7 @@ public class RangeTombstoneListTest
 
     private static void assertRT(RangeTombstone expected, RangeTombstone actual)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertTrue(String.format("%s != %s", toString(expected), toString(actual)), cmp.compare(expected.deletedSlice().start(), actual.deletedSlice().start()) == 0);
         assertTrue(String.format("%s != %s", toString(expected), toString(actual)), cmp.compare(expected.deletedSlice().end(), actual.deletedSlice().end()) == 0);
         assertEquals(String.format("%s != %s", toString(expected), toString(actual)), expected.deletionTime(), actual.deletionTime());
@@ -644,6 +663,7 @@ public class RangeTombstoneListTest
             Slice curr = iter.next().deletedSlice();
 
             assertFalse("Invalid empty slice " + curr.toString(cmp), curr.isEmpty(cmp));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             assertTrue("Slice not in order or overlapping : " + prev.toString(cmp) + curr.toString(cmp), cmp.compare(prev.end(), curr.start()) <= 0);
         }
     }
@@ -655,6 +675,7 @@ public class RangeTombstoneListTest
 
     private static String toString(RangeTombstoneList l)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9799
         String[] ranges = new String[l.size()];
         int i = 0;
         for (RangeTombstone rt : l)
@@ -703,6 +724,7 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new RangeTombstone(Slice.make(ClusteringBound.create(cmp, true, startInclusive, start), ClusteringBound.create(cmp, false, endInclusive, end)), new DeletionTime(tstamp, 0));
     }
 
@@ -713,11 +735,13 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtei(int start, int end, long tstamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return rtei(start, end, tstamp, 0);
     }
 
     private static RangeTombstone rtei(int start, int end, long tstamp, int delTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new RangeTombstone(Slice.make(ClusteringBound.exclusiveStartOf(bb(start)), ClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
@@ -728,6 +752,7 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtie(int start, int end, long tstamp, int delTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new RangeTombstone(Slice.make(ClusteringBound.inclusiveStartOf(bb(start)), ClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 

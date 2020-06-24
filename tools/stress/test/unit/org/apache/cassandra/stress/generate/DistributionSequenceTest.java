@@ -100,6 +100,7 @@ public class DistributionSequenceTest
     @Test
     public void setSeed() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12490
         Distribution dist = OptionDistribution.get("seq(1..10)").get();
         assertTrue(dist instanceof DistributionSequence);
 

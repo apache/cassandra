@@ -31,6 +31,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11541
 + * The SlabAllocator is a bump-the-pointer allocator that allocates
 + * large (1MB) global regions and then doles them out to threads that
 + * request smaller sized (up to 128kb) slices into the array.
@@ -63,6 +64,7 @@ public class SlabAllocator extends MemtableBufferAllocator
     private final boolean allocateOnHeapOnly;
     private final EnsureOnHeap ensureOnHeap;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
     SlabAllocator(SubAllocator onHeap, SubAllocator offHeap, boolean allocateOnHeapOnly)
     {
         super(onHeap, offHeap);
@@ -86,6 +88,7 @@ public class SlabAllocator extends MemtableBufferAllocator
         if (size == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
         (allocateOnHeapOnly ? onHeap() : offHeap()).allocate(size, opGroup);
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
@@ -109,13 +112,17 @@ public class SlabAllocator extends MemtableBufferAllocator
                 return cloned;
 
             // not enough space!
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3168
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             currentRegion.compareAndSet(region, null);
         }
     }
 
     public void setDiscarded()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
         for (Region region : offHeapRegions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             FileUtils.clean(region.data);
         super.setDiscarded();
     }
@@ -134,8 +141,10 @@ public class SlabAllocator extends MemtableBufferAllocator
 
             // No current region, so we want to allocate one. We race
             // against other allocators to CAS in a Region, and if we fail we stash the region for re-use
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
             region = RACE_ALLOCATED.poll();
             if (region == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
                 region = new Region(allocateOnHeapOnly ? ByteBuffer.allocate(REGION_SIZE) : ByteBuffer.allocateDirect(REGION_SIZE));
             if (currentRegion.compareAndSet(null, region))
             {
@@ -154,6 +163,7 @@ public class SlabAllocator extends MemtableBufferAllocator
 
     protected AbstractAllocator allocator(OpOrder.Group writeOp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         return new ContextAllocator(writeOp, this);
     }
 
@@ -191,6 +201,7 @@ public class SlabAllocator extends MemtableBufferAllocator
          */
         private Region(ByteBuffer buffer)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
             data = buffer;
         }
 

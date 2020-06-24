@@ -72,22 +72,26 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
 
         for (int j = 0; j < 100; j ++)
         {
             new RowUpdateBuilder(cfs.metadata(), j, String.valueOf(j))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 .clustering("0")
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
                 .apply();
         }
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         assertEquals(sstables.iterator().next().bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
         int nowInSec = FBUtilities.nowInSeconds();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(txn, false, 1000);
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
@@ -121,6 +125,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = new SSTableRewriter(txn, 1000, 10000000, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {
@@ -146,6 +151,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
 
@@ -153,7 +160,10 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         boolean checked = false;
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter writer = new SSTableRewriter(txn, 1000, 10000000, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {
@@ -165,12 +175,17 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 if (!checked && writer.currentWriter().getFilePointer() > 1500000)
                 {
                     checked = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     for (SSTableReader sstable : cfs.getLiveSSTables())
                     {
                         if (sstable.openReason == SSTableReader.OpenReason.EARLY)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                             SSTableReader c = txn.current(sstables.iterator().next());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                             Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.getPartitioner().getMinimumToken(), cfs.getPartitioner().getMinimumToken()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
                             List<SSTableReader.PartitionPositionBounds> tmplinkPositions = sstable.getPositionsForRanges(r);
                             List<SSTableReader.PartitionPositionBounds> compactingPositions = c.getPositionsForRanges(r);
                             assertEquals(1, tmplinkPositions.size());
@@ -184,10 +199,15 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 }
             }
             assertTrue(checked);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             writer.finish();
         }
         LifecycleTransaction.waitForDeletions();
         assertEquals(1, assertFileCounts(sstables.iterator().next().descriptor.directory.list()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12348
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12348
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12348
 
         validateCFS(cfs);
         truncate(cfs);
@@ -202,7 +222,9 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         long startStorageMetricsLoad = StorageMetrics.load.getCount();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9403
         long sBytesOnDisk = s.bytesOnDisk();
         Set<SSTableReader> compacting = Sets.newHashSet(s);
 
@@ -223,7 +245,9 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     assertEquals(s.bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
                     assertEquals(s.bytesOnDisk(), cfs.metric.totalDiskSpaceUsed.getCount());
 
@@ -233,15 +257,19 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
 
         LifecycleTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         long sum = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader x : cfs.getLiveSSTables())
             sum += x.bytesOnDisk();
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9403
         assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, StorageMetrics.load.getCount());
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
         LifecycleTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         // tmplink and tmp files should be gone:
         assertEquals(sum, cfs.metric.totalDiskSpaceUsed.getCount());
@@ -336,12 +364,15 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                             SSTableRewriter rewriter,
                             LifecycleTransaction txn)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 try (CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID()))
                 {
                     int files = 1;
                     while (ci.hasNext())
                     {
                         rewriter.append(ci.next());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8750
                         if (rewriter.currentWriter().getFilePointer() > 25000000)
                         {
                         rewriter.switchWriter(getWriter(cfs, sstable.descriptor.directory, txn));
@@ -372,6 +403,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                             SSTableRewriter rewriter,
                             LifecycleTransaction txn)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 try(CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID()))
                 {
                     int files = 1;
@@ -417,6 +449,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         try (ISSTableScanner scanner = s.getScanner();
              CompactionController controller = new CompactionController(cfs, compacting, 0);
              LifecycleTransaction txn = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 10000000, false))
         {
             rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
@@ -424,8 +457,11 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
 
         LifecycleTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         assertEquals(startSize, cfs.metric.liveDiskSpaceUsed.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
         assertFileCounts(s.descriptor.directory.list());
         assertEquals(cfs.getLiveSSTables().iterator().next().first, origFirst);
@@ -450,6 +486,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
              CompactionController controller = new CompactionController(cfs, compacting, 0);
              LifecycleTransaction txn = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 10000000, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID()))
         {
             rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
@@ -460,11 +497,14 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                 }
                 if (files == 3)
                 {
                     //testing to finish when we have nothing written in the new file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                     rewriter.finish();
                     break;
                 }
@@ -472,7 +512,9 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
 
         LifecycleTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(files - 1, cfs.getLiveSSTables().size()); // we never wrote anything to the last file
         assertFileCounts(s.descriptor.directory.list());
         validateCFS(cfs);
@@ -495,7 +537,13 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         try (ISSTableScanner scanner = s.getScanner();
              CompactionController controller = new CompactionController(cfs, compacting, 0);
              LifecycleTransaction txn = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 10000000, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID()))
         {
             rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
@@ -506,10 +554,15 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             sstables = rewriter.finish();
         }
 
@@ -523,6 +576,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
         truncate(cfs);
         cfs.disableAutoCompaction();
 
@@ -535,6 +590,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         try (ISSTableScanner scanner = s.getScanner();
              CompactionController controller = new CompactionController(cfs, compacting, 0);
              LifecycleTransaction txn = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 1000000, false);
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID()))
         {
@@ -544,6 +600,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 rewriter.append(ci.next());
                 if (rewriter.currentWriter().getOnDiskFilePointer() > 2500000)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     assertEquals(files, cfs.getLiveSSTables().size()); // all files are now opened early
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
@@ -553,7 +610,11 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             sstables = rewriter.finish();
         }
         assertEquals(files, sstables.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(files, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LifecycleTransaction.waitForDeletions();
         assertFileCounts(s.descriptor.directory.list());
 
@@ -565,7 +626,12 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
         truncate(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8321
         cfs.disableAutoCompaction();
         SSTableReader s = writeFile(cfs, 1000);
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UNKNOWN, s))
@@ -612,6 +678,9 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
         truncate(cfs);
         SSTableReader s = writeFile(cfs, 1000);
         if (!offline)
@@ -621,7 +690,9 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
              CompactionController controller = new CompactionController(cfs, compacting, 0);
              LifecycleTransaction txn = offline ? LifecycleTransaction.offline(OperationType.UNKNOWN, compacting)
                                        : cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter rewriter = new SSTableRewriter(txn, 100, 10000000, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID())
         )
         {
@@ -636,9 +707,11 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             }
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
                 rewriter.throwDuringPrepare(earlyException);
                 rewriter.prepareToCommit();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8750
             catch (Throwable t)
             {
                 rewriter.abort();
@@ -646,18 +719,26 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8962
             if (offline)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8962
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
                 s.selfRef().release();
         }
 
         LifecycleTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         int filecount = assertFileCounts(s.descriptor.directory.list());
         assertEquals(filecount, 1);
         if (!offline)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             assertEquals(1, cfs.getLiveSSTables().size());
             validateCFS(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             truncate(cfs);
         }
         else
@@ -690,6 +771,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         for (int i = 0; i < 100; i++)
         {
             String key = Integer.toString(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             for (int j = 0; j < 10; j++)
                 new RowUpdateBuilder(cfs.metadata(), 100, key)
@@ -702,16 +784,20 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         cfs.forceMajorCompaction();
         validateKeys(keyspace);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader s = cfs.getLiveSSTables().iterator().next();
         Set<SSTableReader> compacting = new HashSet<>();
         compacting.add(s);
 
         int keyCount = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (ISSTableScanner scanner = compacting.iterator().next().getScanner();
              CompactionController controller = new CompactionController(cfs, compacting, 0);
              LifecycleTransaction txn = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 1, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID())
         )
         {
@@ -726,9 +812,16 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 keyCount++;
                 validateKeys(keyspace);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             rewriter.finish();
         }
         validateKeys(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LifecycleTransaction.waitForDeletions();
         validateCFS(cfs);
         truncate(cfs);
@@ -740,16 +833,20 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         Set<SSTableReader> sstables = Sets.newHashSet(s);
         assertEquals(1, sstables.size());
         boolean checked = false;
         try (ISSTableScanner scanner = sstables.iterator().next().getScanner();
              CompactionController controller = new CompactionController(cfs, sstables, 0);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter writer = new SSTableRewriter(txn, 1000, 10000000, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, Collections.singletonList(scanner), controller, FBUtilities.nowInSeconds(), UUIDGen.getTimeUUID())
         )
         {
@@ -760,6 +857,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 if (!checked && writer.currentWriter().getFilePointer() > 15000000)
                 {
                     checked = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
                     ColumnFamilyStore.ViewFragment viewFragment = cfs.select(View.selectFunction(SSTableSet.CANONICAL));
                     // canonical view should have only one SSTable which is not opened early.
                     assertEquals(1, viewFragment.sstables.size());
@@ -784,16 +882,37 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
         Set<SSTableReader> sstables = Sets.newHashSet(s);
         assertEquals(1, sstables.size());
         int nowInSec = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
              SSTableRewriter writer = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);
              SSTableRewriter writer2 = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID())
              )
@@ -810,6 +929,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             for (int i = 0; i < 5000; i++)
                 assertFalse(Util.getOnlyPartition(Util.cmd(cfs, ByteBufferUtil.bytes(i)).build()).isEmpty());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         truncateCF();
         validateCFS(cfs);
     }
@@ -817,11 +937,18 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
     @Test
     public void testCanonicalSSTables() throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
 
         cfs.addSSTable(writeFile(cfs, 100));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
         assertEquals(1, allSSTables.size());
         final AtomicBoolean done = new AtomicBoolean(false);
@@ -837,6 +964,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 }
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         Thread t = NamedThreadFactory.createThread(r);
         try
         {
@@ -858,6 +987,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         for (int i = 0; i < 100; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(ks.getColumnFamilyStore(CF), key).build());
             assertTrue(partition != null && partition.rowCount() > 0);
         }
@@ -874,6 +1004,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Set<SSTableReader> result = new LinkedHashSet<>();
         for (int f = 0 ; f < fileCount ; f++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             File dir = cfs.getDirectories().getDirectoryForNewSSTables();
             Descriptor desc = cfs.newSSTableDescriptor(dir);
 
@@ -888,6 +1019,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
                     writer.append(builder.build().unfilteredIterator());
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
                 result.addAll(writer.finish(true));
             }
         }

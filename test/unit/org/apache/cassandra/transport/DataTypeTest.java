@@ -44,6 +44,7 @@ public class DataTypeTest
             if (isComplexType(type))
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12850
             Pair<DataType, Object> options = Pair.create(type, (Object)type.toString());
             for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
                 testEncodeDecode(type, options, version);
@@ -54,6 +55,7 @@ public class DataTypeTest
     public void TestListDataTypeSerialization()
     {
         DataType type = DataType.LIST;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12850
         Pair<DataType, Object> options = Pair.create(type, (Object)LongType.instance);
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             testEncodeDecode(type, options, version);
@@ -66,7 +68,10 @@ public class DataTypeTest
         List<AbstractType> value = new ArrayList<>();
         value.add(LongType.instance);
         value.add(AsciiType.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12850
         Pair<DataType, Object> options = Pair.create(type, (Object)value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             testEncodeDecode(type, options, version);
     }
@@ -96,6 +101,7 @@ public class DataTypeTest
         }
         assertEquals(esize, ssize);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         DataType expected = version.isSmallerThan(type.getProtocolVersion())
             ? DataType.CUSTOM
             : type;
@@ -104,6 +110,7 @@ public class DataTypeTest
 
     private boolean isComplexType(DataType type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return type.getId(ProtocolVersion.CURRENT) >= 32;
     }
 }

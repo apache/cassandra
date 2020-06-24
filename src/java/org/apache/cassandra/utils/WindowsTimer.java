@@ -34,6 +34,7 @@ public final class WindowsTimer
         {
             Native.register("winmm");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         catch (NoClassDefFoundError e)
         {
             logger.warn("JNA not found. winmm.dll cannot be registered. Performance will be negatively impacted on this node.");

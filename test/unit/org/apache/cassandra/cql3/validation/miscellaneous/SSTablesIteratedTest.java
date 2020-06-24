@@ -37,6 +37,7 @@ public class SSTablesIteratedTest extends CQLTester
     private void executeAndCheck(String query, int numSSTables, Object[]... rows) throws Throwable
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12282
 
         ((ClearableHistogram) cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
 

@@ -43,6 +43,7 @@ public class UnfilteredRowIteratorsMergeTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
     static DecoratedKey partitionKey = Util.dk("key");
@@ -103,6 +104,7 @@ public class UnfilteredRowIteratorsMergeTest
     @SuppressWarnings("unused")
     public void testTombstoneMerge(boolean reversed, boolean iterations)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         this.reversed = reversed;
         UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, reversed);
 
@@ -112,6 +114,7 @@ public class UnfilteredRowIteratorsMergeTest
                 System.out.println("\nSeed " + seed);
 
             Random r = new Random(seed);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
             List<IntUnaryOperator> timeGenerators = ImmutableList.of(
                     x -> -1,
                     x -> DEL_RANGE,
@@ -121,6 +124,7 @@ public class UnfilteredRowIteratorsMergeTest
             if (ITEMS <= 20)
                 System.out.println("Merging");
             for (int i=0; i<ITERATORS; ++i)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                 sources.add(generator.generateSource(r, ITEMS, RANGE, DEL_RANGE, timeGenerators.get(r.nextInt(timeGenerators.size()))));
             List<Unfiltered> merged = merge(sources, iterations);
     
@@ -145,6 +149,7 @@ public class UnfilteredRowIteratorsMergeTest
                 map(l -> new UnfilteredRowsGenerator.Source(l.iterator(), metadata, partitionKey, DeletionTime.LIVE, reversed)).
                 collect(Collectors.toList());
         List<Unfiltered> merged = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         Iterators.addAll(merged, mergeIterators(us, iterations));
         return merged;
     }
@@ -203,6 +208,7 @@ public class UnfilteredRowIteratorsMergeTest
                     includesEnd = r.nextBoolean();
                 }
                 int deltime = r.nextInt(DEL_RANGE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 DeletionTime dt = new DeletionTime(deltime, deltime);
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos, true, includesStart), dt));
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos + span, false, includesEnd), dt));
@@ -239,6 +245,7 @@ public class UnfilteredRowIteratorsMergeTest
             if (prev != null && curr != null && prev.isClose(false) && curr.isOpen(false) && prev.clustering().invert().equals(curr.clustering()))
             {
                 // Join. Prefer not to use merger to check its correctness.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBound b = ((RangeTombstoneBoundMarker) prev).clustering();
                 ClusteringBoundary boundary = ClusteringBoundary.create(b.isInclusive()
                                                                             ? ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY
@@ -295,6 +302,7 @@ public class UnfilteredRowIteratorsMergeTest
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
     void verifyEquivalent(List<List<Unfiltered>> sources, List<Unfiltered> merged, UnfilteredRowsGenerator generator)
     {
         try
@@ -320,6 +328,7 @@ public class UnfilteredRowIteratorsMergeTest
         {
             System.out.println(e);
             for (List<Unfiltered> list : sources)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                 generator.dumpList(list);
             System.out.println("merged");
             generator.dumpList(merged);
@@ -378,6 +387,7 @@ public class UnfilteredRowIteratorsMergeTest
 
     private static ClusteringBound boundFor(int pos, boolean start, boolean inclusive)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return ClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
@@ -389,7 +399,9 @@ public class UnfilteredRowIteratorsMergeTest
     static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering clustering = clusteringFor(pos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), nowInSec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
@@ -428,6 +440,7 @@ public class UnfilteredRowIteratorsMergeTest
                   UnfilteredRowIteratorsMergeTest.metadata.regularAndStaticColumns(),
                   null,
                   reversed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                   EncodingStats.NO_STATS);
             this.content = content;
         }
@@ -441,6 +454,7 @@ public class UnfilteredRowIteratorsMergeTest
 
     public void testForInput(String... inputs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         reversed = false;
         UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, false);
 
@@ -506,8 +520,10 @@ public class UnfilteredRowIteratorsMergeTest
 
     private RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new RangeTombstoneBoundMarker(ClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
                                                                     new ByteBuffer[] {clusteringFor(pos).get(0)}),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                                              new DeletionTime(delTime, delTime));
     }
 }

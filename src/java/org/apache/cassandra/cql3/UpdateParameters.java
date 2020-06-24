@@ -60,12 +60,14 @@ public class UpdateParameters
                             int nowInSec,
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8139
     throws InvalidRequestException
     {
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
         this.options = options;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         this.nowInSec = nowInSec;
         this.timestamp = timestamp;
         this.ttl = ttl;
@@ -76,6 +78,7 @@ public class UpdateParameters
 
         // We use MIN_VALUE internally to mean the absence of of timestamp (in Selection, in sstable stats, ...), so exclude
         // it to avoid potential confusion.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8139
         if (timestamp == Long.MIN_VALUE)
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
     }
@@ -115,6 +118,7 @@ public class UpdateParameters
 
     public void addPrimaryKeyLivenessInfo()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
     }
 
@@ -147,6 +151,7 @@ public class UpdateParameters
     public void addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         Cell cell = ttl == LivenessInfo.NO_TTL
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                   ? BufferCell.live(column, timestamp, value, path)
                   : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
@@ -195,6 +200,7 @@ public class UpdateParameters
 
     public RangeTombstone makeRangeTombstone(ClusteringComparator comparator, Clustering clustering)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         return makeRangeTombstone(Slice.make(comparator, clustering));
     }
 

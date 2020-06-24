@@ -63,6 +63,7 @@ public class SSTableFlushObserverTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -92,7 +93,9 @@ public class SSTableFlushObserverTest
             throw new FSWriteError(new IOException("failed to create tmp directory"), directory.getAbsolutePath());
 
         SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion(),
                                                                   directory,
                                                                   KS_NAME, CF_NAME,
@@ -112,6 +115,7 @@ public class SSTableFlushObserverTest
             final long now = System.currentTimeMillis();
 
             ByteBuffer key = UTF8Type.instance.fromString("key1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12130
             expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(27)),
                                                BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jack")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(183L))));
@@ -204,6 +208,7 @@ public class SSTableFlushObserverTest
         @Override
         public void nextUnfilteredCluster(Unfiltered row)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
             if (row.isRow())
                 ((Row) row).forEach((c) -> rows.put(currentKey, (Cell) c));
         }

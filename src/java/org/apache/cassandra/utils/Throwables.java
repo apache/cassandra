@@ -38,11 +38,13 @@ public final class Throwables
 
     public interface DiscreteAction<E extends Exception>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         void perform() throws E;
     }
 
     public static boolean isCausedBy(Throwable t, Predicate<Throwable> cause)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return cause.test(t) || (t.getCause() != null && cause.test(t.getCause()));
     }
 
@@ -56,6 +58,7 @@ public final class Throwables
 
     public static void maybeFail(Throwable fail)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         if (failIfCanCast(fail, null))
             throw new RuntimeException(fail);
     }
@@ -86,12 +89,14 @@ public final class Throwables
     @SafeVarargs
     public static <E extends Exception> void maybeFail(DiscreteAction<? extends E> ... actions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         maybeFail(Throwables.perform(null, Stream.of(actions)));
     }
 
     @SafeVarargs
     public static <E extends Exception> void perform(DiscreteAction<? extends E> ... actions) throws E
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         Throwables.<E>perform(Stream.of(actions));
     }
 
@@ -103,6 +108,7 @@ public final class Throwables
     @SuppressWarnings("unchecked")
     public static <E extends Exception> void perform(Stream<DiscreteAction<? extends E>> actions) throws E
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Throwable fail = perform(null, actions);
         if (failIfCanCast(fail, null))
             throw (E) fail;
@@ -170,6 +176,7 @@ public final class Throwables
 
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10274
         for (AutoCloseable closeable : closeables)
         {
             try
@@ -207,6 +214,7 @@ public final class Throwables
      */
     public static Throwable unwrapped(Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
         Throwable unwrapped = t;
         while (unwrapped instanceof CompletionException ||
                unwrapped instanceof ExecutionException ||
@@ -235,6 +243,7 @@ public final class Throwables
      */
     public static RuntimeException throwAsUncheckedException(Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         if (t instanceof Error)
             throw (Error) t;
         throw unchecked(t);

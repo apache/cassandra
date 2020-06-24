@@ -79,6 +79,7 @@ public class CipherFactory
             throw new RuntimeException("couldn't load cipher factory", e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         cache = Caffeine.newBuilder() // by default cache is unbounded
                 .maximumSize(64) // a value large enough that we should never even get close (so nothing gets evicted)
                 .executor(MoreExecutors.directExecutor())
@@ -141,6 +142,7 @@ public class CipherFactory
         {
             return cache.get(keyAlias);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         catch (CompletionException e)
         {
             if (e.getCause() instanceof IOException)

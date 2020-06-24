@@ -54,8 +54,10 @@ public class TokenMetadataTest
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         tmd = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateNormalToken(token(ONE), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(token(SIX), InetAddressAndPort.getByName("127.0.0.6"));
     }
@@ -174,6 +176,7 @@ public class TokenMetadataTest
 
         tokenMetadata.updateTopology(first);
         topology = tokenMetadata.updateTopology(second);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
         allEndpoints = topology.getDatacenterEndpoints();
         assertNotNull(allEndpoints);
@@ -196,6 +199,8 @@ public class TokenMetadataTest
     @Test
     public void testTopologyUpdate_RackExpansion() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort first = InetAddressAndPort.getByName("127.0.0.1");
         final InetAddressAndPort second = InetAddressAndPort.getByName("127.0.0.6");
         final String DATA_CENTER = "datacenter1";
@@ -271,6 +276,7 @@ public class TokenMetadataTest
         });
 
         topology = tokenMetadata.updateTopology();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
         allEndpoints = topology.getDatacenterEndpoints();
         assertNotNull(allEndpoints);
@@ -293,9 +299,11 @@ public class TokenMetadataTest
     @Test
     public void testEndpointSizes() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort first = InetAddressAndPort.getByName("127.0.0.1");
         final InetAddressAndPort second = InetAddressAndPort.getByName("127.0.0.6");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         tmd.updateNormalToken(token(ONE), first);
         tmd.updateNormalToken(token(SIX), second);
 

@@ -80,6 +80,7 @@ public abstract class ColumnData
 
     public static void digest(Digest digest, ColumnData cd)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         cd.digest(digest);
     }
 

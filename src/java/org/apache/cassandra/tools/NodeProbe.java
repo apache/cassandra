@@ -111,6 +111,8 @@ public class NodeProbe implements AutoCloseable
 
     static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = Long.getLong("cassandra.nodetool.jmx_notification_poll_interval_seconds", TimeUnit.SECONDS.convert(5, TimeUnit.MINUTES));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1793
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
     final String host;
     final int port;
     private String username;
@@ -146,6 +148,8 @@ public class NodeProbe implements AutoCloseable
     {
         assert username != null && !username.isEmpty() && password != null && !password.isEmpty()
                : "neither username nor password can be blank";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1921
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         this.host = host;
         this.port = port;
@@ -184,6 +188,7 @@ public class NodeProbe implements AutoCloseable
     protected NodeProbe()
     {
         // this constructor is only used for extensions to rewrite their own connect method
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         this.host = "";
         this.port = 0;
     }
@@ -196,7 +201,10 @@ public class NodeProbe implements AutoCloseable
     protected void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         Map<String, Object> env = new HashMap<String, Object>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1921
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (username != null)
         {
             String[] creds = { username, password };
@@ -204,6 +212,7 @@ public class NodeProbe implements AutoCloseable
         }
 
         env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9090
 
         jmxc = JMXConnectorFactory.connect(jmxUrl, env);
         mbeanServerConn = jmxc.getMBeanServerConnection();
@@ -216,22 +225,32 @@ public class NodeProbe implements AutoCloseable
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
             streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamManagerMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1763
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1763
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
             compactionProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2806
             name = new ObjectName(FailureDetector.MBEAN_NAME);
             fdProxy = JMX.newMBeanProxy(mbeanServerConn, name, FailureDetectorMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3143
             name = new ObjectName(CacheService.MBEAN_NAME);
             cacheService = JMX.newMBeanProxy(mbeanServerConn, name, CacheServiceMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4656
             name = new ObjectName(StorageProxy.MBEAN_NAME);
             spProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageProxyMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4750
             name = new ObjectName(HintedHandOffManager.MBEAN_NAME);
             hhProxy = JMX.newMBeanProxy(mbeanServerConn, name, HintedHandOffManagerMBean.class);
             name = new ObjectName(GCInspector.MBEAN_NAME);
             gcProxy = JMX.newMBeanProxy(mbeanServerConn, name, GCInspectorMXBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7935
             name = new ObjectName(Gossiper.MBEAN_NAME);
             gossProxy = JMX.newMBeanProxy(mbeanServerConn, name, GossiperMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9547
             name = new ObjectName(BatchlogManager.MBEAN_NAME);
             bmProxy = JMX.newMBeanProxy(mbeanServerConn, name, BatchlogManagerMBean.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             name = new ObjectName(ActiveRepairServiceMBean.MBEAN_NAME);
             arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
         }
@@ -249,6 +268,7 @@ public class NodeProbe implements AutoCloseable
 
     private RMIClientSocketFactory getRMIClientSocketFactory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9090
         if (Boolean.parseBoolean(System.getProperty("ssl.enable")))
             return new SslRMIClientSocketFactory();
         else
@@ -257,8 +277,11 @@ public class NodeProbe implements AutoCloseable
 
     public void close() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12646
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1665
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             jmxc.close();
         }
         catch (ConnectException e)
@@ -280,6 +303,7 @@ public class NodeProbe implements AutoCloseable
 
     public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         return ssProxy.verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames);
     }
 
@@ -290,12 +314,14 @@ public class NodeProbe implements AutoCloseable
 
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
     }
 
     private void checkJobs(PrintStream out, int jobs)
     {
         // TODO this should get the configured number of concurrent_compactors via JMX and not using DatabaseDescriptor
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.toolInitialization();
         if (jobs > DatabaseDescriptor.getConcurrentCompactors())
             out.println(String.format("jobs (%d) is bigger than configured concurrent_compactors (%d) on this host, using at most %d threads", jobs, DatabaseDescriptor.getConcurrentCompactors(), DatabaseDescriptor.getConcurrentCompactors()));
@@ -304,10 +330,13 @@ public class NodeProbe implements AutoCloseable
     public void forceKeyspaceCleanup(PrintStream out, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13542
         switch (forceKeyspaceCleanup(jobs, keyspaceName, tableNames))
         {
             case 1:
                 failed = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
                 out.println("Aborted cleaning up at least one table in keyspace "+keyspaceName+", check server logs for more information.");
                 break;
             case 2:
@@ -324,6 +353,8 @@ public class NodeProbe implements AutoCloseable
         {
             case 1:
                 failed = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
                 out.println("Aborted scrubbing at least one table in keyspace "+keyspaceName+", check server logs for more information.");
                 break;
             case 2:
@@ -335,6 +366,7 @@ public class NodeProbe implements AutoCloseable
 
     public void verify(PrintStream out, boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         switch (verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames))
         {
             case 1:
@@ -352,10 +384,12 @@ public class NodeProbe implements AutoCloseable
     public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13542
         switch (upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames))
         {
             case 1:
                 failed = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                 out.println("Aborted upgrading sstables for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
                 break;
             case 2:
@@ -376,11 +410,13 @@ public class NodeProbe implements AutoCloseable
 
     public void forceUserDefinedCompaction(String datafiles) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10660
         compactionProxy.forceUserDefinedCompaction(datafiles);
     }
 
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         ssProxy.forceKeyspaceCompaction(splitOutput, keyspaceName, tableNames);
     }
 
@@ -391,6 +427,7 @@ public class NodeProbe implements AutoCloseable
 
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, final String startToken, final String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
         ssProxy.forceKeyspaceCompactionForTokenRange(keyspaceName, startToken, endToken, tableNames);
     }
 
@@ -401,6 +438,7 @@ public class NodeProbe implements AutoCloseable
 
     public String getKeyspaceReplicationInfo(String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13853
         return ssProxy.getKeyspaceReplicationInfo(keyspaceName);
     }
 
@@ -409,7 +447,10 @@ public class NodeProbe implements AutoCloseable
         RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
             if (jmxc != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6097
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6097
                 jmxc.addConnectionNotificationListener(runner, null, null);
             ssProxy.addNotificationListener(runner, null, null);
             runner.run();
@@ -423,6 +464,7 @@ public class NodeProbe implements AutoCloseable
             try
             {
                 ssProxy.removeNotificationListener(runner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
                 if (jmxc != null)
                     jmxc.removeConnectionNotificationListener(runner);
             }
@@ -434,6 +476,7 @@ public class NodeProbe implements AutoCloseable
     }
     public Map<String, List<CompositeData>> getPartitionSample(int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         return ssProxy.samplePartitions(durationMillis, capacity, count, samplers);
     }
 
@@ -475,6 +518,7 @@ public class NodeProbe implements AutoCloseable
 
     public Map<String, String> getTokenToEndpointMap(boolean withPort)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return withPort ? ssProxy.getTokenToEndpointWithPortMap() : ssProxy.getTokenToEndpointMap();
     }
 
@@ -510,16 +554,21 @@ public class NodeProbe implements AutoCloseable
 
     public Map<InetAddress, Float> getOwnership()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1553
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return ssProxy.getOwnership();
     }
 
     public Map<String, Float> getOwnershipWithPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return ssProxy.getOwnershipWithPort();
     }
 
     public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3412
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3412
         return ssProxy.effectiveOwnership(keyspace);
     }
 
@@ -530,12 +579,14 @@ public class NodeProbe implements AutoCloseable
 
     public MBeanServerConnection getMbeanServerConn()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12197
         return mbeanServerConn;
     }
 
     public CacheServiceMBean getCacheServiceMBean()
     {
         String cachePath = "org.apache.cassandra.db:type=Caches";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3143
 
         try
         {
@@ -570,16 +621,21 @@ public class NodeProbe implements AutoCloseable
 
     public CompactionManagerMBean getCompactionManagerProxy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1763
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1763
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
       return compactionProxy;
     }
 
     public List<String> getTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4125
         return ssProxy.getTokens();
     }
 
     public List<String> getTokens(String endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5980
         try
         {
             return ssProxy.getTokens(endpoint);
@@ -592,21 +648,25 @@ public class NodeProbe implements AutoCloseable
 
     public String getLocalHostId()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
         return ssProxy.getLocalHostId();
     }
 
     public Map<String, String> getHostIdMap(boolean withPort)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return withPort ? ssProxy.getEndpointWithPortToHostId() : ssProxy.getEndpointToHostId();
     }
 
     public String getLoadString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-698
         return ssProxy.getLoadString();
     }
 
     public String getReleaseVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1031
         return ssProxy.getReleaseVersion();
     }
 
@@ -639,9 +699,11 @@ public class NodeProbe implements AutoCloseable
         {
             if (keyspaces.length != 1)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
                 throw new IOException("When specifying the table for a snapshot, you must specify one and only one keyspace");
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
             ssProxy.takeSnapshot(snapshotName, options, keyspaces[0] + "." + table);
         }
         else
@@ -663,8 +725,10 @@ public class NodeProbe implements AutoCloseable
     {
         if (null != tableList && tableList.length != 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
             ssProxy.takeSnapshot(snapshotName, options, tableList);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-385
         else
         {
             throw new IOException("The column family List  for a snapshot should not be empty or null");
@@ -681,6 +745,7 @@ public class NodeProbe implements AutoCloseable
 
     public Map<String, TabularData> getSnapshotDetails()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5742
         return ssProxy.getSnapshotDetails();
     }
 
@@ -691,11 +756,14 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isJoined()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2160
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return ssProxy.isJoined();
     }
 
     public boolean isDrained()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
         return ssProxy.isDrained();
     }
 
@@ -706,6 +774,7 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isBootstrapMode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
         return ssProxy.isBootstrapMode();
     }
 
@@ -716,6 +785,7 @@ public class NodeProbe implements AutoCloseable
 
     public void decommission(boolean force) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12510
         ssProxy.decommission(force);
     }
 
@@ -726,11 +796,13 @@ public class NodeProbe implements AutoCloseable
 
     public void removeNode(String token)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
         ssProxy.removeNode(token);
     }
 
     public String getRemovalStatus(boolean withPort)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return withPort ? ssProxy.getRemovalStatusWithPort() : ssProxy.getRemovalStatus();
     }
 
@@ -741,11 +813,13 @@ public class NodeProbe implements AutoCloseable
 
     public void assassinateEndpoint(String address) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7935
         gossProxy.assassinateEndpoint(address);
     }
 
     public List<String> reloadSeeds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
         return gossProxy.reloadSeeds();
     }
 
@@ -763,11 +837,13 @@ public class NodeProbe implements AutoCloseable
     public void setCompactionThreshold(String ks, String cf, int minimumCompactionThreshold, int maximumCompactionThreshold)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4455
         cfsProxy.setCompactionThresholds(minimumCompactionThreshold, maximumCompactionThreshold);
     }
 
     public void disableAutoCompaction(String ks, String ... tables) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         ssProxy.disableAutoCompaction(ks, tables);
     }
 
@@ -778,6 +854,7 @@ public class NodeProbe implements AutoCloseable
 
     public Map<String, Boolean> getAutoCompactionDisabled(String ks, String ... tableNames) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8727
         return ssProxy.getAutoCompactionStatus(ks, tableNames);
     }
 
@@ -788,11 +865,13 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isIncrementalBackupsEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8912
         return ssProxy.isIncrementalBackupsEnabled();
     }
 
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
         CacheServiceMBean cacheMBean = getCacheServiceMBean();
         cacheMBean.setKeyCacheCapacityInMB(keyCacheCapacity);
         cacheMBean.setRowCacheCapacityInMB(rowCacheCapacity);
@@ -809,11 +888,13 @@ public class NodeProbe implements AutoCloseable
 
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7635
         ssProxy.setHintedHandoffThrottleInKB(throttleInKB);
     }
 
     public List<String> getEndpointsWithPort(String keyspace, String cf, String key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return ssProxy.getNaturalEndpointsWithPort(keyspace, cf, key);
     }
 
@@ -825,11 +906,13 @@ public class NodeProbe implements AutoCloseable
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11337
         return cfsProxy.getSSTablesForKey(key, hexFormat);
     }
 
     public Set<StreamState> getStreamStatus()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5859
         return Sets.newHashSet(Iterables.transform(streamProxy.getCurrentStreams(), new Function<CompositeData, StreamState>()
         {
             public StreamState apply(CompositeData input)
@@ -846,6 +929,7 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isStarting()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8122
         return ssProxy.isStarting();
     }
 
@@ -853,6 +937,7 @@ public class NodeProbe implements AutoCloseable
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             ssProxy.truncate(keyspaceName, tableName);
         }
         catch (TimeoutException e)
@@ -879,6 +964,8 @@ public class NodeProbe implements AutoCloseable
 
     public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13528
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"), DynamicEndpointSnitchMBean.class);
@@ -892,12 +979,16 @@ public class NodeProbe implements AutoCloseable
     public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
     {
         ColumnFamilyStoreMBean cfsProxy = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1698
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4464
             String type = cf.contains(".") ? "IndexColumnFamilies" : "ColumnFamilies";
             Set<ObjectName> beans = mbeanServerConn.queryNames(
                     new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4063
             if (beans.isEmpty())
                 throw new MalformedObjectNameException("couldn't find that bean");
             assert beans.size() == 1;
@@ -920,26 +1011,31 @@ public class NodeProbe implements AutoCloseable
 
     public StorageProxyMBean getSpProxy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4656
         return spProxy;
     }
 
     public StorageServiceMBean getStorageService() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         return ssProxy;
     }
 
     public GossiperMBean getGossProxy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13853
         return gossProxy;
     }
 
     public String getEndpoint()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10382
         Map<String, String> hostIdToEndpoint = ssProxy.getHostIdToEndpoint();
         return hostIdToEndpoint.get(ssProxy.getLocalHostId());
     }
 
     public String getDataCenter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11755
         return getEndpointSnitchInfoProxy().getDatacenter();
     }
 
@@ -950,21 +1046,26 @@ public class NodeProbe implements AutoCloseable
 
     public List<String> getKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return ssProxy.getKeyspaces();
     }
 
     public List<String> getNonSystemKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         return ssProxy.getNonSystemKeyspaces();
     }
 
     public List<String> getNonLocalStrategyKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         return ssProxy.getNonLocalStrategyKeyspaces();
     }
 
     public String getClusterName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5881
         return ssProxy.getClusterName();
     }
 
@@ -975,6 +1076,7 @@ public class NodeProbe implements AutoCloseable
 
     public void disableHintedHandoff()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4750
         spProxy.setHintedHandoffEnabled(false);
     }
 
@@ -985,11 +1087,13 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isHandoffEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8912
         return spProxy.getHintedHandoffEnabled();
     }
 
     public void enableHintsForDC(String dc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
         spProxy.enableHintsForDC(dc);
     }
 
@@ -1005,6 +1109,7 @@ public class NodeProbe implements AutoCloseable
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         return ssProxy.getViewBuildStatuses(keyspace, view);
     }
 
@@ -1020,6 +1125,7 @@ public class NodeProbe implements AutoCloseable
 
     public void truncateHints(final String host)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6158
         hhProxy.deleteHintsForEndpoint(host);
     }
 
@@ -1049,6 +1155,7 @@ public class NodeProbe implements AutoCloseable
 
     public void stopNativeTransport()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5425
         ssProxy.stopNativeTransport();
     }
 
@@ -1064,6 +1171,8 @@ public class NodeProbe implements AutoCloseable
 
     public void stopGossiping()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1108
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         ssProxy.stopGossiping();
     }
 
@@ -1074,11 +1183,14 @@ public class NodeProbe implements AutoCloseable
 
     public boolean isGossipRunning()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8125
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8125
         return ssProxy.isGossipRunning();
     }
 
     public void stopCassandraDaemon()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4268
         ssProxy.stopDaemon();
     }
 
@@ -1089,16 +1201,19 @@ public class NodeProbe implements AutoCloseable
 
     public void setCompactionThroughput(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2156
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
     public int getCompactionThroughput()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4167
         return ssProxy.getCompactionThroughputMbPerSec();
     }
 
     public void setBatchlogReplayThrottle(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
         ssProxy.setBatchlogReplayThrottleInKB(value);
     }
 
@@ -1109,6 +1224,7 @@ public class NodeProbe implements AutoCloseable
 
     public void setConcurrentCompactors(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
         ssProxy.setConcurrentCompactors(value);
     }
 
@@ -1119,6 +1235,7 @@ public class NodeProbe implements AutoCloseable
 
     public void setConcurrentViewBuilders(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         ssProxy.setConcurrentViewBuilders(value);
     }
 
@@ -1129,6 +1246,7 @@ public class NodeProbe implements AutoCloseable
 
     public void setMaxHintWindow(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11720
         spProxy.setMaxHintWindow(value);
     }
 
@@ -1139,6 +1257,7 @@ public class NodeProbe implements AutoCloseable
 
     public long getTimeout(String type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10953
         switch (type)
         {
             case "misc":
@@ -1166,11 +1285,13 @@ public class NodeProbe implements AutoCloseable
 
     public int getStreamThroughput()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5588
         return ssProxy.getStreamThroughputMbPerSec();
     }
 
     public int getInterDCStreamThroughput()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
         return ssProxy.getInterDCStreamThroughputMbPerSec();
     }
 
@@ -1181,6 +1302,7 @@ public class NodeProbe implements AutoCloseable
 
     public int getExceptionCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13387
         return (int)StorageMetrics.uncaughtExceptions.getCount();
     }
 
@@ -1192,31 +1314,38 @@ public class NodeProbe implements AutoCloseable
     @Deprecated
     public void loadNewSSTables(String ksName, String cfName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2991
         ssProxy.loadNewSSTables(ksName, cfName);
     }
 
     public List<String> importNewSSTables(String ksName, String cfName, Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         return getCfsProxy(ksName, cfName).importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify);
     }
 
     public void rebuildIndex(String ksName, String cfName, String... idxNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3583
         ssProxy.rebuildSecondaryIndex(ksName, cfName, idxNames);
     }
 
     public String getGossipInfo(boolean withPort)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return withPort ? fdProxy.getAllEndpointStatesWithPort() : fdProxy.getAllEndpointStates();
     }
 
     public void stop(String string)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1740
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         compactionProxy.stopCompaction(string);
     }
 
     public void setTimeout(String type, long value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10953
         if (value < 0)
             throw new RuntimeException("timeout must be non-negative");
 
@@ -1256,36 +1385,44 @@ public class NodeProbe implements AutoCloseable
 
     public void stopById(String compactionId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
         compactionProxy.stopCompactionById(compactionId);
     }
 
     public void setStreamThroughput(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3571
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         ssProxy.setStreamThroughputMbPerSec(value);
     }
 
     public void setInterDCStreamThroughput(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
         ssProxy.setInterDCStreamThroughputMbPerSec(value);
     }
 
     public void setTraceProbability(double value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1123
         ssProxy.setTraceProbability(value);
     }
 
     public String getSchemaVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3937
         return ssProxy.getSchemaVersion();
     }
 
     public List<String> describeRing(String keyspaceName, boolean withPort) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return withPort ? ssProxy.describeRingWithPortJMX(keyspaceName) : ssProxy.describeRingJMX(keyspaceName);
     }
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9875
         ssProxy.rebuild(sourceDc, keyspace, tokens, specificSources);
     }
 
@@ -1296,26 +1433,32 @@ public class NodeProbe implements AutoCloseable
 
     public void resetLocalSchema() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2963
         ssProxy.resetLocalSchema();
     }
 
     public void reloadLocalSchema()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13954
         ssProxy.reloadLocalSchema();
     }
 
     public boolean isFailed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5203
         return failed;
     }
 
     public void failed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12197
         this.failed = true;
     }
 
     public long getReadRepairAttempted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5618
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5618
         return spProxy.getReadRepairAttempted();
     }
 
@@ -1347,9 +1490,11 @@ public class NodeProbe implements AutoCloseable
                 case "Size":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "Requests":
                 case "Hits":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
                 case "Misses":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
@@ -1375,6 +1520,7 @@ public class NodeProbe implements AutoCloseable
 
     private static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
         try
         {
             Multimap<String, String> threadPools = HashMultimap.create();
@@ -1439,11 +1585,13 @@ public class NodeProbe implements AutoCloseable
      */
     public Multimap<String, String> getThreadPools()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
         return getJmxThreadPools(mbeanServerConn);
     }
 
     public int getNumberOfTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11880
         return spProxy.getNumberOfTables();
     }
 
@@ -1457,9 +1605,11 @@ public class NodeProbe implements AutoCloseable
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11503
             ObjectName oName = null;
             if (!Strings.isNullOrEmpty(ks) && !Strings.isNullOrEmpty(cf))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 String type = cf.contains(".") ? "IndexTable" : "Table";
                 oName = new ObjectName(String.format("org.apache.cassandra.metrics:type=%s,keyspace=%s,scope=%s,name=%s", type, ks, cf, metricName));
             }
@@ -1481,24 +1631,32 @@ public class NodeProbe implements AutoCloseable
                 case "CompressionMetadataOffHeapMemoryUsed":
                 case "CompressionRatio":
                 case "EstimatedColumnCountHistogram":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 case "EstimatedPartitionSizeHistogram":
                 case "EstimatedPartitionCount":
                 case "KeyCacheHitRate":
                 case "LiveSSTableCount":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
                 case "OldVersionSSTableCount":
                 case "MaxPartitionSize":
                 case "MeanPartitionSize":
                 case "MemtableColumnsCount":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6739
                 case "MemtableLiveDataSize":
                 case "MemtableOffHeapSize":
                 case "MinPartitionSize":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11503
                 case "PercentRepaired":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13774
                 case "BytesRepaired":
                 case "BytesUnrepaired":
                 case "BytesPendingRepair":
                 case "RecentBloomFilterFalsePositives":
                 case "RecentBloomFilterFalseRatio":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6231
                 case "SnapshotsSize":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "LiveDiskSpaceUsed":
                 case "MemtableSwitchCount":
@@ -1506,8 +1664,12 @@ public class NodeProbe implements AutoCloseable
                 case "TotalDiskSpaceUsed":
                 case "WriteTotalLatency":
                 case "ReadTotalLatency":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6739
                 case "PendingFlushes":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10866
                 case "DroppedMutations":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
                 case "CoordinatorReadLatency":
                 case "CoordinatorScanLatency":
@@ -1519,6 +1681,7 @@ public class NodeProbe implements AutoCloseable
                 case "TombstoneScannedHistogram":
                     return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxHistogramMBean.class);
                 default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                     throw new RuntimeException("Unknown table metric " + metricName);
             }
         }
@@ -1548,10 +1711,12 @@ public class NodeProbe implements AutoCloseable
 
     public CassandraMetricsRegistry.JmxTimerMBean getMessagingQueueWaitMetrics(String verb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8398
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn,
                                      new ObjectName("org.apache.cassandra.metrics:name=" + verb + "-WaitLatency,type=Messaging"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                                      CassandraMetricsRegistry.JmxTimerMBean.class);
         }
         catch (MalformedObjectNameException e)
@@ -1573,9 +1738,11 @@ public class NodeProbe implements AutoCloseable
                 case "BytesCompacted":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                             CassandraMetricsRegistry.JmxCounterMBean.class);
                 case "CompletedTasks":
                 case "PendingTasks":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10718
                 case "PendingTasksByTableName":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
@@ -1600,6 +1767,7 @@ public class NodeProbe implements AutoCloseable
      */
     public Object getClientMetric(String metricName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13665
         try
         {
             switch(metricName)
@@ -1607,6 +1775,7 @@ public class NodeProbe implements AutoCloseable
                 case "connections": // List<Map<String,String>> - list of all native connections and their properties
                 case "connectedNativeClients": // number of connected native clients
                 case "connectedNativeClientsByUser": // number of native clients by username
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
                 case "clientsByProtocolVersion": // number of native clients by username
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
@@ -1631,6 +1800,7 @@ public class NodeProbe implements AutoCloseable
         {
             return JMX.newMBeanProxy(mbeanServerConn,
                     new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
         }
         catch (MalformedObjectNameException e)
@@ -1641,6 +1811,7 @@ public class NodeProbe implements AutoCloseable
 
     public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return new double[]{ metric.get50thPercentile(),
                 metric.get75thPercentile(),
                 metric.get95thPercentile(),
@@ -1663,11 +1834,13 @@ public class NodeProbe implements AutoCloseable
 
     public TabularData getCompactionHistory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5078
         return compactionProxy.getCompactionHistory();
     }
 
     public void reloadTriggers()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4949
         spProxy.reloadTriggerClasses();
     }
 
@@ -1679,25 +1852,30 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             throw new RuntimeException("Error setting log for " + classQualifier + " on level " + level + ". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
         }
     }
 
     public Map<String, String> getLoggingLevels()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6751
         return ssProxy.getLoggingLevels();
     }
 
     public long getPid()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12197
         return NativeLibrary.getProcessID();
     }
 
     public void resumeBootstrap(PrintStream out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8942
         BootstrapMonitor monitor = new BootstrapMonitor(out);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
             if (jmxc != null)
                 jmxc.addConnectionNotificationListener(monitor, null, null);
             ssProxy.addNotificationListener(monitor, null, null);
@@ -1713,6 +1891,7 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
             throw new IOException(e);
         }
         finally
@@ -1720,9 +1899,12 @@ public class NodeProbe implements AutoCloseable
             try
             {
                 ssProxy.removeNotificationListener(monitor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
                 if (jmxc != null)
                     jmxc.removeConnectionNotificationListener(monitor);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6656
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6656
             catch (Throwable e)
             {
                 out.println("Exception occurred during clean-up. " + e);
@@ -1732,6 +1914,8 @@ public class NodeProbe implements AutoCloseable
 
     public Map<String, List<Integer>> getMaximumPoolSizes(List<String> stageNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return ssProxy.getConcurrency(stageNames);
     }
 
@@ -1742,6 +1926,7 @@ public class NodeProbe implements AutoCloseable
 
     public void replayBatchlog() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9547
         try
         {
             bmProxy.forceBatchlogReplay();
@@ -1754,8 +1939,10 @@ public class NodeProbe implements AutoCloseable
 
     public TabularData getFailureDetectorPhilValues(boolean withPort)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9526
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return withPort ? fdProxy.getPhiValuesWithPort() : fdProxy.getPhiValues();
         }
         catch (OpenDataException e)
@@ -1766,16 +1953,19 @@ public class NodeProbe implements AutoCloseable
 
     public ActiveRepairServiceMBean getRepairServiceProxy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return arsProxy;
     }
 
     public void reloadSslCerts() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14222
         msProxy.reloadSslCertificates();
     }
 
     public void clearConnectionHistory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
         ssProxy.clearConnectionHistory();
     }
 
@@ -1786,6 +1976,7 @@ public class NodeProbe implements AutoCloseable
 
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         ssProxy.enableAuditLog(loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
 
@@ -1796,6 +1987,7 @@ public class NodeProbe implements AutoCloseable
 
     public void enableOldProtocolVersions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14659
         ssProxy.enableNativeTransportOldProtocolVersions();
     }
 
@@ -1806,11 +1998,13 @@ public class NodeProbe implements AutoCloseable
 
     public MessagingServiceMBean getMessagingServiceProxy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
         return msProxy;
     }
 
     public void enableFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, @Nullable String archiveCommand, int maxArchiveRetries)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         ssProxy.enableFullQueryLogger(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
@@ -1829,6 +2023,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
 {
     private MBeanServerConnection mbeanServerConn;
     Iterator<Entry<String, ColumnFamilyStoreMBean>> mbeans;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4464
 
     public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
         throws MalformedObjectNameException, NullPointerException, IOException
@@ -1842,6 +2037,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
             {
                 //compare keyspace, then CF name, then normal vs. index
                 int keyspaceNameCmp = e1.getKey().compareTo(e2.getKey());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                 if(keyspaceNameCmp != 0)
                     return keyspaceNameCmp;
 
@@ -1849,6 +2045,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
                 String e1CF[] = e1.getValue().getTableName().split("\\.");
                 String e2CF[] = e2.getValue().getTableName().split("\\.");
                 assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for table name";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
 
                 //if neither are indexes, just compare CF names
                 if(e1CF.length == 1 && e2CF.length == 1)
@@ -1878,6 +2075,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
         List<Entry<String, ColumnFamilyStoreMBean>> mbeans = new ArrayList<Entry<String, ColumnFamilyStoreMBean>>(cfObjects.size());
         for(ObjectName n : cfObjects)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             String keyspaceName = n.getKeyProperty("keyspace");
             ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, n, ColumnFamilyStoreMBean.class);
             mbeans.add(new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(keyspaceName, cfsProxy));

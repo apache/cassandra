@@ -32,6 +32,7 @@ public class StatusRequest extends RepairMessage
 
     public StatusRequest(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         this.sessionID = sessionID;
     }

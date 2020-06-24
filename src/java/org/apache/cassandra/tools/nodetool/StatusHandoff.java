@@ -32,6 +32,7 @@ public class StatusHandoff extends NodeToolCmd
                 probe.isHandoffEnabled()
                 ? "running"
                 : "not running"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
 
         for (String dc : probe.getHintedHandoffDisabledDCs())
             System.out.println(String.format("Data center %s is disabled", dc));

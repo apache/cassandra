@@ -84,6 +84,7 @@ public abstract class AbstractPendingAntiCompactionTest
         ks = "ks_" + System.currentTimeMillis();
         cfm = CreateTableStatement.parse(String.format("CREATE TABLE %s.%s (k INT PRIMARY KEY, v INT)", ks, tbl), ks).build();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
         Indexes.Builder indexes = Indexes.builder();
         indexes.add(IndexMetadata.fromIndexTargets(Collections.singletonList(new IndexTarget(new ColumnIdentifier("v", true),
                                                                                              IndexTarget.Type.VALUES)),

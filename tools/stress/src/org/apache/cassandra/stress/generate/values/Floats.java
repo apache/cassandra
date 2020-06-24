@@ -26,6 +26,7 @@ public class Floats extends Generator<Float>
 {
     public Floats(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(FloatType.instance, config, name, Float.class);
     }
 

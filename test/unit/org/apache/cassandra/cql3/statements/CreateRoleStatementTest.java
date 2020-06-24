@@ -32,6 +32,7 @@ public class CreateRoleStatementTest extends CQLTester
 
     private static CreateRoleStatement parse(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CQLStatement.Raw stmt = QueryProcessor.parseStatement(query);
         Assert.assertTrue(stmt instanceof CreateRoleStatement);
         return (CreateRoleStatement) stmt;

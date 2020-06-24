@@ -26,12 +26,14 @@ public class Booleans extends Generator<Boolean>
 {
     public Booleans(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(BooleanType.instance, config, name, Boolean.class);
     }
 
     @Override
     public Boolean generate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         return identityDistribution.next() % 2 == 0;
     }
 }

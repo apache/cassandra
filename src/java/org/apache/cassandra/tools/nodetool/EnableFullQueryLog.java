@@ -42,6 +42,7 @@ public class EnableFullQueryLog extends NodeToolCmd
     private String path = null;
 
     @Option(title = "archive_command", name = {"--archive-command"}, description = "Command that will handle archiving rolled full query log files." +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14373
                                                                                    " Format is \"/path/to/script.sh %path\" where %path will be replaced with the file to archive")
     private String archiveCommand = null;
 
@@ -51,6 +52,7 @@ public class EnableFullQueryLog extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15819
         Boolean bblocking = null;
         if (blocking != null)
         {

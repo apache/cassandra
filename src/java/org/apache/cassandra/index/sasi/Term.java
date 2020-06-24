@@ -36,6 +36,7 @@ public class Term
     {
         this.content = content;
         this.termSize = size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         this.hasMarkedPartials = hasMarkedPartials;
     }
 
@@ -76,6 +77,7 @@ public class Term
 
     private short readLength(long position)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         return (short) (content.getShort(position) & ~(1 << IS_PARTIAL_BIT));
     }
 }

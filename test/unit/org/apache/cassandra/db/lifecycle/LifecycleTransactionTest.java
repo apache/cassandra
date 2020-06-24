@@ -58,6 +58,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9561
         MockSchema.cleanup();
     }
 
@@ -76,6 +77,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @Test
     public void testUpdates() // (including obsoletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
         SSTableReader[] readers = readersArray(0, 3, cfs);
@@ -140,6 +142,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @Test
     public void testCancellation()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
         List<SSTableReader> readers = readers(0, 3, cfs);
@@ -186,6 +189,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10008
         List<SSTableReader> readers = readers(0, 4, cfs);
         tracker.addInitialSSTables(readers);
         LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
@@ -195,6 +199,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         Assert.assertTrue(all(readers.subList(1, 3), in(txn.originals())));
         Assert.assertEquals(1, txn2.originals().size());
         Assert.assertTrue(all(readers.subList(0, 1), in(txn2.originals())));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         txn.update(readers(1, 2, cfs).get(0), true);
         boolean failed = false;
         try
@@ -252,6 +257,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
 
     protected TestableTransaction newTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LogTransaction.waitForDeletions();
         SSTableReader.resetTidying();
         return new TxnTest();
@@ -278,6 +284,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
 
         private TxnTest()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
             this(MockSchema.newCFS());
         }
 
@@ -302,6 +309,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
             this.tracker = tracker;
             this.originals = readers;
             this.txn = txn;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
             update(txn, loggedUpdate = readers(0, 2, tracker.cfstore), true);
             obsolete(txn, loggedObsolete = readers.subList(2, 4));
             update(txn, loggedNew = readers(8, 10, tracker.cfstore), false);
@@ -412,6 +420,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
 
     private static SSTableReader[] readersArray(int lb, int ub, ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         return readers(lb, ub, cfs).toArray(new SSTableReader[0]);
     }
 

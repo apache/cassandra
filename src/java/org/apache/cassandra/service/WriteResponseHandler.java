@@ -36,12 +36,15 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     protected volatile int responses;
     private static final AtomicIntegerFieldUpdater<WriteResponseHandler> responsesUpdater
             = AtomicIntegerFieldUpdater.newUpdater(WriteResponseHandler.class, "responses");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6281
 
     public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                 Runnable callback,
                                 WriteType writeType,
                                 long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         super(replicaPlan, callback, writeType, queryStartNanoTime);
         responses = blockFor();
     }
@@ -54,15 +57,19 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     public void onResponse(Message<T> m)
     {
         if (responsesUpdater.decrementAndGet(this) == 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4578
             signal();
         //Must be last after all subclass processing
         //The two current subclasses both assume logResponseToIdealCLDelegate is called
         //here.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         logResponseToIdealCLDelegate(m);
     }
 
     protected int ackCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return blockFor() - responses;
     }
 }

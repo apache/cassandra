@@ -44,6 +44,7 @@ public abstract class Maps
 
     public static ColumnSpecification keySpecOf(ColumnSpecification column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), ((MapType<? , ?>)column.type).getKeysType());
     }
 
@@ -141,13 +142,16 @@ public abstract class Maps
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(keyspace, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
 
             ColumnSpecification keySpec = Maps.keySpecOf(receiver);
             ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             Map<Term, Term> values = new HashMap<>(entries.size());
             boolean allTerminal = true;
             for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
                 Term k = entry.left.prepare(keyspace, keySpec);
                 Term v = entry.right.prepare(keyspace, valueSpec);
 
@@ -159,7 +163,9 @@ public abstract class Maps
 
                 values.put(k, v);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             DelayedValue value = new DelayedValue(((MapType<?, ?>)receiver.type).getKeysType(), values);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -181,6 +187,7 @@ public abstract class Maps
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return testMapAssignment(receiver, entries);
         }
 
@@ -211,9 +218,11 @@ public abstract class Maps
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, version);
                 Map<ByteBuffer, ByteBuffer> map = new LinkedHashMap<>(m.size());
                 for (Map.Entry<?, ?> entry : m.entrySet())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                     map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));
                 return new Value(map);
             }
@@ -246,6 +255,7 @@ public abstract class Maps
             {
                 Map.Entry<ByteBuffer, ByteBuffer> thisEntry = thisIter.next();
                 Map.Entry<ByteBuffer, ByteBuffer> thatEntry = thatIter.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                 if (mt.getKeysType().compare(thisEntry.getKey(), thatEntry.getKey()) != 0 || mt.getValuesType().compare(thisEntry.getValue(), thatEntry.getValue()) != 0)
                     return false;
             }
@@ -284,14 +294,18 @@ public abstract class Maps
                 // We don't support values > 64K because the serialization format encode the length as an unsigned short.
                 ByteBuffer keyBytes = entry.getKey().bindAndGet(options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3783
                 if (keyBytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 if (keyBytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     throw new InvalidRequestException("unset value is not supported for map keys");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                 ByteBuffer valueBytes = entry.getValue().bindAndGet(options);
                 if (valueBytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 if (valueBytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     return UNSET_VALUE;
 
@@ -302,6 +316,7 @@ public abstract class Maps
 
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(elements.keySet(), functions);
             Terms.addFunctions(elements.values(), functions);
         }
@@ -318,6 +333,7 @@ public abstract class Maps
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == null)
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
@@ -341,6 +357,7 @@ public abstract class Maps
 
             // delete + put
             if (column.type.isMultiCell())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.setComplexDeletionTimeForOverwrite(column);
             Putter.doPut(value, column, params);
         }
@@ -365,11 +382,14 @@ public abstract class Maps
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             ByteBuffer key = k.bindAndGet(params.options);
             ByteBuffer value = t.bindAndGet(params.options);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw new InvalidRequestException("Invalid unset map key");
 
@@ -377,10 +397,13 @@ public abstract class Maps
 
             if (value == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.addTombstone(column, path);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.addCell(column, path, value);
             }
         }
@@ -396,6 +419,7 @@ public abstract class Maps
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen map";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             Term.Terminal value = t.bind(params.options);
             if (value != UNSET_VALUE)
                 doPut(value, column, params);
@@ -405,9 +429,11 @@ public abstract class Maps
         {
             if (column.type.isMultiCell())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
                 if (value == null)
                     return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                 Map<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
                 for (Map.Entry<ByteBuffer, ByteBuffer> entry : elements.entrySet())
                     params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
@@ -418,6 +444,7 @@ public abstract class Maps
                 if (value == null)
                     params.addTombstone(column);
                 else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                     params.addCell(column, value.get(ProtocolVersion.CURRENT));
             }
         }
@@ -432,13 +459,18 @@ public abstract class Maps
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             assert column.type.isMultiCell() : "Attempted to delete a single key in a frozen map";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             Term.Terminal key = t.bind(params.options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (key == Constants.UNSET_VALUE)
                 throw new InvalidRequestException("Invalid unset map key");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             params.addTombstone(column, CellPath.create(key.get(params.options.getProtocolVersion())));
         }
     }

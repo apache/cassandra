@@ -53,6 +53,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         this(cfs, directories, txn, nonExpiredSSTables, DEFAULT_SMALLEST_SSTABLE_BYTES);
     }
 
@@ -87,10 +88,12 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     public boolean realAppend(UnfilteredRowIterator partition)
     {
         RowIndexEntry rie = sstableWriter.append(partition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
             currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
             switchCompactionLocation(location);
             logger.debug("Switching writer, currentBytesToWrite = {}", currentBytesToWrite);
         }
@@ -103,14 +106,17 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         this.location = location;
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
         @SuppressWarnings("resource")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location)),
                                                     currentPartitionsToWrite,
                                                     minRepairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                     pendingRepair,
                                                     isTransient,
                                                     cfs.metadata,
                                                     new MetadataCollector(allSSTables, cfs.metadata().comparator, 0),
                                                     SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                                     cfs.indexManager.listIndexes(),
                                                     txn);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);

@@ -34,6 +34,7 @@ public class SessionFailedMessage extends StreamMessage
 
         public long serializedSize(SessionFailedMessage message, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             return 0;
         }
     };

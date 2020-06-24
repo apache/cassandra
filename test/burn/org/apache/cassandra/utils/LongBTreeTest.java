@@ -84,6 +84,7 @@ public class LongBTreeTest
     public void testSearchIterator() throws InterruptedException
     {
         final int perTreeSelections = 100;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         testRandomSelection(perThreadTrees, perTreeSelections, testSearchIteratorFactory());
     }
 
@@ -118,6 +119,7 @@ public class LongBTreeTest
                 else
                     Assert.assertNull(iter2.next(key));
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         };
     }
 
@@ -131,6 +133,7 @@ public class LongBTreeTest
     private BTreeSetTestFactory testInequalityLookupsFactory()
     {
         return (test, canonical) -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             if (!canonical.isEmpty() || !test.isEmpty())
             {
                 Assert.assertEquals(canonical.isEmpty(), test.isEmpty());
@@ -170,6 +173,7 @@ public class LongBTreeTest
     public void testToArray() throws InterruptedException
     {
         testRandomSelection(perThreadTrees, 4,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
                             (selection) ->
                             {
                                 Integer[] array = new Integer[selection.canonicalList.size() + 1];
@@ -281,6 +285,7 @@ public class LongBTreeTest
 
     private void run(BTreeTestFactory testRun, RandomSelection selection)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         TestEachKey testEachKey = testRun.get(selection);
         for (Integer key : selection.testKeys)
             testEachKey.testOne(key);
@@ -300,6 +305,7 @@ public class LongBTreeTest
 
     private void testRandomSelection(int perThreadTrees, int perTreeSelections, Consumer<RandomSelection> testRun) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         testRandomSelection(perThreadTrees, perTreeSelections, true, true, true, testRun);
     }
 
@@ -312,6 +318,7 @@ public class LongBTreeTest
         final long totalCount = threads * perThreadTrees * perTreeSelections;
         for (int t = 0 ; t < threads ; t++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
             Runnable runnable = () ->
             {
                 try
@@ -345,6 +352,7 @@ public class LongBTreeTest
                 latch.await(1L, TimeUnit.SECONDS);
                 Assert.assertEquals(0, errors.get());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             log("%.1f%% complete %s", 100 * count.get() / (double) totalCount, errors.get() > 0 ? ("Errors: " + errors.get()) : "");
         }
     }
@@ -372,6 +380,7 @@ public class LongBTreeTest
 
     private static class RandomTree
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         final Random random;
         final NavigableSet<Integer> canonical;
         final BTreeSet<Integer> test;
@@ -383,6 +392,7 @@ public class LongBTreeTest
             this.random = random;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         RandomSelection select(boolean narrow, boolean mixInNotPresentItems, boolean permitReversal)
         {
             NavigableSet<Integer> canonicalSet = this.canonical;
@@ -394,6 +404,7 @@ public class LongBTreeTest
             Assert.assertEquals(canonicalList.size(), testAsList.size());
 
             // sometimes select keys first, so we cover full range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
             List<Integer> allKeys = randomKeys(canonical, mixInNotPresentItems, random);
             List<Integer> keys = allKeys;
 
@@ -417,6 +428,7 @@ public class LongBTreeTest
 
                 if (useLb)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
                     lbKeyIndex = random.nextInt(indexRange - 1);
                     Integer candidate = keys.get(lbKeyIndex);
                     if (useLb = (candidate > lbKey && candidate <= ubKey))
@@ -431,6 +443,7 @@ public class LongBTreeTest
                 if (useUb)
                 {
                     int lb = Math.max(lbKeyIndex, keys.size() - indexRange);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
                     ubKeyIndex = random.nextInt(keys.size() - (1 + lb)) + lb;
                     Integer candidate = keys.get(ubKeyIndex);
                     if (useUb = (candidate < ubKey && candidate >= lbKey))
@@ -464,6 +477,7 @@ public class LongBTreeTest
                 keys = allKeys;
 
             Comparator<Integer> comparator = naturalOrder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             if (permitReversal && random.nextBoolean())
             {
                 if (allKeys != keys)
@@ -501,6 +515,7 @@ public class LongBTreeTest
         // we test builder disproportionately more often than if it had its own test anyway
         int maxIntegerValue = random.nextInt(Integer.MAX_VALUE - 1) + 1;
         float f = random.nextFloat() / generateTreeTotalChance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         f -= generateTreeByUpdateChance;
         if (f < 0)
             return randomTreeByUpdate(minSize, maxSize, maxIntegerValue, random);
@@ -549,6 +564,7 @@ public class LongBTreeTest
             curSize += nextSize;
             maxModificationSize = Math.min(maxModificationSize, targetSize - curSize);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         return new RandomTree(canonical, BTreeSet.<Integer>wrap(accmumulate, naturalOrder()), random);
     }
 
@@ -575,6 +591,7 @@ public class LongBTreeTest
 
             for (int i = 0 ; i < nextSize ; i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
                 Integer next = random.nextInt(maxIntegerValue);
                 ordered.add(next);
                 shuffled.add(next);
@@ -606,6 +623,7 @@ public class LongBTreeTest
 
         BTreeSet<Integer> btree = BTreeSet.<Integer>wrap(builder.build(), naturalOrder());
         Assert.assertEquals(canonical.size(), btree.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         return new RandomTree(canonical, btree, random);
     }
 
@@ -616,12 +634,14 @@ public class LongBTreeTest
         boolean useFake = mixInNotPresentItems && random.nextBoolean();
         final float fakeRatio = random.nextFloat();
         List<Integer> results = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10301
         Long fakeLb = (long) Integer.MIN_VALUE, fakeUb = null;
         Integer max = null;
         for (Integer v : canonical)
         {
             if (    !useFake
                 ||  (fakeUb == null ? v - 1 : fakeUb) <= fakeLb + 1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
                 ||  random.nextFloat() < fakeRatio)
             {
                 // if we cannot safely construct a fake value, or our randomizer says not to, we emit the next real value
@@ -640,10 +660,12 @@ public class LongBTreeTest
                 results.add((int) mid);
                 fakeLb = mid;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10301
             max = v;
         }
         if (useFake && max != null && max < Integer.MAX_VALUE)
             results.add(max + 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         final float useChance = random.nextFloat();
         return Lists.newArrayList(filter(results, (x) -> random.nextFloat() < useChance));
     }
@@ -675,10 +697,12 @@ public class LongBTreeTest
         TreeSet<Integer> canon = new TreeSet<>();
         for (int i = 0 ; i < 10000000 ; i++)
             canon.add(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), UpdateFunction.noOp());
         btree = BTree.update(btree, naturalOrder(), canon, UpdateFunction.<Integer>noOp());
         canon.add(Integer.MIN_VALUE);
         canon.add(Integer.MAX_VALUE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         assertTrue(BTree.isWellFormed(btree, naturalOrder()));
         testEqual("Oversize", BTree.iterator(btree), canon.iterator());
     }
@@ -686,6 +710,7 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         testInsertions(50, 1, 1, true);
     }
 
@@ -750,6 +775,7 @@ public class LongBTreeTest
             for (int i = 0 ; i < chunkSize ; i++)
             {
                 int maxRunLength = modificationBatchSize == 1 ? 1 : ThreadLocalRandom.current().nextInt(1, modificationBatchSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 outer.add(doOneTestInsertions(testKeyRange, maxRunLength, modificationBatchSize, batchesPerTest, quickEquality));
             }
 
@@ -789,6 +815,7 @@ public class LongBTreeTest
                 NavigableMap<Integer, Integer> canon = new TreeMap<>();
                 Object[] btree = BTree.empty();
                 final TreeMap<Integer, Integer> buffer = new TreeMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 ThreadLocalRandom rnd = ThreadLocalRandom.current();
                 for (int i = 0 ; i < iterations ; i++)
                 {
@@ -819,10 +846,12 @@ public class LongBTreeTest
 
                     if (!BTree.isWellFormed(btree, naturalOrder()))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                         log("ERROR: Not well formed");
                         throw new AssertionError("Not well formed!");
                     }
                     if (quickEquality)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
                         testEqual("", BTree.iterator(btree), canon.keySet().iterator());
                     else
                         r.addAll(testAllSlices("RND", btree, new TreeSet<>(canon.keySet())));
@@ -846,6 +875,7 @@ public class LongBTreeTest
         for (int i = 0 ; i < 128 ; i++)
         {
             String id = String.format("[0..%d)", canon.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             log("Testing " + id);
             Futures.allAsList(testAllSlices(id, cur, canon)).get();
             Object[] next = null;
@@ -911,6 +941,7 @@ public class LongBTreeTest
     {
         if (test != expect)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             log("%s: Expected %d, Got %d", id, expect, test);
         }
     }
@@ -924,6 +955,7 @@ public class LongBTreeTest
             Object j = canon.next();
             if (!Objects.equals(i, j))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 log("%s: Expected %d, Got %d", id, j, i);
                 equal = false;
             }
@@ -1025,6 +1057,7 @@ public class LongBTreeTest
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, InvocationTargetException, IllegalAccessException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         for (String arg : args)
         {
             if (arg.startsWith("fan="))

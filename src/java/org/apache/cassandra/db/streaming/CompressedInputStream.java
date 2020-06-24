@@ -79,6 +79,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
         buffer.limit(0);
 
         this.input = input;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         this.checksumType = checksumType;
         this.validateChecksumChance = validateChecksumChance;
 

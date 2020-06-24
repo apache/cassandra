@@ -21,6 +21,7 @@ public class InvalidRequestException extends RequestValidationException
 {
     public InvalidRequestException(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.INVALID, msg);
     }
 }

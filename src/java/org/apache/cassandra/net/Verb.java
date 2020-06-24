@@ -100,6 +100,7 @@ import static org.apache.cassandra.schema.MigrationManager.MigrationsSerializer;
  */
 public enum Verb
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     MUTATION_RSP           (60,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     MUTATION_REQ           (0,   P3, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> MutationVerbHandler.instance,        MUTATION_RSP        ),
     HINT_RSP               (61,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
@@ -188,6 +189,7 @@ public enum Verb
     // largest used ID: 116
 
     // CUSTOM VERBS
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15725
     UNUSED_CUSTOM_VERB     (CUSTOM,
                             0,   P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> null                                                     ),
 
@@ -206,6 +208,7 @@ public enum Verb
 
     public enum Kind
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15725
         NORMAL,
         CUSTOM
     }
@@ -246,6 +249,7 @@ public enum Verb
 
     Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15725
         this(NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb);
     }
 
@@ -373,6 +377,7 @@ public enum Verb
         int minCustom = Integer.MAX_VALUE;
         for (Verb v : verbs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15725
             switch (v.kind)
             {
                 case NORMAL:

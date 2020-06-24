@@ -79,6 +79,7 @@ public class ColumnIndex
         this.memtable = new AtomicReference<>(new IndexMemtable(this));
         this.tracker = new DataTracker(keyValidator, this);
         this.component = new Component(Component.Type.SECONDARY_INDEX, String.format(FILE_NAME_FORMAT, getIndexName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         this.isTokenized = getAnalyzer().isTokenizing();
     }
 
@@ -101,6 +102,7 @@ public class ColumnIndex
 
     public long index(DecoratedKey key, Row row)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         return getCurrentMemtable().index(key, getValueOf(column, row, FBUtilities.nowInSeconds()));
     }
 
@@ -196,6 +198,7 @@ public class ColumnIndex
 
     public void dropData(Collection<SSTableReader> sstablesToRebuild)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12374
         tracker.dropData(sstablesToRebuild);
     }
 
@@ -218,11 +221,14 @@ public class ColumnIndex
 
     public boolean supports(Operator op)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
         if (op == Operator.LIKE)
             return isLiteral();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         Op operator = Op.valueOf(op);
         return !(isTokenized && operator == Op.EQ) // EQ is only applicable to non-tokenized indexes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
                && !(isTokenized && mode.mode == OnDiskIndexBuilder.Mode.CONTAINS && operator == Op.PREFIX) // PREFIX not supported on tokenized CONTAINS mode indexes
                && !(isLiteral() && operator == Op.RANGE) // RANGE only applicable to indexes non-literal indexes
                && mode.supports(operator); // for all other cases let's refer to index itself
@@ -231,6 +237,7 @@ public class ColumnIndex
 
     public static ByteBuffer getValueOf(ColumnMetadata column, Row row, int nowInSecs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
         if (row == null)
             return null;
 
@@ -238,6 +245,7 @@ public class ColumnIndex
         {
             case CLUSTERING:
                 // skip indexing of static clustering when regular column is indexed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12378
                 if (row.isStatic())
                     return null;
 

@@ -86,6 +86,8 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     private VersionedValue(String value, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3333
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         assert value != null;
         // blindly interning everything is somewhat suboptimal -- lots of VersionedValues are unique --
         // but harmless, and interning the non-unique ones saves significant memory.  (Unfortunately,
@@ -118,6 +120,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     private static String versionString(String... args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
         return StringUtils.join(args, VersionedValue.DELIMITER);
     }
 
@@ -132,6 +135,7 @@ public class VersionedValue implements Comparable<VersionedValue>
         
         public VersionedValue cloneWithHigherVersion(VersionedValue value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6135
             return new VersionedValue(value.value);
         }
 
@@ -143,6 +147,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue bootReplacingWithPort(InetAddressAndPort oldNode)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.toString()));
         }
 
@@ -160,6 +165,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         private String makeTokenString(Collection<Token> tokens)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
             return partitioner.getTokenFactory().toString(Iterables.get(tokens, 0));
         }
 
@@ -188,11 +194,13 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue moving(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
             return new VersionedValue(VersionedValue.STATUS_MOVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
         public VersionedValue hostId(UUID hostId)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
             return new VersionedValue(hostId.toString());
         }
 
@@ -213,6 +221,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue removingNonlocal(UUID hostId)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
             return new VersionedValue(versionString(VersionedValue.REMOVING_TOKEN, hostId.toString()));
         }
 
@@ -228,6 +237,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue hibernate(boolean value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-957
             return new VersionedValue(VersionedValue.HIBERNATE + VersionedValue.DELIMITER + value);
         }
 
@@ -238,11 +248,14 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue shutdown(boolean value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8336
             return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
         }
 
         public VersionedValue datacenter(String dcId)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             return new VersionedValue(dcId);
         }
 
@@ -258,32 +271,39 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue nativeaddressAndPort(InetAddressAndPort address)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new VersionedValue(address.toString());
         }
 
         public VersionedValue releaseVersion()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2138
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             return new VersionedValue(FBUtilities.getReleaseVersionString());
         }
 
         @VisibleForTesting
         public VersionedValue releaseVersion(String version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
             return new VersionedValue(version);
         }
 
         public VersionedValue networkVersion()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4317
             return new VersionedValue(String.valueOf(MessagingService.current_version));
         }
 
         public VersionedValue internalIP(String private_ip)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2452
             return new VersionedValue(private_ip);
         }
 
         public VersionedValue internalAddressAndPort(InetAddressAndPort address)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new VersionedValue(address.toString());
         }
 
@@ -303,6 +323,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         private String outValue(VersionedValue value, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
             return value.value;
         }
 
@@ -315,6 +336,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public long serializedSize(VersionedValue value, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             return TypeSizes.sizeof(outValue(value, version)) + TypeSizes.sizeof(value.version);
         }
     }

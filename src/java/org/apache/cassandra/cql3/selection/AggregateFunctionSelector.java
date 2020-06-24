@@ -41,6 +41,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         {
             Selector s = argSelectors.get(i);
             s.addInput(protocolVersion, rs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             setArg(i, s.getOutput(protocolVersion));
             s.reset();
         }
@@ -57,6 +58,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         aggregate.reset();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8053
     AggregateFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
     {
         super((AggregateFunction) fun, argSelectors);

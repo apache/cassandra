@@ -83,6 +83,7 @@ public class MerkleTree
 
     private static byte[] getTempArray(int minimumSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return minimumSize <= HASH_SIZE ? byteArray.get() : new byte[minimumSize];
     }
 
@@ -107,6 +108,7 @@ public class MerkleTree
      */
     public MerkleTree(IPartitioner partitioner, Range<Token> range, int hashdepth, long maxsize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         this(new OnHeapLeaf(), partitioner, range, hashdepth, maxsize, 1);
     }
 
@@ -123,6 +125,7 @@ public class MerkleTree
         assert hashdepth < Byte.MAX_VALUE;
 
         this.root = root;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         this.fullRange = Preconditions.checkNotNull(range);
         this.partitioner = Preconditions.checkNotNull(partitioner);
         this.hashdepth = hashdepth;
@@ -201,6 +204,7 @@ public class MerkleTree
     {
         if (!ltree.fullRange.equals(rtree.fullRange))
             throw new IllegalArgumentException("Difference only make sense on tree covering the same range (but " + ltree.fullRange + " != " + rtree.fullRange + ')');
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
         // ensure on-heap trees' inner node hashes have been computed
         ltree.fillInnerHashes();
@@ -216,6 +220,7 @@ public class MerkleTree
         {
             if (lnode instanceof Leaf || rnode instanceof Leaf)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13603
                 logger.debug("Digest mismatch detected among leaf nodes {}, {}", lnode, rnode);
                 diff.add(active);
             }
@@ -234,6 +239,7 @@ public class MerkleTree
     }
 
     enum Difference { CONSISTENT, FULLY_INCONSISTENT, PARTIALLY_INCONSISTENT }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
     /**
      * TODO: This function could be optimized into a depth first traversal of the two trees in parallel.
@@ -244,6 +250,7 @@ public class MerkleTree
     @VisibleForTesting
     static Difference differenceHelper(MerkleTree ltree, MerkleTree rtree, List<TreeRange> diff, TreeRange active)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5245
         if (active.depth == Byte.MAX_VALUE)
             return CONSISTENT;
 
@@ -253,10 +260,12 @@ public class MerkleTree
         {
             // If the midpoint equals either the left or the right, we have a range that's too small to split - we'll simply report the
             // whole range as inconsistent
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13603
             logger.debug("({}) No sane midpoint ({}) for range {} , marking whole range as inconsistent", active.depth, midpoint, active);
             return FULLY_INCONSISTENT;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         TreeRange left = new TreeRange(active.left, midpoint, active.depth + 1);
         TreeRange right = new TreeRange(midpoint, active.right, active.depth + 1);
         logger.debug("({}) Hashing sub-ranges [{}, {}] for {} divided by midpoint {}", active.depth, left, right, active, midpoint);
@@ -278,6 +287,7 @@ public class MerkleTree
         }
         else if (null == lnode || null == rnode)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15173
             logger.debug("({}) Left sub-range fully inconsistent {}", active.depth, left);
             ldiff = FULLY_INCONSISTENT;
         }
@@ -286,6 +296,7 @@ public class MerkleTree
         lnode = ltree.find(right);
         rnode = rtree.find(right);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Difference rdiff = CONSISTENT;
         if (null != lnode && null != rnode && lnode.hashesDiffer(rnode))
         {
@@ -345,6 +356,7 @@ public class MerkleTree
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             return findHelper(root, fullRange, range);
         }
         catch (StopRecursion e)
@@ -406,6 +418,7 @@ public class MerkleTree
      */
     public boolean split(Token t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         if (size >= maxsize)
             return false;
 
@@ -425,9 +438,11 @@ public class MerkleTree
         if (depth >= hashdepth)
             throw new StopRecursion.TooDeep();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         if (node instanceof Leaf)
         {
             Token midpoint = partitioner.midpoint(pleft, pright);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2605
 
             // We should not create a non-sensical range where start and end are the same token (this is non-sensical because range are
             // start exclusive). Note that we shouldn't hit that unless the full range is very small or we are fairly deep
@@ -436,6 +451,7 @@ public class MerkleTree
 
             // split
             size++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             return new OnHeapInner(midpoint, new OnHeapLeaf(), new OnHeapLeaf());
         }
         // else: node.
@@ -463,6 +479,7 @@ public class MerkleTree
 
     EstimatedHistogram histogramOfRowSizePerLeaf()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2698
         HistogramBuilder histbuild = new HistogramBuilder();
         for (TreeRange range : new TreeRangeIterator(this))
         {
@@ -483,9 +500,11 @@ public class MerkleTree
 
     public long rowCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12580
         long count = 0;
         for (TreeRange range : new TreeRangeIterator(this))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             count += range.node.partitionsInRange();
         }
         return count;
@@ -497,6 +516,7 @@ public class MerkleTree
         StringBuilder buff = new StringBuilder();
         buff.append("#<MerkleTree root=");
         root.toString(buff, 8);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         buff.append('>');
         return buff.toString();
     }
@@ -530,6 +550,7 @@ public class MerkleTree
         public final int depth;
         private final Node node;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         TreeRange(MerkleTree tree, Token left, Token right, int depth, Node node)
         {
             super(left, right);
@@ -554,12 +575,15 @@ public class MerkleTree
          */
         public void addHash(RowHash entry)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             addHash(entry.hash, entry.size);
         }
 
         void addHash(byte[] hash, long partitionSize)
         {
             assert tree != null : "Not intended for modification!";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-520
 
             assert node instanceof OnHeapLeaf;
             ((OnHeapLeaf) node).addHash(hash, partitionSize);
@@ -592,8 +616,10 @@ public class MerkleTree
         // interesting range
         private final MerkleTree tree;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2324
         TreeRangeIterator(MerkleTree tree)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             tovisit = new ArrayDeque<>();
             tovisit.add(new TreeRange(tree, tree.fullRange.left, tree.fullRange.right, 0, tree.root));
             this.tree = tree;
@@ -610,15 +636,18 @@ public class MerkleTree
             {
                 TreeRange active = tovisit.pop();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                 if (active.node instanceof Leaf)
                 {
                     // found a leaf invalid range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2324
                     if (active.isWrapAround() && !tovisit.isEmpty())
                         // put to be taken again last
                         tovisit.addLast(active);
                     return active;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                 Inner node = (Inner)active.node;
                 TreeRange left = new TreeRange(tree, active.left, node.token(), active.depth + 1, node.left());
                 TreeRange right = new TreeRange(tree, node.token(), active.right, active.depth + 1, node.right());
@@ -659,6 +688,7 @@ public class MerkleTree
         public RowHash(Token token, byte[] hash, long size)
         {
             this.token = token;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             this.hash  = hash;
             this.size  = size;
         }
@@ -716,6 +746,7 @@ public class MerkleTree
 
         Token left = Token.serializer.deserialize(in, partitioner, version);
         Token right = Token.serializer.deserialize(in, partitioner, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> fullRange = new Range<>(left, right);
         Node root = deserializeTree(in, partitioner, innerNodeCount, offHeapRequested, version);
         return new MerkleTree(root, partitioner, fullRange, hashDepth, maxSize, innerNodeCount);
@@ -886,6 +917,7 @@ public class MerkleTree
         @Override
         public long sizeOfRange()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2698
             return sizeOfRange;
         }
 
@@ -1012,6 +1044,7 @@ public class MerkleTree
     {
         static final byte IDENT = 1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         default void serialize(DataOutputPlus out, int version) throws IOException
         {
             byte[] hash = hash();
@@ -1512,6 +1545,7 @@ public class MerkleTree
     {
         byte[] hashLeft = new byte[bytesPerHash];
         byte[] hashRigth = new byte[bytesPerHash];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         OnHeapLeaf left = new OnHeapLeaf(hashLeft);
         OnHeapLeaf right = new OnHeapLeaf(hashRigth);
         Inner inner = new OnHeapInner(partitioner.getMinimumToken(), left, right);
@@ -1540,6 +1574,7 @@ public class MerkleTree
      * Useful for testing.
      */
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
     void unsafeInvalidate(Token t)
     {
         unsafeInvalidateHelper(root, fullRange.left, t);

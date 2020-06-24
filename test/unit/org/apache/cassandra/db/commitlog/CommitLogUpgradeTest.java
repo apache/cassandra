@@ -60,6 +60,7 @@ public class CommitLogUpgradeTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -82,6 +83,7 @@ public class CommitLogUpgradeTest
                      .isCompound(false)
                      .isDense(true)
                      .addPartitionKeyColumn("key", AsciiType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9790
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("val", BytesType.instance)
                      .compression(SchemaLoader.getCompressionParameters())
@@ -90,6 +92,7 @@ public class CommitLogUpgradeTest
     @Before
     public void prepareToBeKilled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9749
         killerForTests = new KillerForTests();
         originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
     }
@@ -104,6 +107,7 @@ public class CommitLogUpgradeTest
     @Test
     public void test34_encrypted() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         testRestore(DATA_DIR + "3.4-encrypted");
     }
 
@@ -131,6 +135,7 @@ public class CommitLogUpgradeTest
         }
 
         Hasher hasher = new Hasher();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         CommitLogTestReplayer replayer = new CommitLogTestReplayer(hasher);
         File[] files = new File(location).listFiles((file, name) -> name.endsWith(".log"));
         replayer.replayFiles(files);
@@ -161,9 +166,11 @@ public class CommitLogUpgradeTest
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 for (Row row : update)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9790
                     if (row.clustering().size() > 0 &&
                         AsciiType.instance.compose(row.clustering().get(0)).startsWith(CELLNAME))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                         for (Cell cell : row.cells())
                         {
                             hash = hash(hash, cell.value());

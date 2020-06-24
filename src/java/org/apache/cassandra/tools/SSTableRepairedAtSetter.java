@@ -58,11 +58,13 @@ public class SSTableRepairedAtSetter
         {
             out.println("This command should be run with Cassandra stopped, otherwise you will get very strange behavior");
             out.println("Verify that Cassandra is not running and then execute the command like this:");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8395
             out.println("Usage: sstablerepairedset --really-set [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]");
             System.exit(1);
         }
 
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         boolean setIsRepaired = args[1].equals("--is-repaired");
 
@@ -79,6 +81,7 @@ public class SSTableRepairedAtSetter
         for (String fname: fileNames)
         {
             Descriptor descriptor = Descriptor.fromFilename(fname);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             if (!descriptor.version.isCompatible())
             {
                 System.err.println("SSTable " + fname + " is in a old and unsupported format");

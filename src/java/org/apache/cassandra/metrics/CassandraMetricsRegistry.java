@@ -884,6 +884,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             if (type == null || type.isEmpty())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
                 type = withoutFinalDollar(klass.getSimpleName());
             }
             return type;

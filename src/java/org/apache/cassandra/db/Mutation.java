@@ -56,6 +56,7 @@ public class Mutation implements IMutation
     private final ImmutableMap<TableId, PartitionUpdate> modifications;
 
     // Time at which this mutation or the builder that built it was instantiated
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     final long approxCreatedAtNanos;
     // keep track of when mutation has started waiting for a MV partition lock
     final AtomicLong viewLockAcquireStart = new AtomicLong(0);
@@ -64,6 +65,7 @@ public class Mutation implements IMutation
 
     public Mutation(PartitionUpdate update)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now());
     }
 
@@ -77,6 +79,7 @@ public class Mutation implements IMutation
         for (PartitionUpdate pu : modifications.values())
             cdc |= pu.metadata().params.cdc;
         this.cdcEnabled = cdc;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         this.approxCreatedAtNanos = approxCreatedAtNanos;
     }
 
@@ -85,6 +88,7 @@ public class Mutation implements IMutation
         if (tableIds.isEmpty())
             return this;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         ImmutableMap.Builder<TableId, PartitionUpdate> builder = new ImmutableMap.Builder<>();
         for (Map.Entry<TableId, PartitionUpdate> update : modifications.entrySet())
         {
@@ -94,6 +98,7 @@ public class Mutation implements IMutation
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos);
     }
 
@@ -124,6 +129,7 @@ public class Mutation implements IMutation
 
     public void validateSize(int version, int overhead)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         long totalSize = serializedSize(version) + overhead;
         if(totalSize > MAX_MUTATION_SIZE)
         {
@@ -155,6 +161,7 @@ public class Mutation implements IMutation
     public static Mutation merge(List<Mutation> mutations)
     {
         assert !mutations.isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         if (mutations.size() == 1)
             return mutations.get(0);
@@ -174,6 +181,7 @@ public class Mutation implements IMutation
         }
 
         List<PartitionUpdate> updates = new ArrayList<>(mutations.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
         for (TableId table : updatedTables)
         {
@@ -190,12 +198,14 @@ public class Mutation implements IMutation
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new Mutation(ks, key, modifications.build(), approxTime.now());
     }
 
     public CompletableFuture<?> applyFuture()
     {
         Keyspace ks = Keyspace.open(keyspaceName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
         return ks.applyFuture(this, Keyspace.open(keyspaceName).getMetadata().params.durableWrites, true);
     }
 
@@ -215,6 +225,7 @@ public class Mutation implements IMutation
      */
     public void apply()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10779
         apply(Keyspace.open(keyspaceName).getMetadata().params.durableWrites);
     }
 
@@ -225,12 +236,14 @@ public class Mutation implements IMutation
 
     public long getTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getWriteRpcTimeout(unit);
     }
 
     public int smallestGCGS()
     {
         int gcgs = Integer.MAX_VALUE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         for (PartitionUpdate update : getPartitionUpdates())
             gcgs = Math.min(gcgs, update.metadata().params.gcGraceSeconds);
         return gcgs;
@@ -238,6 +251,7 @@ public class Mutation implements IMutation
 
     public boolean trackedByCDC()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return cdcEnabled;
     }
 
@@ -249,11 +263,14 @@ public class Mutation implements IMutation
     public String toString(boolean shallow)
     {
         StringBuilder buff = new StringBuilder("Mutation(");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         buff.append("keyspace='").append(keyspaceName).append('\'');
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         buff.append(", key='").append(ByteBufferUtil.bytesToHex(key.getKey())).append('\'');
         buff.append(", modifications=[");
         if (shallow)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             List<String> cfnames = new ArrayList<>(modifications.size());
             for (TableId tableId : modifications.keySet())
             {
@@ -264,6 +281,7 @@ public class Mutation implements IMutation
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             buff.append("\n  ").append(StringUtils.join(modifications.values(), "\n  ")).append('\n');
         }
         return buff.append("])").toString();
@@ -274,6 +292,7 @@ public class Mutation implements IMutation
 
     public int serializedSize(int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         switch (version)
         {
             case VERSION_30:
@@ -302,6 +321,7 @@ public class Mutation implements IMutation
      */
     public static SimpleBuilder simpleBuilder(String keyspaceName, DecoratedKey partitionKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         return new SimpleBuilders.MutationBuilder(keyspaceName, partitionKey);
     }
 
@@ -366,6 +386,8 @@ public class Mutation implements IMutation
             /* serialize the modifications in the mutation */
             int size = mutation.modifications.size();
             out.writeUnsignedVInt(size);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
             assert size > 0;
             for (Map.Entry<TableId, PartitionUpdate> entry : mutation.modifications.entrySet())
@@ -377,24 +399,29 @@ public class Mutation implements IMutation
             int size = (int)in.readUnsignedVInt();
             assert size > 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag);
             if (size == 1)
                 return new Mutation(update);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
             DecoratedKey dk = update.partitionKey();
 
             modifications.put(update.metadata().id, update);
             for (int i = 1; i < size; ++i)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 update = PartitionUpdate.serializer.deserialize(in, version, flag);
                 modifications.put(update.metadata().id, update);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             return deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
         }
 
@@ -421,6 +448,7 @@ public class Mutation implements IMutation
 
         public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             this.keyspaceName = keyspaceName;
             this.key = key;
         }
@@ -442,6 +470,7 @@ public class Mutation implements IMutation
 
         public String getKeyspaceName()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             return keyspaceName;
         }
 
@@ -452,6 +481,7 @@ public class Mutation implements IMutation
 
         public Mutation build()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos);
         }
     }

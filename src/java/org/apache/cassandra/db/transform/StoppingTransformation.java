@@ -42,6 +42,7 @@ public abstract class StoppingTransformation<I extends BaseRowIterator<?>> exten
             partitions.stopChild.isSignalled = true;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         stopInPartition();
     }
 

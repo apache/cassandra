@@ -27,6 +27,7 @@ public class PgStringTest extends CQLTester
     @Test
     public void testPgSyleFunction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
         execute("create or replace function "+KEYSPACE+".pgfun1 ( input double ) called on null input returns text language java\n" +
                 "AS $$return \"foobar\";$$");
     }
@@ -71,6 +72,7 @@ public class PgStringTest extends CQLTester
     public void testMarkerPgFail() throws Throwable
     {
         // must throw SyntaxException - not StringIndexOutOfBoundsException or similar
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
         execute("create function "+KEYSPACE+".pgfun1 ( input double ) called on null input returns bigint language java\n" +
                 "AS $javasrc$return 0L;$javasrc$;");
     }

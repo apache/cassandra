@@ -30,6 +30,7 @@ public class AllowAllAuthorizer implements IAuthorizer
 
     public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7216
         return resource.applicablePermissions();
     }
 
@@ -53,6 +54,7 @@ public class AllowAllAuthorizer implements IAuthorizer
 
     public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource of)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7216
         throw new UnsupportedOperationException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");
     }
 

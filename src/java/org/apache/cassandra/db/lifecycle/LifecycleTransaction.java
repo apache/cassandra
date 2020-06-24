@@ -99,6 +99,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
             return String.format("[obsolete: %s, update: %s]", obsolete, update);
         }
     }
@@ -202,6 +203,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
         // prepare for compaction obsolete readers as long as they were part of the original set
         // since those that are not original are early readers that share the same desc with the finals
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         maybeFail(prepareForObsoletion(filterIn(logged.obsolete, originals), log, obsoletions = new ArrayList<>(), null));
         log.prepareToCommit();
     }
@@ -213,6 +215,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     {
         assert staged.isEmpty() : "must be no actions introduced between prepareToCommit and a commit";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
         if (logger.isTraceEnabled())
             logger.trace("Committing transaction over {} staged: {}, logged: {}", originals, staged, logged);
 
@@ -221,6 +224,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
         // transaction log commit failure means we must abort; safe commit is not possible
         maybeFail(log.commit(null));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         // this is now the point of no return; we cannot safely rollback, so we ignore exceptions until we're done
         // we restore state by obsoleting our obsolete files, releasing our references to them, and updating our size
@@ -228,6 +232,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
         accumulate = markObsolete(obsoletions, accumulate);
         accumulate = tracker.updateSizeTracking(logged.obsolete, logged.update, accumulate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15674
         accumulate = runOnCommitHooks(accumulate);
         accumulate = release(selfRefs(logged.obsolete), accumulate);
         accumulate = tracker.notifySSTablesChanged(originals, logged.update, log.type(), accumulate);
@@ -243,11 +248,13 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     {
         if (logger.isTraceEnabled())
             logger.trace("Aborting transaction over {} staged: {}, logged: {}", originals, staged, logged);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
 
         accumulate = abortObsoletion(obsoletions, accumulate);
 
         if (logged.isEmpty() && staged.isEmpty())
             return log.abort(accumulate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         // mark obsolete all readers that are not versions of those present in the original set
         Iterable<SSTableReader> obsolete = filterOut(concatUniq(staged.update, logged.update), originals);
@@ -260,12 +267,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         accumulate = markObsolete(obsoletions, accumulate);
 
         // replace all updated readers with a version restored to its original state
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11373
         List<SSTableReader> restored = restoreUpdatedOriginals();
         List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
         accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
         accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15674
         accumulate = runOnAbortooks(accumulate);
         // we have replaced all of logged.update and never made visible staged.update,
         // and the files we have logged as obsolete we clone fresh versions of, so they are no longer needed either
@@ -280,6 +289,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
     private Throwable runOnCommitHooks(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15674
         return runHooks(commitHooks, accumulate);
     }
 
@@ -307,6 +317,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     @Override
     protected Throwable doPostCleanup(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
         log.close();
         return unmarkCompacting(marked, accumulate);
     }
@@ -329,6 +340,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     {
         if (logger.isTraceEnabled())
             logger.trace("Checkpointing staged {}", staged);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
 
         if (staged.isEmpty())
             return accumulate;
@@ -373,11 +385,13 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         staged.update.add(reader);
         identities.add(reader.instanceId);
         if (!isOffline())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             reader.setupOnline();
     }
 
     public void update(Collection<SSTableReader> readers, boolean original)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         for(SSTableReader reader: readers)
         {
             update(reader, original);
@@ -389,6 +403,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public void obsolete(SSTableReader reader)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Staging for obsolescence {}", reader);
         // check this is: a reader guarded by the transaction, an instance we have already worked with
         // and that we haven't already obsoleted it, nor do we have other changes staged for it
@@ -402,6 +417,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
 
     public void runOnCommit(Runnable fn)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15674
         commitHooks.add(fn);
     }
 
@@ -415,6 +431,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public void obsoleteOriginals()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Staging for obsolescence {}", originals);
         // if we're obsoleting, we should have no staged updates for the original files
         assert Iterables.isEmpty(filterIn(staged.update, originals)) : staged.update;
@@ -455,6 +472,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     private List<SSTableReader> restoreUpdatedOriginals()
     {
         Iterable<SSTableReader> torestore = filterIn(originals, logged.update, logged.obsolete);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         return ImmutableList.copyOf(transform(torestore, (reader) -> current(reader).cloneWithRestoredStart(reader.first)));
     }
 
@@ -497,11 +515,13 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public void cancel(SSTableReader cancel)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Cancelling {} from transaction", cancel);
         assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
         assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
         originals.remove(cancel);
         marked.remove(cancel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10008
         identities.remove(cancel.instanceId);
         maybeFail(unmarkCompacting(singleton(cancel), null));
     }
@@ -521,6 +541,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public LifecycleTransaction split(Collection<SSTableReader> readers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Splitting {} into new transaction", readers);
         checkUnused();
         for (SSTableReader reader : readers)
@@ -601,6 +622,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
      */
     public static List<File> getFiles(Path folder, BiPredicate<File, Directories.FileType> filter, Directories.OnTxnErr onTxnErr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         return new LogAwareFileLister(folder, filter, onTxnErr).list();
     }
 

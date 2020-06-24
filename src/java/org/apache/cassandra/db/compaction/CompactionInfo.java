@@ -64,6 +64,7 @@ public final class CompactionInfo
         this.metadata = metadata;
         this.unit = unit;
         this.compactionId = compactionId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         this.sstables = ImmutableSet.copyOf(sstables);
     }
 
@@ -84,6 +85,7 @@ public final class CompactionInfo
 
     public Optional<String> getKeyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14457
         return Optional.ofNullable(metadata != null ? metadata.keyspace : null);
     }
 
@@ -99,6 +101,7 @@ public final class CompactionInfo
 
     public long getCompleted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3762
         return completed;
     }
 
@@ -114,16 +117,19 @@ public final class CompactionInfo
 
     public UUID getTaskId()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
         return compactionId;
     }
 
     public Unit getUnit()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14457
         return unit;
     }
 
     public Set<SSTableReader> getSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         return sstables;
     }
 
@@ -141,6 +147,7 @@ public final class CompactionInfo
         {
             buff.append('(');
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         buff.append(getCompleted())
             .append('/')
             .append(getTotal())
@@ -153,6 +160,7 @@ public final class CompactionInfo
     public Map<String, String> asMap()
     {
         Map<String, String> ret = new HashMap<String, String>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14457
         ret.put(ID, metadata != null ? metadata.id.toString() : "");
         ret.put(KEYSPACE, getKeyspace().orElse(null));
         ret.put(COLUMNFAMILY, getTable().orElse(null));
@@ -161,6 +169,7 @@ public final class CompactionInfo
         ret.put(TASK_TYPE, tasktype.toString());
         ret.put(UNIT, unit.toString());
         ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         ret.put(SSTABLES, Joiner.on(',').join(sstables));
         return ret;
     }
@@ -192,6 +201,7 @@ public final class CompactionInfo
 
         public boolean isStopRequested()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
             return stopRequested || (isGlobal() && CompactionManager.instance.isGlobalCompactionPaused());
         }
     }
@@ -199,6 +209,7 @@ public final class CompactionInfo
     public enum Unit
     {
         BYTES("bytes"), RANGES("token range parts"), KEYS("keys");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         private final String name;
 

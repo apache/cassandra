@@ -39,6 +39,7 @@ public class CommitLogTestReplayer extends CommitLogReplayer
 
     public CommitLogTestReplayer(Predicate<Mutation> processor) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         super(CommitLog.instance, CommitLogPosition.NONE, null, ReplayFilter.create());
         CommitLog.instance.sync(true);
 
@@ -65,6 +66,7 @@ public class CommitLogTestReplayer extends CommitLogReplayer
             Mutation mutation;
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                 mutation = Mutation.serializer.deserialize(bufIn, desc.getMessagingVersion(), DeserializationHelper.Flag.LOCAL);
                 Assert.assertTrue(processor.apply(mutation));
             }

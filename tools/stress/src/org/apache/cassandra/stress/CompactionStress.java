@@ -75,6 +75,7 @@ public abstract class CompactionStress implements Runnable
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13188
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -114,10 +115,13 @@ public abstract class CompactionStress implements Runnable
     {
         generateTokens(stressProfile.seedStr, StorageService.instance.getTokenMetadata(), numTokens);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CreateTableStatement.Raw createStatement = stressProfile.getCreateStatement();
         List<File> dataDirectories = getDataDirectories();
 
         ColumnFamilyStore cfs = StressCQLSSTableWriter.Builder.createOfflineTable(createStatement, Collections.EMPTY_LIST, dataDirectories);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
 
         if (loadSSTables)
         {
@@ -187,6 +191,7 @@ public abstract class CompactionStress implements Runnable
         tokenMetadata.clearUnsafe();
         for (int i = 1; i <= numTokens; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
             List<Token> tokens = Lists.newArrayListWithCapacity(numTokens);
             for (int j = 0; j < numTokens; ++j)
@@ -304,6 +309,8 @@ public abstract class CompactionStress implements Runnable
             {
                 //Every thread needs it's own writer
                 final SchemaInsert insert = stressProfile.getOfflineInsert(null, generator, seedManager, settings);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
                 final StressCQLSSTableWriter tableWriter = insert.createWriter(cfs, bufferSize, makeRangeAware);
                 executorService.submit(() -> {
                     try

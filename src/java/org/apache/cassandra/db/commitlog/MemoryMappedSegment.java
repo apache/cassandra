@@ -40,6 +40,7 @@ public class MemoryMappedSegment extends CommitLogSegment
      *
      * @param commitLog the commit log it will be used with.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
     MemoryMappedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         super(commitLog, manager);
@@ -53,6 +54,7 @@ public class MemoryMappedSegment extends CommitLogSegment
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12539
             MappedByteBuffer mappedFile = channel.map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
             manager.addSize(DatabaseDescriptor.getCommitLogSegmentSize());
             return mappedFile;
@@ -76,32 +78,38 @@ public class MemoryMappedSegment extends CommitLogSegment
 
         // write previous sync marker to point to next sync marker
         // we don't chain the crcs here to ensure this method is idempotent if it fails
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13918
         writeSyncMarker(id, buffer, startMarker, startMarker, nextMarker);
     }
 
     @Override
     protected void flush(int startMarker, int nextMarker)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9403
             SyncUtil.force((MappedByteBuffer) buffer);
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {
             throw new FSWriteError(e, getPath());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         NativeLibrary.trySkipCache(fd, startMarker, nextMarker, logFile.getAbsolutePath());
     }
 
     @Override
     public long onDiskSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
         return DatabaseDescriptor.getCommitLogSegmentSize();
     }
 
     @Override
     protected void internalClose()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         FileUtils.clean(buffer);
         super.internalClose();
     }

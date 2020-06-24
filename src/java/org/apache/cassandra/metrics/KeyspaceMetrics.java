@@ -219,6 +219,7 @@ public class KeyspaceMetrics
         speculativeRetries = createKeyspaceCounter("SpeculativeRetries", metric -> metric.speculativeRetries.getCount());
         speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", metric -> metric.speculativeFailedRetries.getCount());
         speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", metric -> metric.speculativeInsufficientReplicas.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         additionalWrites = createKeyspaceCounter("AdditionalWrites", metric -> metric.additionalWrites.getCount());
         repairsStarted = createKeyspaceCounter("RepairJobsStarted", metric -> metric.repairsStarted.getCount());
         repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", metric -> metric.repairsCompleted.getCount());
@@ -257,6 +258,7 @@ public class KeyspaceMetrics
     private Gauge<Long> createKeyspaceGauge(String name, final ToLongFunction<TableMetrics> extractor)
     {
         allMetrics.add(() -> releaseMetric(name));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return Metrics.register(factory.createMetricName(name), new Gauge<Long>()
         {
             public Long getValue()
@@ -280,6 +282,7 @@ public class KeyspaceMetrics
     private Counter createKeyspaceCounter(String name, final ToLongFunction<TableMetrics> extractor)
     {
         allMetrics.add(() -> releaseMetric(name));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13373
         return Metrics.register(factory.createMetricName(name), new Counter()
         {
             @Override
@@ -328,6 +331,7 @@ public class KeyspaceMetrics
 
     private void releaseMetric(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         Metrics.remove(factory.createMetricName(name));
     }
 
@@ -344,6 +348,7 @@ public class KeyspaceMetrics
         public MetricName createMetricName(String metricName)
         {
             String groupName = TableMetrics.class.getPackage().getName();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
             StringBuilder mbeanName = new StringBuilder();
             mbeanName.append(groupName).append(":");

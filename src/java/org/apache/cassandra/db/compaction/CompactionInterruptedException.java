@@ -23,6 +23,7 @@ public class CompactionInterruptedException extends RuntimeException
 
     public CompactionInterruptedException(CompactionInfo info)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3582
         super("Compaction interrupted: " + info);
     }
 }

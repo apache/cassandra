@@ -154,6 +154,7 @@ public class CompactionsBytemanTest extends CQLTester
 
     @Test
     @BMRule(name = "Stop all compactions",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15123
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT INVOKE getCompactionAwareWriter",

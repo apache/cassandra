@@ -52,6 +52,7 @@ public class TriggersTest
     @BeforeClass
     public static void beforeTest() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.loadSchema();
     }
 
@@ -59,6 +60,7 @@ public class TriggersTest
     public void setup() throws Exception
     {
         StorageService.instance.initServer(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         String cql = String.format("CREATE KEYSPACE IF NOT EXISTS %s " +
                                    "WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}",
@@ -68,6 +70,7 @@ public class TriggersTest
         cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int, v1 int, v2 int, PRIMARY KEY (k))", ksName, cfName);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6882
         cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int, v1 int, v2 int, PRIMARY KEY (k))", ksName, otherCf);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
 
@@ -86,6 +89,7 @@ public class TriggersTest
     {
         String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (0, 0)", ksName, cfName);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13894
         assertUpdateIsAugmented(0, "v1", 0);
     }
 
@@ -97,6 +101,7 @@ public class TriggersTest
                                    "APPLY BATCH",
                                    ksName, cfName);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13894
         assertUpdateIsAugmented(1, "v1", 1);
     }
 
@@ -105,6 +110,7 @@ public class TriggersTest
     {
         String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (4, 4) IF NOT EXISTS", ksName, cfName);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13894
         assertUpdateIsAugmented(4, "v1", 4);
     }
 
@@ -117,6 +123,7 @@ public class TriggersTest
                                    "APPLY BATCH",
                                     ksName, cfName);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13894
         assertUpdateIsAugmented(5, "v1", 5);
     }
 
@@ -155,6 +162,8 @@ public class TriggersTest
     @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
     public void ifTriggerThrowsErrorNoMutationsAreApplied() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9334
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9421
         String cf = "cf" + System.nanoTime();
         try
         {
@@ -187,6 +196,7 @@ public class TriggersTest
 
     private void assertUpdateIsAugmented(int key, String originColumnName, Object originColumnValue)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13894
         UntypedResultSet rs = QueryProcessor.process(String.format("SELECT * FROM %s.%s WHERE k=%s", ksName, cfName, key), ConsistencyLevel.ONE);
         assertRowValue(rs.one(), key, "v2", 999); // from trigger
         assertRowValue(rs.one(), key, originColumnName, originColumnValue); // from original update
@@ -201,6 +211,8 @@ public class TriggersTest
 
     private void assertUpdateNotExecuted(String cf, int key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
         UntypedResultSet rs = QueryProcessor.executeInternal(
                 String.format("SELECT * FROM %s.%s WHERE k=%s", ksName, cf, key));
         assertTrue(rs.isEmpty());
@@ -210,6 +222,7 @@ public class TriggersTest
     {
         public Collection<Mutation> augment(Partition partition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             RowUpdateBuilder update = new RowUpdateBuilder(partition.metadata(), FBUtilities.timestampMicros(), partition.partitionKey().getKey());
             update.add("v2", 999);
 
@@ -245,6 +258,8 @@ public class TriggersTest
         public static final String MESSAGE = "Thrown by ErrorTrigger";
         public Collection<Mutation> augment(Partition partition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9334
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9421
             throw new org.apache.cassandra.exceptions.InvalidRequestException(MESSAGE);
         }
     }

@@ -41,6 +41,7 @@ public class CommonRange
 
     public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints, Collection<Range<Token>> ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15025
         Preconditions.checkArgument(endpoints != null && !endpoints.isEmpty(), "Endpoints can not be empty");
         Preconditions.checkArgument(transEndpoints != null, "Transient endpoints can not be null");
         Preconditions.checkArgument(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
@@ -48,6 +49,7 @@ public class CommonRange
 
         this.endpoints = ImmutableSet.copyOf(endpoints);
         this.transEndpoints = ImmutableSet.copyOf(transEndpoints);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         this.ranges = new ArrayList<>(ranges);
     }
 

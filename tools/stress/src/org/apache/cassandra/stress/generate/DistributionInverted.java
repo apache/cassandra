@@ -57,6 +57,7 @@ public class DistributionInverted extends Distribution
 
     public static Distribution invert(Distribution distribution)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         if (distribution instanceof DistributionInverted)
             return ((DistributionInverted) distribution).wrapped;
         return new DistributionInverted(distribution);

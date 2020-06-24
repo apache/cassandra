@@ -98,6 +98,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     //
     private static final String[] allowedPatterns =
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
     "com/google/common/reflect/TypeToken",
     "java/io/IOException.class",
     "java/io/Serializable.class",
@@ -114,10 +115,13 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/text/",
     "java/time/",
     "java/util/",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
     "org/apache/cassandra/cql3/functions/types/",
     "org/apache/cassandra/cql3/functions/JavaUDF.class",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
     "org/apache/cassandra/cql3/functions/UDFContext.class",
     "org/apache/cassandra/exceptions/",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     "org/apache/cassandra/transport/ProtocolVersion.class"
     };
     // Only need to disallow a pattern, if it would otherwise be allowed via allowedPatterns
@@ -130,6 +134,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "com/datastax/driver/core/Statement.class",
     "com/datastax/driver/core/TimestampGenerator.class", // indirectly covers ServerSideTimestampGenerator + ThreadLocalMonotonicTimestampGenerator
     "java/lang/Compiler.class",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9890
     "java/lang/InheritableThreadLocal.class",
     "java/lang/Package.class",
     "java/lang/Process.class",
@@ -195,6 +200,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          String body)
     {
         this(name, argNames, argTypes, UDHelper.driverTypes(argTypes), returnType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
              UDHelper.driverType(returnType), calledOnNullInput, language, body);
     }
 
@@ -206,9 +212,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          DataType returnDataType,
                          boolean calledOnNullInput,
                          String language,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
                          String body)
     {
         super(name, argTypes, returnType);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7526
         assert new HashSet<>(argNames).size() == argNames.size() : "duplicate argument names";
         this.argNames = argNames;
         this.language = language;
@@ -222,6 +230,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     }
 
     public static UDFunction tryCreate(FunctionName name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                        List<ColumnIdentifier> argNames,
                                        List<AbstractType<?>> argTypes,
                                        AbstractType<?> returnType,
@@ -248,9 +257,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                     String body)
     {
         assertUdfsEnabled(language);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         switch (language)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
             case "java":
                 return new JavaBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, body);
             default:
@@ -268,12 +279,15 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
      *     than saying that the function doesn't exist)
      */
     public static UDFunction createBrokenFunction(FunctionName name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8053
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8261
                                                   List<ColumnIdentifier> argNames,
                                                   List<AbstractType<?>> argTypes,
                                                   AbstractType<?> returnType,
                                                   boolean calledOnNullInput,
                                                   String language,
                                                   String body,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
                                                   InvalidRequestException reason)
     {
         return new UDFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body)
@@ -285,6 +299,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
             protected Object executeAggregateUserDefined(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
                 throw broken();
             }
 
@@ -306,12 +321,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
     {
         assertUdfsEnabled(language);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9889
 
         if (!isCallableWrtNullable(parameters))
             return null;
 
         long tStart = System.nanoTime();
         parameters = makeEmptyParametersNull(parameters);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
 
         try
         {
@@ -345,10 +362,12 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public final Object executeForAggregate(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
     {
         assertUdfsEnabled(language);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
 
         if (!calledOnNullInput && firstParam == null || !isCallableWrtNullable(parameters))
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9723
         long tStart = System.nanoTime();
         parameters = makeEmptyParametersNull(parameters);
 
@@ -376,6 +395,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public static void assertUdfsEnabled(String language)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9889
         if (!DatabaseDescriptor.enableUserDefinedFunctions())
             throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable");
         if (!"java".equalsIgnoreCase(language) && !DatabaseDescriptor.enableScriptedUserDefinedFunctions())
@@ -409,6 +429,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         {
             this.threadId = Thread.currentThread().getId();
             this.cpuTime = threadMXBean.getCurrentThreadCpuTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10019
             complete(null);
         }
     }
@@ -417,6 +438,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         ThreadIdAndCpuTime threadIdAndCpuTime = new ThreadIdAndCpuTime();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
         return async(threadIdAndCpuTime, () -> {
             threadIdAndCpuTime.setup();
             return executeUserDefined(protocolVersion, parameters);
@@ -481,6 +503,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             {
                 //The threadIdAndCpuTime shouldn't take a long time to be set so this should return immediately
                 threadIdAndCpuTime.get(1, TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10019
 
                 long cpuTimeMillis = threadMXBean.getThreadCpuTime(threadIdAndCpuTime.threadId) - threadIdAndCpuTime.cpuTime;
                 cpuTimeMillis /= 1000000L;
@@ -531,6 +554,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public boolean isCallableWrtNullable(List<ByteBuffer> parameters)
     {
         if (!calledOnNullInput)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
             for (int i = 0; i < parameters.size(); i++)
                 if (UDHelper.isNullOrEmpty(argTypes.get(i), parameters.get(i)))
                     return false;
@@ -553,6 +577,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public boolean isCalledOnNullInput()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
         return calledOnNullInput;
     }
 
@@ -609,6 +634,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return any(argTypes(), t -> t.referencesUserType(name)) || returnType.referencesUserType(name);
     }
 
@@ -631,6 +657,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         if (!(o instanceof UDFunction))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8053
 
         UDFunction that = (UDFunction)o;
         return equalsWithoutTypes(that)
@@ -689,6 +716,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9750
         return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
     }
 
@@ -699,6 +727,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
         public URL getResource(String name)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
             if (!secureResource(name))
                 return null;
             return insecureClassLoader.getResource(name);

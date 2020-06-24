@@ -52,6 +52,7 @@ public class TimeTypeTest extends CQLTester
         b1 = TimeSerializer.instance.serialize(0L);
         b2 = TimeSerializer.instance.serialize(10000000L);
         assert TimeType.instance.compare(b1, b2) < 0 : "Failed < comparison on 0";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11948
 
         b1 = TimeSerializer.instance.serialize(0L);
         b2 = TimeSerializer.instance.serialize(TimeUnit.DAYS.toNanos(1));
@@ -69,6 +70,7 @@ public class TimeTypeTest extends CQLTester
     public void testTime() throws Throwable
     {
         createTable("CREATE TABLE %s (id int, cl int, ts time, PRIMARY KEY(id, cl));");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11798
 
         execute("INSERT into %s (id, cl, ts) values (1, 1, 42000000000);");
         execute("INSERT into %s (id, cl, ts) values (1, 2, '42000000000');");

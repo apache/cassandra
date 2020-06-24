@@ -130,6 +130,7 @@ public class InboundConnectionInitiator
         ServerBootstrap bootstrap = initializer.settings.socketFactory
                                     .newServerBootstrap()
                                     .option(ChannelOption.SO_BACKLOG, 1 << 9)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
                                     .option(ChannelOption.ALLOCATOR, GlobalBufferPoolAllocator.instance)
                                     .option(ChannelOption.SO_REUSEADDR, true)
                                     .childHandler(initializer);
@@ -237,6 +238,7 @@ public class InboundConnectionInitiator
             if (sslHandler != null)
             {
                 SSLSession session = sslHandler.engine().getSession();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
                 logger.info("connection from peer {} to {}, protocol = {}, cipher suite = {}",
                             ctx.channel().remoteAddress(), ctx.channel().localAddress(), session.getProtocol(), session.getCipherSuite());
             }

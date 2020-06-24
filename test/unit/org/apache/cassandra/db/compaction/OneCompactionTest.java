@@ -48,7 +48,9 @@ public class OneCompactionTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1)
                                                 .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1"))),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
@@ -61,6 +63,7 @@ public class OneCompactionTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(columnFamilyName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Set<String> inserted = new HashSet<>();
         for (int j = 0; j < insertsPerTable; j++) {
             String key = String.valueOf(j);
@@ -74,7 +77,9 @@ public class OneCompactionTest
             store.forceBlockingFlush();
             assertEquals(inserted.size(), Util.getAll(Util.cmd(store).build()).size());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
         CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
     }
 

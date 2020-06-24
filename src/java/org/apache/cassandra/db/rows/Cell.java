@@ -47,6 +47,7 @@ public abstract class Cell extends ColumnData
     public final static Comparator<Cell> comparator = (c1, c2) ->
     {
         int cmp = c1.column().compareTo(c2.column());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (cmp != 0)
             return cmp;
 
@@ -58,6 +59,7 @@ public abstract class Cell extends ColumnData
 
     protected Cell(ColumnMetadata column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         super(column);
     }
 

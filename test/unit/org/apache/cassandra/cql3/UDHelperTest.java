@@ -56,6 +56,7 @@ public class UDHelperTest
     {
         protected UFTestCustomType()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
             super(ComparisonType.CUSTOM);
         }
 

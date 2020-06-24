@@ -43,6 +43,7 @@ public abstract class AbstractFunction implements Function
     protected AbstractFunction(FunctionName name, List<AbstractType<?>> argTypes, AbstractType<?> returnType)
     {
         this.name = name;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         this.argTypes = argTypes;
         this.returnType = returnType;
     }
@@ -73,6 +74,7 @@ public abstract class AbstractFunction implements Function
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         if (!(o instanceof AbstractFunction))
             return false;
 
@@ -84,6 +86,7 @@ public abstract class AbstractFunction implements Function
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         functions.add(this);
     }
 
@@ -102,6 +105,7 @@ public abstract class AbstractFunction implements Function
     {
         // We should ignore the fact that the receiver type is frozen in our comparison as functions do not support
         // frozen types for return type
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
         AbstractType<?> returnType = returnType();
         if (receiver.type.isFreezable() && !receiver.type.isMultiCell())
             returnType = returnType.freeze();
@@ -133,6 +137,7 @@ public abstract class AbstractFunction implements Function
     @Override
     public String columnName(List<String> columnNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
         return new StrBuilder(name().toString()).append('(')
                                                 .appendWithSeparators(columnNames, ", ")
                                                 .append(')')

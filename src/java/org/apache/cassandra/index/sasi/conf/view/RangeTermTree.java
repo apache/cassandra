@@ -41,6 +41,7 @@ public class RangeTermTree implements TermTree
         this.min = min;
         this.max = max;
         this.rangeTree = rangeTree;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         this.comparator = comparator;
     }
 
@@ -49,6 +50,7 @@ public class RangeTermTree implements TermTree
         ByteBuffer minTerm = e.lower == null ? min : e.lower.value;
         ByteBuffer maxTerm = e.upper == null ? max : e.upper.value;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return new HashSet<>(rangeTree.search(Interval.create(new Term(minTerm, comparator),
                                                               new Term(maxTerm, comparator),
                                                               (SSTableIndex) null)));
@@ -71,6 +73,7 @@ public class RangeTermTree implements TermTree
         public void addIndex(SSTableIndex index)
         {
             intervals.add(Interval.create(new Term(index.minTerm(), comparator),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                                           new Term(index.maxTerm(), comparator), index));
         }
 

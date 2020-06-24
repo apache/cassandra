@@ -46,12 +46,14 @@ public class MD5Digest
         @Override
         protected MessageDigest initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             return FBUtilities.newMessageDigest("MD5");
         }
 
         @Override
         public MessageDigest get()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
             MessageDigest digest = super.get();
             digest.reset();
             return digest;
@@ -64,6 +66,7 @@ public class MD5Digest
     private MD5Digest(byte[] bytes)
     {
         this.bytes = bytes;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8847
         hashCode = Arrays.hashCode(bytes);
     }
 
@@ -74,6 +77,7 @@ public class MD5Digest
 
     public static MD5Digest compute(byte[] toHash)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
         return new MD5Digest(localMD5Digest.get().digest(toHash));
     }
 
@@ -84,12 +88,14 @@ public class MD5Digest
 
     public ByteBuffer byteBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
         return ByteBuffer.wrap(bytes);
     }
 
     @Override
     public final int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8847
         return hashCode;
     }
 
@@ -111,6 +117,7 @@ public class MD5Digest
 
     public static MessageDigest threadLocalMD5Digest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
         return localMD5Digest.get();
     }
 }

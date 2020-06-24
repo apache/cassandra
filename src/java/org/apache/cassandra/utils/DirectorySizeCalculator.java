@@ -48,6 +48,7 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
     {
         if (isAcceptable(file))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
             size += attrs.size();
         return FileVisitResult.CONTINUE;
     }
@@ -60,6 +61,7 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
 
     public long getAllocatedSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
         return size;
     }
 }

@@ -146,6 +146,7 @@ public class RowIndexEntryTest extends CQLTester
         SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(), EncodingStats.NO_STATS);
 
         // create C-11206 + old serializer instances
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         RowIndexEntry.IndexSerializer rieSerializer = new RowIndexEntry.Serializer(version, header);
         Pre_C_11206_RowIndexEntry.Serializer oldSerializer = new Pre_C_11206_RowIndexEntry.Serializer(metadata, version, header);
 
@@ -165,7 +166,9 @@ public class RowIndexEntryTest extends CQLTester
 
         DoubleSerializer() throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             SequentialWriterOption option = SequentialWriterOption.newBuilder().bufferSize(1024).build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             File f = FileUtils.createTempFile("RowIndexEntryTest-", "db");
             dataWriterNew = new SequentialWriter(f, option);
             columnIndex = new org.apache.cassandra.db.ColumnIndex(header, dataWriterNew, version, Collections.emptyList(),
@@ -190,6 +193,7 @@ public class RowIndexEntryTest extends CQLTester
             rieNew = RowIndexEntry.create(startPosition, 0L,
                                           deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
                                           columnIndex.indexInfoSerializedSize(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
                                           columnIndex.indexSamples(), columnIndex.offsets(),
                                           rieSerializer.indexInfoSerializer());
             rieSerializer.serialize(rieNew, rieOutput, columnIndex.buffer());
@@ -262,6 +266,7 @@ public class RowIndexEntryTest extends CQLTester
                                               Version version) throws IOException
         {
             assert !iterator.isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
             Builder builder = new Builder(iterator, output, header, observers, version.correspondingMessagingVersion());
             return builder.build();
@@ -308,6 +313,7 @@ public class RowIndexEntryTest extends CQLTester
             {
                 this.iterator = iterator;
                 this.writer = writer;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                 this.helper = new SerializationHelper(header);
                 this.header = header;
                 this.version = version;
@@ -320,6 +326,7 @@ public class RowIndexEntryTest extends CQLTester
                 ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
                 DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
                 if (header.hasStatic())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                     UnfilteredSerializer.serializer.serializeStaticRow(iterator.staticRow(), helper, writer, version);
             }
 
@@ -362,6 +369,7 @@ public class RowIndexEntryTest extends CQLTester
                 }
 
                 UnfilteredSerializer.serializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
                 // notify observers about each new row
                 if (!observers.isEmpty())
@@ -423,17 +431,22 @@ public class RowIndexEntryTest extends CQLTester
             execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, String.valueOf(i), i);
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tempFile = FileUtils.createTempFile("row_index_entry_test", null);
         tempFile.deleteOnExit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         SequentialWriter writer = new SequentialWriter(tempFile);
         ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(partition.unfilteredIterator(), writer, header, Collections.emptySet(), BigFormat.latestVersion);
         Pre_C_11206_RowIndexEntry withIndex = Pre_C_11206_RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
         IndexInfo.Serializer indexSerializer = IndexInfo.serializer(BigFormat.latestVersion, header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
         // sanity check
         assertTrue(columnIndex.columnsIndex.size() >= 3);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10314
         buffer = new DataOutputBuffer();
         serializer.serialize(withIndex, buffer);
         assertEquals(buffer.getLength(), serializer.serializedSize(withIndex));
@@ -574,6 +587,7 @@ public class RowIndexEntryTest extends CQLTester
 
             Serializer(TableMetadata metadata, Version version, SerializationHeader header)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 this.idxSerializer = IndexInfo.serializer(version, header);
                 this.version = version;
             }
@@ -654,6 +668,7 @@ public class RowIndexEntryTest extends CQLTester
             // should be used instead.
             static long readPosition(DataInputPlus in, Version version) throws IOException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 return in.readUnsignedVInt();
             }
 

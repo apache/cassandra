@@ -58,6 +58,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
      */
     public CassandraVersion(String version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
         String stripped = SNAPSHOT.matcher(version).replaceFirst("");
         Matcher matcher = pattern.matcher(stripped);
         if (!matcher.matches())
@@ -68,15 +69,18 @@ public class CassandraVersion implements Comparable<CassandraVersion>
             this.major = Integer.parseInt(matcher.group(1));
             this.minor = Integer.parseInt(matcher.group(2));
             this.patch = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
 
             String pr = matcher.group(4);
             String bld = matcher.group(5);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
             this.preRelease = pr == null || pr.isEmpty() ? null : parseIdentifiers(stripped, pr);
             this.build = bld == null || bld.isEmpty() ? null : parseIdentifiers(stripped, bld);
         }
         catch (NumberFormatException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
             throw new IllegalArgumentException("Invalid version value: " + version, e);
         }
     }
@@ -85,10 +89,12 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     {
         // Drop initial - or +
         str = str.substring(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         String[] parts = StringUtils.split(str, '.');
         for (String part : parts)
         {
             if (!PATTERN_WHITESPACE.matcher(part).matches())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
                 throw new IllegalArgumentException("Invalid version value: " + version);
         }
         return parts;
@@ -132,6 +138,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
      */
     public CassandraVersion findSupportingVersion(CassandraVersion... versions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
         for (CassandraVersion version : versions)
         {
             if (isSupportedBy(version))
@@ -142,6 +149,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     public boolean isSupportedBy(CassandraVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11841
         return version != null && major == version.major && this.compareTo(version) <= 0;
     }
 
@@ -200,6 +208,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
         if (!(o instanceof CassandraVersion))
             return false;
         CassandraVersion that = (CassandraVersion) o;

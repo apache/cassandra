@@ -34,9 +34,11 @@ public class InetAddressType extends AbstractType<InetAddress>
     public static final InetAddressType instance = new InetAddressType();
 
     InetAddressType() {super(ComparisonType.BYTE_ORDER);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
@@ -54,6 +56,7 @@ public class InetAddressType extends AbstractType<InetAddress>
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             throw new MarshalException(String.format("Unable to make inet address from '%s'", source), e);
         }
 
@@ -82,6 +85,7 @@ public class InetAddressType extends AbstractType<InetAddress>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.INET;
     }
 

@@ -101,6 +101,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
         act.execute(ActiveCompactionsTracker.NOOP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         // now all sstables are laid out non-overlapping in L1, this means that the rest of the compactions
         // will be single sstable ones, make sure that we use SingleSSTableLCSTask if singleSSTUplevel is true:
@@ -108,6 +109,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         {
             act = lcs.getNextBackgroundTask(0);
             assertEquals(singleSSTUplevel, act instanceof SingleSSTableLCSTask);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             act.execute(ActiveCompactionsTracker.NOOP);
         }
         assertEquals(0, lcs.getLevelSize(0));

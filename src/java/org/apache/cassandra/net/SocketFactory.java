@@ -94,6 +94,7 @@ public final class SocketFactory
      * {@link ManyToOneConcurrentLinkedQueue}, that is non-blocking, and already used throughout the codebase,
      * that we can and do use here as well.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
     enum Provider
     {
         NIO
@@ -179,6 +180,7 @@ public final class SocketFactory
     private final EventLoopGroup outboundStreamingGroup;
     final ExecutorService synchronousWorkExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("Messaging-SynchronousWork"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
     SocketFactory()
     {
         this(Provider.optimalProvider());

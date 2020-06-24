@@ -41,6 +41,7 @@ public interface KeyspaceRepairManager
     ListenableFuture prepareIncrementalRepair(UUID sessionID,
                                               Collection<ColumnFamilyStore> tables,
                                               RangesAtEndpoint tokenRanges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                               ExecutorService executor,
                                               BooleanSupplier isCancelled);
 }

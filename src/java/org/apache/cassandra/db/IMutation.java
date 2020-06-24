@@ -38,6 +38,7 @@ public interface IMutation
 
     public default void validateIndexedColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         for (PartitionUpdate pu : getPartitionUpdates())
             pu.validateIndexedColumns();
     }
@@ -59,6 +60,7 @@ public interface IMutation
      */
     public static long dataSize(Collection<? extends IMutation> mutations)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
         long size = 0;
         for (IMutation mutation : mutations)
         {

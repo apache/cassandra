@@ -37,6 +37,7 @@ public class CQLMetrics
 
     public CQLMetrics()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         regularStatementsExecuted = Metrics.counter(factory.createMetricName("RegularStatementsExecuted"));
         preparedStatementsExecuted = Metrics.counter(factory.createMetricName("PreparedStatementsExecuted"));
         preparedStatementsEvicted = Metrics.counter(factory.createMetricName("PreparedStatementsEvicted"));

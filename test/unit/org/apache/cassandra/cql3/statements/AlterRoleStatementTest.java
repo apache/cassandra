@@ -30,6 +30,7 @@ public class AlterRoleStatementTest
 {
     private static AlterRoleStatement parse(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CQLStatement.Raw stmt = QueryProcessor.parseStatement(query);
         Assert.assertTrue(stmt instanceof AlterRoleStatement);
         return (AlterRoleStatement) stmt;

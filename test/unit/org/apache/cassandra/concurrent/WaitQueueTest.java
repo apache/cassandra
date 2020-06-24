@@ -44,6 +44,7 @@ public class WaitQueueTest
         final AtomicInteger ready = new AtomicInteger();
         Thread[] ts = new Thread[4];
         for (int i = 0 ; i < ts.length ; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
             ts[i] = NamedThreadFactory.createThread(new Runnable()
         {
             @Override
@@ -84,6 +85,7 @@ public class WaitQueueTest
         final AtomicBoolean ready = new AtomicBoolean(false);
         final AtomicBoolean condition = new AtomicBoolean(false);
         final AtomicBoolean fail = new AtomicBoolean(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         Thread t = NamedThreadFactory.createThread(new Runnable()
         {
             @Override

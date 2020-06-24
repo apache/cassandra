@@ -168,6 +168,7 @@ public class CasWriteTest extends TestBaseImpl
                            failure ->
                                failure.get() != null &&
                                failure.get()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15689
                                       .getClass().getCanonicalName()
                                       .equals(CasWriteTimeoutException.class.getCanonicalName()),
                            "Expecting cause to be CasWriteTimeoutException");
@@ -232,6 +233,8 @@ public class CasWriteTest extends TestBaseImpl
         });
         // unable to assert on class becuase the exception thrown was loaded by a differnet classloader, InstanceClassLoader
         // therefor asserts the FQCN name present in the message as a workaround
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15689
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15689
         thrown.expect(new BaseMatcher<Throwable>()
         {
             public boolean matches(Object item)
@@ -250,6 +253,7 @@ public class CasWriteTest extends TestBaseImpl
     @Test
     public void testWriteUnknownResult()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15676
         cluster.filters().reset();
         int pk = pkGen.getAndIncrement();
         CountDownLatch ready = new CountDownLatch(1);

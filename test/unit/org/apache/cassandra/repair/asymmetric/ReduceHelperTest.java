@@ -56,6 +56,7 @@ public class ReduceHelperTest
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             A = InetAddressAndPort.getByName("127.0.0.0");
             B = InetAddressAndPort.getByName("127.0.0.1");
             C = InetAddressAndPort.getByName("127.0.0.2");
@@ -87,6 +88,7 @@ public class ReduceHelperTest
         C             x   x
         D                 =
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, HostDifferences> differences = new HashMap<>();
         for (int i = 0; i < 4; i++)
         {
@@ -104,6 +106,7 @@ public class ReduceHelperTest
         }
         DifferenceHolder differenceHolder = new DifferenceHolder(differences);
         Map<InetAddressAndPort, IncomingRepairStreamTracker> tracker = ReduceHelper.createIncomingRepairStreamTrackers(differenceHolder);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         assertEquals(set(set(C), set(E,D)), streams(tracker.get(A)));
         assertEquals(set(set(C), set(E,D)), streams(tracker.get(B)));
@@ -112,6 +115,7 @@ public class ReduceHelperTest
         assertEquals(set(set(A,B), set(C)), streams(tracker.get(E)));
 
         ImmutableMap<InetAddressAndPort, HostDifferences> reduced = ReduceHelper.reduce(differenceHolder, (x, y) -> y);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         HostDifferences n0 = reduced.get(A);
         assertEquals(0, n0.get(A).size());
@@ -161,6 +165,7 @@ public class ReduceHelperTest
         C             x   x
         D                 =
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, HostDifferences> differences = new HashMap<>();
         for (int i = 0; i < 4; i++)
         {
@@ -177,6 +182,7 @@ public class ReduceHelperTest
         }
 
         DifferenceHolder differenceHolder = new DifferenceHolder(differences);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, IncomingRepairStreamTracker> tracker = ReduceHelper.createIncomingRepairStreamTrackers(differenceHolder);
         assertEquals(set(set(C), set(E, D)), streams(tracker.get(A)));
         assertEquals(set(set(C), set(E, D)), streams(tracker.get(B)));
@@ -186,6 +192,7 @@ public class ReduceHelperTest
 
         // if there is an option, never stream from node 1:
         ImmutableMap<InetAddressAndPort, HostDifferences> reduced = ReduceHelper.reduce(differenceHolder, (x,y) -> Sets.difference(y, set(B)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         HostDifferences n0 = reduced.get(A);
         assertEquals(0, n0.get(A).size());
@@ -246,6 +253,7 @@ public class ReduceHelperTest
          B streams (0, 50] from {C}, (50, 100] from {A, C}
          C streams (0, 50] from {A, B}, (50, 100] from B
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, HostDifferences> differences = new HashMap<>();
         addDifference(A, differences, B, list(range(50, 100)));
         addDifference(A, differences, C, list(range(0, 50)));
@@ -260,6 +268,7 @@ public class ReduceHelperTest
         assertEquals(set(set(B)), tracker.get(C).getIncoming().get(range(50, 100)).allStreams());
 
         ImmutableMap<InetAddressAndPort, HostDifferences> reduced = ReduceHelper.reduce(differenceHolder, (x, y) -> y);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         HostDifferences n0 = reduced.get(A);
 
@@ -268,6 +277,7 @@ public class ReduceHelperTest
 
         HostDifferences n1 = reduced.get(B);
         assertEquals(0, n1.get(B).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!n1.get(A).isEmpty())
         {
             assertTrue(n1.get(C).equals(list(range(0, 50))));
@@ -279,6 +289,7 @@ public class ReduceHelperTest
         }
         HostDifferences n2 = reduced.get(C);
         assertEquals(0, n2.get(C).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!n2.get(A).isEmpty())
         {
             assertTrue(n2.get(A).equals(list(range(0,50))));
@@ -310,6 +321,7 @@ public class ReduceHelperTest
          B == C on (5, 10], (40, 45]
          */
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, HostDifferences> differences = new HashMap<>();
         addDifference(A, differences, B, list(range(5, 45)));
         addDifference(A, differences, C, list(range(0, 10), range(40,50)));
@@ -343,6 +355,7 @@ public class ReduceHelperTest
         assertEquals(set(set(A)), ranges.get(range(40, 45)).allStreams());
         assertEquals(set(set(A,B)), ranges.get(range(45, 50)).allStreams());
         ImmutableMap<InetAddressAndPort, HostDifferences> reduced = ReduceHelper.reduce(differenceHolder, (x, y) -> y);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         assertNoOverlap(A, reduced.get(A), list(range(0, 50)));
         assertNoOverlap(B, reduced.get(B), list(range(0, 50)));
@@ -384,6 +397,7 @@ public class ReduceHelperTest
     @SafeVarargs
     private static Set<Set<InetAddressAndPort>> set(Set<InetAddressAndPort> ... elem)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<Set<InetAddressAndPort>> ret = Sets.newHashSet();
         ret.addAll(Arrays.asList(elem));
         return ret;

@@ -103,6 +103,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
 
         private static final LZ4SafeDecompressor decompressor =
             LZ4Factory.fastestInstance().safeDecompressor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
 
         private final BufferPoolAllocator allocator;
 
@@ -246,6 +247,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             try
             {
                 int sourceLength = end - (begin + HEADER_LENGTH);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
                 decompressor.decompress(buf, begin + HEADER_LENGTH, sourceLength, out, 0, header.uncompressedLength);
                 validateChecksum(out, 0, header);
                 return ShareableBytes.wrap(out);

@@ -51,6 +51,7 @@ public interface Conditions
      * @param functions the list to add to
      */
     void addFunctionsTo(List<Function> functions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
 
     /**
      * Returns the column definitions to which apply the conditions.

@@ -35,6 +35,7 @@ public class LatencyMetricsTest
         @Override
         public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
             return new CassandraMetricsRegistry.MetricName(TestMetricsNameFactory.class, metricName);
         }
     }
@@ -46,6 +47,7 @@ public class LatencyMetricsTest
     public void testGetRecentLatency()
     {
         final LatencyMetrics l = new LatencyMetrics("test", "test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
         Runnable r = () -> {
             for (int i = 0; i < 10000; i++)
             {
@@ -56,6 +58,7 @@ public class LatencyMetricsTest
 
         for (int i = 0; i < 10000; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
             Double recent = l.latency.getOneMinuteRate();
             assertFalse(recent.equals(Double.POSITIVE_INFINITY));
         }
@@ -67,6 +70,7 @@ public class LatencyMetricsTest
     @Test
     public void testReadMerging()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
         final LatencyMetrics parent = new LatencyMetrics("testMerge", "testMerge");
         final LatencyMetrics child = new LatencyMetrics(factory, "testChild", parent);
 

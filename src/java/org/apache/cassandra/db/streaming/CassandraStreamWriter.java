@@ -65,6 +65,7 @@ public class CassandraStreamWriter
         this.session = session;
         this.sstable = sstable;
         this.sections = sections;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6596
         this.limiter =  StreamManager.getRateLimiter(session.peer);
     }
 
@@ -79,10 +80,13 @@ public class CassandraStreamWriter
     public void write(DataOutputStreamPlus output) throws IOException
     {
         long totalSize = totalSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10961
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingOutputPlus out = (AsyncStreamingOutputPlus) output;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
             ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
                                           ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
@@ -94,6 +98,8 @@ public class CassandraStreamWriter
             long progress = 0L;
 
             // stream each of the required sections of the file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
                 long start = validator == null ? section.lowerPosition : validator.chunkStart(section.lowerPosition);
@@ -113,6 +119,7 @@ public class CassandraStreamWriter
                     start += lastBytesRead;
                     bytesRead += lastBytesRead;
                     progress += (lastBytesRead - transferOffset);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
                     session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
                     transferOffset = 0;
                 }
@@ -121,6 +128,7 @@ public class CassandraStreamWriter
                 out.flush();
             }
             logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                          session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress), FBUtilities.prettyPrintMemory(totalSize));
         }
     }
@@ -128,6 +136,7 @@ public class CassandraStreamWriter
     protected long totalSize()
     {
         long size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         for (SSTableReader.PartitionPositionBounds section : sections)
             size += section.upperPosition - section.lowerPosition;
         return size;
@@ -153,7 +162,9 @@ public class CassandraStreamWriter
 
         // this buffer will hold the data from disk. as it will be compressed on the fly by
         // AsyncChannelCompressedStreamWriter.write(ByteBuffer), we can release this buffer as soon as we can.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBuffer buffer = BufferPool.get(minReadable, BufferType.OFF_HEAP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         try
         {
             int readCount = proxy.read(buffer, start);
@@ -168,6 +179,7 @@ public class CassandraStreamWriter
 
             buffer.position(transferOffset);
             buffer.limit(transferOffset + (toTransfer - transferOffset));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             output.writeToChannel(StreamCompressionSerializer.serialize(compressor, buffer, current_version), limiter);
         }
         finally

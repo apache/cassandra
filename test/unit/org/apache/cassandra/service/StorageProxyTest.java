@@ -37,6 +37,7 @@ public class StorageProxyTest
 {
     private static Range<PartitionPosition> range(PartitionPosition left, PartitionPosition right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new Range<PartitionPosition>(left, right);
     }
 
@@ -57,6 +58,7 @@ public class StorageProxyTest
 
     private static PartitionPosition startOf(String key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return token(key).minKeyBound();
     }
 
@@ -78,9 +80,12 @@ public class StorageProxyTest
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         DatabaseDescriptor.getHintsDirectory().mkdir();
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateNormalToken(token("1"), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(token("6"), InetAddressAndPort.getByName("127.0.0.6"));
     }
@@ -89,6 +94,7 @@ public class StorageProxyTest
     private void testGRR(AbstractBounds<Token> queryRange, AbstractBounds<Token>... expected)
     {
         // Testing for tokens
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         List<AbstractBounds<Token>> restricted = StorageProxy.getRestrictedRanges(queryRange);
         assertEquals(restricted.toString(), expected.length, restricted.size());
         for (int i = 0; i < expected.length; i++)
@@ -99,6 +105,7 @@ public class StorageProxyTest
     private void testGRRKeys(AbstractBounds<PartitionPosition> queryRange, AbstractBounds<PartitionPosition>... expected)
     {
         // Testing for keys
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<AbstractBounds<PartitionPosition>> restrictedKeys = StorageProxy.getRestrictedRanges(queryRange);
         assertEquals(restrictedKeys.toString(), expected.length, restrictedKeys.size());
         for (int i = 0; i < expected.length; i++)
@@ -130,6 +137,7 @@ public class StorageProxyTest
         // no splits
         testGRRKeys(range(rp("2"), rp("5")), range(rp("2"), rp("5")));
         testGRRKeys(bounds(rp("2"), rp("5")), bounds(rp("2"), rp("5")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         testGRRKeys(exBounds(rp("2"), rp("5")), exBounds(rp("2"), rp("5")));
         // single split testGRRKeys(range("2", "7"), range(rp("2"), endOf("6")), range(endOf("6"), rp("7")));
         testGRRKeys(bounds(rp("2"), rp("7")), bounds(rp("2"), endOf("6")), range(endOf("6"), rp("7")));
@@ -171,6 +179,7 @@ public class StorageProxyTest
         testGRRKeys(range(endOf("1"), endOf("5")), range(endOf("1"), endOf("5")));
         testGRRKeys(range(rp("1"), endOf("5")), range(rp("1"), endOf("1")), range(endOf("1"), endOf("5")));
         testGRRKeys(bounds(startOf("1"), endOf("5")), bounds(startOf("1"), endOf("1")), range(endOf("1"), endOf("5")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         testGRRKeys(exBounds(endOf("1"), rp("5")), exBounds(endOf("1"), rp("5")));
         testGRRKeys(exBounds(rp("1"), rp("5")), range(rp("1"), endOf("1")), exBounds(endOf("1"), rp("5")));
         testGRRKeys(exBounds(startOf("1"), endOf("5")), range(startOf("1"), endOf("1")), exBounds(endOf("1"), endOf("5")));
@@ -233,6 +242,7 @@ public class StorageProxyTest
         testGRRKeys(bounds(rp("0"), rp("0")), bounds(rp("0"), rp("0")));
         // completely empty bounds match everything
         testGRRKeys(bounds(rp(""), rp("")), bounds(rp(""), endOf("1")), range(endOf("1"), endOf("6")), range(endOf("6"), rp("")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         testGRRKeys(exBounds(rp(""), rp("")), range(rp(""), endOf("1")), range(endOf("1"), endOf("6")), exBounds(endOf("6"), rp("")));
         testGRRKeys(incExBounds(rp(""), rp("")), bounds(rp(""), endOf("1")), range(endOf("1"), endOf("6")), exBounds(endOf("6"), rp("")));
     }

@@ -65,6 +65,7 @@ public class CacheService implements CacheServiceMBean
 
         private final String name;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
         CacheType(String typeName)
         {
             name = typeName;
@@ -85,6 +86,7 @@ public class CacheService implements CacheServiceMBean
     private CacheService()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
         keyCache = initKeyCache();
         rowCache = initRowCache();
@@ -99,10 +101,12 @@ public class CacheService implements CacheServiceMBean
         logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
 
         long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMB() * 1024 * 1024;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4150
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
         ICache<KeyCacheKey, RowIndexEntry> kc;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         kc = CaffeineCache.create(keyCacheInMemoryCapacity);
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
@@ -120,6 +124,7 @@ public class CacheService implements CacheServiceMBean
     {
         logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         CacheProvider<RowCacheKey, IRowCacheEntry> cacheProvider;
         String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMB() > 0
                                         ? DatabaseDescriptor.getRowCacheClassName() : "org.apache.cassandra.cache.NopCacheProvider";
@@ -152,6 +157,7 @@ public class CacheService implements CacheServiceMBean
         long capacity = DatabaseDescriptor.getCounterCacheSizeInMB() * 1024 * 1024;
 
         AutoSavingCache<CounterCacheKey, ClockAndCount> cache =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             new AutoSavingCache<>(CaffeineCache.create(capacity),
                                   CacheType.COUNTER_CACHE,
                                   new CounterCacheSerializer());
@@ -170,11 +176,13 @@ public class CacheService implements CacheServiceMBean
 
     public int getRowCacheSavePeriodInSeconds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
         return DatabaseDescriptor.getRowCacheSavePeriod();
     }
 
     public void setRowCacheSavePeriodInSeconds(int seconds)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5980
         if (seconds < 0)
             throw new RuntimeException("RowCacheSavePeriodInSeconds must be non-negative.");
 
@@ -189,6 +197,7 @@ public class CacheService implements CacheServiceMBean
 
     public void setKeyCacheSavePeriodInSeconds(int seconds)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5980
         if (seconds < 0)
             throw new RuntimeException("KeyCacheSavePeriodInSeconds must be non-negative.");
 
@@ -256,6 +265,7 @@ public class CacheService implements CacheServiceMBean
 
     public void invalidateKeyCacheForCf(TableMetadata tableMetadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         Iterator<KeyCacheKey> keyCacheIterator = keyCache.keyIterator();
         while (keyCacheIterator.hasNext())
         {
@@ -272,6 +282,7 @@ public class CacheService implements CacheServiceMBean
 
     public void invalidateRowCacheForCf(TableMetadata tableMetadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         Iterator<RowCacheKey> rowCacheIterator = rowCache.keyIterator();
         while (rowCacheIterator.hasNext())
         {
@@ -283,6 +294,7 @@ public class CacheService implements CacheServiceMBean
 
     public void invalidateCounterCacheForCf(TableMetadata tableMetadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         Iterator<CounterCacheKey> counterCacheIterator = counterCache.keyIterator();
         while (counterCacheIterator.hasNext())
         {
@@ -346,6 +358,7 @@ public class CacheService implements CacheServiceMBean
             TableMetadata tableMetadata = cfs.metadata();
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             key.write(out);
         }
 
@@ -359,6 +372,8 @@ public class CacheService implements CacheServiceMBean
             if (!cfs.metadata().isCounter() || !cfs.isCounterCacheEnabled())
                 return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             return Stage.READ.submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
             {
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
@@ -393,10 +408,13 @@ public class CacheService implements CacheServiceMBean
             final int rowsToCache = cfs.metadata().params.caching.rowsPerPartitionToCache();
             assert(!cfs.isIndex());//Shouldn't have row cache entries for indexes
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             return Stage.READ.submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
             {
                 public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     DecoratedKey key = cfs.decorateKey(buffer);
                     int nowInSec = FBUtilities.nowInSeconds();
                     SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(cfs.metadata(), nowInSec, key);
@@ -414,6 +432,7 @@ public class CacheService implements CacheServiceMBean
     {
         public void serialize(KeyCacheKey key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9466
             RowIndexEntry entry = CacheService.instance.keyCache.getInternal(key);
             if (entry == null)
                 return;
@@ -424,6 +443,7 @@ public class CacheService implements CacheServiceMBean
             ByteBufferUtil.writeWithLength(key.key, out);
             out.writeInt(key.desc.generation);
             out.writeBoolean(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
 
             SerializationHeader header = new SerializationHeader(false, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
             key.desc.getFormat().getIndexSerializer(cfs.metadata(), key.desc.version, header).serializeForCache(entry, out);
@@ -434,6 +454,7 @@ public class CacheService implements CacheServiceMBean
             //Keyspace and CF name are deserialized by AutoSaving cache and used to fetch the CFS provided as a
             //parameter so they aren't deserialized here, even though they are serialized by this serializer
             int keyLength = input.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6260
             if (keyLength > FBUtilities.MAX_UNSIGNED_SHORT)
             {
                 throw new IOException(String.format("Corrupted key cache. Key length of %d is longer than maximum of %d",
@@ -449,6 +470,7 @@ public class CacheService implements CacheServiceMBean
                 // wrong is during upgrade, in which case we fail at deserialization. This is not a huge deal however since 1) this is unlikely enough that
                 // this won't affect many users (if any) and only once, 2) this doesn't prevent the node from starting and 3) CASSANDRA-10219 shows that this
                 // part of the code has been broken for a while without anyone noticing (it is, btw, still broken until CASSANDRA-10219 is fixed).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                 RowIndexEntry.Serializer.skipForCache(input);
                 return null;
             }

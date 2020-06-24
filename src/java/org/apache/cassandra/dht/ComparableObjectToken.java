@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8230
 abstract class ComparableObjectToken<C extends Comparable<C>> extends Token
 {
     private static final long serialVersionUID = 1L;
@@ -48,6 +49,7 @@ abstract class ComparableObjectToken<C extends Comparable<C>> extends Token
         if (obj == null || this.getClass() != obj.getClass())
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8230
         return token.equals(((ComparableObjectToken<?>)obj).token);
     }
 
@@ -61,6 +63,7 @@ abstract class ComparableObjectToken<C extends Comparable<C>> extends Token
     @SuppressWarnings("unchecked")
     public int compareTo(Token o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8230
         if (o.getClass() != getClass())
             throw new IllegalArgumentException("Invalid type of Token.compareTo() argument.");
 

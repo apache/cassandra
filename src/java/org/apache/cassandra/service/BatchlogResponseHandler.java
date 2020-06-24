@@ -36,6 +36,8 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public BatchlogResponseHandler(AbstractWriteResponseHandler<T> wrapped, int requiredBeforeFinish, BatchlogCleanup cleanup, long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         super(wrapped.replicaPlan, wrapped.callback, wrapped.writeType, queryStartNanoTime);
         this.wrapped = wrapped;
         this.requiredBeforeFinish = requiredBeforeFinish;
@@ -49,8 +51,10 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public void onResponse(Message<T> msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         wrapped.onResponse(msg);
         if (requiredBeforeFinishUpdater.decrementAndGet(this) == 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13069
             cleanup.ackMutation();
     }
 
@@ -71,6 +75,8 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     protected int blockFor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return wrapped.blockFor();
     }
 

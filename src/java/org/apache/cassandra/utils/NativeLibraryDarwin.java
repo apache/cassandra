@@ -52,7 +52,9 @@ public class NativeLibraryDarwin implements NativeLibraryWrapper
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
             Native.register(com.sun.jna.NativeLibrary.getInstance("c", Collections.emptyMap()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             available = true;
         }
         catch (NoClassDefFoundError e)
@@ -126,6 +128,7 @@ public class NativeLibraryDarwin implements NativeLibraryWrapper
 
     public boolean isAvailable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         return available;
     }
 }

@@ -200,6 +200,7 @@ public class CassandraStreamManagerTest
         Assert.assertEquals(1, allSSTables.size());
         final Token firstToken = allSSTables.iterator().next().first.getToken();
         DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
 
         Set<SSTableReader> sstablesBeforeRewrite = getReadersForRange(new Range<>(firstToken, firstToken));
         Assert.assertEquals(1, sstablesBeforeRewrite.size());
@@ -231,6 +232,7 @@ public class CassandraStreamManagerTest
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
             DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(50);
             done.set(true);
             t.join(20);

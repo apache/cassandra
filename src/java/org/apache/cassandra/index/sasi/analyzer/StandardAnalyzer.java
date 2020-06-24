@@ -45,6 +45,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
     private static final Set<AbstractType<?>> VALID_ANALYZABLE_TYPES = new HashSet<AbstractType<?>>()
     {
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
             add(UTF8Type.instance);
             add(AsciiType.instance);
         }
@@ -143,6 +144,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
             builder = builder.add("to_upper", new BasicResultFilters.UpperCase());
         if (options.shouldIgnoreStopTerms())
             builder = builder.add("skip_stop_words", new StopWordFilters.DefaultStopWordFilter(options.getLocale()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12078
         if (options.shouldStemTerms())
             builder = builder.add("term_stemming", new StemmingFilters.DefaultStemmingFilter(options.getLocale()));
         return builder.build();
@@ -165,6 +167,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
         this.options = tokenizerOptions;
         this.filterPipeline = getFilterPipeline();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13151
         Reader reader = new InputStreamReader(new DataInputBuffer(ByteBufferUtil.EMPTY_BYTE_BUFFER, false), StandardCharsets.UTF_8);
         this.scanner = new StandardTokenizerImpl(reader);
         this.inputReader = reader;
@@ -192,6 +195,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
     public void reset(ByteBuffer input)
     {
         this.next = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13151
         Reader reader = new InputStreamReader(new DataInputBuffer(input, false), StandardCharsets.UTF_8);
         scanner.yyreset(reader);
         this.inputReader = reader;
@@ -208,12 +212,14 @@ public class StandardAnalyzer extends AbstractAnalyzer
 
     public boolean isTokenizing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         return true;
     }
 
     @Override
     public boolean isCompatibleWith(AbstractType<?> validator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
         return VALID_ANALYZABLE_TYPES.contains(validator);
     }
 }

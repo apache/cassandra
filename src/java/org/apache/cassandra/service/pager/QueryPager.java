@@ -56,6 +56,7 @@ public interface QueryPager
 
         public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
             return EmptyIterators.partition();
         }
 
@@ -66,6 +67,7 @@ public interface QueryPager
 
         public boolean isExhausted()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return true;
         }
 
@@ -81,6 +83,7 @@ public interface QueryPager
 
         public QueryPager withUpdatedLimit(DataLimits newLimits)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             throw new UnsupportedOperationException();
         }
     };

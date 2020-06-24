@@ -42,6 +42,7 @@ public class ReceivedMessage extends StreamMessage
 
         public long serializedSize(ReceivedMessage message, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             return message.tableId.serializedSize() + 4;
         }
     };

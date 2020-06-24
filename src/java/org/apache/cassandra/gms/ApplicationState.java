@@ -22,19 +22,26 @@ public enum ApplicationState
     @Deprecated STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
     LOAD,
     SCHEMA,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
     DC,
     RACK,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2138
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
     RELEASE_VERSION,
     REMOVAL_COORDINATOR,
     @Deprecated INTERNAL_IP, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
     @Deprecated RPC_ADDRESS, // ^ Same
     X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4317
     NET_VERSION,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
     HOST_ID,
     TOKENS,
     RPC_READY,
     // pad to allow adding new states to existing cluster
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
     NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
     STATUS_WITH_PORT, //Replacement for STATUS

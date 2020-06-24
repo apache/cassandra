@@ -32,6 +32,7 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
 
     public Row.Builder rowBuilder(OpOrder.Group writeOp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         return allocator(writeOp).cloningBTreeRowBuilder();
     }
 

@@ -41,6 +41,7 @@ public abstract class AbstractCell extends Cell
 {
     protected AbstractCell(ColumnMetadata column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         super(column);
     }
 
@@ -122,6 +123,7 @@ public abstract class AbstractCell extends Cell
     public void digest(Digest digest)
     {
         if (isCounterCell())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             digest.updateWithCounterContext(value());
         else
             digest.update(value());
@@ -135,6 +137,7 @@ public abstract class AbstractCell extends Cell
 
     public void validate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (ttl() < 0)
             throw new MarshalException("A TTL should not be negative");
         if (localDeletionTime() < 0)
@@ -146,11 +149,13 @@ public abstract class AbstractCell extends Cell
         // so that logic is pushed down into ColumnMetadata. Tombstone
         // validation is done there too as it also involves the cell path
         // for complex columns
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12916
         column().validateCell(this);
     }
 
     public boolean hasInvalidDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         if (ttl() < 0 || localDeletionTime() < 0 || (isExpiring() && localDeletionTime() == NO_DELETION_TIME))
             return true;
         return false;
@@ -158,12 +163,14 @@ public abstract class AbstractCell extends Cell
 
     public long maxTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         return timestamp();
     }
 
     @Override
     public boolean equals(Object other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (this == other)
             return true;
 
@@ -205,6 +212,7 @@ public abstract class AbstractCell extends Cell
         if (isTombstone())
             return String.format("[%s=<tombstone> %s]", column().name, livenessInfoString());
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
             return String.format("[%s=%s %s]", column().name, safeToString(type, value()), livenessInfoString());
     }
 

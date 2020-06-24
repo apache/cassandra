@@ -93,6 +93,7 @@ public class FQLReplayTest
     @Test
     public void testQueryIterator() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         File f = generateQueries(100, false);
         int queryCount = 0;
         try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
@@ -151,6 +152,7 @@ public class FQLReplayTest
                 assertNotNull(reader.getQuery());
                 if (reader.getQuery() instanceof FQLQuery.Single)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
                     assertTrue(reader.getQuery().keyspace() == null || reader.getQuery().keyspace().equals("querykeyspace"));
                 }
                 else
@@ -171,6 +173,7 @@ public class FQLReplayTest
 
         ResultHandler.ComparableResultSet res = createResultSet(10, 10, true);
         ResultStore rs = new ResultStore(Collections.singletonList(tmpDir), queryDir);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         FQLQuery query = new FQLQuery.Single("abc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 12345, 11111, 22, "select * from abc", Collections.emptyList());
         try
         {
@@ -189,6 +192,7 @@ public class FQLReplayTest
             rs.close();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         compareResults(Collections.singletonList(Pair.create(query, res)),
                        readResultFile(tmpDir, queryDir));
 
@@ -330,6 +334,7 @@ public class FQLReplayTest
         ResultHandler.ComparableResultSet res2 = createResultSet(10, 10, false);
         ResultHandler.ComparableResultSet res3 = createResultSet(10, 10, false);
         List<ResultHandler.ComparableResultSet> toCompare = Lists.newArrayList(res, res2, res3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         FQLQuery query = new FQLQuery.Single("abcabc", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 1111, 2222, 3333, "select * from xyz", Collections.emptyList());
         try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
         {
@@ -356,6 +361,7 @@ public class FQLReplayTest
         ResultHandler.ComparableResultSet res2 = createResultSet(10, 5, false);
         ResultHandler.ComparableResultSet res3 = createResultSet(10, 10, false);
         List<ResultHandler.ComparableResultSet> toCompare = Lists.newArrayList(res, res2, res3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         FQLQuery query = new FQLQuery.Single("aaa", QueryOptions.DEFAULT.getProtocolVersion().asInt(), QueryOptions.DEFAULT, 123123, 11111, 22222, "select * from abcabc", Collections.emptyList());
         try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
         {
@@ -386,6 +392,7 @@ public class FQLReplayTest
             {
                 results.add(createResultSet(5, 1 + random.nextInt(10), true));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             FQLQuery q = i % 2 == 0
                          ? new FQLQuery.Single("abc"+i,
                                              3,
@@ -436,6 +443,7 @@ public class FQLReplayTest
             {
                 results.add(createResultSet(5, 1 + random.nextInt(10), true));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             results.set(0, StoredResultSet.failed("testing abc"));
             results.set(3, StoredResultSet.failed("testing abc"));
             FQLQuery q = new FQLQuery.Single("abc"+i,
@@ -448,6 +456,7 @@ public class FQLReplayTest
                                              values);
             resultSets.add(Pair.create(q, results));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         try (ResultHandler rh = new ResultHandler(targetHosts, resultPaths, queryDir))
         {
             for (int i = 0; i < resultSets.size(); i++)
@@ -494,6 +503,7 @@ public class FQLReplayTest
     @Test
     public void testFQLQuerySingleToStatement()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         List<ByteBuffer> values = new ArrayList<>();
         for (int i = 0; i < 10; i++)
             values.add(ByteBufferUtil.bytes(i));
@@ -551,6 +561,7 @@ public class FQLReplayTest
 
     @Test
     public void testParser() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
         QueryReplayer.ParsedTargetHost pth;
         pth = fromString("127.0.0.1");
         assertEquals("127.0.0.1", pth.host);
@@ -592,6 +603,7 @@ public class FQLReplayTest
     @Test (expected = IORuntimeException.class)
     public void testFutureVersion() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
         FQLQueryReader reader = new FQLQueryReader();
         File dir = Files.createTempDirectory("chronicle").toFile();
         try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).build())
@@ -744,6 +756,7 @@ public class FQLReplayTest
         {
             columnDefs.add(Pair.create("a" + i, "int"));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         ResultHandler.ComparableColumnDefinitions colDefs = new StoredResultSet.StoredComparableColumnDefinitions(columnDefs, false, null);
         List<ResultHandler.ComparableRow> rows = new ArrayList<>();
         for (int i = 0; i < rowCount; i++)
@@ -775,6 +788,7 @@ public class FQLReplayTest
              ChronicleQueue queryQ = ChronicleQueueBuilder.single(queryDir).build())
         {
             ExcerptTailer queryTailer = queryQ.createTailer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             FQLQueryReader queryReader = new FQLQueryReader();
             Compare.StoredResultSetIterator resultSetIterator = new Compare.StoredResultSetIterator(q.createTailer());
             // we need to materialize the rows in-memory to compare them easier in these tests

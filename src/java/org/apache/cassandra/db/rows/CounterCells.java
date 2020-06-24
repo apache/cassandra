@@ -27,6 +27,7 @@ public abstract class CounterCells
 
     public static boolean hasLegacyShards(Cell cell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return contextManager.hasLegacyShards(cell.value());
     }
 }

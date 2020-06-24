@@ -66,6 +66,7 @@ import org.apache.hadoop.util.Progressable;
  * @see CqlBulkOutputFormat
  */
 public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         implements org.apache.hadoop.mapred.RecordWriter<Object, List<ByteBuffer>>
 {
     public final static String OUTPUT_LOCATION = "mapreduce.output.bulkoutputformat.localdir";
@@ -95,6 +96,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
 
     CqlBulkRecordWriter(TaskAttemptContext context) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         this(HadoopCompat.getConfiguration(context));
         this.context = context;
         setConfigs();
@@ -120,6 +122,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     {
         // if anything is missing, exceptions will be thrown here, instead of on write()
         keyspace = ConfigHelper.getOutputKeyspace(conf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         table = ConfigHelper.getOutputColumnFamily(conf);
         
         // check if table is aliased
@@ -130,6 +133,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         schema = CqlBulkOutputFormat.getTableSchema(conf, table);
         insertStatement = CqlBulkOutputFormat.getTableInsertStatement(conf, table);
         outputDir = getTableDirectory();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7777
         deleteSrc = CqlBulkOutputFormat.getDeleteSourceOnSuccess(conf);
         try
         {
@@ -142,6 +146,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         try
         {
             for (String hostToIgnore : CqlBulkOutputFormat.getIgnoreHosts(conf))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 ignores.add(InetAddressAndPort.getByName(hostToIgnore));
         }
         catch (UnknownHostException e)
@@ -177,11 +182,15 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
             ExternalClient externalClient = new ExternalClient(conf);
             externalClient.setTableMetadata(TableMetadataRef.forOfflineTools(CreateTableStatement.parse(schema, keyspace).build()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9353
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
             loader = new SSTableLoader(outputDir, externalClient, new NullOutputHandler())
             {
                 @Override
                 public void onSuccess(StreamState finalState)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7777
                     if (deleteSrc)
                         FileUtils.deleteRecursive(outputDir);
                 }
@@ -224,6 +233,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     
     private File getTableDirectory() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         File dir = new File(String.format("%s%s%s%s%s-%s", getOutputLocation(), File.separator, keyspace, File.separator, table, UUID.randomUUID().toString()));
         
         if (!dir.exists() && !dir.mkdirs())
@@ -237,6 +247,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     @Override
     public void close(TaskAttemptContext context) throws IOException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         close();
     }
 
@@ -290,6 +301,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
                   ConfigHelper.getOutputInitialPort(conf),
                   ConfigHelper.getOutputKeyspaceUserName(conf),
                   ConfigHelper.getOutputKeyspacePassword(conf),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                   CqlConfigHelper.getSSLOptions(conf).orNull());
         }
 

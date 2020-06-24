@@ -95,6 +95,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
         this.cfPersisted = cfPersisted;
         this.globalPosition = globalPosition;
         this.replayFilter = replayFilter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
         this.archiver = commitLog.archiver;
         this.commitLogReader = new CommitLogReader();
     }
@@ -114,6 +116,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 // Point in time restore is taken to mean that the tables need to be replayed even if they were
                 // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
                 // to replay (CASSANDRA-9195).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
                 long restoreTime = commitLog.archiver.restorePointInTime;
                 long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.id);
                 if (truncatedTime > restoreTime)
@@ -139,6 +143,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public void replayPath(File file, boolean tolerateTruncation) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         sawCDCMutation = false;
         commitLogReader.readCommitLogSegment(this, file, globalPosition, CommitLogReader.ALL_MUTATIONS, tolerateTruncation);
         if (sawCDCMutation)
@@ -155,6 +160,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             sawCDCMutation = false;
             commitLogReader.readCommitLogSegment(this, file, globalPosition, i == filteredLogs.size());
             if (sawCDCMutation)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14066
                 handleCDCReplayCompletion(file);
         }
     }
@@ -200,16 +206,21 @@ public class CommitLogReplayer implements CommitLogReadHandler
         // wait for all the writes to finish on the mutation stage
         FBUtilities.waitOnFutures(futures);
         logger.trace("Finished waiting on mutations from recovery");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         // flush replayed keyspaces
         futures.clear();
         boolean flushingSystem = false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8639
         List<Future<?>> futures = new ArrayList<Future<?>>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         for (Keyspace keyspace : keyspacesReplayed)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 flushingSystem = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10164
 
             futures.addAll(keyspace.flush());
         }
@@ -217,6 +228,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
         // also flush batchlog incase of any MV updates
         if (!flushingSystem)
             futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         FBUtilities.waitOnFutures(futures);
 
@@ -252,6 +264,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     //    b) have already been flushed,
                     // or c) are part of a cf that was dropped.
                     // Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                     Mutation.PartitionUpdateCollector newPUCollector = null;
                     for (PartitionUpdate update : commitLogReplayer.replayFilter.filter(mutation))
                     {
@@ -262,6 +275,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                         // if it is the last known segment, if we are after the commit log segment position
                         if (commitLogReplayer.shouldReplay(update.metadata().id, new CommitLogPosition(segmentId, entryLocation)))
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                             if (newPUCollector == null)
                                 newPUCollector = new Mutation.PartitionUpdateCollector(mutation.getKeyspaceName(), mutation.key());
                             newPUCollector.add(update);
@@ -277,6 +291,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     }
                 }
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             return Stage.MUTATION.submit(runnable, serializedSize);
         }
     }
@@ -288,6 +304,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     public static IntervalSet<CommitLogPosition> persistedIntervals(Iterable<SSTableReader> onDisk, CommitLogPosition truncatedAt)
     {
         IntervalSet.Builder<CommitLogPosition> builder = new IntervalSet.Builder<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         for (SSTableReader reader : onDisk)
             builder.addAll(reader.getSSTableMetadata().commitLogIntervals);
 
@@ -316,6 +333,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 .get(); // iteration is per known-CF, there must be at least one.
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
     abstract static class ReplayFilter
     {
         public abstract Iterable<PartitionUpdate> filter(Mutation mutation);
@@ -325,12 +343,14 @@ public class CommitLogReplayer implements CommitLogReadHandler
         public static ReplayFilter create()
         {
             // If no replaylist is supplied an empty array of strings is used to replay everything.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4809
             if (System.getProperty("cassandra.replayList") == null)
                 return new AlwaysReplayFilter();
 
             Multimap<String, String> toReplay = HashMultimap.create();
             for (String rawPair : System.getProperty("cassandra.replayList").split(","))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
                 String[] pair = StringUtils.split(rawPair.trim(), '.');
                 if (pair.length != 2)
                     throw new IllegalArgumentException("Each table to be replayed must be fully qualified with keyspace name, e.g., 'system.peers'");
@@ -352,6 +372,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     {
         public Iterable<PartitionUpdate> filter(Mutation mutation)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return mutation.getPartitionUpdates();
         }
 
@@ -405,6 +426,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     protected boolean pointInTimeExceeded(Mutation fm)
     {
         long restoreTarget = archiver.restorePointInTime;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
 
         for (PartitionUpdate upd : fm.getPartitionUpdates())
         {
@@ -416,9 +438,11 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         if (DatabaseDescriptor.isCDCEnabled() && m.trackedByCDC())
             sawCDCMutation = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         pendingMutationBytes += size;
         futures.offer(mutationInitiator.initiateMutation(m,
                                                          desc.id,

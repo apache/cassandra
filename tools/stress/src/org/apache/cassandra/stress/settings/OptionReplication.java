@@ -32,6 +32,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 /**
  * For specifying replication options
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
 class OptionReplication extends OptionMulti
 {
 
@@ -51,6 +52,7 @@ class OptionReplication extends OptionMulti
     public Map<String, String> getOptions()
     {
         Map<String, String> options = extraOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7945
         if (!options.containsKey("replication_factor") && (strategy.value().equals("org.apache.cassandra.locator.SimpleStrategy") || factor.setByUser()))
             options.put("replication_factor", factor.value());
         return options;
@@ -71,6 +73,7 @@ class OptionReplication extends OptionMulti
     {
         public String apply(String name)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
             String strategy = null;
             for (String fullname : new String[] { name, "org.apache.cassandra.locator." + name })
             {
@@ -78,9 +81,11 @@ class OptionReplication extends OptionMulti
                 {
                     Class<?> clazz = Class.forName(fullname);
                     if (!AbstractReplicationStrategy.class.isAssignableFrom(clazz))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
                         throw new IllegalArgumentException(clazz + " is not a replication strategy");
                     strategy = fullname;
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7675
                 } catch (Exception ignore)
                 {
                     // will throw below if strategy is still null

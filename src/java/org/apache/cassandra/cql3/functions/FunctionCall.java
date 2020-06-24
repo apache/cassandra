@@ -47,6 +47,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         Terms.addFunctions(terms, functions);
         fun.addFunctionsTo(functions);
     }
@@ -64,9 +65,11 @@ public class FunctionCall extends Term.NonTerminal
 
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
         List<ByteBuffer> buffers = new ArrayList<>(terms.size());
         for (Term t : terms)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             ByteBuffer functionArg = t.bindAndGet(options);
             RequestValidations.checkBindValueSet(functionArg, "Invalid unset value for argument in call to function %s", fun.name().name);
             buffers.add(functionArg);
@@ -86,6 +89,7 @@ public class FunctionCall extends Term.NonTerminal
         }
         catch (MarshalException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             throw new RuntimeException(String.format("Return of function %s (%s) is not a valid value for its declared return type %s",
                                                      fun, ByteBufferUtil.bytesToHex(result), fun.returnType().asCQL3Type()), e);
         }
@@ -93,6 +97,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public boolean containsBindMarker()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5795
         for (Term t : terms)
         {
             if (t.containsBindMarker())
@@ -103,6 +108,7 @@ public class FunctionCall extends Term.NonTerminal
 
     private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, ProtocolVersion version) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13891
         if (result == null)
             return null;
         if (fun.returnType().isCollection())
@@ -138,6 +144,7 @@ public class FunctionCall extends Term.NonTerminal
 
         public static Raw newOperation(char operator, Term.Raw left, Term.Raw right)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             FunctionName name = OperationFcts.getFunctionNameFromOperator(operator);
             return new Raw(name, Arrays.asList(left, right));
         }
@@ -150,6 +157,7 @@ public class FunctionCall extends Term.NonTerminal
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
             Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);
             if (fun == null)
                 throw invalidRequest("Unknown function %s called", name);
@@ -160,6 +168,7 @@ public class FunctionCall extends Term.NonTerminal
 
             // Functions.get() will complain if no function "name" type check with the provided arguments.
             // We still have to validate that the return type matches however
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
             if (!scalarFun.testAssignment(keyspace, receiver).isAssignable())
             {
                 if (OperationFcts.isOperation(name))
@@ -176,13 +185,16 @@ public class FunctionCall extends Term.NonTerminal
                 throw invalidRequest("Incorrect number of arguments specified for function %s (expected %d, found %d)",
                                      fun, fun.argTypes().size(), terms.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
             List<Term> parameters = new ArrayList<>(terms.size());
             for (int i = 0; i < terms.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
                 Term t = terms.get(i).prepare(keyspace, FunctionResolver.makeArgSpec(receiver.ksName, receiver.cfName, scalarFun, i));
                 parameters.add(t);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9037
             return new FunctionCall(scalarFun, parameters);
         }
 
@@ -192,13 +204,16 @@ public class FunctionCall extends Term.NonTerminal
             // the arguments can be found. We may get one of those if an undefined/wrong function is used as argument
             // of another, existing, function. In that case, we return true here because we'll throw a proper exception
             // later with a more helpful error message that if we were to return false here.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
             try
             {
                 Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
                 // Because fromJson() can return whatever type the receiver is, we'll always get EXACT_MATCH.  To
                 // handle potentially ambiguous function calls with fromJson() as an argument, always return
                 // WEAKLY_ASSIGNABLE to force the user to typecast if necessary
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                 if (fun != null && fun.name().equals(FromJsonFct.NAME))
                     return TestResult.WEAKLY_ASSIGNABLE;
 
@@ -222,11 +237,13 @@ public class FunctionCall extends Term.NonTerminal
             // let that future patch make sure this can be implemented properly (note in particular we don't have access
             // to the receiver type, which FunctionResolver.get() takes) rather than provide an implementation that may
             // not work in all cases.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             throw new UnsupportedOperationException();
         }
 
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return name + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
         }
     }

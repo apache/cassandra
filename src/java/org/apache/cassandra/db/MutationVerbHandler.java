@@ -28,6 +28,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
 
     private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Tracing.trace("Enqueuing response to {}", respondToAddress);
         MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
     }
@@ -40,6 +41,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
     public void doVerb(Message<Mutation> message)
     {
         // Check if there were any forwarding headers in this message
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         InetAddressAndPort from = message.respondTo();
         InetAddressAndPort respondToAddress;
         if (from == null)
@@ -53,6 +55,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
             respondToAddress = from;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
         try
         {
             message.payload.applyFuture().thenAccept(o -> respond(message, respondToAddress)).exceptionally(wto -> {
@@ -68,6 +71,7 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
 
     private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message.Builder<Mutation> builder =
             Message.builder(originalMessage)
                    .withParam(ParamType.RESPOND_TO, originalMessage.from())

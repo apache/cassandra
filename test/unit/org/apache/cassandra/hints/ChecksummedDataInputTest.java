@@ -44,6 +44,7 @@ public class ChecksummedDataInputTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -84,8 +85,10 @@ public class ChecksummedDataInputTest
         FBUtilities.updateChecksum(crc, buffer);
 
         // save the buffer to file to create a RAR
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File file = FileUtils.createTempFile("testReadMethods", "1");
         file.deleteOnExit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new SequentialWriter(file))
         {
             writer.write(buffer);
@@ -121,6 +124,7 @@ public class ChecksummedDataInputTest
             // assert that the crc matches, and that we've read exactly as many bytes as expected
             assertTrue(reader.checkCrc());
             assertTrue(reader.isEOF());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
 
             reader.checkLimit(0);
         }
@@ -159,6 +163,7 @@ public class ChecksummedDataInputTest
         }
 
         // save the buffer to file to create a RAR
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File file = FileUtils.createTempFile("testResetCrc", "1");
         file.deleteOnExit();
         try (SequentialWriter writer = new SequentialWriter(file))
@@ -186,6 +191,7 @@ public class ChecksummedDataInputTest
             assertEquals(2.2f, reader.readFloat());
             assertEquals(42, reader.readInt());
             assertTrue(reader.checkCrc());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
             assertTrue(reader.isEOF());
         }
     }
@@ -215,8 +221,11 @@ public class ChecksummedDataInputTest
         }
 
         // save the buffer to file to create a RAR
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File file = FileUtils.createTempFile("testFailedCrc", "1");
         file.deleteOnExit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new SequentialWriter(file))
         {
             writer.write(buffer);
@@ -236,6 +245,7 @@ public class ChecksummedDataInputTest
             assertEquals(10, reader.readByte());
             assertEquals('t', reader.readChar());
             assertFalse(reader.checkCrc());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
             assertTrue(reader.isEOF());
         }
     }

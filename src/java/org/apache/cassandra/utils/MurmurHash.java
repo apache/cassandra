@@ -44,11 +44,15 @@ public class MurmurHash
 
         int len_4 = length >> 2;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1555
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         for (int i = 0; i < len_4; i++)
         {
             int i_4 = i << 2;
             int k = data.get(offset + i_4 + 3);
             k = k << 8;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             k = k | (data.get(offset + i_4 + 2) & 0xff);
             k = k << 8;
             k = k | (data.get(offset + i_4 + 1) & 0xff);
@@ -69,6 +73,8 @@ public class MurmurHash
         {
             if (left >= 3)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                 h ^= (int) data.get(offset + length - 3) << 16;
             }
             if (left >= 2)
@@ -103,6 +109,8 @@ public class MurmurHash
         {
             int i_8 = i << 3;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             long k64 =  ((long)  key.get(offset+i_8+0) & 0xff)      + (((long) key.get(offset+i_8+1) & 0xff)<<8)  +
                         (((long) key.get(offset+i_8+2) & 0xff)<<16) + (((long) key.get(offset+i_8+3) & 0xff)<<24) +
                         (((long) key.get(offset+i_8+4) & 0xff)<<32) + (((long) key.get(offset+i_8+5) & 0xff)<<40) +
@@ -123,6 +131,8 @@ public class MurmurHash
         case 0:
             break;
         case 7:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             h64 ^= (long) key.get(offset + length - rem + 6) << 48;
         case 6:
             h64 ^= (long) key.get(offset + length - rem + 5) << 40;
@@ -150,6 +160,7 @@ public class MurmurHash
     {
         int i_8 = index << 3;
         int blockOffset = offset + i_8;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4062
         return ((long) key.get(blockOffset + 0) & 0xff) + (((long) key.get(blockOffset + 1) & 0xff) << 8) +
                (((long) key.get(blockOffset + 2) & 0xff) << 16) + (((long) key.get(blockOffset + 3) & 0xff) << 24) +
                (((long) key.get(blockOffset + 4) & 0xff) << 32) + (((long) key.get(blockOffset + 5) & 0xff) << 40) +
@@ -158,6 +169,7 @@ public class MurmurHash
 
     protected static long rotl64(long v, int n)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2975
         return ((v << n) | (v >>> (64 - n)));
     }
 

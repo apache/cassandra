@@ -70,6 +70,8 @@ public class ViewComplexTest extends CQLTester
     private void updateViewWithFlush(String query, boolean flush, Object... params) throws Throwable
     {
         executeNet(protocolVersion, query, params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
                 && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {
@@ -143,6 +145,7 @@ public class ViewComplexTest extends CQLTester
         executeNet(protocolVersion, "USE " + keyspace());
         createTable("CREATE TABLE %s (k int, c int, a int, b int, e int, f int, PRIMARY KEY (k, c))");
         createView("mv",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                    "CREATE MATERIALIZED VIEW %s AS SELECT a, b, c, k FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
         Keyspace ks = Keyspace.open(keyspace());
         ks.getColumnFamilyStore("mv").disableAutoCompaction();
@@ -321,6 +324,7 @@ public class ViewComplexTest extends CQLTester
     {
         // CASSANDRA-13127: if base column not selected in view are alive, then pk of view row should be alive
         String baseTable = createTable("create table %s (p int, c int, v1 int, v2 int, primary key(p, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14219
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
@@ -400,6 +404,7 @@ public class ViewComplexTest extends CQLTester
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * from mv WHERE c = ? AND p = ?", 0, 0), row(0, 0));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Cannot drop column v2 on base table %s with materialized views", baseTable), "ALTER TABLE %s DROP v2");
         // // drop unselected base column, unselected metadata should be removed, thus view row is dead
         // updateView("ALTER TABLE %s DROP v2");
@@ -425,8 +430,10 @@ public class ViewComplexTest extends CQLTester
     {
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14219
         String baseTable = createTable("CREATE TABLE %s (k int, c int, a int, b int, l list<int>, s set<int>, m map<int,int>, PRIMARY KEY (k, c))");
         createView("mv",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                    "CREATE MATERIALIZED VIEW %s AS SELECT a, b, c, k FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (c, k)");
         Keyspace ks = Keyspace.open(keyspace());
         ks.getColumnFamilyStore("mv").disableAutoCompaction();
@@ -461,6 +468,7 @@ public class ViewComplexTest extends CQLTester
         assertRowsIgnoringOrder(execute("SELECT k,c,a,b from %s"), row(1, 1, null, null));
         assertRowsIgnoringOrder(execute("SELECT * from mv"), row(1, 1, null, null));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Cannot drop column m on base table %s with materialized views", baseTable), "ALTER TABLE %s DROP m");
         // executeNet(protocolVersion, "ALTER TABLE %s DROP m");
         // ks.getColumnFamilyStore("mv").forceMajorCompaction();
@@ -850,6 +858,7 @@ public class ViewComplexTest extends CQLTester
         for (String view : Arrays.asList("mv1", "mv2"))
         {
             // paging
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             assertEquals(1, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s limit 1", view), 1).all().size());
             assertEquals(2, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s limit 2", view), 1).all().size());
             assertEquals(2, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s", view), 1).all().size());
@@ -882,6 +891,7 @@ public class ViewComplexTest extends CQLTester
     {
         // CASSANDRA-11500 able to shadow old view row with column ts greater tahn pk's ts and re-insert the view row
         String baseTable = createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int);");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14219
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
@@ -930,6 +940,7 @@ public class ViewComplexTest extends CQLTester
         assertRowsIgnoringOrder(execute("SELECT k,a,b from mv"), row(1, 1, 2));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from %s"), row(1, 1, 2));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Cannot drop column a on base table %s with materialized views", baseTable), "ALTER TABLE %s DROP a");
     }
 
@@ -1272,6 +1283,7 @@ public class ViewComplexTest extends CQLTester
                                                   // all selected
                                                   "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
                                                   // unselected e,f
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                   "CREATE MATERIALIZED VIEW %s AS SELECT a,b,c,d FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",
                                                   // no selected
                                                   "CREATE MATERIALIZED VIEW %s AS SELECT a,b FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a,b)",

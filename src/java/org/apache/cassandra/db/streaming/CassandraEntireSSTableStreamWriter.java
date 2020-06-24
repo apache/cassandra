@@ -90,6 +90,7 @@ public class CassandraEntireSSTableStreamWriter
                          component,
                          prettyPrintMemory(length));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long bytesWritten = out.writeFileToChannel(in, limiter);
             progress += bytesWritten;
 

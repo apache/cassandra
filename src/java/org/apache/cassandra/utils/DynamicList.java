@@ -91,6 +91,7 @@ public class DynamicList<E>
 
     public DynamicList(int maxExpectedSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         this.maxHeight = 3 + Math.max(0, (int) Math.ceil(Math.log(maxExpectedSize) / Math.log(2)));
         head = new Node<>(maxHeight, null);
     }
@@ -102,6 +103,7 @@ public class DynamicList<E>
 
     public Node<E> append(E value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         return append(value, Integer.MAX_VALUE);
     }
 
@@ -110,6 +112,7 @@ public class DynamicList<E>
     public Node<E> append(E value, int maxSize)
     {
         Node<E> newTail = new Node<>(randomLevel(), value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         if (size >= maxSize)
             return null;
         size++;
@@ -138,6 +141,7 @@ public class DynamicList<E>
     // remove the provided node and its associated value from the list
     public void remove(Node<E> node)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         assert node.value != null;
         node.value = null;
 
@@ -238,6 +242,7 @@ public class DynamicList<E>
             canon.add(c);
             c++;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6591
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         assert list.isWellFormed();
         for (int loop = 0 ; loop < 100 ; loop++)

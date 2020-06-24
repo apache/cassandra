@@ -83,6 +83,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             }
             cluster.forEach(i -> i.flush(KEYSPACE));
             cluster.forEach(i -> i.runOnInstance(assertNotRepaired()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
 
             // mark everything on node 2 repaired
             cluster.get(2).runOnInstance(markAllRepaired());
@@ -126,6 +127,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             cluster.forEach(i -> i.flush(KEYSPACE));
 
             // nothing is repaired yet
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
             cluster.forEach(i -> i.runOnInstance(assertNotRepaired()));
             // mark everything repaired
             cluster.forEach(i -> i.runOnInstance(markAllRepaired()));
@@ -209,6 +211,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         // Asserts that the amount of repaired data read for digest generation is consistent
         // across replicas where one has to read less repaired data to satisfy the original
         // limits of the read request.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
         try (Cluster cluster = init(Cluster.create(2)))
         {
 

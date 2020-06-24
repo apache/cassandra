@@ -42,6 +42,7 @@ public class UUIDSerializer implements IVersionedSerializer<UUID>
 
     public long serializedSize(UUID uuid, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return TypeSizes.sizeof(uuid.getMostSignificantBits()) + TypeSizes.sizeof(uuid.getLeastSignificantBits());
     }
 }

@@ -65,7 +65,9 @@ public class SimpleStrategyTest
     public static void defineSchema()
     {
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14862
         SchemaLoader.createKeyspace(MULTIDC, KeyspaceParams.simple(3));
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
@@ -98,11 +100,13 @@ public class SimpleStrategyTest
     public void testStringEndpoints() throws UnknownHostException
     {
         IPartitioner partitioner = OrderPreservingPartitioner.instance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             keyTokens.add(partitioner.getToken(ByteBufferUtil.bytes(String.valueOf((char) ('a' + i * 2 + 1)))));
         }
         verifyGetNaturalEndpoints(endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
@@ -111,6 +115,7 @@ public class SimpleStrategyTest
     @Test
     public void testMultiDCSimpleStrategyEndpoints() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14862
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
 
@@ -155,9 +160,11 @@ public class SimpleStrategyTest
     {
         TokenMetadata tmd;
         AbstractReplicationStrategy strategy;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             tmd = new TokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14862
             strategy = getStrategy(keyspaceName, tmd, new SimpleSnitch());
             List<InetAddressAndPort> hosts = new ArrayList<>();
             for (int i = 0; i < endpointTokens.length; i++)
@@ -187,6 +194,7 @@ public class SimpleStrategyTest
         TokenMetadata tmd = new TokenMetadata();
         TokenMetadata oldTmd = StorageServiceAccessor.setTokenMetadata(tmd);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
         Token[] endpointTokens = new Token[RING_SIZE];
         Token[] keyTokens = new Token[RING_SIZE];
 
@@ -196,6 +204,7 @@ public class SimpleStrategyTest
             keyTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i + RING_SIZE));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         for (int i = 0; i < endpointTokens.length; i++)
         {
@@ -210,11 +219,14 @@ public class SimpleStrategyTest
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             strategy = getStrategy(keyspaceName, tmd, new SimpleSnitch());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14862
 
             PendingRangeCalculatorService.calculatePendingRanges(strategy, keyspaceName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
 
             int replicationFactor = strategy.getReplicationFactor().allReplicas;
 
@@ -275,6 +287,7 @@ public class SimpleStrategyTest
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
 
         Range<Token> range1 = range(400, 100);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         Util.assertRCEquals(EndpointsForToken.of(range1.right,
                                                  Replica.fullReplica(endpoints.get(0), range1),
                                                  Replica.fullReplica(endpoints.get(1), range1),
@@ -283,6 +296,7 @@ public class SimpleStrategyTest
 
 
         Range<Token> range2 = range(100, 200);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         Util.assertRCEquals(EndpointsForToken.of(range2.right,
                                                  Replica.fullReplica(endpoints.get(1), range2),
                                                  Replica.fullReplica(endpoints.get(2), range2),
@@ -296,6 +310,7 @@ public class SimpleStrategyTest
     @Test
     public void testSimpleStrategyThrowsConfigurationException() throws ConfigurationException, UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15007
         expectedEx.expect(ConfigurationException.class);
         expectedEx.expectMessage("SimpleStrategy requires a replication_factor strategy option.");
 
@@ -324,8 +339,10 @@ public class SimpleStrategyTest
         KeyspaceMetadata ksmd = Schema.instance.getKeyspaceMetadata(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                                                                     keyspaceName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                                                     ksmd.params.replication.klass,
                                                                     tmd,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14862
                                                                     snitch,
                                                                     ksmd.params.replication.options);
     }

@@ -65,6 +65,7 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
     public int serializedSize()
     {
         if (numBlocks == 1)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13869
             return BLOCK_HEADER_BYTES +
                    ((int) tokenCount * BLOCK_ENTRY_BYTES) +
                    (((Leaf) root).overflowCollisionCount() * OVERFLOW_ENTRY_BYTES);
@@ -266,6 +267,7 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
         }
 
         public int overflowCollisionCount() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13869
             return overflowCollisions == null ? 0 : overflowCollisions.size();
         }
 

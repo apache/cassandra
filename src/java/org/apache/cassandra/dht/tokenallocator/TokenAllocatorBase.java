@@ -86,6 +86,7 @@ public abstract class TokenAllocatorBase<Unit> implements TokenAllocator<Unit>
         return group;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
     Collection<Token> generateSplits(Unit newUnit, int numTokens)
     {
         return generateSplits(newUnit, numTokens, MIN_INITIAL_SPLITS_RATIO, MAX_INITIAL_SPLITS_RATIO);

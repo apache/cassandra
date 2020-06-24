@@ -64,6 +64,7 @@ public abstract class CBUtil
         @Override
         protected CharsetDecoder initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
             return StandardCharsets.UTF_8.newDecoder();
         }
     };
@@ -79,6 +80,7 @@ public abstract class CBUtil
     private static String decodeString(ByteBuffer src) throws CharacterCodingException
     {
         // the decoder needs to be reset every time we use it, hence the copy per thread
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11428
         CharsetDecoder theDecoder = TL_UTF8_DECODER.get();
         theDecoder.reset();
         CharBuffer dst = TL_CHAR_BUFFER.get();
@@ -132,6 +134,7 @@ public abstract class CBUtil
         }
         catch (IndexOutOfBoundsException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9212
             throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by its 2 bytes length");
         }
     }
@@ -143,6 +146,7 @@ public abstract class CBUtil
      */
     public static void writeAsciiString(String str, ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         cb.writeShort(str.length());
         ByteBufUtil.writeAscii(cb, str);
     }
@@ -166,6 +170,7 @@ public abstract class CBUtil
      */
     public static int sizeOfAsciiString(String str)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         return 2 + str.length();
     }
 
@@ -178,6 +183,7 @@ public abstract class CBUtil
         }
         catch (IndexOutOfBoundsException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9212
             throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by its 4 bytes length");
         }
     }
@@ -185,6 +191,7 @@ public abstract class CBUtil
     public static void writeLongString(String str, ByteBuf cb)
     {
         int length = TypeSizes.encodedUTF8Length(str);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         cb.writeInt(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
@@ -196,6 +203,7 @@ public abstract class CBUtil
 
     public static byte[] readBytes(ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4449
         try
         {
             int length = cb.readUnsignedShort();
@@ -205,12 +213,14 @@ public abstract class CBUtil
         }
         catch (IndexOutOfBoundsException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9212
             throw new ProtocolException("Not enough bytes to read a byte array preceded by its 2 bytes length");
         }
     }
 
     public static void writeBytes(byte[] bytes, ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
         cb.writeShort(bytes.length);
         cb.writeBytes(bytes);
     }
@@ -223,6 +233,7 @@ public abstract class CBUtil
     public static Map<String, ByteBuffer> readBytesMap(ByteBuf cb)
     {
         int length = cb.readUnsignedShort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
         Map<String, ByteBuffer> m = new HashMap<>(length);
         for (int i = 0; i < length; i++)
         {
@@ -261,6 +272,7 @@ public abstract class CBUtil
 
     public static void writeConsistencyLevel(ConsistencyLevel consistency, ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
         cb.writeShort(consistency.code);
     }
 
@@ -286,6 +298,7 @@ public abstract class CBUtil
     {
         // UTF-8 (non-ascii) literals can be used for as a valid identifier in Java. It is possible for an enum to be named using those characters.
         // There is no such occurence in the code base.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         writeAsciiString(enumValue.toString(), cb);
     }
 
@@ -296,6 +309,7 @@ public abstract class CBUtil
 
     public static UUID readUUID(ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
         ByteBuffer buffer = cb.nioBuffer(cb.readerIndex(), UUID_SIZE);
         cb.skipBytes(buffer.remaining());
         return UUIDGen.getUUID(buffer);
@@ -308,6 +322,7 @@ public abstract class CBUtil
 
     public static int sizeOfUUID(UUID uuid)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
         return UUID_SIZE;
     }
 
@@ -324,6 +339,7 @@ public abstract class CBUtil
     {
         cb.writeShort(l.size());
         for (String str : l)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
             writeString(str, cb);
     }
 
@@ -338,6 +354,7 @@ public abstract class CBUtil
     public static Map<String, String> readStringMap(ByteBuf cb)
     {
         int length = cb.readUnsignedShort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4539
         Map<String, String> m = new HashMap<String, String>(length);
         for (int i = 0; i < length; i++)
         {
@@ -353,6 +370,7 @@ public abstract class CBUtil
         cb.writeShort(m.size());
         for (Map.Entry<String, String> entry : m.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
             writeString(entry.getKey(), cb);
             writeString(entry.getValue(), cb);
         }
@@ -387,6 +405,7 @@ public abstract class CBUtil
         cb.writeShort(m.size());
         for (Map.Entry<String, List<String>> entry : m.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
             writeString(entry.getKey(), cb);
             writeStringList(entry.getValue(), cb);
         }
@@ -409,6 +428,7 @@ public abstract class CBUtil
         if (length < 0)
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
         return ByteBuffer.wrap(readRawBytes(cb, length));
     }
 
@@ -428,6 +448,7 @@ public abstract class CBUtil
         int length = cb.readInt();
         if (length < 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (protocolVersion.isSmallerThan(ProtocolVersion.V4)) // backward compatibility for pre-version 4
                 return null;
             if (length == -1)
@@ -437,11 +458,13 @@ public abstract class CBUtil
             else
                 throw new ProtocolException("Invalid ByteBuf length " + length);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
         return ByteBuffer.wrap(readRawBytes(cb, length));
     }
 
     public static void writeValue(byte[] bytes, ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
         if (bytes == null)
         {
             cb.writeInt(-1);
@@ -462,8 +485,10 @@ public abstract class CBUtil
 
         int remaining = bytes.remaining();
         cb.writeInt(remaining);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7196
 
         if (remaining > 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
             cb.writeBytes(bytes.duplicate());
     }
 
@@ -492,6 +517,7 @@ public abstract class CBUtil
 
         List<ByteBuffer> l = new ArrayList<ByteBuffer>(size);
         for (int i = 0; i < size; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             l.add(readBoundValue(cb, protocolVersion));
         return l;
     }
@@ -514,6 +540,7 @@ public abstract class CBUtil
     public static Pair<List<String>, List<ByteBuffer>> readNameAndValueList(ByteBuf cb, ProtocolVersion protocolVersion)
     {
         int size = cb.readUnsignedShort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         if (size == 0)
             return Pair.create(Collections.<String>emptyList(), Collections.<ByteBuffer>emptyList());
 
@@ -522,6 +549,7 @@ public abstract class CBUtil
         for (int i = 0; i < size; i++)
         {
             s.add(readString(cb));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             l.add(readBoundValue(cb, protocolVersion));
         }
         return Pair.create(s, l);
@@ -530,6 +558,7 @@ public abstract class CBUtil
     public static InetSocketAddress readInet(ByteBuf cb)
     {
         int addrSize = cb.readByte() & 0xFF;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4480
         byte[] address = new byte[addrSize];
         cb.readBytes(address);
         int port = cb.readInt();
@@ -561,6 +590,7 @@ public abstract class CBUtil
     public static InetAddress readInetAddr(ByteBuf cb)
     {
         int addressSize = cb.readByte() & 0xFF;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
         byte[] address = new byte[addressSize];
         cb.readBytes(address);
         try
@@ -590,6 +620,7 @@ public abstract class CBUtil
      */
     public static byte[] readRawBytes(ByteBuf cb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
         return readRawBytes(cb, cb.readableBytes());
     }
 
@@ -604,6 +635,7 @@ public abstract class CBUtil
     {
         int ch1 = buf.readByte() & 0xFF;
         int ch2 = buf.readByte() & 0xFF;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         return (ch1 << 8) + (ch2);
     }
 }

@@ -175,6 +175,7 @@ public class SSTableImporter
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
             cfs.getTracker().addSSTables(newSSTables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14529
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())

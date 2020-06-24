@@ -205,7 +205,9 @@ public final class JavaBasedUDFunction extends UDFunction
         String clsName = generateClassName(name, 'C');
 
         String executeInternalName = generateClassName(name, 'x');
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9890
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
         StringBuilder javaSourceBuilder = new StringBuilder();
         int lineOffset = 1;
         for (int i = 0; i < javaSourceTemplate.length; i++)
@@ -217,6 +219,7 @@ public final class JavaBasedUDFunction extends UDFunction
             {
                 switch (s)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
                     case "package_name":
                         s = pkgName;
                         break;
@@ -225,9 +228,11 @@ public final class JavaBasedUDFunction extends UDFunction
                         break;
                     case "body":
                         lineOffset = countNewlines(javaSourceBuilder);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
                         s = patternJavaDriver.matcher(body).replaceAll("org.apache.cassandra.cql3.functions.types.");
                         break;
                     case "arguments":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
                         s = generateArguments(javaParamTypes, argNames, false);
                         break;
                     case "arguments_aggregate":
@@ -239,6 +244,7 @@ public final class JavaBasedUDFunction extends UDFunction
                     case "return_type":
                         s = javaSourceName(javaReturnType);
                         break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9890
                     case "execute_internal_name":
                         s = executeInternalName;
                         break;
@@ -249,6 +255,7 @@ public final class JavaBasedUDFunction extends UDFunction
         }
 
         String targetClassName = pkgName + '.' + clsName;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
 
         String javaSource = javaSourceBuilder.toString();
 
@@ -258,7 +265,10 @@ public final class JavaBasedUDFunction extends UDFunction
         {
             EcjCompilationUnit compilationUnit = new EcjCompilationUnit(javaSource, targetClassName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10819
             Compiler compiler = new Compiler(compilationUnit,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
                                              errorHandlingPolicy,
                                              compilerOptions,
                                              compilationUnit,
@@ -303,12 +313,14 @@ public final class JavaBasedUDFunction extends UDFunction
             }
 
             // Verify the UDF bytecode against use of probably dangerous code
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11391
             Set<String> errors = udfByteCodeVerifier.verify(targetClassName, targetClassLoader.classData(targetClassName));
             String validDeclare = "not allowed method declared: " + executeInternalName + '(';
             for (Iterator<String> i = errors.iterator(); i.hasNext();)
             {
                 String error = i.next();
                 // we generate a random name of the private, internal execute method, which is detected by the byte-code verifier
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
                 if (error.startsWith(validDeclare))
                     i.remove();
             }
@@ -324,6 +336,7 @@ public final class JavaBasedUDFunction extends UDFunction
                 // Execute UDF intiialization from UDF class loader
 
                 Class cls = Class.forName(targetClassName, false, targetClassLoader);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9890
 
                 // Count only non-synthetic methods, so code coverage instrumentation doesn't cause a miscount
                 int nonSyntheticMethodCount = 0;
@@ -335,9 +348,11 @@ public final class JavaBasedUDFunction extends UDFunction
                     }
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
                 if (nonSyntheticMethodCount != 3 || cls.getDeclaredConstructors().length != 1)
                     throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
                 MethodType methodType = MethodType.methodType(void.class)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
                                                   .appendParameterTypes(TypeCodec.class, TypeCodec[].class, UDFContext.class);
                 MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
                 this.javaUDF = (JavaUDF) ctor.invokeWithArguments(returnCodec, argCodecs, udfContext);
@@ -352,6 +367,7 @@ public final class JavaBasedUDFunction extends UDFunction
             // in case of an ITE, use the cause
             throw new InvalidRequestException(String.format("Could not compile function '%s' from Java source: %s", name, e.getCause()));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11269
         catch (InvalidRequestException | VirtualMachineError e)
         {
             throw e;
@@ -365,6 +381,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
     protected ExecutorService executor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         return executor;
     }
 
@@ -392,6 +409,7 @@ public final class JavaBasedUDFunction extends UDFunction
         String qualifiedName = name.toString();
 
         StringBuilder sb = new StringBuilder(qualifiedName.length() + 10);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         sb.append(prefix);
         for (int i = 0; i < qualifiedName.length(); i++)
         {
@@ -401,6 +419,7 @@ public final class JavaBasedUDFunction extends UDFunction
             else
                 sb.append(Integer.toHexString(((short)c)&0xffff));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
         sb.append('_')
           .append(ThreadLocalRandom.current().nextInt() & 0xffffff)
           .append('_')
@@ -411,6 +430,7 @@ public final class JavaBasedUDFunction extends UDFunction
     @VisibleForTesting
     public static String javaSourceName(TypeToken<?> type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10819
         String n = type.toString();
         return JAVA_LANG_PREFIX.matcher(n).replaceAll("");
     }
@@ -478,6 +498,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
     private static String composeMethod(TypeToken<?> type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10819
         return (type.isPrimitive()) ? ("super.compose_" + type.getRawType().getName()) : "super.compose";
     }
 
@@ -594,6 +615,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
             String resourceName = className.replace('.', '/') + ".class";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
             try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
             {
                 if (is != null)
@@ -616,6 +638,7 @@ public final class JavaBasedUDFunction extends UDFunction
             if (result.equals(this.className))
                 return false;
             String resourceName = result.replace('.', '/') + ".class";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
             try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
             {
                 return is == null;
@@ -657,6 +680,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
     static final class EcjTargetClassLoader extends SecureClassLoader
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         EcjTargetClassLoader()
         {
             super(UDFunction.udfClassLoader);
@@ -670,11 +694,13 @@ public final class JavaBasedUDFunction extends UDFunction
         //
         private final Map<String, byte[]> classes = new ConcurrentHashMap<>();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         void addClass(String className, byte[] classData)
         {
             classes.put(className, classData);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9890
         byte[] classData(String className)
         {
             return classes.get(className);
@@ -685,6 +711,7 @@ public final class JavaBasedUDFunction extends UDFunction
             // remove the class binary - it's only used once - so it's wasting heap
             byte[] classData = classes.remove(name);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
             if (classData != null)
                 return defineClass(name, classData, 0, classData.length, protectionDomain);
 

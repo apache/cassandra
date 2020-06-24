@@ -35,6 +35,7 @@ public class FilterTestHelper
 
     static final FilterKey bytes(String s)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return new BufferDecoratedKey(new LongToken(0L), ByteBufferUtil.bytes(s));
     }
     
@@ -69,6 +70,7 @@ public class FilterTestHelper
 
         while (keys.hasNext())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
             f.add(wrap(keys.next()));
         }
 
@@ -83,11 +85,14 @@ public class FilterTestHelper
 
         double fp_ratio = fp / (keys.size() * BloomCalculations.probs[spec.bucketsPerElement][spec.K]);
         assert fp_ratio < 1.03 : fp_ratio;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2975
         return fp_ratio;
     }
 
     public void testTrue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1555
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
       assert true;
     }
 

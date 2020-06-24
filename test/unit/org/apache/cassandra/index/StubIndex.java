@@ -60,7 +60,9 @@ public class StubIndex implements Index
     {
         rowsInserted.clear();
         rowsDeleted.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10438
         rowsUpdated.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10343
         partitionDeletions.clear();
         rangeTombstones.clear();
     }
@@ -78,6 +80,7 @@ public class StubIndex implements Index
 
     public boolean dependsOn(ColumnMetadata column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         return false;
     }
 
@@ -88,6 +91,7 @@ public class StubIndex implements Index
 
     public AbstractType<?> customExpressionValueType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
         return UTF8Type.instance;
     }
 
@@ -99,6 +103,7 @@ public class StubIndex implements Index
     public Indexer indexerFor(final DecoratedKey key,
                               RegularAndStaticColumns columns,
                               int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                               WriteContext ctx,
                               IndexTransaction.Type transactionType)
     {
@@ -106,11 +111,13 @@ public class StubIndex implements Index
         {
             public void begin()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13075
                 beginCalls++;
             }
 
             public void partitionDelete(DeletionTime deletionTime)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10343
                 partitionDeletions.add(deletionTime);
             }
 
@@ -136,6 +143,7 @@ public class StubIndex implements Index
 
             public void finish()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13075
                 finishCalls++;
             }
         };
@@ -177,6 +185,7 @@ public class StubIndex implements Index
 
     public Callable<?> getPreJoinTask(boolean hadBootstrap)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         return () -> {
             preJoinInvocation = true;
             return null;

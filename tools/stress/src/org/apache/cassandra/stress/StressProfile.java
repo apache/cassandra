@@ -79,16 +79,21 @@ public class StressProfile implements Serializable
 
     transient volatile TableMetadata tableMetaData;
     transient volatile Set<TokenRange> tokenRanges;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
 
     transient volatile GeneratorFactory generatorFactory;
 
     transient volatile BatchStatement.Type batchType;
     transient volatile DistributionFactory partitions;
     transient volatile RatioDistributionFactory selectchance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
     transient volatile RatioDistributionFactory rowPopulation;
     transient volatile PreparedStatement insertStatement;
     transient volatile List<ValidatingSchemaQuery.Factory> validationFactories;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
     transient volatile Map<String, SchemaStatement.ArgSelect> argSelects;
     transient volatile Map<String, PreparedStatement> queryStatements;
 
@@ -97,11 +102,13 @@ public class StressProfile implements Serializable
 
     public void printSettings(ResultLogger out, StressSettings stressSettings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  Keyspace Name: %s%n", keyspaceName);
         out.printf("  Keyspace CQL: %n***%n%s***%n%n", keyspaceCql);
         out.printf("  Table Name: %s%n", tableName);
         out.printf("  Table CQL: %n***%n%s***%n%n", tableCql);
         out.printf("  Extra Schema Definitions: %s%n", extraSchemaDefinitions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         if (columnConfigs != null)
         {
             out.printf("  Generator Configs:%n");
@@ -145,17 +152,23 @@ public class StressProfile implements Serializable
         tableName = yaml.table;
         tableCql = yaml.table_definition;
         queries = yaml.queries;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
         tokenRangeQueries = yaml.token_range_queries;
         insert = yaml.insert;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
         specName = yaml.specname;
         if (specName == null){specName = keyspaceName + "." + tableName;}
 
         extraSchemaDefinitions = yaml.extra_definitions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9850
 
         assert keyspaceName != null : "keyspace name is required in yaml file";
         assert tableName != null : "table name is required in yaml file";
         assert queries != null : "queries map is required in yaml file";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
         for (String query : queries.keySet())
             assert !tokenRangeQueries.containsKey(query) :
                 String.format("Found %s in both queries and token_range_queries, please use different names", query);
@@ -164,6 +177,7 @@ public class StressProfile implements Serializable
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createKeyspaceStatement, keyspaceCql).keyspaceName;
                 assert name.equalsIgnoreCase(keyspaceName) : "Name in keyspace_definition doesn't match keyspace property: '" + name + "' != '" + keyspaceName + "'";
             }
@@ -181,11 +195,13 @@ public class StressProfile implements Serializable
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createTableStatement, tableCql).table();
                 assert name.equalsIgnoreCase(tableName) : "Name in table_definition doesn't match table property: '" + name + "' != '" + tableName + "'";
             }
             catch (RecognitionException | RuntimeException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9984
                 throw new IllegalArgumentException("There was a problem parsing the table cql: " + e.getMessage());
             }
         }
@@ -219,9 +235,11 @@ public class StressProfile implements Serializable
 
     public void maybeCreateSchema(StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         if (!schemaCreated)
         {
             JavaDriverClient client = settings.getJavaDriverClient();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
 
             if (keyspaceCql != null)
             {
@@ -235,6 +253,7 @@ public class StressProfile implements Serializable
             }
 
             client.execute("use " + keyspaceName, org.apache.cassandra.db.ConsistencyLevel.ONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
 
             if (tableCql != null)
             {
@@ -250,6 +269,7 @@ public class StressProfile implements Serializable
                 Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9850
             if (extraSchemaDefinitions != null)
             {
                 for (String extraCql : extraSchemaDefinitions)
@@ -275,6 +295,7 @@ public class StressProfile implements Serializable
 
     public void truncateTable(StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         JavaDriverClient client = settings.getJavaDriverClient(false);
         assert settings.command.truncate != SettingsCommand.TruncateWhen.NEVER;
         String cql = String.format("TRUNCATE %s.%s", keyspaceName, tableName);
@@ -289,6 +310,7 @@ public class StressProfile implements Serializable
         if (tableMetaData == null)
         {
             JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
 
             synchronized (client)
             {
@@ -300,7 +322,9 @@ public class StressProfile implements Serializable
                                                .getMetadata()
                                                .getKeyspace(keyspaceName)
                                                .getTable(quoteIdentifier(tableName));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11546
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7716
                 if (metadata == null)
                     throw new RuntimeException("Unable to find table " + keyspaceName + "." + tableName);
 
@@ -321,7 +345,10 @@ public class StressProfile implements Serializable
     public Set<TokenRange> maybeLoadTokenRanges(StressSettings settings)
     {
         maybeLoadSchemaInfo(settings); // ensure table metadata is available
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
         JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
         synchronized (client)
         {
@@ -367,8 +394,10 @@ public class StressProfile implements Serializable
                 if (queryStatements == null)
                 {
                     JavaDriverClient jclient = settings.getJavaDriverClient(keyspaceName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
 
                     Map<String, PreparedStatement> stmts = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
                     Map<String, SchemaStatement.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
@@ -383,6 +412,7 @@ public class StressProfile implements Serializable
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
         if (dynamicConditionExists(queryStatements.get(name)))
             return new CASQuery(timer, settings, generator, seeds, queryStatements.get(name), settings.command.consistencyLevel, argSelects.get(name), tableName);
 
@@ -421,6 +451,8 @@ public class StressProfile implements Serializable
 
     public Operation getBulkReadQueries(String name, Timer timer, StressSettings settings, TokenRangeIterator tokenRangeIterator, boolean isWarmup)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
         StressYaml.TokenRangeQueryDef def = tokenRangeQueries.get(name);
         if (def == null)
             throw new IllegalArgumentException("No bulk read query defined with name " + name);
@@ -435,6 +467,7 @@ public class StressProfile implements Serializable
 
         //Add missing column configs
         Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         while (it.hasNext())
         {
             ColumnMetadata c = it.next();
@@ -462,6 +495,7 @@ public class StressProfile implements Serializable
 
     public CreateTableStatement.Raw getCreateStatement()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CreateTableStatement.Raw createStatement = CQLFragmentParser.parseAny(CqlParser::createTableStatement, tableCql, "CREATE TABLE");
         createStatement.keyspace(keyspaceName);
         return createStatement;
@@ -505,6 +539,7 @@ public class StressProfile implements Serializable
         String tableCreate = tableCql.replaceFirst("\\s+\"?"+tableName+"\"?\\s+", " \""+keyspaceName+"\".\""+tableName+"\" ");
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new SchemaInsert(timer, settings, generator, seedManager, selectchance.get(), rowPopulation.get(), statement, tableCreate);
     }
 
@@ -522,6 +557,7 @@ public class StressProfile implements Serializable
                     Set<com.datastax.driver.core.ColumnMetadata> allColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getColumns());
                     boolean isKeyOnlyTable = (keyColumns.size() == allColumns.size());
                     //With compact storage
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7739
                     if (!isKeyOnlyTable && (keyColumns.size() == (allColumns.size() - 1)))
                     {
                         com.google.common.collect.Sets.SetView diff = com.google.common.collect.Sets.difference(allColumns, keyColumns);
@@ -533,6 +569,7 @@ public class StressProfile implements Serializable
                         }
                     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14426
                     if (insert == null)
                         insert = new HashMap<>();
                     lowerCase(insert);
@@ -541,6 +578,7 @@ public class StressProfile implements Serializable
                     StringBuilder sb = new StringBuilder();
                     if (!isKeyOnlyTable)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11546
                         sb.append("UPDATE ").append(quoteIdentifier(tableName)).append(" SET ");
                         //PK Columns
                         StringBuilder pred = new StringBuilder();
@@ -556,6 +594,7 @@ public class StressProfile implements Serializable
                                 else
                                     pred.append(" AND ");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11546
                                 pred.append(quoteIdentifier(c.getName())).append(" = ?");
                             } else {
                                 if (firstCol)
@@ -569,6 +608,7 @@ public class StressProfile implements Serializable
                                 {
                                 case SET:
                                 case LIST:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14907
                                     if (c.getType().isFrozen())
                                     {
                                         sb.append("?");
@@ -585,7 +625,9 @@ public class StressProfile implements Serializable
                         }
 
                         //Put PK predicates at the end
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7739
                         sb.append(pred);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7960
                         if (insert.containsKey("condition"))
                         {
                             sb.append(" " + insert.get("condition"));
@@ -594,6 +636,7 @@ public class StressProfile implements Serializable
                     }
                     else
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11546
                         sb.append("INSERT INTO ").append(quoteIdentifier(tableName)).append(" (");
                         StringBuilder value = new StringBuilder();
                         for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getPrimaryKey())
@@ -608,6 +651,7 @@ public class StressProfile implements Serializable
 
                     partitions = select(settings.insert.batchsize, "partitions", "fixed(1)", insert, OptionDistribution.BUILDER);
                     selectchance = select(settings.insert.selectRatio, "select", "fixed(1)/1", insert, OptionRatioDistribution.BUILDER);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
                     rowPopulation = select(settings.insert.rowPopulationRatio, "row-population", "fixed(1)/1", insert, OptionRatioDistribution.BUILDER);
                     batchType = settings.insert.batchType != null
                                 ? settings.insert.batchType
@@ -635,6 +679,7 @@ public class StressProfile implements Serializable
                         System.err.printf("WARNING: You have defined a schema that permits very large batches (%.0f max rows (>100K)). This may OOM this stress client, or the server.%n",
                                           selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
                     JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
                     String query = sb.toString();
 
@@ -645,11 +690,13 @@ public class StressProfile implements Serializable
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new SchemaInsert(timer, settings, generator, seedManager, partitions.get(), selectchance.get(), rowPopulation.get(), insertStatement, settings.command.consistencyLevel, batchType);
     }
 
     public List<ValidatingSchemaQuery> getValidate(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
         if (validationFactories == null)
         {
             synchronized (this)
@@ -664,6 +711,7 @@ public class StressProfile implements Serializable
 
         List<ValidatingSchemaQuery> queries = new ArrayList<>();
         for (ValidatingSchemaQuery.Factory factory : validationFactories)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             queries.add(factory.create(timer, settings, generator, seedManager, settings.command.consistencyLevel));
         return queries;
     }
@@ -674,6 +722,7 @@ public class StressProfile implements Serializable
 
         if (first != null)
             return first;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7716
         if (val != null && val.trim().length() > 0)
             return builder.apply(val);
 
@@ -686,6 +735,7 @@ public class StressProfile implements Serializable
         {
             synchronized (this)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
                 maybeCreateSchema(settings);
                 maybeLoadSchemaInfo(settings);
                 if (generatorFactory == null)
@@ -693,6 +743,7 @@ public class StressProfile implements Serializable
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         return generatorFactory.newGenerator(settings);
     }
 
@@ -707,6 +758,7 @@ public class StressProfile implements Serializable
             Set<com.datastax.driver.core.ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
 
             for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getPartitionKey())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
                 partitionKeys.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                  metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",
                                                  columnConfigs.get(metadata.getName())));
@@ -721,6 +773,7 @@ public class StressProfile implements Serializable
                                                     columnConfigs.get(metadata.getName())));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         PartitionGenerator newGenerator(StressSettings settings)
         {
             return new PartitionGenerator(get(partitionKeys), get(clusteringColumns), get(valueColumns), settings.generate.order);
@@ -738,6 +791,7 @@ public class StressProfile implements Serializable
     static class ColumnInfo
     {
         final String name;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         final String type;
         final String collectionType;
         final GeneratorConfig config;
@@ -771,6 +825,7 @@ public class StressProfile implements Serializable
                 case "BOOLEAN":
                     return new Booleans(name, config);
                 case "DECIMAL":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10048
                     return new BigDecimals(name, config);
                 case "DOUBLE":
                     return new Doubles(name, config);
@@ -801,6 +856,7 @@ public class StressProfile implements Serializable
                 case "LIST":
                     return new Lists(name, getGenerator(name, collectionType, null, config), config);
                 default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10048
                     throw new UnsupportedOperationException("Because of this name: "+name+" if you removed it from the yaml and are still seeing this, make sure to drop table");
             }
         }
@@ -853,6 +909,7 @@ public class StressProfile implements Serializable
     /* Quote a identifier if it contains uppercase letters */
     private static String quoteIdentifier(String identifier)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11546
         return lowercaseAlphanumeric.matcher(identifier).matches() ? identifier : '\"'+identifier+ '\"';
     }
 }

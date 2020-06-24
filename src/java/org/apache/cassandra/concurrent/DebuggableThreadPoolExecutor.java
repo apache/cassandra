@@ -99,6 +99,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
 
     public DebuggableThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3494
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         allowCoreThreadTimeOut(true);
 
@@ -119,6 +120,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
      */
     public static DebuggableThreadPoolExecutor createCachedThreadpoolWithMaxSize(String threadPoolName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         return new DebuggableThreadPoolExecutor(0, Integer.MAX_VALUE,
                                                 60L, TimeUnit.SECONDS,
                                                 new SynchronousQueue<Runnable>(),
@@ -135,6 +137,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
      */
     public static DebuggableThreadPoolExecutor createWithFixedPoolSize(String threadPoolName, int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3494
         return createWithMaximumPoolSize(threadPoolName, size, Integer.MAX_VALUE, TimeUnit.SECONDS);
     }
 
@@ -161,6 +164,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     {
         super.execute(locals == null || command instanceof LocalSessionWrapper
                       ? command
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
                       : LocalSessionWrapper.create(command, null, locals));
     }
 
@@ -174,6 +178,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     public void execute(Runnable command)
     {
         super.execute(isTracing() && !(command instanceof LocalSessionWrapper)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
                       ? LocalSessionWrapper.create(command)
                       : command);
     }
@@ -182,6 +187,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T result)
     {
         if (isTracing() && !(runnable instanceof LocalSessionWrapper))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
             return LocalSessionWrapper.create(runnable, result);
         if (runnable instanceof RunnableFuture)
             return new ForwardingRunnableFuture<>((RunnableFuture) runnable, result);
@@ -192,6 +198,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable)
     {
         if (isTracing() && !(callable instanceof LocalSessionWrapper))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
             return LocalSessionWrapper.create(callable);
         return super.newTaskFor(callable);
     }
@@ -201,12 +208,15 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     {
         super.afterExecute(r, t);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7694
         maybeResetTraceSessionWrapper(r);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         logExceptionsAfterExecute(r, t);
     }
 
     protected static void maybeResetTraceSessionWrapper(Runnable r)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
         if (r instanceof LocalSessionWrapper)
         {
             LocalSessionWrapper tsw = (LocalSessionWrapper) r;
@@ -219,6 +229,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     @Override
     protected void beforeExecute(Thread t, Runnable r)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
         if (r instanceof LocalSessionWrapper)
             ((LocalSessionWrapper) r).setupContext();
 
@@ -228,6 +239,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     @Override
     public int getActiveTaskCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
         return getActiveCount();
     }
 
@@ -243,6 +255,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
      */
     public static void logExceptionsAfterExecute(Runnable r, Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3537
         Throwable hiddenThrowable = extractThrowable(r);
         if (hiddenThrowable != null)
             handleOrLog(hiddenThrowable);
@@ -259,7 +272,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
      */
     public static void handleOrLog(Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (Thread.getDefaultUncaughtExceptionHandler() == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             logger.error("Error in ThreadPoolExecutor", t);
         else
             Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), t);
@@ -271,6 +286,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     public static Throwable extractThrowable(Runnable runnable)
     {
         // Check for exceptions wrapped by FutureTask or tasks which wrap FutureTask (HasDelegateFuture interface)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
         Throwable throwable = null;
         if (runnable instanceof Future<?>)
         {
@@ -303,6 +319,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
             }
             catch (CancellationException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 logger.trace("Task cancelled", e);
             }
             catch (ExecutionException e)
@@ -319,6 +336,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
      */
     private interface HasDelegateFuture
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
         Future<?> getDelegate();
     }
 
@@ -388,6 +406,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
 
         private FutureLocalSessionWrapper(RunnableFuture command, T result, ExecutorLocals locals)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
             super(() -> {
                 command.run();
                 return result;

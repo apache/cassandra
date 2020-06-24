@@ -61,6 +61,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
         private final AbstractType<?> type;
         private final ByteBuffer bytes;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12516
         InternedKey(AbstractType<?> type, ByteBuffer bytes)
         {
             this.type = type;
@@ -89,6 +90,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     private static long prefixComparison(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9706
         long prefix = 0;
         ByteBuffer read = bytes.duplicate();
         int i = 0;
@@ -110,6 +112,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
         this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
         this.bytes = ByteBufferUtil.bytes(this.text);
         this.prefixComparison = prefixComparison(bytes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         this.interned = false;
     }
 
@@ -120,19 +123,23 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public ColumnIdentifier(ByteBuffer bytes, String text)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14468
         this(bytes, text, false);
     }
 
     private ColumnIdentifier(ByteBuffer bytes, String text, boolean interned)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         this.bytes = bytes;
         this.text = text;
         this.interned = interned;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9706
         this.prefixComparison = prefixComparison(bytes);
     }
 
     public static ColumnIdentifier getInterned(ByteBuffer bytes, AbstractType<?> type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12516
         return getInterned(type, bytes, type.getString(bytes));
     }
 
@@ -146,6 +153,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
     public static ColumnIdentifier getInterned(AbstractType<?> type, ByteBuffer bytes, String text)
     {
         bytes = ByteBufferUtil.minimalBufferFor(bytes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13533
 
         InternedKey key = new InternedKey(type, bytes);
         ColumnIdentifier id = internedInstances.get(key);
@@ -177,6 +185,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
         if(!(o instanceof ColumnIdentifier))
             return false;
         ColumnIdentifier that = (ColumnIdentifier)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6253
         return bytes.equals(that.bytes);
     }
 
@@ -192,11 +201,14 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
      */
     public String toCQLString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         return maybeQuote(text);
     }
 
     public long unsharedHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return EMPTY_SIZE
              + ObjectSizes.sizeOnHeapOf(bytes)
              + ObjectSizes.sizeOf(text);
@@ -211,12 +223,14 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public ColumnIdentifier clone(AbstractAllocator allocator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return interned ? this : new ColumnIdentifier(allocator.clone(bytes), text, false);
     }
 
     public int compareTo(ColumnIdentifier that)
     {
         int c = Long.compare(this.prefixComparison, that.prefixComparison);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9706
         if (c != 0)
             return c;
         if (this == that)
@@ -228,6 +242,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches() && !ReservedKeywords.isReserved(text))
             return text;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         return '"' + PATTERN_DOUBLE_QUOTE.matcher(text).replaceAll(ESCAPED_DOUBLE_QUOTE) + '"';
     }
 }

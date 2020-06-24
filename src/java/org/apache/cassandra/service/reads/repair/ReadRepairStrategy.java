@@ -28,6 +28,8 @@ public enum ReadRepairStrategy implements ReadRepair.Factory
     NONE
     {
         public <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
         {
             return new ReadOnlyReadRepair<>(command, replicaPlan, queryStartNanoTime);

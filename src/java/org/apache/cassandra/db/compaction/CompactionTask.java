@@ -56,6 +56,7 @@ public class CompactionTask extends AbstractCompactionTask
 
     public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, txn, gcBefore, false);
     }
 
@@ -74,11 +75,14 @@ public class CompactionTask extends AbstractCompactionTask
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1608
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1608
         return totalBytesCompacted += bytesCompacted;
     }
 
     protected int executeInternal(ActiveCompactionsTracker activeCompactions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         this.activeCompactions = activeCompactions == null ? ActiveCompactionsTracker.NOOP : activeCompactions;
         run();
         return transaction.originals().size();
@@ -89,12 +93,15 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12979
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12979
             logger.warn("insufficient space to compact all requested files. {}MB required, {}",
                         (float) expectedSize / 1024 / 1024,
                         StringUtils.join(transaction.originals(), ", "));
 
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13068
             SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
             transaction.cancel(removedSSTable);
             return true;
@@ -112,6 +119,7 @@ public class CompactionTask extends AbstractCompactionTask
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
         assert transaction != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
 
         if (transaction.originals().isEmpty())
             return;
@@ -119,6 +127,7 @@ public class CompactionTask extends AbstractCompactionTask
         // Note that the current compaction strategy, is not necessarily the one this task was created under.
         // This should be harmless; see comments to CFS.maybeReloadCompactionStrategy.
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
@@ -127,6 +136,7 @@ public class CompactionTask extends AbstractCompactionTask
         {
 
             final Set<SSTableReader> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13068
 
             // select SSTables to compact based on available disk space.
             buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
@@ -137,6 +147,7 @@ public class CompactionTask extends AbstractCompactionTask
                 @Override
                 public boolean apply(SSTableReader sstable)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
                     return !sstable.descriptor.cfname.equals(cfs.name);
                 }
             });
@@ -149,14 +160,19 @@ public class CompactionTask extends AbstractCompactionTask
             StringBuilder ssTableLoggerMsg = new StringBuilder("[");
             for (SSTableReader sstr : transaction.originals())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7818
                 ssTableLoggerMsg.append(String.format("%s:level=%d, ", sstr.getFilename(), sstr.getSSTableLevel()));
             }
             ssTableLoggerMsg.append("]");
 
             logger.info("Compacting ({}) {}", taskId, ssTableLoggerMsg);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
             RateLimiter limiter = CompactionManager.instance.getRateLimiter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
             long start = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
             long startTime = System.currentTimeMillis();
             long totalKeysWritten = 0;
             long estimatedKeys = 0;
@@ -164,9 +180,11 @@ public class CompactionTask extends AbstractCompactionTask
 
             Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
             Collection<SSTableReader> newSStables;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
             long[] mergedRowCounts;
             long totalSourceCQLRows;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12080
 
             // SSTableScanners need to be closed before markCompactedSSTablesReplaced call as scanners contain references
             // to both ifile and dfile and SSTR will throw deletion errors on Windows if it tries to delete before scanner is closed.
@@ -176,7 +194,9 @@ public class CompactionTask extends AbstractCompactionTask
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact);
                  CompactionIterator ci = new CompactionIterator(compactionType, scanners.scanners, controller, nowInSec, taskId))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7819
                 long lastCheckObsoletion = start;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
                 inputSizeBytes = scanners.getTotalCompressedSize();
                 double compressionRatio = scanners.getCompressionRatio();
                 if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
@@ -185,13 +205,17 @@ public class CompactionTask extends AbstractCompactionTask
                 long lastBytesScanned = 0;
 
                 activeCompactions.beginCompaction(ci);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
                 try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, getDirectories(), transaction, actuallyCompact))
                 {
                     // Note that we need to re-check this flag after calling beginCompaction above to avoid a window
                     // where the compaction does not exist in activeCompactions but the CSM gets paused.
                     // We already have the sstables marked compacting here so CompactionManager#waitForCessation will
                     // block until the below exception is thrown and the transaction is cancelled.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11922
                     if (!controller.cfs.getCompactionStrategyManager().isActive())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3582
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
                         throw new CompactionInterruptedException(ci.getCompactionInfo());
                     estimatedKeys = writer.estimatedKeys();
                     while (ci.hasNext())
@@ -204,9 +228,11 @@ public class CompactionTask extends AbstractCompactionTask
 
                         //Rate limit the scanners, and account for compression
                         CompactionManager.compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12717
 
                         lastBytesScanned = bytesScanned;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7819
                         if (System.nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
                         {
                             controller.maybeRefreshOverlaps();
@@ -215,16 +241,19 @@ public class CompactionTask extends AbstractCompactionTask
                     }
 
                     // point of no return
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7852
                     newSStables = writer.finish();
                 }
                 finally
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                     activeCompactions.finishCompaction(ci);
                     mergedRowCounts = ci.getMergedRowCounts();
                     totalSourceCQLRows = ci.getTotalSourceCQLRows();
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             if (transaction.isOffline())
             {
                 Refs.release(Refs.selfRefs(newSStables));
@@ -233,8 +262,10 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 // log a bunch of statistics about the result and save to system table compaction_history
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 long durationInNano = System.nanoTime() - start;
                 long dTime = TimeUnit.NANOSECONDS.toMillis(durationInNano);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
                 long startsize = inputSizeBytes;
                 long endsize = SSTableReader.getTotalBytes(newSStables);
                 double ratio = (double) endsize / (double) startsize;
@@ -248,7 +279,10 @@ public class CompactionTask extends AbstractCompactionTask
 
                 String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
                 logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
                                            taskId,
                                            transaction.originals().size(),
                                            newSSTableNames.toString(),
@@ -257,6 +291,7 @@ public class CompactionTask extends AbstractCompactionTask
                                            FBUtilities.prettyPrintMemory(endsize),
                                            (int) (ratio * 100),
                                            dTime,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12080
                                            FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
                                            FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
                                            (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
@@ -269,8 +304,10 @@ public class CompactionTask extends AbstractCompactionTask
                     logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
                 }
                 cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), System.currentTimeMillis(), newSStables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
 
                 // update the metrics
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11420
                 cfs.metric.compactionBytesWritten.inc(endsize);
             }
         }
@@ -282,11 +319,13 @@ public class CompactionTask extends AbstractCompactionTask
                                                           LifecycleTransaction transaction,
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
     }
 
     public static String updateCompactionHistory(String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         StringBuilder mergeSummary = new StringBuilder(mergedRowCounts.length * 10);
         Map<Integer, Long> mergedRows = new HashMap<>();
         for (int i = 0; i < mergedRowCounts.length; i++)
@@ -305,12 +344,14 @@ public class CompactionTask extends AbstractCompactionTask
 
     protected Directories getDirectories()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         return cfs.getDirectories();
     }
 
     public static long getMinRepairedAt(Set<SSTableReader> actuallyCompact)
     {
         long minRepairedAt= Long.MAX_VALUE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5528
         for (SSTableReader sstable : actuallyCompact)
             minRepairedAt = Math.min(minRepairedAt, sstable.getSSTableMetadata().repairedAt);
         if (minRepairedAt == Long.MAX_VALUE)
@@ -320,6 +361,7 @@ public class CompactionTask extends AbstractCompactionTask
 
     public static UUID getPendingRepair(Set<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         if (sstables.isEmpty())
         {
             return ActiveRepairService.NO_PENDING_REPAIR;
@@ -359,13 +401,18 @@ public class CompactionTask extends AbstractCompactionTask
      */
     protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12180
         if(!cfs.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
             logger.info("Compaction space check is disabled");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13068
             return; // try to compact all SSTables
         }
 
         final Set<SSTableReader> nonExpiredSSTables = Sets.difference(transaction.originals(), fullyExpiredSSTables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12979
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12979
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12979
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
         int sstablesRemoved = 0;
 
@@ -422,6 +469,9 @@ public class CompactionTask extends AbstractCompactionTask
 
     protected boolean partialCompactionsAcceptable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3330
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3985
         return !isUserDefined;
     }
 

@@ -47,6 +47,7 @@ public enum Permission
     // CREATE is only granted on the root-level role resource, and is required to create new roles.
     // ALTER & DROP may be granted on either the root-level role resource, giving permissions on
     // all roles, or on specific role-level resources.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     CREATE,
     ALTER,
     DROP,
@@ -59,11 +60,13 @@ public enum Permission
     AUTHORIZE, // required for GRANT and REVOKE of permissions or roles.
 
     DESCRIBE, // required on the root-level RoleResource to list all Roles
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
 
     // UDF permissions
     EXECUTE;  // required to invoke any user defined function or aggregate
 
     public static final Set<Permission> ALL =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
             Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
 }

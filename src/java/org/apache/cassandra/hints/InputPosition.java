@@ -5,5 +5,6 @@ package org.apache.cassandra.hints;
  */
 public interface InputPosition
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
     long subtract(InputPosition other);
 }

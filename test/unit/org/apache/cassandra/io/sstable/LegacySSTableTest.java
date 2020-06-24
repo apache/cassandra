@@ -106,6 +106,7 @@ public class LegacySSTableTest
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -123,7 +124,9 @@ public class LegacySSTableTest
     {
         String scp = System.getProperty(LEGACY_SSTABLE_PROP);
         Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14169
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1249
         LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
 
@@ -152,6 +155,7 @@ public class LegacySSTableTest
      */
     protected Descriptor getDescriptor(String legacyVersion, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return new Descriptor(SSTableFormat.Type.BIG.info.getVersion(legacyVersion),
                               getTableDir(legacyVersion, table),
                               "legacy_tables",
@@ -163,6 +167,7 @@ public class LegacySSTableTest
     @Test
     public void testLoadLegacyCqlTables() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11763
         DatabaseDescriptor.setColumnIndexCacheSize(99999);
         CacheService.instance.invalidateKeyCache();
         doTestLegacyCqlTables();
@@ -195,12 +200,14 @@ public class LegacySSTableTest
                     sstable.reloadSSTableMetadata();
                     assertEquals(1234, sstable.getRepairedAt());
                     if (sstable.descriptor.version.hasPendingRepair())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
                         assertEquals(NO_PENDING_REPAIR, sstable.getPendingRepair());
                 }
 
                 boolean isTransient = false;
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
                     UUID random = UUID.randomUUID();
                     sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isTransient);
                     sstable.reloadSSTableMetadata();
@@ -220,6 +227,7 @@ public class LegacySSTableTest
     public void testMutateMetadataCSM() throws Exception
     {
         // we need to make sure we write old version metadata in the format for that version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15612
         for (String legacyVersion : legacyVersions)
         {
             // Skip 2.0.1 sstables as it doesn't have repaired information
@@ -269,6 +277,7 @@ public class LegacySSTableTest
     public void testMutateLevel() throws Exception
     {
         // we need to make sure we write old version metadata in the format for that version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13321
         for (String legacyVersion : legacyVersions)
         {
             logger.info("Loading legacy version: {}", legacyVersion);
@@ -290,6 +299,7 @@ public class LegacySSTableTest
 
     private void doTestLegacyCqlTables() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14217
         for (String legacyVersion : legacyVersions)
         {
             logger.info("Loading legacy version: {}", legacyVersion);
@@ -341,6 +351,7 @@ public class LegacySSTableTest
         {
             ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
             loadLegacyTable("legacy_%s_simple", legacyVersion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
 
             for (SSTableReader sstable : cfs.getLiveSSTables())
             {
@@ -371,6 +382,7 @@ public class LegacySSTableTest
     @Test
     public void testPendingAntiCompactionOldSSTables() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15612
         for (String legacyVersion : legacyVersions)
         {
             ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
@@ -390,6 +402,7 @@ public class LegacySSTableTest
     @Test
     public void testAutomaticUpgrade() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
         for (String legacyVersion : legacyVersions)
         {
             logger.info("Loading legacy version: {}", legacyVersion);
@@ -402,6 +415,7 @@ public class LegacySSTableTest
         }
 
         DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
         for (String legacyVersion : legacyVersions)
         {
             logger.info("Loading legacy version: {}", legacyVersion);
@@ -433,14 +447,18 @@ public class LegacySSTableTest
     {
         String table = String.format(tablePattern, legacyVersion);
         SSTableReader sstable = SSTableReader.open(getDescriptor(legacyVersion, table));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = sstable.getPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("100"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("100")), p.getMinimumToken()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         List<OutgoingStream> streams = Lists.newArrayList(new CassandraOutgoingFile(StreamOperation.OTHER,
                                                                                     sstable.ref(),
                                                                                     sstable.getPositionsForRanges(ranges),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                                                                                     ranges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
                                                                                     sstable.estimatedKeysForRanges(ranges)));
         new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
     }
@@ -483,6 +501,7 @@ public class LegacySSTableTest
         CacheService.instance.invalidateKeyCache();
         Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
         CacheService.instance.keyCache.loadSaved();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         Assert.assertEquals(endCount, CacheService.instance.keyCache.size());
     }
 
@@ -681,6 +700,7 @@ public class LegacySSTableTest
 
     private static File getTableDir(String legacyVersion, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
         return new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables/%s", legacyVersion, table));
     }
 

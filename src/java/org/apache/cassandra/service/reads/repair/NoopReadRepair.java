@@ -35,6 +35,8 @@ import org.apache.cassandra.service.reads.DigestResolver;
  * Bypasses the read repair path for short read protection and testing
  */
 public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         implements ReadRepair<E, P>
 {
     public static final NoopReadRepair instance = new NoopReadRepair();

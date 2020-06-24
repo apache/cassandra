@@ -43,6 +43,7 @@ public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBo
 
     public boolean isBoundary()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return bound.isBoundary();
     }
 
@@ -58,6 +59,7 @@ public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBo
 
     public void validateData(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBoundOrBoundary bound = clustering();
         for (int i = 0; i < bound.size(); i++)
         {

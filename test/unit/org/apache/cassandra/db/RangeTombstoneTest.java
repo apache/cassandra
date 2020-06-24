@@ -65,6 +65,7 @@ public class RangeTombstoneTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KSNAME,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
     }
@@ -72,6 +73,7 @@ public class RangeTombstoneTest
     @Test
     public void simpleQueryWithRangeTombstoneTest() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
         boolean enforceStrictLiveness = cfs.metadata().enforceStrictLiveness();
@@ -140,6 +142,7 @@ public class RangeTombstoneTest
 
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
         for (int i = 0; i < 40; i += 2)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             builder.newRow(i).add("val", i);
         builder.applyUnsafe();
 
@@ -148,6 +151,7 @@ public class RangeTombstoneTest
         new RowUpdateBuilder(cfs.metadata(), 2, key).addRangeTombstone(15, 20).build().applyUnsafe();
 
         ImmutableBTreePartition partition;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
 
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).fromIncl(11).toIncl(14).build());
         Collection<RangeTombstone> rt = rangeTombstones(partition);
@@ -210,6 +214,7 @@ public class RangeTombstoneTest
         assertEquals(1, rt.size());
 
         Slices.Builder sb = new Slices.Builder(cfs.getComparator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         sb.add(ClusteringBound.create(cfs.getComparator(), true, true, 1), ClusteringBound.create(cfs.getComparator(), false, true, 10));
         sb.add(ClusteringBound.create(cfs.getComparator(), true, true, 16), ClusteringBound.create(cfs.getComparator(), false, true, 20));
 
@@ -278,7 +283,10 @@ public class RangeTombstoneTest
         new RowUpdateBuilder(cfs.metadata(), nowInSec, 1000L, key).addRangeTombstone(1, 2).build().apply();
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertTimes(sstable.getSSTableMetadata(), 1000, 1000, nowInSec);
         cfs.forceMajorCompaction();
         sstable = cfs.getLiveSSTables().iterator().next();
@@ -301,6 +309,8 @@ public class RangeTombstoneTest
         cfs.forceBlockingFlush();
 
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
         cfs.forceMajorCompaction();
@@ -386,6 +396,7 @@ public class RangeTombstoneTest
     public void overlappingRangeTest() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
         boolean enforceStrictLiveness = cfs.metadata().enforceStrictLiveness();
@@ -421,6 +432,7 @@ public class RangeTombstoneTest
                         partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
 
         // Compact everything and re-test
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
         CompactionManager.instance.performMaximal(cfs, false);
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
 
@@ -499,6 +511,7 @@ public class RangeTombstoneTest
 
         StubIndex index = (StubIndex)cfs.indexManager.listIndexes()
                                                      .stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                                                      .filter(i -> "test_index".equals(i.getIndexMetadata().name))
                                                      .findFirst()
                                                      .orElseThrow(() -> new RuntimeException(new AssertionError("Index not found")));
@@ -514,8 +527,10 @@ public class RangeTombstoneTest
         cfs.forceBlockingFlush();
 
         assertEquals(10, index.rowsInserted.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
 
         CompactionManager.instance.performMaximal(cfs, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
         // compacted down to single sstable
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -545,10 +560,13 @@ public class RangeTombstoneTest
 
         // there should be 2 sstables
         assertEquals(2, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // compact down to single sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
         CompactionManager.instance.performMaximal(cfs, false);
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // test the physical structure of the sstable i.e. rt & columns on disk
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
@@ -579,6 +597,8 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnMetadata cd = cfs.metadata().getColumn(indexedColumnName).copy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10124
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10124
         IndexMetadata indexDef =
             IndexMetadata.fromIndexTargets(
             Collections.singletonList(new IndexTarget(cd.name, IndexTarget.Type.VALUES)),
@@ -598,11 +618,15 @@ public class RangeTombstoneTest
             MigrationManager.announceTableUpdate(updated, true);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
         // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9523
         if (rebuild != null)
             rebuild.get();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         StubIndex index = (StubIndex)cfs.indexManager.getIndexByName("test_index");
         index.reset();
 
@@ -618,6 +642,7 @@ public class RangeTombstoneTest
 
         // We should have 1 insert and 1 update to the indexed "1" column
         // CASSANDRA-6640 changed index update to just update, not insert then delete
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         assertEquals(1, index.rowsInserted.size());
         assertEquals(1, index.rowsUpdated.size());
     }

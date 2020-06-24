@@ -65,6 +65,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
     protected final long windowSize;
 
     private final Cache<Set<RateBasedBackPressureState>, IntervalRateLimiter> rateLimiters =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             Caffeine.newBuilder()
                     .expireAfterAccess(1, TimeUnit.HOURS)
                     .executor(MoreExecutors.directExecutor())
@@ -86,6 +87,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
 
     public RateBasedBackPressure(Map<String, Object> args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         this(args, new SystemTimeSource(), DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS));
     }
 
@@ -170,6 +172,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
                         if (actualRatio >= highRatio)
                         {
                             // Only if the outgoing rate is able to keep up with the rate increase:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14163
                             if (limiterRate <= outgoingRate)
                             {
                                 double newRate = limiterRate + ((limiterRate * factor) / 100);
@@ -184,6 +187,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
                         {
                             // Only if the new rate is actually less than the actual rate:
                             double newRate = incomingRate - ((incomingRate * factor) / 100);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14163
                             if (newRate > 0 && newRate < limiterRate)
                             {
                                 limiter.setRate(newRate);
@@ -227,6 +231,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
         {
             // Get the rate limiter:
             IntervalRateLimiter rateLimiter = rateLimiters.get(states, key -> new IntervalRateLimiter(timeSource));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
 
             // If the back-pressure was updated and we acquire the interval lock for the rate limiter of this group:
             if (isUpdated && rateLimiter.tryIntervalLock(windowSize))

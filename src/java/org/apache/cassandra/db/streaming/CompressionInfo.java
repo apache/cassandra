@@ -47,6 +47,7 @@ public class CompressionInfo
 
     static CompressionInfo fromCompressionMetadata(CompressionMetadata metadata, List<SSTableReader.PartitionPositionBounds> sections)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         if (metadata == null)
         {
             return null;
@@ -73,6 +74,7 @@ public class CompressionInfo
             for (int i = 0; i < chunkCount; i++)
                 CompressionMetadata.Chunk.serializer.serialize(info.chunks[i], out, version);
             // compression params
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
             CompressionParams.serializer.serialize(info.parameters, out, version);
         }
 
@@ -88,6 +90,7 @@ public class CompressionInfo
                 chunks[i] = CompressionMetadata.Chunk.serializer.deserialize(in, version);
 
             // compression params
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
             CompressionParams parameters = CompressionParams.serializer.deserialize(in, version);
             return new CompressionInfo(chunks, parameters);
         }
@@ -96,6 +99,7 @@ public class CompressionInfo
         {
             if (info == null)
                 return TypeSizes.sizeof(-1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
             // chunks
             int chunkCount = info.chunks.length;
@@ -103,6 +107,7 @@ public class CompressionInfo
             for (int i = 0; i < chunkCount; i++)
                 size += CompressionMetadata.Chunk.serializer.serializedSize(info.chunks[i], version);
             // compression params
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
             size += CompressionParams.serializer.serializedSize(info.parameters, version);
             return size;
         }

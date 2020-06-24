@@ -40,6 +40,7 @@ public abstract class Constants
 
     public enum Type
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         STRING,
         INTEGER
         {
@@ -94,6 +95,7 @@ public abstract class Constants
     {
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11424
             return UNSET_VALUE;
         }
 
@@ -122,6 +124,7 @@ public abstract class Constants
     {
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
             if (!testAssignment(keyspace, receiver).isAssignable())
                 throw new InvalidRequestException("Invalid null value for counter increment/decrement");
 
@@ -137,11 +140,13 @@ public abstract class Constants
 
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return "NULL";
         }
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
     }
@@ -154,12 +159,15 @@ public abstract class Constants
         public Terminal bind(QueryOptions options)
         {
             // We return null because that makes life easier for collections
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             return null;
         }
 
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7484
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7484
             return "null";
         }
     };
@@ -175,6 +183,7 @@ public abstract class Constants
             assert type != null && text != null;
             this.type = type;
             this.text = text;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             this.preferedType = type.getPreferedTypeFor(text);
         }
 
@@ -210,11 +219,13 @@ public abstract class Constants
 
         public static Literal duration(String text)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
             return new Literal(Type.DURATION, text);
         }
 
         public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
             if (!testAssignment(keyspace, receiver).isAssignable())
                 throw new InvalidRequestException(String.format("Invalid %s constant (%s) for \"%s\" of type %s", type, text, receiver.name, receiver.type.asCQL3Type()));
 
@@ -223,6 +234,7 @@ public abstract class Constants
 
         private ByteBuffer parsedValue(AbstractType<?> validator) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5629
             if (validator instanceof ReversedType<?>)
                 validator = ((ReversedType<?>) validator).baseType;
             try
@@ -249,6 +261,7 @@ public abstract class Constants
             CQL3Type receiverType = receiver.type.asCQL3Type();
             if (receiverType.isCollection() || receiverType.isUDT())
                 return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
 
             if (!(receiverType instanceof CQL3Type.Native))
                 // Skip type validation for custom types. May or may not be a good idea
@@ -257,6 +270,7 @@ public abstract class Constants
             CQL3Type.Native nt = (CQL3Type.Native)receiverType;
 
             // If the receiver type match the prefered type we can straight away return an exact match
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             if (nt.getType().equals(preferedType))
                 return AssignmentTestable.TestResult.EXACT_MATCH;
 
@@ -272,6 +286,7 @@ public abstract class Constants
                         case DATE:
                         case TIME:
                         case TIMESTAMP:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
                             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
                     break;
@@ -280,17 +295,23 @@ public abstract class Constants
                     {
                         case BIGINT:
                         case COUNTER:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7523
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7523
                         case DATE:
                         case DECIMAL:
                         case DOUBLE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                         case DURATION:
                         case FLOAT:
                         case INT:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8951
                         case SMALLINT:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11798
                         case TIME:
                         case TIMESTAMP:
                         case TINYINT:
                         case VARINT:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
                             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
                     break;
@@ -325,6 +346,7 @@ public abstract class Constants
                             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                 case DURATION:
                     switch (nt)
                     {
@@ -343,11 +365,13 @@ public abstract class Constants
             // for good or bad, any literal is valid for custom types, so we can never claim an exact type.
             // But really, the reason it's fine to return null here is that getExactTypeIfKnown is only used to
             // implement testAssignment() in Selectable and that method is overriden above.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
 
         public String getRawText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return text;
         }
 
@@ -383,6 +407,7 @@ public abstract class Constants
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6875
             return ByteBufferUtil.bytesToHex(bytes);
         }
     }
@@ -392,6 +417,7 @@ public abstract class Constants
         protected Marker(int bindIndex, ColumnSpecification receiver)
         {
             super(bindIndex, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             assert !receiver.type.isCollection();
         }
 
@@ -400,7 +426,9 @@ public abstract class Constants
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                 ByteBuffer value = options.getValues().get(bindIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 if (value != null && value != ByteBufferUtil.UNSET_BYTE_BUFFER)
                     receiver.type.validate(value);
                 return value;
@@ -413,7 +441,9 @@ public abstract class Constants
 
         public Value bind(QueryOptions options) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             ByteBuffer bytes = bindAndGet(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (bytes == null)
                 return null;
             if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
@@ -431,8 +461,10 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             ByteBuffer value = t.bindAndGet(params.options);
             if (value == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.addTombstone(column);
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
                 params.addCell(column, value);
@@ -455,6 +487,7 @@ public abstract class Constants
                 return;
 
             long increment = ByteBufferUtil.toLong(bytes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             params.addCounter(column, increment);
         }
     }
@@ -468,9 +501,14 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             ByteBuffer bytes = t.bindAndGet(params.options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
             if (bytes == null)
                 throw new InvalidRequestException("Invalid null value for counter increment");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 return;
 
@@ -478,6 +516,7 @@ public abstract class Constants
             if (increment == Long.MIN_VALUE)
                 throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             params.addCounter(column, -increment);
         }
     }
@@ -493,7 +532,9 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             if (column.type.isMultiCell())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.setComplexDeletionTime(column);
             else
                 params.addTombstone(column);

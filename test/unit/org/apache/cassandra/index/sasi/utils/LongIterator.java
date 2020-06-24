@@ -84,6 +84,7 @@ public class LongIterator extends RangeIterator<Long, Token>
         @Override
         public LongSet getOffsets()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
             return new LongHashSet(4);
         }
 

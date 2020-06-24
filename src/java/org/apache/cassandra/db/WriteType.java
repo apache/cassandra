@@ -25,6 +25,7 @@ public enum WriteType
     COUNTER,
     BATCH_LOG,
     CAS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
     VIEW,
     CDC;
 }

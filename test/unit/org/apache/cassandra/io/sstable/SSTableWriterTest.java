@@ -187,6 +187,9 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
             // These checks don't work on Windows because the writer has the channel still
             // open till .abort() is called (via the builder)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
             if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();

@@ -45,7 +45,9 @@ public class CloudstackSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         SchemaLoader.mkdirs();
@@ -79,6 +81,7 @@ public class CloudstackSnitchTest
     {
         az = "ch-gva-1";
         CloudstackSnitch snitch = new TestCloudstackSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -102,6 +105,7 @@ public class CloudstackSnitchTest
         az = "ch-gva-1";
         CloudstackSnitch snitch = new TestCloudstackSnitch();
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         assertEquals("ch-gva", snitch.getDatacenter(local));
         assertEquals("1", snitch.getRack(local));

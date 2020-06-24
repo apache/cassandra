@@ -136,6 +136,7 @@ public class FunctionResource implements IResource
 
     public static FunctionResource function(Function function)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return new FunctionResource(function.name().keyspace, function.name().name, function.argTypes());
     }
 
@@ -152,9 +153,11 @@ public class FunctionResource implements IResource
      */
     public static FunctionResource functionFromCql(String keyspace, String name, List<CQL3Type.Raw> argTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12925
         if (keyspace == null)
             throw new InvalidRequestException("In this context function name must be " +
                                               "explictly qualified by a keyspace");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<AbstractType<?>> abstractTypes = new ArrayList<>(argTypes.size());
         for (CQL3Type.Raw cqlType : argTypes)
             abstractTypes.add(cqlType.prepare(keyspace).getType());
@@ -164,6 +167,7 @@ public class FunctionResource implements IResource
 
     public static FunctionResource functionFromCql(FunctionName name, List<CQL3Type.Raw> argTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return functionFromCql(name.keyspace, name.name, argTypes);
     }
 
@@ -258,6 +262,7 @@ public class FunctionResource implements IResource
             case KEYSPACE:
                 return Schema.instance.getKeyspaces().contains(keyspace);
             case FUNCTION:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
                 return Schema.instance.findFunction(getFunctionName(), argTypes).isPresent();
         }
         throw new AssertionError();
@@ -272,6 +277,7 @@ public class FunctionResource implements IResource
                 return COLLECTION_LEVEL_PERMISSIONS;
             case FUNCTION:
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
                 Optional<Function> function = Schema.instance.findFunction(getFunctionName(), argTypes);
                 assert function.isPresent() : "Unable to find function object for resource " + toString();
                 return function.get().isAggregate() ? AGGREGATE_FUNCTION_PERMISSIONS : SCALAR_FUNCTION_PERMISSIONS;

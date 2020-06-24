@@ -56,6 +56,7 @@ public class SSTableMetadataTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
@@ -79,6 +80,7 @@ public class SSTableMetadataTest
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 10; j++)
                 new RowUpdateBuilder(store.metadata(), timestamp, 10 + j, Integer.toString(i))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                     .clustering(Integer.toString(j))
                     .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                     .build()
@@ -94,6 +96,7 @@ public class SSTableMetadataTest
 
 
         store.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         int ttltimestamp = (int)(System.currentTimeMillis()/1000);
         int firstDelTime = 0;
@@ -105,6 +108,7 @@ public class SSTableMetadataTest
         }
 
         new RowUpdateBuilder(store.metadata(), timestamp, 20000, "longttl2")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         .clustering("col")
         .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
         .build()
@@ -113,6 +117,7 @@ public class SSTableMetadataTest
 
         ttltimestamp = (int) (System.currentTimeMillis()/1000);
         store.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(2, store.getLiveSSTables().size());
         List<SSTableReader> sstables = new ArrayList<>(store.getLiveSSTables());
         if(sstables.get(0).getSSTableMetadata().maxLocalDeletionTime < sstables.get(1).getSSTableMetadata().maxLocalDeletionTime)
@@ -126,6 +131,7 @@ public class SSTableMetadataTest
             assertEquals(sstables.get(0).getSSTableMetadata().maxLocalDeletionTime, ttltimestamp + 20000, 10);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Util.compact(store, store.getLiveSSTables());
         assertEquals(1, store.getLiveSSTables().size());
         for(SSTableReader sstable : store.getLiveSSTables())
@@ -154,6 +160,7 @@ public class SSTableMetadataTest
         DecoratedKey key = Util.dk("deletetest");
         for (int i = 0; i<5; i++)
             new RowUpdateBuilder(store.metadata(), timestamp, 100, "deletetest")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 .clustering("deletecolumn" + i)
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
@@ -167,6 +174,7 @@ public class SSTableMetadataTest
         .applyUnsafe();
 
         store.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1,store.getLiveSSTables().size());
         int ttltimestamp = (int) (System.currentTimeMillis()/1000);
         int firstMaxDelTime = 0;
@@ -179,6 +187,7 @@ public class SSTableMetadataTest
         RowUpdateBuilder.deleteRow(store.metadata(), timestamp + 1, "deletetest", "todelete").applyUnsafe();
 
         store.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(2,store.getLiveSSTables().size());
         boolean foundDelete = false;
         for(SSTableReader sstable : store.getLiveSSTables())
@@ -190,6 +199,7 @@ public class SSTableMetadataTest
             }
         }
         assertTrue(foundDelete);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Util.compact(store, store.getLiveSSTables());
         assertEquals(1,store.getLiveSSTables().size());
         for(SSTableReader sstable : store.getLiveSSTables())
@@ -201,10 +211,12 @@ public class SSTableMetadataTest
     @Test
     public void trackMaxMinColNames() throws CharacterCodingException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard3");
         for (int j = 0; j < 8; j++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             String key = "row" + j;
             for (int i = 100; i<150; i++)
             {
@@ -216,12 +228,14 @@ public class SSTableMetadataTest
             }
         }
         store.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "7col149");
             // make sure the clustering values are minimised
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15400
             assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
             assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
         }
@@ -238,12 +252,14 @@ public class SSTableMetadataTest
 
         store.forceBlockingFlush();
         store.forceMajorCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "9col298");
             // and make sure the clustering values are still minimised after compaction
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15400
             assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
             assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
         }
@@ -253,6 +269,7 @@ public class SSTableMetadataTest
     public void testLegacyCounterShardTracking()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Counter1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
 
         // A cell with all shards
         CounterContext.ContextState state = CounterContext.ContextState.allocate(1, 1, 1);
@@ -264,6 +281,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
@@ -275,6 +293,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
@@ -286,6 +305,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
@@ -294,9 +314,15 @@ public class SSTableMetadataTest
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertFalse(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
     } */
 }

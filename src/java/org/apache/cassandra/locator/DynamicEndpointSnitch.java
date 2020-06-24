@@ -84,6 +84,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         if (instance != null)
             mbeanName += ",instance=" + instance;
         subsnitch = snitch;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
         update = new Runnable()
         {
             public void run()
@@ -103,6 +104,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
         if (DatabaseDescriptor.isDaemonInitialized())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             updateSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
             resetSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(reset, dynamicResetInterval, dynamicResetInterval, TimeUnit.MILLISECONDS);
             registerMBean();
@@ -118,8 +121,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         if (dynamicUpdateInterval != DatabaseDescriptor.getDynamicUpdateInterval())
         {
             dynamicUpdateInterval = DatabaseDescriptor.getDynamicUpdateInterval();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
             if (DatabaseDescriptor.isDaemonInitialized())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                 updateSchedular.cancel(false);
                 updateSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
             }
@@ -128,6 +134,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         if (dynamicResetInterval != DatabaseDescriptor.getDynamicResetInterval())
         {
             dynamicResetInterval = DatabaseDescriptor.getDynamicResetInterval();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
             if (DatabaseDescriptor.isDaemonInitialized())
             {
                 resetSchedular.cancel(false);
@@ -140,20 +147,25 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     private void registerMBean()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, mbeanName);
     }
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
         updateSchedular.cancel(false);
         resetSchedular.cancel(false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.unregisterMBean(mbeanName);
     }
 
     @Override
     public void gossiperStarting()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         subsnitch.gossiperStarting();
     }
 
@@ -215,6 +227,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         Iterator<Double> sortedScoreIterator = sortedScores.iterator();
         for (Double subsnitchScore : subsnitchOrderedScores)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15798
             if (subsnitchScore > (sortedScoreIterator.next() * badnessThreshold))
             {
                 return sortedByProximityWithScore(address, replicas);
@@ -230,6 +243,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         Double scored1 = scores.get(a1.endpoint());
         Double scored2 = scores.get(a2.endpoint());
         
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2662
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (scored1 == null)
         {
             scored1 = 0.0;
@@ -258,6 +273,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public void receiveTiming(InetAddressAndPort host, long latency, TimeUnit unit) // this is cheap
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         ExponentiallyDecayingReservoir sample = samples.get(host);
         if (sample == null)
         {
@@ -266,17 +282,20 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
             if (sample == null)
                 sample = maybeNewSample;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         sample.update(unit.toMillis(latency));
     }
 
     private void updateScores() // this is expensive
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (!StorageService.instance.isGossipActive())
             return;
         if (!registered)
         {
             if (MessagingService.instance() != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 MessagingService.instance().latencySubscribers.subscribe(this);
                 registered = true;
             }
@@ -284,6 +303,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         }
         double maxLatency = 1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, Snapshot> snapshots = new HashMap<>(samples.size());
         for (Map.Entry<InetAddressAndPort, ExponentiallyDecayingReservoir> entry : samples.entrySet())
         {
@@ -315,11 +335,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     private void reset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
        samples.clear();
     }
 
     public Map<InetAddress, Double> getScores()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().address, Map.Entry::getValue));
     }
 
@@ -330,6 +352,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public int getUpdateInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
         return dynamicUpdateInterval;
     }
     public int getResetInterval()
@@ -343,13 +366,17 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public String getSubsnitchClassName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return subsnitch.getClass().getName();
     }
 
     public List<Double> dumpTimings(String hostname) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort host = InetAddressAndPort.getByName(hostname);
         ArrayList<Double> timings = new ArrayList<Double>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         ExponentiallyDecayingReservoir sample = samples.get(host);
         if (sample != null)
         {
@@ -384,10 +411,12 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
         if (!subsnitch.isWorthMergingForRangeQuery(merged, l1, l2))
             return false;
 
         // skip checking scores in the single-node case
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6930
         if (l1.size() == 1 && l2.size() == 1 && l1.get(0).equals(l2.get(0)))
             return true;
 
@@ -398,6 +427,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         if (maxMerged < 0 || maxL1 < 0 || maxL2 < 0)
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7535
         return maxMerged <= (maxL1 + maxL2) * RANGE_MERGING_PREFERENCE;
     }
 
@@ -410,6 +440,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
             Double score = scores.get(replica.endpoint());
             if (score == null)
                 continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13074
 
             if (score > maxScore)
                 maxScore = score;
@@ -419,6 +450,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public boolean validate(Set<String> datacenters, Set<String> racks)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
         return subsnitch.validate(datacenters, racks);
     }
 }

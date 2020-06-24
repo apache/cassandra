@@ -96,6 +96,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
     public Iterator<Cell> iterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         return BTree.iterator(cells);
     }
 
@@ -106,6 +107,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
     public long accumulate(LongAccumulator<Cell> accumulator, long initialValue)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         return BTree.accumulate(cells, accumulator, initialValue);
     }
 
@@ -126,6 +128,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
     {
         long heapSize = EMPTY_SIZE + ObjectSizes.sizeOfArray(cells);
         // TODO: this can be turned into a simple multiplication, at least while we have only one Cell implementation
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         for (Cell cell : this)
             heapSize += cell.unsharedHeapSizeExcludingData();
         return heapSize;
@@ -141,6 +144,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
     {
         if (!complexDeletion.isLive())
             complexDeletion.digest(digest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
 
         for (Cell cell : this)
             cell.digest(digest);
@@ -148,6 +152,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
     public boolean hasInvalidDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         if (!complexDeletion.validate())
             return true;
         for (Cell cell : this)
@@ -210,6 +215,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
     public long maxTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         long timestamp = complexDeletion.markedForDeleteAt();
         for (Cell cell : this)
             timestamp = Math.max(timestamp, cell.timestamp());
@@ -236,12 +242,14 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
         ComplexColumnData that = (ComplexColumnData)other;
         return this.column().equals(that.column())
             && this.complexDeletion().equals(that.complexDeletion)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             && BTree.equals(this.cells, that.cells);
     }
 
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13263
         return Objects.hash(column(), complexDeletion(), BTree.hashCode(cells));
     }
 
@@ -260,6 +268,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
         {
             this.column = column;
             this.complexDeletion = DeletionTime.LIVE; // default if writeComplexDeletion is not called
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
             if (builder == null)
                 builder = BTree.builder(column.cellComparator());
             else
@@ -273,6 +282,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
         public void addCell(Cell cell)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             builder.add(cell);
         }
 

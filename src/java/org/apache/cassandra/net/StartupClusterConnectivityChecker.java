@@ -148,6 +148,7 @@ public class StartupClusterConnectivityChecker
         }
 
         boolean succeeded = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         for (CountDownLatch countDownLatch : dcToRemainingPeers.values())
         {
             long remainingNanos = Math.max(1, timeoutNanos - (System.nanoTime() - startNanos));
@@ -182,6 +183,7 @@ public class StartupClusterConnectivityChecker
     private void sendPingMessages(Set<InetAddressAndPort> peers, Map<String, CountDownLatch> dcToRemainingPeers,
                                   AckMap acks, Function<InetAddressAndPort, String> getDatacenter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         RequestCallback responseHandler = msg -> {
             if (acks.incrementAndCheck(msg.from()))
             {

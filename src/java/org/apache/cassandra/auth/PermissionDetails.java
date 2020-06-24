@@ -32,6 +32,7 @@ public class PermissionDetails implements Comparable<PermissionDetails>
 
     public PermissionDetails(String grantee, IResource resource, Permission permission)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         this.grantee = grantee;
         this.resource = resource;
         this.permission = permission;
@@ -41,6 +42,7 @@ public class PermissionDetails implements Comparable<PermissionDetails>
     public int compareTo(PermissionDetails other)
     {
         return ComparisonChain.start()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
                               .compare(grantee, other.grantee)
                               .compare(resource.getName(), other.resource.getName())
                               .compare(permission, other.permission)
@@ -50,6 +52,7 @@ public class PermissionDetails implements Comparable<PermissionDetails>
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return String.format("<PermissionDetails grantee:%s resource:%s permission:%s>",
                              grantee,
                              resource.getName(),
@@ -66,6 +69,7 @@ public class PermissionDetails implements Comparable<PermissionDetails>
             return false;
 
         PermissionDetails pd = (PermissionDetails) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return Objects.equal(grantee, pd.grantee)
             && Objects.equal(resource, pd.resource)
             && Objects.equal(permission, pd.permission);
@@ -74,6 +78,7 @@ public class PermissionDetails implements Comparable<PermissionDetails>
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return Objects.hashCode(grantee, resource, permission);
     }
 }

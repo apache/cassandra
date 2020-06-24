@@ -65,12 +65,14 @@ public class Slice
     private Slice(ClusteringBound start, ClusteringBound end)
     {
         assert start.isStart() && end.isEnd();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         this.start = start;
         this.end = end;
     }
 
     public static Slice make(ClusteringBound start, ClusteringBound end)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         if (start == ClusteringBound.BOTTOM && end == ClusteringBound.TOP)
             return ALL;
 
@@ -80,6 +82,7 @@ public class Slice
     public static Slice make(ClusteringComparator comparator, Object... values)
     {
         CBuilder builder = CBuilder.create(comparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         for (Object val : values)
         {
             if (val instanceof ByteBuffer)
@@ -95,6 +98,7 @@ public class Slice
         // This doesn't give us what we want with the clustering prefix
         assert clustering != Clustering.STATIC_CLUSTERING;
         ByteBuffer[] values = extractValues(clustering);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new Slice(ClusteringBound.inclusiveStartOf(values), ClusteringBound.inclusiveEndOf(values));
     }
 
@@ -106,6 +110,7 @@ public class Slice
         ByteBuffer[] startValues = extractValues(start);
         ByteBuffer[] endValues = extractValues(end);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new Slice(ClusteringBound.inclusiveStartOf(startValues), ClusteringBound.inclusiveEndOf(endValues));
     }
 
@@ -163,6 +168,7 @@ public class Slice
 
         int cmp = comparator.compare(start, end);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
         if (cmp < 0)
             return false;
         else if (cmp > 0)
@@ -199,6 +205,7 @@ public class Slice
      */
     public Slice forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive, boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         if (lastReturned == null)
             return this;
 
@@ -213,6 +220,7 @@ public class Slice
                 return this;
 
             ByteBuffer[] values = extractValues(lastReturned);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             return new Slice(start, inclusive ? ClusteringBound.inclusiveEndOf(values) : ClusteringBound.exclusiveEndOf(values));
         }
         else
@@ -226,6 +234,7 @@ public class Slice
                 return this;
 
             ByteBuffer[] values = extractValues(lastReturned);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             return new Slice(inclusive ? ClusteringBound.inclusiveStartOf(values) : ClusteringBound.exclusiveStartOf(values), end);
         }
     }
@@ -254,6 +263,7 @@ public class Slice
         for (int i = 0; i < start.size(); i++)
         {
             if (i > 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
                 sb.append(':');
             sb.append(comparator.subtype(i).getString(start.get(i)));
         }
@@ -289,6 +299,7 @@ public class Slice
     {
         public void serialize(Slice slice, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             ClusteringBound.serializer.serialize(slice.start, out, version, types);
             ClusteringBound.serializer.serialize(slice.end, out, version, types);
         }

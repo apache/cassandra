@@ -31,12 +31,15 @@ public class TokenAllocatorFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(TokenAllocatorFactory.class);
     public static TokenAllocator<InetAddressAndPort> createTokenAllocator(NavigableMap<Token, InetAddressAndPort> sortedTokens,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                           ReplicationStrategy<InetAddressAndPort> strategy,
                                                                           IPartitioner partitioner)
     {
         if(strategy.replicas() == 1)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12983
             logger.info("Using NoReplicationTokenAllocator.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
             NoReplicationTokenAllocator<InetAddressAndPort> allocator = new NoReplicationTokenAllocator<>(sortedTokens, strategy, partitioner);
             TokenAllocatorDiagnostics.noReplicationTokenAllocatorInstanciated(allocator);
             return allocator;

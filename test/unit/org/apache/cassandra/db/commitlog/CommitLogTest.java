@@ -110,6 +110,7 @@ public abstract class CommitLogTest
             {null, EncryptionContextGenerator.createContext(true)}, // Encryption
             {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
@@ -131,6 +132,7 @@ public abstract class CommitLogTest
                          .addStaticColumn("s", IntegerType.instance);
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance),
@@ -140,8 +142,10 @@ public abstract class CommitLogTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
         CompactionManager.instance.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8992
 
         testKiller = new KillerForTests();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
         // While we don't want the JVM to be nuked from under us on a test failure, we DO want some indication of
         // an error. If we hit a "Kill the JVM" condition while working with the CL when we don't expect it, an aggressive
@@ -194,6 +198,7 @@ public abstract class CommitLogTest
     public void testHeaderOnlyFileFiltering() throws Exception
     {
         File directory = Files.createTempDir();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13918
 
         CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, DatabaseDescriptor.getEncryptionContext());
         CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 2, null, DatabaseDescriptor.getEncryptionContext());
@@ -231,6 +236,7 @@ public abstract class CommitLogTest
         }, null);
 
         // 2 corrupt files and one header only file should fail
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9749
         runExpecting(() -> {
             CommitLog.instance.recoverFiles(file1, file1, file2);
             return null;
@@ -240,6 +246,7 @@ public abstract class CommitLogTest
     @Test
     public void testRecoveryWithZeroLog() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         testRecovery(new byte[10], CommitLogReplayException.class);
     }
 
@@ -254,6 +261,7 @@ public abstract class CommitLogTest
     public void testRecoveryWithShortSize() throws Exception
     {
         runExpecting(() -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             testRecovery(new byte[2], CommitLogDescriptor.current_version);
             return null;
         }, CommitLogReplayException.class);
@@ -317,6 +325,7 @@ public abstract class CommitLogTest
         // Roughly 32 MB mutation
         Mutation m = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
                      .clustering("bytes")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
                      .add("val", ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4))
                      .build();
 
@@ -346,6 +355,7 @@ public abstract class CommitLogTest
     @Test
     public void testDeleteIfNotDirty() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         Keyspace ks = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs1 = ks.getColumnFamilyStore(STANDARD1);
         ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
@@ -372,6 +382,7 @@ public abstract class CommitLogTest
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
         Mutation rm2 = new RowUpdateBuilder(cfs2.metadata(), 0, "k")
                        .clustering("bytes")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
                        .add("val", ByteBuffer.allocate(DatabaseDescriptor.getMaxMutationSize() - 200))
                        .build();
         CommitLog.instance.add(rm2);
@@ -422,10 +433,12 @@ public abstract class CommitLogTest
 
         int max = DatabaseDescriptor.getMaxMutationSize();
         max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6974
 
         // Note that the size of the value if vint encoded. So we first compute the ovehead of the mutation without the value and it's size
         int mutationOverhead = rm.serializedSize(MessagingService.current_version) - (VIntCoding.computeVIntSize(allocSize) + allocSize);
         max -= mutationOverhead;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         // Now, max is the max for both the value and it's size. But we want to know how much we can allocate, i.e. the size of the value.
         int sizeOfMax = VIntCoding.computeVIntSize(max);
@@ -443,6 +456,7 @@ public abstract class CommitLogTest
     @Test
     public void testEqualRecordLimit() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
         Mutation rm = new RowUpdateBuilder(cfs.metadata(), 0, "k")
                       .clustering("bytes")
@@ -454,6 +468,7 @@ public abstract class CommitLogTest
     @Test(expected = MutationExceededMaxSizeException.class)
     public void testExceedRecordLimit() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         Keyspace ks = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(STANDARD1);
         Mutation rm = new RowUpdateBuilder(cfs.metadata(), 0, "k")
@@ -466,6 +481,9 @@ public abstract class CommitLogTest
     @Test
     public void testExceedRecordLimitWithMultiplePartitions() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         CommitLog.instance.resetUnsafe(true);
         List<Mutation> mutations = new ArrayList<>();
         Keyspace ks = Keyspace.open(KEYSPACE1);
@@ -507,6 +525,7 @@ public abstract class CommitLogTest
 
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9749
         Checksum checksum = new CRC32();
         checksum.update(size);
         testRecoveryWithBadSizeArgument(size, dataSize, checksum.getValue());
@@ -566,6 +585,7 @@ public abstract class CommitLogTest
 
     protected File tmpFile(int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File logFile = FileUtils.createTempFile("CommitLog-" + version + "-", ".log");
         assert logFile.length() == 0;
         return logFile;
@@ -588,6 +608,7 @@ public abstract class CommitLogTest
         File logFile = tmpFile(desc.version);
         CommitLogDescriptor fromFile = CommitLogDescriptor.fromFileName(logFile.getName());
         // Change id to match file.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         desc = new CommitLogDescriptor(desc.version, fromFile.id, desc.compression, desc.getEncryptionContext());
         ByteBuffer buf = ByteBuffer.allocate(1024);
         CommitLogDescriptor.writeHeader(buf, desc, getAdditionalHeaders(desc.getEncryptionContext()));
@@ -604,6 +625,7 @@ public abstract class CommitLogTest
     @Test
     public void testRecoveryWithIdMismatch() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         CommitLogDescriptor desc = new CommitLogDescriptor(4, null, EncryptionContextGenerator.createDisabledContext());
         File logFile = tmpFile(desc.version);
         ByteBuffer buf = ByteBuffer.allocate(1024);
@@ -622,6 +644,7 @@ public abstract class CommitLogTest
     @Test
     public void testRecoveryWithBadCompressor() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         CommitLogDescriptor desc = new CommitLogDescriptor(4, new ParameterizedClass("UnknownCompressor", null), EncryptionContextGenerator.createDisabledContext());
         runExpecting(() -> {
             testRecovery(desc, new byte[0]);
@@ -645,6 +668,7 @@ public abstract class CommitLogTest
         if (expected != null && caught == null)
             Assert.fail("Expected exception " + expected + " but call completed successfully.");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         assertEquals("JVM kill state doesn't match expectation.", expected != null, testKiller.wasKilled());
     }
 
@@ -652,6 +676,7 @@ public abstract class CommitLogTest
     {
         ParameterizedClass commitLogCompression = DatabaseDescriptor.getCommitLogCompression();
         EncryptionContext encryptionContext = DatabaseDescriptor.getEncryptionContext();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         runExpecting(() -> testRecovery(logData, CommitLogDescriptor.current_version), expected);
     }
 
@@ -663,6 +688,7 @@ public abstract class CommitLogTest
         {
             boolean prev = DatabaseDescriptor.isAutoSnapshot();
             DatabaseDescriptor.setAutoSnapshot(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             Keyspace ks = Keyspace.open(KEYSPACE1);
             ColumnFamilyStore cfs1 = ks.getColumnFamilyStore(STANDARD1);
             ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
@@ -678,6 +704,7 @@ public abstract class CommitLogTest
             for (int i = 0 ; i < 5 ; i++)
                 CommitLog.instance.add(m2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
             CommitLogPosition position = CommitLog.instance.getCurrentPosition();
             for (Keyspace keyspace : Keyspace.system())
@@ -701,9 +728,11 @@ public abstract class CommitLogTest
             DatabaseDescriptor.setAutoSnapshot(false);
             Keyspace notDurableKs = Keyspace.open(KEYSPACE2);
             assertFalse(notDurableKs.getMetadata().params.durableWrites);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
             ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
             new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
             .clustering("bytes").add("val", bytes("abcd"))
             .build()
             .applyUnsafe();
@@ -758,6 +787,7 @@ public abstract class CommitLogTest
         int cellCount = 0;
         int max = 1024;
         int discardPosition = (int)(max * .8); // an arbitrary number of entries that we'll skip on the replay
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         CommitLogPosition commitLogPosition = null;
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
@@ -768,6 +798,7 @@ public abstract class CommitLogTest
                                  .add("val", bytes("this is a string"))
                                  .build();
             CommitLogPosition position = CommitLog.instance.add(rm1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
             if (i == discardPosition)
                 commitLogPosition = position;
@@ -782,6 +813,8 @@ public abstract class CommitLogTest
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
         File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).listFiles((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
@@ -808,6 +841,7 @@ public abstract class CommitLogTest
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {
             // Filter out system writes that could flake the test.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
             if (!KEYSPACE1.equals(m.getKeyspaceName()))
                 return;
 
@@ -817,12 +851,14 @@ public abstract class CommitLogTest
                 skipped++;
                 return;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             for (PartitionUpdate partitionUpdate : m.getPartitionUpdates())
             {
                 // Only process mutations for the CF's we're testing against, since we can't deterministically predict
                 // whether or not system keyspaces will be mutated during a test.
                 if (partitionUpdate.metadata().name.equals(metadata.name))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12206
                     for (Row row : partitionUpdate)
                         cells += Iterables.size(row.cells());
                 }
@@ -833,6 +869,7 @@ public abstract class CommitLogTest
     public void testUnwriteableFlushRecovery() throws ExecutionException, InterruptedException, IOException
     {
         CommitLog.instance.resetUnsafe(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
@@ -882,6 +919,10 @@ public abstract class CommitLogTest
             throws ExecutionException, InterruptedException, IOException
     {
         CommitLog.instance.resetUnsafe(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 

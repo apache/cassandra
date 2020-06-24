@@ -173,6 +173,7 @@ public class WriteResponseHandlerTransientTest
     private static void assertSpeculationReplicas(ReplicaPlan.ForTokenWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaPlan.ForTokenWrite actual = getSpeculationContext(replicas, livePredicate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
         assertEquals(expected.pending(), actual.pending());
         assertEquals(expected.live(), actual.live());
         assertEquals(expected.contacts(), actual.contacts());
@@ -198,6 +199,8 @@ public class WriteResponseHandlerTransientTest
     @Test
     public void checkSpeculationContext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         EndpointsForToken all = replicas(full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
         // in happy path, transient replica should be classified as a backup
         assertSpeculationReplicas(expected(all, replicas(full(EP1), full(EP2), full(EP4), full(EP5))),

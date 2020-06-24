@@ -49,6 +49,7 @@ public class PendingRangeCalculatorService
 
     public PendingRangeCalculatorService()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         executor.setRejectedExecutionHandler((r, e) ->
             {
                 PendingRangeCalculatorServiceDiagnostics.taskRejected(instance, updateJobs);
@@ -89,6 +90,7 @@ public class PendingRangeCalculatorService
     private void finishUpdate()
     {
         int jobs = updateJobs.decrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         PendingRangeCalculatorServiceDiagnostics.taskCountChanged(instance, jobs);
     }
 
@@ -119,6 +121,7 @@ public class PendingRangeCalculatorService
     // public & static for testing purposes
     public static void calculatePendingRanges(AbstractReplicationStrategy strategy, String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7390
         StorageService.instance.getTokenMetadata().calculatePendingRanges(strategy, keyspaceName);
     }
 

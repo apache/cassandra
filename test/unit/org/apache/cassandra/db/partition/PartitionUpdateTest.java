@@ -35,6 +35,7 @@ public class PartitionUpdateTest extends CQLTester
         createTable("CREATE TABLE %s (key text, clustering int, a int, s int static, PRIMARY KEY(key, clustering))");
         TableMetadata cfm = currentTableMetadata();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         UpdateBuilder builder = UpdateBuilder.create(cfm, "key0");
         Assert.assertEquals(0, builder.build().operationCount());
         Assert.assertEquals(1, builder.newRow(1).add("a", 1).build().operationCount());
@@ -74,6 +75,7 @@ public class PartitionUpdateTest extends CQLTester
     @Test
     public void testUpdateAllTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         createTable("CREATE TABLE %s (key text, clustering int, a int, b int, c int, s int static, PRIMARY KEY(key, clustering))");
         TableMetadata cfm = currentTableMetadata();
 

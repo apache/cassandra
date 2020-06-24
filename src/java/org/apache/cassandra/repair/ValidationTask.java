@@ -53,7 +53,9 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
      */
     public void run()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13671
         ValidationRequest request = new ValidationRequest(desc, nowInSec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         MessagingService.instance().send(Message.out(VALIDATION_REQ, request), endpoint);
     }
 
@@ -64,8 +66,10 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
      */
     public void treesReceived(MerkleTrees trees)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         if (trees == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             setException(new RepairException(desc, previewKind, "Validation failed in " + endpoint));
         }
         else

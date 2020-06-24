@@ -28,6 +28,7 @@ public final class BatchStoreVerbHandler implements IVerbHandler<Batch>
     public void doVerb(Message<Batch> message)
     {
         BatchlogManager.store(message.payload);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }
 }

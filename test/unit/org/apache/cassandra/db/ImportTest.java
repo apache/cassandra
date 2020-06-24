@@ -74,6 +74,7 @@ public class ImportTest extends CQLTester
 
         assertEquals(0, execute("select * from %s").size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).build();
         SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
         importer.importNewSSTables(options);
@@ -119,6 +120,7 @@ public class ImportTest extends CQLTester
         for (int i = 0; i < 10; i++)
             execute("insert into %s (id, d) values (?, ?)", i, i);
         getCurrentColumnFamilyStore().forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         getCurrentColumnFamilyStore().clearUnsafe();
         sstables.forEach(s -> s.selfRef().release());
@@ -154,6 +156,7 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().clearUnsafe();
         backupdir = moveToBackupDir(sstables);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         options = SSTableImporter.Options.options(backupdir.toString()).resetLevel(true).build();
         importer.importNewSSTables(options);
 
@@ -179,6 +182,8 @@ public class ImportTest extends CQLTester
         File backupdir = moveToBackupDir(sstables);
         assertEquals(0, execute("select * from %s").size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).build();
         SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
         importer.importNewSSTables(options);
@@ -192,6 +197,7 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().clearUnsafe();
         backupdir = moveToBackupDir(sstables);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         options = SSTableImporter.Options.options(backupdir.toString()).clearRepaired(true).build();
         importer.importNewSSTables(options);
         sstables = getCurrentColumnFamilyStore().getLiveSSTables();
@@ -206,6 +212,7 @@ public class ImportTest extends CQLTester
         SSTableReader sst = sstables.iterator().next();
         String tabledir = sst.descriptor.directory.getName();
         String ksdir = sst.descriptor.directory.getParentFile().getName();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         Path backupdir = createDirectories(temp.toString(), ksdir, tabledir);
         for (SSTableReader sstable : sstables)
         {
@@ -290,6 +297,7 @@ public class ImportTest extends CQLTester
 
         getCurrentColumnFamilyStore().clearUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
         try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
         {
@@ -308,6 +316,7 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().clearUnsafe();
         File backupdirCorrect = moveToBackupDir(correctSSTables);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15517
         Set<File> beforeImport = Sets.newHashSet(backupdir.listFiles());
         // first we moved out 2 sstables, one correct and one corrupt in to a single directory (backupdir)
         // then we moved out 1 sstable, a correct one (in backupdirCorrect).
@@ -323,6 +332,7 @@ public class ImportTest extends CQLTester
             assertTrue("pk = "+pk, pk >= 100 && pk < 130);
         }
         assertEquals("Data dir should contain one file", 1, countFiles(getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15517
         assertEquals("backupdir contained 2 files before import, should still contain 2 after failing to import it", beforeImport, Sets.newHashSet(backupdir.listFiles()));
         assertEquals("backupdirCorrect contained 1 file before import, should be empty after import", 0, countFiles(backupdirCorrect));
     }
@@ -374,6 +384,7 @@ public class ImportTest extends CQLTester
         File backupdir = moveToBackupDir(sstables);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
             SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).build();
             SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
             List<String> failed = importer.importNewSSTables(options);
@@ -392,6 +403,7 @@ public class ImportTest extends CQLTester
             assertTrue(failed.isEmpty());
 
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
         finally
         {
             tmd.clearUnsafe();
@@ -419,6 +431,7 @@ public class ImportTest extends CQLTester
         File backupdir = moveToBackupDir(sstables);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
             SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString())
                                                                                      .verifySSTables(true)
                                                                                      .verifyTokens(true)
@@ -480,6 +493,7 @@ public class ImportTest extends CQLTester
         // make sure we don't wipe caches with invalidateCaches = false:
         Set<SSTableReader> beforeFirstImport = getCurrentColumnFamilyStore().getLiveSSTables();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).build();
         SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
         importer.importNewSSTables(options);
@@ -509,6 +523,7 @@ public class ImportTest extends CQLTester
         for (int i = 0; i < 10; i++)
             execute("insert into %s (id, d) values (?, ?)", i, i);
         getCurrentColumnFamilyStore().forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         CacheService.instance.setRowCacheCapacityInMB(1);
         getCurrentColumnFamilyStore().clearUnsafe();

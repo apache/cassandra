@@ -35,6 +35,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
 
     public boolean isEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return endTimeNanos != -1 && clock.now() <= endTimeNanos;
     }
 
@@ -56,6 +57,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
     public synchronized List<Sample<T>> finishSampling(int count)
     {
         List<Sample<T>> result = new ArrayList<>(count);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (endTimeNanos != -1)
         {
             endTimeNanos = -1;
@@ -69,6 +71,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
     @Override
     protected synchronized void insert(T item, long value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (value > 0 && clock.now() <= endTimeNanos
                 && (queue.isEmpty() || queue.size() < capacity || queue.peekLast().count < value))
             queue.add(new Sample<T>(item, value, 0));

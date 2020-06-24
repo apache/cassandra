@@ -120,6 +120,7 @@ import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCass
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
     private static final Map<Class<?>, Function<Object, Object>> mapper = new HashMap<Class<?>, Function<Object, Object>>() {{
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         this.put(IInstanceConfig.ParameterizedClass.class, (obj) -> {
             IInstanceConfig.ParameterizedClass pc = (IInstanceConfig.ParameterizedClass) obj;
             return new org.apache.cassandra.config.ParameterizedClass(pc.class_name, pc.parameters);
@@ -142,6 +143,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // setMessagingVersions below will call runOnInstance which will instantiate
         // the MessagingService and dependencies preventing later changes to network parameters.
         Config.setOverrideLoadConfig(() -> loadConfig(config));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
 
         // Enable streaming inbound handler tracking so they can be closed properly without leaking
         // the blocking IO thread.
@@ -194,6 +196,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public boolean isShutdown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return isolatedExecutor.isShutdown();
     }
 
@@ -250,6 +254,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void uncaughtException(Thread thread, Throwable throwable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
         sync(CassandraDaemon::uncaughtException).accept(thread, throwable);
     }
 
@@ -303,6 +308,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public int getMessagingVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15078
         return callsOnInstance(() -> MessagingService.current_version).call();
     }
 
@@ -314,6 +320,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void flush(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15363
         runOnInstance(() -> FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush()));
     }
 
@@ -338,7 +345,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try
             {
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
@@ -384,6 +393,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new RuntimeException(e);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
                 if (config.has(NETWORK))
                 {
                     MessagingService.instance().listen();
@@ -395,15 +406,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 //                    -- not sure what that means?  SocketFactory.instance.getClass();
                     registerMockMessaging(cluster);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                 registerInboundFilter(cluster);
                 registerOutboundFilter(cluster);
 
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
 
                 // TODO: this is more than just gossip
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
                     StorageService.instance.removeShutdownHook();
                     Gossiper.waitToSettle();
                 }
@@ -413,9 +427,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
 
                 StorageService.instance.ensureTraceKeyspace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
 
                 SystemKeyspace.finishStartup();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
                 if (config.has(NATIVE_PROTOCOL))
                 {
                     // Start up virtual table support
@@ -423,6 +439,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                     CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
                     CassandraDaemon.getInstanceForTesting().startNativeTransport();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15460
                     StorageService.instance.setRpcReady(true);
                 }
 
@@ -430,6 +447,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     FBUtilities.getBroadcastAddressAndPort().port != broadcastAddress().getPort())
                     throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
                 ActiveRepairService.instance.start();
             }
             catch (Throwable t)
@@ -453,6 +471,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private Config loadConfig(IInstanceConfig overrides)
     {
         Config config = new Config();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         overrides.propagate(config, mapper);
         return config;
     }
@@ -462,6 +481,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // This should be done outside instance in order to avoid serializing config
         String partitionerName = config.getString("partitioner");
         List<String> initialTokens = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         List<InetSocketAddress> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
         for (int i = 1 ; i <= cluster.size() ; ++i)
@@ -524,9 +544,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public Future<Void> shutdown(boolean graceful)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15014
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15460
             error = parallelRun(error, executor,
                     () -> StorageService.instance.setRpcReady(false),
                     CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
@@ -564,6 +586,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             );
             error = parallelRun(error, executor,
                                 () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
@@ -573,6 +596,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15014
 
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(future::get), isolatedExecutor)
                                 .thenRun(super::shutdown);
@@ -580,6 +604,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public int liveMemberCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         return sync(() -> {
             if (!DatabaseDescriptor.isDaemonInitialized() || !Gossiper.instance.isEnabled())
                 return 0;
@@ -589,6 +614,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return sync(() -> {
             DTestNodeTool nodetool = new DTestNodeTool(withNotifications);
             int rc =  nodetool.execute(commandAndArgs);
@@ -652,11 +679,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public long killAttempts()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
         return callOnInstance(InstanceKiller::getKillAttempts);
     }
 
     private static void shutdownAndWait(List<ExecutorService> executors) throws TimeoutException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ExecutorUtils.shutdownNow(executors);
         ExecutorUtils.awaitTermination(1L, MINUTES, executors);
     }

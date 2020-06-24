@@ -46,6 +46,7 @@ public class SnapshotDeletingTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         GCInspector.register();
         // Needed to init the output file where we print failed snapshots. This is called on node startup.
@@ -60,6 +61,7 @@ public class SnapshotDeletingTest
     public void testCompactionHook() throws Exception
     {
         Assume.assumeTrue(FBUtilities.isWindows);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);

@@ -72,6 +72,7 @@ public class BatchMetricsTest extends SchemaLoader
         cassandra.start();
 
         DatabaseDescriptor.setWriteRpcTimeout(TimeUnit.SECONDS.toMillis(10));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15718
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
@@ -108,6 +109,7 @@ public class BatchMetricsTest extends SchemaLoader
     @Test
     public void testLoggedPartitionsPerBatch()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15718
         qt().withExamples(25)
             .forAll(intArrays(integers().between(1, MAX_ROUNDS_TO_PERFORM),
                               integers().between(1, MAX_STATEMENTS_PER_ROUND)),

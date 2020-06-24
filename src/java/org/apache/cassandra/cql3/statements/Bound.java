@@ -43,6 +43,7 @@ public enum Bound
 
     public Bound reverse()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         return isStart() ? END : START;
     }
 

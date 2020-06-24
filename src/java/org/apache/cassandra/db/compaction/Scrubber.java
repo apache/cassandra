@@ -66,6 +66,7 @@ public class Scrubber implements Closeable
 
     private ByteBuffer currentIndexKey;
     private ByteBuffer nextIndexKey;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
     long currentRowPositionFromIndex;
     long nextRowPositionFromIndex;
 
@@ -77,6 +78,7 @@ public class Scrubber implements Closeable
     {
          public int compare(Partition r1, Partition r2)
          {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              return r1.partitionKey().compareTo(r2.partitionKey());
          }
     };
@@ -113,6 +115,7 @@ public class Scrubber implements Closeable
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14082
         this.destination = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForSSTable(sstable));
         this.isCommutative = cfs.metadata().isCounter();
 
@@ -142,6 +145,7 @@ public class Scrubber implements Closeable
 
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
         this.currentRowPositionFromIndex = 0;
         this.nextRowPositionFromIndex = 0;
 
@@ -158,6 +162,7 @@ public class Scrubber implements Closeable
     {
         List<SSTableReader> finished = new ArrayList<>();
         boolean completed = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
         outputHandler.output(String.format("Scrubbing %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge);
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
@@ -174,6 +179,8 @@ public class Scrubber implements Closeable
             writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction));
 
             DecoratedKey prevKey = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6274
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6142
 
             while (!dataFile.isEOF())
             {
@@ -186,6 +193,7 @@ public class Scrubber implements Closeable
                 DecoratedKey key = null;
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
                 }
                 catch (Throwable th)
@@ -207,8 +215,10 @@ public class Scrubber implements Closeable
                 }
 
                 // avoid an NPE if key is null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
                 outputHandler.debug(String.format("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSizeFromIndex)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
 
                 assert currentIndexKey != null || !indexAvailable();
 
@@ -221,6 +231,7 @@ public class Scrubber implements Closeable
                     {
                         throw new IOError(new IOException(String.format("Key from data file (%s) does not match key from index file (%s)",
                                 //ByteBufferUtil.bytesToHex(key.getKey()), ByteBufferUtil.bytesToHex(currentIndexKey))));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                 "_too big_", ByteBufferUtil.bytesToHex(currentIndexKey))));
                     }
 
@@ -237,16 +248,19 @@ public class Scrubber implements Closeable
                 {
                     throwIfFatal(th);
                     outputHandler.warn("Error reading row (stacktrace follows):", th);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5930
 
                     if (currentIndexKey != null
                         && (key == null || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex))
                     {
                         outputHandler.output(String.format("Retrying from row index; data is %s bytes starting at %s",
                                                   dataSizeFromIndex, dataStartFromIndex));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                         key = sstable.decorateKey(currentIndexKey);
                         try
                         {
                             dataFile.seek(dataStartFromIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
 
                             if (tryAppend(prevKey, key, writer))
                                 prevKey = key;
@@ -267,16 +281,21 @@ public class Scrubber implements Closeable
 
                         outputHandler.warn("Row starting at position " + dataStart + " is unreadable; skipping to next");
                         badRows++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
                         if (currentIndexKey != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
                             seekToNextRow();
                     }
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             if (!outOfOrder.isEmpty())
             {
                 // out of order rows, but no bad rows found - we can keep our repairedAt time
                 long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : metadata.repairedAt;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
                 SSTableReader newInOrderSstable;
                 try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction))
                 {
@@ -284,7 +303,10 @@ public class Scrubber implements Closeable
                         inOrderWriter.append(partition.unfilteredIterator());
                     newInOrderSstable = inOrderWriter.finish(-1, sstable.maxDataAge, true);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 transaction.update(newInOrderSstable, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
                 finished.add(newInOrderSstable);
                 outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrder.size(), sstable, newInOrderSstable));
             }
@@ -331,6 +353,8 @@ public class Scrubber implements Closeable
 
         try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getPath()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             if (prevKey != null && prevKey.compareTo(key) > 0)
             {
                 saveOutOfOrderRow(prevKey, key, iterator);
@@ -367,6 +391,7 @@ public class Scrubber implements Closeable
 
     private void updateIndexKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
         currentIndexKey = nextIndexKey;
         currentRowPositionFromIndex = nextRowPositionFromIndex;
         try
@@ -379,6 +404,7 @@ public class Scrubber implements Closeable
         }
         catch (Throwable th)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
             JVMStabilityInspector.inspectThrowable(th);
             outputHandler.warn("Error reading index file", th);
             nextIndexKey = null;
@@ -415,6 +441,7 @@ public class Scrubber implements Closeable
     {
         // TODO bitch if the row is too large?  if it is there's not much we can do ...
         outputHandler.warn(String.format("Out of order row detected (%s found after %s)", key, prevKey));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         outOfOrder.add(ImmutableBTreePartition.create(iterator));
     }
 
@@ -433,6 +460,7 @@ public class Scrubber implements Closeable
             throw new IOError(th);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5930
         if (isCommutative && !skipCorrupted)
         {
             outputHandler.warn(String.format("An error occurred while scrubbing the row with key '%s'.  Skipping corrupt " +
@@ -465,6 +493,7 @@ public class Scrubber implements Closeable
         {
             this.dataFile = dataFile;
             this.sstable = sstable;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
             scrubCompactionId = UUIDGen.getTimeUUID();
         }
 
@@ -476,17 +505,20 @@ public class Scrubber implements Closeable
                                           OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                           scrubCompactionId,
                                           ImmutableSet.of(sstable));
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
                 throw new RuntimeException(e);
             }
         }
 
         public boolean isGlobal()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
             return false;
         }
     }
@@ -494,6 +526,7 @@ public class Scrubber implements Closeable
     @VisibleForTesting
     public ScrubResult scrubWithResult()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
         scrub();
         return new ScrubResult(this);
     }
@@ -526,6 +559,7 @@ public class Scrubber implements Closeable
     private static class RowMergingSSTableIterator extends WrappingUnfilteredRowIterator
     {
         Unfiltered nextToOffer = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
 
         RowMergingSSTableIterator(UnfilteredRowIterator source)
         {

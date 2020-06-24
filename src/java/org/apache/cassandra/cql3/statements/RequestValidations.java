@@ -151,6 +151,7 @@ public final class RequestValidations
      * @throws InvalidRequestException if the specified bind marker value is not set to a meaningful value.
      */
     public static void checkBindValueSet(ByteBuffer b, String messageTemplate, Object... messageArgs)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             throws InvalidRequestException
     {
         checkTrue(b != ByteBufferUtil.UNSET_BYTE_BUFFER, messageTemplate, messageArgs);

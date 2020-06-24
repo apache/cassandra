@@ -67,6 +67,7 @@ public class ReadCommandVerbHandlerTest
     {
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition(TEST_NAME);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         metadata_with_transient = Schema.instance.getTableMetadata(KEYSPACE_WITH_TRANSIENT, TABLE);
         KEY = key(metadata, 1);
@@ -80,6 +81,7 @@ public class ReadCommandVerbHandlerTest
     @Before
     public void setup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().outboundSink.add((message, to) -> false);
@@ -91,6 +93,7 @@ public class ReadCommandVerbHandlerTest
     @Test
     public void setRepairedDataTrackingFlagIfHeaderPresent()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ReadCommand command = command(metadata);
         assertFalse(command.isTrackingRepairedStatus());
 
@@ -157,6 +160,7 @@ public class ReadCommandVerbHandlerTest
     private static SinglePartitionReadCommand command(TableMetadata metadata)
     {
         return new SinglePartitionReadCommand(false,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
                                               0,
                                               false,
                                               metadata,

@@ -32,6 +32,7 @@ public class RowIterationTest extends CQLTester
     @Test
     public void testRowIteration() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
         for (int i = 0; i < 10; i++)

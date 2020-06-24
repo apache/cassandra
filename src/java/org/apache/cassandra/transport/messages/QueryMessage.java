@@ -45,12 +45,15 @@ public class QueryMessage extends Message.Request
         public QueryMessage decode(ByteBuf body, ProtocolVersion version)
         {
             String query = CBUtil.readLongString(body);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
             return new QueryMessage(query, QueryOptions.codec.decode(body, version));
         }
 
         public void encode(QueryMessage msg, ByteBuf dest, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
             CBUtil.writeLongString(msg.query, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version == ProtocolVersion.V1)
                 CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
@@ -92,9 +95,11 @@ public class QueryMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         CQLStatement statement = null;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5797
             if (options.getPageSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
 
@@ -102,6 +107,7 @@ public class QueryMessage extends Message.Request
                 traceQuery(state);
 
             long queryStartTime = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();
             statement = queryHandler.parse(query, state, options);
@@ -115,7 +121,9 @@ public class QueryMessage extends Message.Request
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             QueryEvents.instance.notifyQueryFailure(statement, query, options, state, e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
@@ -134,6 +142,7 @@ public class QueryMessage extends Message.Request
         if (options.getSerialConsistency() != null)
             builder.put("serial_consistency_level", options.getSerialConsistency().name());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
         Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
     }
 

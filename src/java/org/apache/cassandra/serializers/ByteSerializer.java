@@ -28,6 +28,7 @@ public class ByteSerializer implements TypeSerializer<Byte>
 
     public Byte deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return bytes == null || bytes.remaining() == 0 ? null : ByteBufferUtil.toByte(bytes);
     }
 

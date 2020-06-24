@@ -49,6 +49,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
         this.indexers = indexers;
         this.iter = iter;
         this.compactionId = UUIDGen.getTimeUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         this.sstables = sstables;
     }
 
@@ -58,6 +59,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
                 OperationType.INDEX_BUILD,
                 iter.getBytesRead(),
                 iter.getTotalBytes(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 compactionId,
                 sstables);
     }

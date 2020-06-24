@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQLTester;
 public class RoleSyntaxTest extends CQLTester
 {
     private final String NO_QUOTED_USERNAME = "Quoted strings are are not supported for user names " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10135
                                               "and USER is deprecated, please use ROLE";
     @Test
     public void standardOptionsSyntaxTest() throws Throwable
@@ -58,6 +59,7 @@ public class RoleSyntaxTest extends CQLTester
     @Test
     public void createSyntaxTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10135
         assertValidSyntax("CREATE ROLE r1");
         assertValidSyntax("CREATE ROLE 'r1'");
         assertValidSyntax("CREATE ROLE \"r1\"");
@@ -165,6 +167,7 @@ public class RoleSyntaxTest extends CQLTester
     public void roleNameTest()
     {
         // we used to split on all "/" which meant role names containing a / would trigger an exception in RoleResource.fromName()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14088
         RoleResource t1 = RoleResource.role("ki/ng");
         RoleResource t2 = RoleResource.role("emperor");
         RoleResource t3 = RoleResource.role("aeou/!@*%");

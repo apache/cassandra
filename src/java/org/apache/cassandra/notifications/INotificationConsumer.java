@@ -19,5 +19,7 @@ package org.apache.cassandra.notifications;
 
 public interface INotificationConsumer
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1608
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1608
     void handleNotification(INotification notification, Object sender);
 }

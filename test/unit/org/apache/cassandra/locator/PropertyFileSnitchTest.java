@@ -65,12 +65,14 @@ public class PropertyFileSnitchTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Before
     public void setup() throws ConfigurationException, IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         String confFile = FBUtilities.resourceToFile(PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
         effectiveFile = Paths.get(confFile);
@@ -78,6 +80,7 @@ public class PropertyFileSnitchTest
 
         restoreOrigConfigFile();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort[] hosts = {
         InetAddressAndPort.getByName("127.0.0.1"), // this exists in the config file
         InetAddressAndPort.getByName("127.0.0.2"), // this exists in the config file
@@ -117,6 +120,7 @@ public class PropertyFileSnitchTest
         for (String line : lines)
         {
             String[] info = line.split("=");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             if (info.length == 2 && !line.startsWith("#") && !line.startsWith("default="))
             {
                 InetAddressAndPort address = InetAddressAndPort.getByName(info[0].replaceAll(Matcher.quoteReplacement("\\:"), ":"));
@@ -147,6 +151,7 @@ public class PropertyFileSnitchTest
 
             if (!replacement.getValue().isEmpty()) // empty means remove this line so do nothing here
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 String escaped = replacement.getKey().replaceAll(Matcher.quoteReplacement(":"), "\\\\:");
                 newLines.add(escaped + '=' + replacement.getValue());
             }
@@ -173,6 +178,7 @@ public class PropertyFileSnitchTest
 
     private static void checkEndpoint(final AbstractNetworkTopologySnitch snitch,
                                       final String endpointString, final String expectedDatacenter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                       final String expectedRack) throws UnknownHostException
     {
         final InetAddressAndPort endpoint = InetAddressAndPort.getByName(endpointString);
@@ -187,6 +193,7 @@ public class PropertyFileSnitchTest
     @Test
     public void testChangeHostRack() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.1");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
         checkEndpoint(snitch, host.toString(), "DC1", "RAC1");
@@ -221,6 +228,7 @@ public class PropertyFileSnitchTest
     @Test
     public void testChangeHostDc() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.1");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
         checkEndpoint(snitch, host.toString(), "DC1", "RAC1");
@@ -256,6 +264,7 @@ public class PropertyFileSnitchTest
     @Test
     public void testAddHost() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.9");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
         checkEndpoint(snitch, host.toString(), "DC1", "r1"); // default
@@ -291,6 +300,7 @@ public class PropertyFileSnitchTest
     @Test
     public void testRemoveHost() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
         checkEndpoint(snitch, host.toString(), "DC1", "RAC2");
@@ -326,6 +336,7 @@ public class PropertyFileSnitchTest
     @Test
     public void testChangeDefault() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.9");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
         checkEndpoint(snitch, host.toString(), "DC1", "r1"); // default
@@ -339,6 +350,7 @@ public class PropertyFileSnitchTest
 
             Thread.sleep(1500);
             checkEndpoint(snitch, host.toString(), "DC1", "r1"); // unchanged
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
             setNodeShutdown(host);
             replaceConfigFile(Collections.singletonMap("default", "DC2:r2")); // change default again (refresh file update)

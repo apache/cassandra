@@ -48,6 +48,7 @@ public class GcCompactionTest extends CQLTester
     @Override
     protected String createTable(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12664
         return super.createTable(KEYSPACE_PER_TEST, query);
     }
 
@@ -154,6 +155,7 @@ public class GcCompactionTest extends CQLTester
     public void testGarbageCollectOrder() throws Throwable
     {
         // partition-level deletions, 0 gc_grace
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14879
         createTable("CREATE TABLE %s(" +
                     "  key int," +
                     "  column int," +
@@ -447,6 +449,7 @@ public class GcCompactionTest extends CQLTester
             {
                 try (UnfilteredRowIterator iter = partitions.next())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13941
                     instances += partitionPredicate.applyAsInt(iter);
                     while (iter.hasNext())
                     {

@@ -42,6 +42,7 @@ public abstract class MonitorableImpl implements Monitorable
      */
     public void setMonitoringTime(long approxCreationTimeNanos, boolean isCrossNode, long timeoutNanos, long slowTimeoutNanos)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         assert approxCreationTimeNanos >= 0;
         this.approxCreationTimeNanos = approxCreationTimeNanos;
         this.isCrossNode = isCrossNode;
@@ -61,11 +62,13 @@ public abstract class MonitorableImpl implements Monitorable
 
     public boolean isCrossNode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12791
         return isCrossNode;
     }
 
     public long slowTimeoutNanos()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return slowTimeoutNanos;
     }
 
@@ -97,6 +100,7 @@ public abstract class MonitorableImpl implements Monitorable
     {
         if (state == MonitoringState.IN_PROGRESS)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (approxCreationTimeNanos >= 0)
                 MonitoringTask.addFailedOperation(this, approxTime.now());
 
@@ -111,6 +115,7 @@ public abstract class MonitorableImpl implements Monitorable
     {
         if (state == MonitoringState.IN_PROGRESS)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (isSlow && slowTimeoutNanos > 0 && approxCreationTimeNanos >= 0)
                 MonitoringTask.addSlowOperation(this, approxTime.now());
 
@@ -123,6 +128,7 @@ public abstract class MonitorableImpl implements Monitorable
 
     private void check()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (approxCreationTimeNanos < 0 || state != MonitoringState.IN_PROGRESS)
             return;
 

@@ -25,6 +25,7 @@ public class GossipVerbHandler<T> implements IVerbHandler<T>
 {
     public void doVerb(Message<T> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Gossiper.instance.setLastProcessedMessageAt(message.creationTimeMillis());
     }
 }

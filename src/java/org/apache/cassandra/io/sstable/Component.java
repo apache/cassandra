@@ -47,21 +47,28 @@ public class Component
         // serialized bloom filter for the row keys in the sstable
         FILTER("Filter.db"),
         // file to hold information about uncompressed data length, chunk offsets etc.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-47
         COMPRESSION_INFO("CompressionInfo.db"),
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
         // holds CRC32 checksum of the data file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         DIGEST("Digest.crc32"),
         // holds the CRC32 for chunks in an a uncompressed file.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3648
         CRC("CRC.db"),
         // holds SSTable Index Summary (sampling of Index component)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
         SUMMARY("Summary.db"),
         // table of contents, stores the list of all components for the sstable
         TOC("TOC.txt"),
         // built-in secondary index (may be multiple per sstable)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         SECONDARY_INDEX("SI_.*.db"),
         // custom component, used by e.g. custom compaction strategy
         CUSTOM(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
         final String repr;
 
@@ -74,9 +81,12 @@ public class Component
         {
             for (Type type : TYPES)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 if (type.repr != null && Pattern.matches(type.repr, repr))
                     return type;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
             return CUSTOM;
         }
     }
@@ -98,6 +108,7 @@ public class Component
 
     public Component(Type type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         this(type, type.repr);
         assert type != Type.CUSTOM;
     }
@@ -115,6 +126,8 @@ public class Component
      */
     public String name()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
         return name;
     }
 
@@ -128,6 +141,7 @@ public class Component
     public static Component parse(String name)
     {
         Type type = Type.fromRepresentation(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
         // Build (or retrieve singleton for) the component object
         switch (type)
@@ -161,6 +175,8 @@ public class Component
         if (!(o instanceof Component))
             return false;
         Component that = (Component)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
         return this.type == that.type && this.name.equals(that.name);
     }
 

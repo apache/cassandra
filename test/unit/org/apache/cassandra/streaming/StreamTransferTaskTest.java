@@ -62,6 +62,7 @@ public class StreamTransferTaskTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
     }
@@ -69,6 +70,7 @@ public class StreamTransferTaskTest
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11345
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
         cfs.clearUnsafe();
     }
@@ -77,6 +79,7 @@ public class StreamTransferTaskTest
     public void testScheduleTimeout() throws Exception
     {
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, (template, messagingVersion) -> new EmbeddedChannel(), false, 0, UUID.randomUUID(), PreviewKind.ALL);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
@@ -88,18 +91,24 @@ public class StreamTransferTaskTest
         }
 
         // create streaming task that streams those two sstables
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         session.state(StreamSession.State.PREPARING);
         StreamTransferTask task = new StreamTransferTask(session, cfs.metadata.id);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.selfRef(), sstable.getPositionsForRanges(ranges), ranges, 1));
         }
         assertEquals(14, task.getTotalNumberOfFiles());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
 
         // if file sending completes before timeout then the task should be canceled.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         session.state(StreamSession.State.STREAMING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
         Future f = task.scheduleTimeout(0, 0, TimeUnit.NANOSECONDS);
         f.get();
 
@@ -124,7 +133,10 @@ public class StreamTransferTaskTest
     @Test
     public void testFailSessionDuringTransferShouldNotReleaseReferences() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
         StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
         StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, null, false, 0, null, PreviewKind.NONE);
@@ -141,21 +153,25 @@ public class StreamTransferTaskTest
         // create streaming task that streams those two sstables
         StreamTransferTask task = new StreamTransferTask(session, cfs.metadata.id);
         List<Ref<SSTableReader>> refs = new ArrayList<>(cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
             Ref<SSTableReader> ref = sstable.selfRef();
             refs.add(ref);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, ref, sstable.getPositionsForRanges(ranges), ranges, 1));
         }
         assertEquals(14, task.getTotalNumberOfFiles());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
 
         //add task to stream session, so it is aborted when stream session fails
         session.transfers.put(TableId.generate(), task);
 
         //make a copy of outgoing file messages, since task is cleared when it's aborted
         Collection<OutgoingStreamMessage> files = new LinkedList<>(task.streams.values());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
         //simulate start transfer
         for (OutgoingStreamMessage file : files)
@@ -165,6 +181,7 @@ public class StreamTransferTaskTest
 
         //fail stream session mid-transfer
         session.onError(new Exception("Fake exception")).get(5, TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
 
         //make sure reference was not released
         for (Ref<SSTableReader> ref : refs)
@@ -174,6 +191,7 @@ public class StreamTransferTaskTest
 
         //wait for stream to abort asynchronously
         int tries = 10;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15550
         while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() > 0)
         {
             if(tries < 1)
@@ -183,6 +201,7 @@ public class StreamTransferTaskTest
         }
 
         //simulate finish transfer
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         for (OutgoingStreamMessage file : files)
         {
             file.finishTransfer();

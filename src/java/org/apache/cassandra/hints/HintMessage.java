@@ -78,12 +78,14 @@ public final class HintMessage implements SerializableHintMessage
     {
         public long serializedSize(SerializableHintMessage obj, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (obj instanceof HintMessage)
             {
                 HintMessage message = (HintMessage) obj;
                 long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
 
                 long hintSize = Hint.serializer.serializedSize(message.hint, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                 size += TypeSizes.sizeofUnsignedVInt(hintSize);
                 size += hintSize;
 
@@ -122,6 +124,7 @@ public final class HintMessage implements SerializableHintMessage
                  * deserialize failure when a table had been dropped, by simply skipping the unread bytes.
                  */
                 out.writeUnsignedVInt(Hint.serializer.serializedSize(message.hint, version));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
 
                 Hint.serializer.serialize(message.hint, out, version);
             }
@@ -151,7 +154,9 @@ public final class HintMessage implements SerializableHintMessage
         {
             UUID hostId = UUIDSerializer.serializer.deserialize(in, version);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             long hintSize = in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
             TrackedDataInputPlus countingIn = new TrackedDataInputPlus(in);
             try
             {
@@ -159,6 +164,7 @@ public final class HintMessage implements SerializableHintMessage
             }
             catch (UnknownTableException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
                 in.skipBytes(Ints.checkedCast(hintSize - countingIn.getBytesRead()));
                 return new HintMessage(hostId, e.id);
             }
@@ -180,6 +186,7 @@ public final class HintMessage implements SerializableHintMessage
         private final ByteBuffer hint;
         private final int version;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Encoded(UUID hostId, ByteBuffer hint, int version)
         {
             this.hostId = hostId;

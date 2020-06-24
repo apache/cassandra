@@ -149,6 +149,7 @@ public class NIODataInputStreamTest
     }
 
     NIODataInputStream fakeStream = new NIODataInputStream(new FakeChannel(), 9);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
     @Test(expected = IOException.class)
     public void testResetThrows() throws Exception
@@ -222,12 +223,14 @@ public class NIODataInputStreamTest
         is.read(new byte[10]);
         assertEquals(8190 - 10 - 4096, is.available());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("foo", "bar");
         RandomAccessFile fos = new RandomAccessFile(f, "rw");
         fos.write(new byte[10]);
         fos.seek(0);
 
         is = new NIODataInputStream(fos.getChannel(), 9);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
         int remaining = 10;
         assertEquals(10, is.available());
@@ -243,6 +246,7 @@ public class NIODataInputStreamTest
 
     private static ReadableByteChannel wrap(final byte bytes[])
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         final ByteBuffer buf = ByteBuffer.wrap(bytes);
         return new ReadableByteChannel()
         {
@@ -275,6 +279,7 @@ public class NIODataInputStreamTest
 
         String simple = "foobar42";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         assertEquals(2, BufferedDataOutputStreamTest.twoByte.getBytes(Charsets.UTF_8).length);
         assertEquals(3, BufferedDataOutputStreamTest.threeByte.getBytes(Charsets.UTF_8).length);
         assertEquals(4, BufferedDataOutputStreamTest.fourByte.getBytes(Charsets.UTF_8).length);
@@ -285,8 +290,10 @@ public class NIODataInputStreamTest
         daos.writeUTF(BufferedDataOutputStreamTest.fourByte);
 
         NIODataInputStream is = new NIODataInputStream(wrap(baos.toByteArray()), 4096);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
         assertEquals(simple, is.readUTF());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         assertEquals(BufferedDataOutputStreamTest.twoByte, is.readUTF());
         assertEquals(BufferedDataOutputStreamTest.threeByte, is.readUTF());
         assertEquals(BufferedDataOutputStreamTest.fourByte, is.readUTF());
@@ -295,6 +302,7 @@ public class NIODataInputStreamTest
     @SuppressWarnings("resource")
     @Test
     public void testReadVInt() throws Exception {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStreamPlus daos = new WrappedDataOutputStreamPlus(baos);
 
@@ -763,6 +771,7 @@ public class NIODataInputStreamTest
     @SuppressWarnings({ "resource"})
     public void testVIntRemainingBytes() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
         for(int ii = 0; ii < 10; ii++)
         {
             for (int zz = 0; zz < 10; zz++)

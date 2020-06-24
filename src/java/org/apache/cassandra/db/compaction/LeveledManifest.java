@@ -73,18 +73,22 @@ public class LeveledManifest
     private final int [] compactionCounter;
     private final int levelFanoutSize;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
     LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB, int fanoutSize, SizeTieredCompactionStrategyOptions options)
     {
         this.cfs = cfs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9235
         this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
         this.options = options;
         this.levelFanoutSize = fanoutSize;
 
         generations = new List[MAX_LEVEL_COUNT];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         lastCompactedKeys = new PartitionPosition[MAX_LEVEL_COUNT];
         for (int i = 0; i < generations.length; i++)
         {
             generations[i] = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             lastCompactedKeys[i] = cfs.getPartitioner().getMinimumToken().minKeyBound();
         }
         compactionCounter = new int[MAX_LEVEL_COUNT];
@@ -92,6 +96,7 @@ public class LeveledManifest
 
     public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, int fanoutSize, List<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         return create(cfs, maxSSTableSize, fanoutSize, sstables, new SizeTieredCompactionStrategyOptions());
     }
 
@@ -100,14 +105,17 @@ public class LeveledManifest
         LeveledManifest manifest = new LeveledManifest(cfs, maxSSTableSize, fanoutSize, options);
 
         // ensure all SSTables are in the manifest
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4321
         for (SSTableReader ssTableReader : sstables)
         {
             manifest.add(ssTableReader);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5327
         for (int i = 1; i < manifest.getAllLevelSize().length; i++)
         {
             manifest.repairOverlappingSSTables(i);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6216
         manifest.calculateLastCompactedKeys();
         return manifest;
     }
@@ -144,11 +152,16 @@ public class LeveledManifest
     {
         int level = reader.getSSTableLevel();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8004
         assert level < generations.length : "Invalid level " + level + " out of " + (generations.length - 1);
         logDistribution();
         if (canAddSSTable(reader))
         {
             // adding the sstable does not cause overlap in the level
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Adding {} to L{}", reader, level);
             generations[level].add(reader);
         }
@@ -163,6 +176,7 @@ public class LeveledManifest
             // The add(..):ed sstable will be sent to level 0
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14388
                 logger.debug("Could not add sstable {} in level {} - dropping to 0", reader, reader.getSSTableLevel());
                 reader.descriptor.getMetadataSerializer().mutateLevel(reader.descriptor, 0);
                 reader.reloadSSTableMetadata();
@@ -171,6 +185,7 @@ public class LeveledManifest
             {
                 logger.error("Could not change sstable level - adding it at level 0 anyway, we will find it at restart.", e);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
             if (!contains(reader))
             {
                 generations[0].add(reader);
@@ -198,7 +213,12 @@ public class LeveledManifest
     public synchronized void replace(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
         assert !removed.isEmpty(); // use add() instead of promote when adding new sstables
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3330
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3330
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         logDistribution();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
             logger.trace("Replacing [{}]", toString(removed));
 
@@ -209,6 +229,7 @@ public class LeveledManifest
         for (SSTableReader sstable : removed)
         {
             int thisLevel = remove(sstable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6284
             minLevel = Math.min(minLevel, thisLevel);
         }
 
@@ -216,11 +237,13 @@ public class LeveledManifest
         if (added.isEmpty())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
             logger.trace("Adding [{}]", toString(added));
 
         for (SSTableReader ssTableReader : added)
             add(ssTableReader);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
         lastCompactedKeys[minLevel] = SSTableReader.sstableOrdering.max(added).last;
     }
 
@@ -228,6 +251,7 @@ public class LeveledManifest
     {
         SSTableReader previous = null;
         Collections.sort(generations[level], SSTableReader.sstableComparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8004
         List<SSTableReader> outOfOrderSSTables = new ArrayList<>();
         for (SSTableReader current : generations[level])
         {
@@ -259,6 +283,7 @@ public class LeveledManifest
     private boolean canAddSSTable(SSTableReader sstable)
     {
         int level = sstable.getSSTableLevel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         if (level == 0)
             return true;
 
@@ -281,6 +306,7 @@ public class LeveledManifest
         remove(sstable);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
             sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 0);
             sstable.reloadSSTableMetadata();
             add(sstable);
@@ -296,10 +322,12 @@ public class LeveledManifest
         StringBuilder builder = new StringBuilder();
         for (SSTableReader sstable : sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             builder.append(sstable.descriptor.cfname)
                    .append('-')
                    .append(sstable.descriptor.generation)
                    .append("(L")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4872
                    .append(sstable.getSSTableLevel())
                    .append("), ");
         }
@@ -308,6 +336,7 @@ public class LeveledManifest
 
     public long maxBytesForLevel(int level, long maxSSTableSizeInBytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         return maxBytesForLevel(level, levelFanoutSize, maxSSTableSizeInBytes);
     }
 
@@ -329,6 +358,7 @@ public class LeveledManifest
     {
         // during bootstrap we only do size tiering in L0 to make sure
         // the streamed files can be placed in their original levels
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7460
         if (StorageService.instance.isBootstrapMode())
         {
             List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
@@ -370,17 +400,22 @@ public class LeveledManifest
         // Let's check that L0 is far enough behind to warrant STCS.
         // If it is, it will be used before proceeding any of higher level
         CompactionCandidate l0Compaction = getSTCSInL0CompactionCandidate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12961
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5371
         for (int i = generations.length - 1; i > 0; i--)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
             List<SSTableReader> sstables = getLevel(i);
             if (sstables.isEmpty())
                 continue; // mostly this just avoids polluting the debug log with zero scores
             // we want to calculate score excluding compacting ones
             Set<SSTableReader> sstablesInLevel = Sets.newHashSet(sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, cfs.getTracker().getCompacting());
             double score = (double) SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i, maxSSTableSizeInBytes);
             logger.trace("Compaction score for level {} is {}", i, score);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
             if (score > 1.001)
             {
@@ -390,12 +425,15 @@ public class LeveledManifest
 
                 // L0 is fine, proceed with this level
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4343
                 if (!candidates.isEmpty())
                 {
                     int nextLevel = getNextLevel(candidates);
                     candidates = getOverlappingStarvedSSTables(nextLevel, candidates);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     if (logger.isTraceEnabled())
                         logger.trace("Compaction candidates for L{} are {}", i, toString(candidates));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                     return new CompactionCandidate(candidates, nextLevel, cfs.getCompactionStrategyManager().getMaxSSTableBytes());
                 }
                 else
@@ -406,6 +444,7 @@ public class LeveledManifest
         }
 
         // Higher levels are happy, time for a standard, non-STCS L0 compaction
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         if (getLevel(0).isEmpty())
             return null;
         Collection<SSTableReader> candidates = getCandidatesFor(0);
@@ -414,6 +453,7 @@ public class LeveledManifest
             // Since we don't have any other compactions to do, see if there is a STCS compaction to perform in L0; if
             // there is a long running compaction, we want to make sure that we continue to keep the number of SSTables
             // small in L0.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12961
             return l0Compaction;
         }
         return new CompactionCandidate(candidates, getNextLevel(candidates), maxSSTableSizeInBytes);
@@ -421,11 +461,16 @@ public class LeveledManifest
 
     private CompactionCandidate getSTCSInL0CompactionCandidate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10979
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10979
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14388
         if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > MAX_COMPACTING_L0)
         {
             List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
             if (!mostInteresting.isEmpty())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
                 logger.debug("L0 is too far behind, performing size-tiering there first");
                 return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
             }
@@ -436,12 +481,16 @@ public class LeveledManifest
 
     private List<SSTableReader> getSSTablesForSTCS(Collection<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         Iterable<SSTableReader> candidates = cfs.getTracker().getUncompacting(sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         List<Pair<SSTableReader,Long>> pairs = SizeTieredCompactionStrategy.createSSTableAndLengthPairs(AbstractCompactionStrategy.filterSuspectSSTables(candidates));
         List<List<SSTableReader>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5439
                                                                                     options.bucketHigh,
                                                                                     options.bucketLow,
                                                                                     options.minSSTableSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13861
         return SizeTieredCompactionStrategy.mostInterestingBucket(buckets,
                 cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
     }
@@ -460,10 +509,12 @@ public class LeveledManifest
     private Collection<SSTableReader> getOverlappingStarvedSSTables(int targetLevel, Collection<SSTableReader> candidates)
     {
         Set<SSTableReader> withStarvedCandidate = new HashSet<>(candidates);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7414
 
         for (int i = generations.length - 1; i > 0; i--)
             compactionCounter[i]++;
         compactionCounter[targetLevel] = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
         {
             for (int j = 0; j < compactionCounter.length; j++)
@@ -480,6 +531,7 @@ public class LeveledManifest
                     // say we are compacting 3 sstables: 0->30 in L1 and 0->12, 12->33 in L2
                     // this means that we will not create overlap in L2 if we add an sstable
                     // contained within 0 -> 33 to the compaction
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                     PartitionPosition max = null;
                     PartitionPosition min = null;
                     for (SSTableReader candidate : candidates)
@@ -489,9 +541,12 @@ public class LeveledManifest
                         if (max == null || candidate.last.compareTo(max) > 0)
                             max = candidate.last;
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9322
                     if (min == null || max == null || min.equals(max)) // single partition sstables - we cannot include a high level sstable.
                         return candidates;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                     Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                     Range<PartitionPosition> boundaries = new Range<>(min, max);
                     for (SSTableReader sstable : getLevel(i))
                     {
@@ -521,6 +576,7 @@ public class LeveledManifest
     public synchronized int[] getAllLevelSize()
     {
         int[] counts = new int[generations.length];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4537
         for (int i = 0; i < counts.length; i++)
             counts[i] = getLevel(i).size();
         return counts;
@@ -534,6 +590,7 @@ public class LeveledManifest
             {
                 if (!getLevel(i).isEmpty())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                     logger.trace("L{} contains {} SSTables ({}) in {}",
                                  i,
                                  getLevel(i).size(),
@@ -555,6 +612,7 @@ public class LeveledManifest
 
     public synchronized Set<SSTableReader> getSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         ImmutableSet.Builder<SSTableReader> builder = ImmutableSet.builder();
         for (List<SSTableReader> sstables : generations)
         {
@@ -579,6 +637,7 @@ public class LeveledManifest
          */
         Iterator<SSTableReader> iter = candidates.iterator();
         SSTableReader sstable = iter.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         Token first = sstable.first.getToken();
         Token last = sstable.last.getToken();
         while (iter.hasNext())
@@ -592,6 +651,7 @@ public class LeveledManifest
 
     private static Set<SSTableReader> overlappingWithBounds(SSTableReader sstable, Map<SSTableReader, Bounds<Token>> others)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11571
         return overlappingWithBounds(sstable.first.getToken(), sstable.last.getToken(), others);
     }
 
@@ -607,6 +667,7 @@ public class LeveledManifest
     private static Set<SSTableReader> overlappingWithBounds(Token start, Token end, Map<SSTableReader, Bounds<Token>> sstables)
     {
         assert start.compareTo(end) <= 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         Set<SSTableReader> overlapped = new HashSet<>();
         Bounds<Token> promotedBounds = new Bounds<Token>(start, end);
 
@@ -628,6 +689,7 @@ public class LeveledManifest
 
     private static Map<SSTableReader, Bounds<Token>> genBounds(Iterable<SSTableReader> ssTableReaders)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11571
         Map<SSTableReader, Bounds<Token>> boundsMap = new HashMap<>();
         for (SSTableReader sstable : ssTableReaders)
         {
@@ -645,15 +707,20 @@ public class LeveledManifest
     {
         assert !getLevel(level).isEmpty();
         logger.trace("Choosing candidates for L{}", level);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         final Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
 
         if (level == 0)
         {
             Set<SSTableReader> compactingL0 = getCompacting(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8739
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             PartitionPosition lastCompactingKey = null;
             PartitionPosition firstCompactingKey = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8211
             for (SSTableReader candidate : compactingL0)
             {
                 if (firstCompactingKey == null || candidate.first.compareTo(firstCompactingKey) < 0)
@@ -677,6 +744,7 @@ public class LeveledManifest
             // So if an L1 sstable is suspect we can't do much besides try anyway and hope for the best.
             Set<SSTableReader> candidates = new HashSet<>();
             Map<SSTableReader, Bounds<Token>> remaining = genBounds(Iterables.filter(getLevel(0), Predicates.not(suspectP)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11571
 
             for (SSTableReader sstable : ageSortedSSTables(remaining.keySet()))
             {
@@ -684,16 +752,19 @@ public class LeveledManifest
                     continue;
 
                 Sets.SetView<SSTableReader> overlappedL0 = Sets.union(Collections.singleton(sstable), overlappingWithBounds(sstable, remaining));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5921
                 if (!Sets.intersection(overlappedL0, compactingL0).isEmpty())
                     continue;
 
                 for (SSTableReader newCandidate : overlappedL0)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8211
                     if (firstCompactingKey == null || lastCompactingKey == null || overlapping(firstCompactingKey.getToken(), lastCompactingKey.getToken(), Arrays.asList(newCandidate)).size() == 0)
                         candidates.add(newCandidate);
                     remaining.remove(newCandidate);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14388
                 if (candidates.size() > cfs.getMaximumCompactionThreshold())
                 {
                     // limit to only the cfs.getMaximumCompactionThreshold() oldest candidates
@@ -703,6 +774,7 @@ public class LeveledManifest
             }
 
             // leave everything in L0 if we didn't end up with a full sstable's worth of data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
             if (SSTableReader.getTotalBytes(candidates) > maxSSTableSizeInBytes)
             {
                 // add sstables from L1 that overlap candidates
@@ -711,10 +783,12 @@ public class LeveledManifest
                 Set<SSTableReader> l1overlapping = overlapping(candidates, getLevel(1));
                 if (Sets.intersection(l1overlapping, compacting).size() > 0)
                     return Collections.emptyList();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8739
                 if (!overlapping(candidates, compactingL0).isEmpty())
                     return Collections.emptyList();
                 candidates = Sets.union(candidates, l1overlapping);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5921
             if (candidates.size() < 2)
                 return Collections.emptyList();
             else
@@ -722,6 +796,7 @@ public class LeveledManifest
         }
 
         // for non-L0 compactions, pick up where we left off last time
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         Collections.sort(getLevel(level), SSTableReader.sstableComparator);
         int start = 0; // handles case where the prior compaction touched the very last range
         for (int i = 0; i < getLevel(level).size(); i++)
@@ -736,6 +811,7 @@ public class LeveledManifest
 
         // look for a non-suspect keyspace to compact with, starting with where we left off last time,
         // and wrapping back to the beginning of the generation if necessary
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11571
         Map<SSTableReader, Bounds<Token>> sstablesNextLevel = genBounds(getLevel(level + 1));
         for (int i = 0; i < getLevel(level).size(); i++)
         {
@@ -753,8 +829,10 @@ public class LeveledManifest
 
     private Set<SSTableReader> getCompacting(int level)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8739
         Set<SSTableReader> sstables = new HashSet<>();
         Set<SSTableReader> levelSSTables = new HashSet<>(getLevel(level));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         for (SSTableReader sstable : cfs.getTracker().getCompacting())
         {
             if (levelSSTables.contains(sstable))
@@ -764,8 +842,10 @@ public class LeveledManifest
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14879
     List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         List<SSTableReader> ageSortedCandidates = new ArrayList<>(candidates);
         Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampAscending);
         return ageSortedCandidates;
@@ -789,8 +869,11 @@ public class LeveledManifest
 
     public int getLevelCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3234
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         for (int i = generations.length - 1; i >= 0; i--)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
             if (getLevel(i).size() > 0)
                 return i;
         }
@@ -799,6 +882,7 @@ public class LeveledManifest
 
     public synchronized SortedSet<SSTableReader> getLevelSorted(int level, Comparator<SSTableReader> comparator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         return ImmutableSortedSet.copyOf(comparator, getLevel(level));
     }
 
@@ -814,12 +898,15 @@ public class LeveledManifest
 
         for (int i = generations.length - 1; i >= 0; i--)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
             List<SSTableReader> sstables = getLevel(i);
             // If there is 1 byte over TBL - (MBL * 1.001), there is still a task left, so we need to round up.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
             estimated[i] = (long)Math.ceil((double)Math.max(0L, SSTableReader.getTotalBytes(sstables) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
             tasks += estimated[i];
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > cfs.getMaximumCompactionThreshold())
         {
             int l0compactions = getLevel(0).size() / cfs.getMaximumCompactionThreshold();
@@ -827,7 +914,9 @@ public class LeveledManifest
             estimated[0] += l0compactions;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Estimating {} compactions to do for {}.{}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                      Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
         return Ints.checkedCast(tasks);
     }
@@ -843,6 +932,7 @@ public class LeveledManifest
         }
 
         int newLevel;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
         if (minimumLevel == 0 && minimumLevel == maximumLevel && SSTableReader.getTotalBytes(sstables) < maxSSTableSizeInBytes)
         {
             newLevel = 0;
@@ -858,6 +948,7 @@ public class LeveledManifest
 
     public Iterable<SSTableReader> getAllSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
         Set<SSTableReader> sstables = new HashSet<>();
         for (List<SSTableReader> generation : generations)
         {
@@ -869,6 +960,7 @@ public class LeveledManifest
     public synchronized void newLevel(SSTableReader sstable, int oldLevel)
     {
         boolean removed = generations[oldLevel].remove(sstable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         assert removed : "Could not remove " + sstable +" from " + oldLevel;
         add(sstable);
         lastCompactedKeys[oldLevel] = sstable.last;
@@ -882,6 +974,7 @@ public class LeveledManifest
 
         public CompactionCandidate(Collection<SSTableReader> sstables, int level, long maxSSTableBytes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
             this.sstables = sstables;
             this.level = level;
             this.maxSSTableBytes = maxSSTableBytes;

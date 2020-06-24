@@ -94,6 +94,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     @Test
     public void testMockedMessagingHappyPath() throws InterruptedException, ExecutionException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         CountDownLatch prepareLatch = createLatch();
         CountDownLatch finalizeLatch = createLatch();
 
@@ -120,6 +121,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertFalse(sessionResult.isDone());
         Assert.assertFalse(hasFailures.get());
         // prepare completed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         prepareLatch.countDown();
         spyPrepare.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
         Assert.assertFalse(sessionResult.isDone());
@@ -129,6 +131,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         repairFuture.set(Lists.newArrayList(createResult(coordinator), createResult(coordinator), createResult(coordinator)));
 
         // finalize phase
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         finalizeLatch.countDown();
         spyFinalize.interceptMessageOut(3).get(1, TimeUnit.SECONDS);
 
@@ -150,6 +153,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     @Test
     public void testMockedMessagingPrepareFailureP1() throws InterruptedException, ExecutionException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         CountDownLatch latch = createLatch();
         createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), latch);
         testMockedMessagingPrepareFailure(latch);
@@ -208,6 +212,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
 
         // execute repair and start prepare phase
         ListenableFuture<Boolean> sessionResult = coordinator.execute(sessionSupplier, proposeFailed);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         prepareLatch.countDown();
         // prepare completed
         try
@@ -228,6 +233,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     @Test
     public void testMockedMessagingPrepareTimeout() throws InterruptedException, ExecutionException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.singleton(PARTICIPANT3), new CountDownLatch(0));
         MockMessagingSpy sendFailSessionUnexpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
@@ -261,6 +267,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
             // expected
         }
         // we won't send out any fail session message in case of timeouts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         spyPrepare.expectMockedMessage(2).get(100, TimeUnit.MILLISECONDS);
         sendFailSessionUnexpectedSpy.interceptNoMsg(100, TimeUnit.MILLISECONDS);
         Assert.assertFalse(repairSubmitted.get());
@@ -270,6 +277,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     private MockMessagingSpy createPrepareSpy(Collection<InetAddressAndPort> failed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
                                               Collection<InetAddressAndPort> timeout,
                                               CountDownLatch latch)
     {
@@ -281,6 +289,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
                                               Function<PrepareConsistentRequest, UUID> sessionIdFunc,
                                               CountDownLatch latch)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return MockMessagingService.when(verb(Verb.PREPARE_CONSISTENT_REQ)).respond((msgOut, to) ->
         {
             try
@@ -297,6 +306,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     private MockMessagingSpy createFinalizeSpy(Collection<InetAddressAndPort> failed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
                                                Collection<InetAddressAndPort> timeout,
                                                CountDownLatch latch)
     {
@@ -331,6 +341,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
 
     private CountDownLatch createLatch()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15672
         return new CountDownLatch(1);
     }
 }

@@ -42,11 +42,13 @@ public class Json
      */
     public static String quoteAsJsonString(String s)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
         return new String(BufferRecyclers.getJsonStringEncoder().quoteAsString(s));
     }
 
     public static Object decodeJson(String json)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         try
         {
             return JSON_OBJECT_MAPPER.readValue(json, Object.class);
@@ -77,6 +79,7 @@ public class Json
 
         public Prepared prepareAndCollectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
             return new PreparedLiteral(parseJson(text, receivers));
         }
     }
@@ -97,6 +100,7 @@ public class Json
         public Prepared prepareAndCollectMarkers(TableMetadata metadata, Collection<ColumnMetadata> receivers, VariableSpecifications boundNames)
         {
             boundNames.add(bindIndex, makeReceiver(metadata));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
             return new PreparedMarker(bindIndex, receivers);
         }
 
@@ -184,11 +188,13 @@ public class Json
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
 
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return term.toString();
         }
     }
@@ -223,11 +229,13 @@ public class Json
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
 
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return marker.toString();
         }
     }
@@ -263,7 +271,10 @@ public class Json
         @Override
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
             Term term = options.getJsonColumnValue(marker.bindIndex, column.name, marker.columns);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11424
             return term == null
                  ? (defaultUnset ? Constants.UNSET_VALUE : null)
                  : term.bind(options);
@@ -294,6 +305,7 @@ public class Json
             {
                 // We explicitely test containsKey() because the value itself can be null, and we want to distinguish an
                 // explicit null value from no value
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11424
                 if (!valueMap.containsKey(spec.name.toString()))
                     continue;
 

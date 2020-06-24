@@ -28,6 +28,7 @@ public abstract class NativeFunction extends AbstractFunction
 {
     protected NativeFunction(String name, AbstractType<?> returnType, AbstractType<?>... argTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
         super(FunctionName.nativeFunction(name), Arrays.asList(argTypes), returnType);
     }
 

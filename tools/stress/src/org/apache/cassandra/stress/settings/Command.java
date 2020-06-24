@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 public enum Command
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
     READ(false, "standard1",
             "Multiple concurrent reads - the cluster must first be populated by a write test",
             CommandCategory.BASIC
@@ -61,6 +62,7 @@ public enum Command
 
     HELP(false, null, "-?", "Print help for a command or option", null),
     PRINT(false, null, "Inspect the output of a distribution definition", null),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12258
     LEGACY(false, null, "Legacy support mode", null),
     VERSION(false, null, "Print the version of cassandra stress", null)
     ;
@@ -71,6 +73,7 @@ public enum Command
         final Map<String, Command> lookup = new HashMap<>();
         for (Command cmd : values())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6824
             for (String name : cmd.names)
                 lookup.put(name, cmd);
         }
@@ -88,6 +91,7 @@ public enum Command
     public final String description;
     public final String table;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
     Command(boolean updates, String table, String description, CommandCategory category)
     {
         this(updates, table, null, description, category);
@@ -98,6 +102,7 @@ public enum Command
         this.table = table;
         this.updates = updates;
         this.category = category;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6824
         List<String> names = new ArrayList<>();
         names.add(this.toString().toLowerCase());
         names.add(this.toString().replaceAll("_", "").toLowerCase());

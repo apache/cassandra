@@ -647,6 +647,8 @@ public class ConnectionBurnTest
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15295
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15692
         setup();
         new ConnectionBurnTest().test();
     }

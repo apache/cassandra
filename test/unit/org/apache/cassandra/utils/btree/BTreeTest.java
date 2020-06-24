@@ -70,6 +70,7 @@ public class BTreeTest
     {
         public Integer apply(Integer replacing, Integer update)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return update;
         }
 
@@ -92,6 +93,7 @@ public class BTreeTest
     {
         List<Integer> r = new ArrayList<>();
         for (int i = 0 ; i < count ; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             if (i % interval == 0)
                 r.add(i);
         return r;
@@ -128,6 +130,7 @@ public class BTreeTest
     public void testBuilding_UpdateFunctionReplacement()
     {
         for (int i = 0; i < 20 ; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             checkResult(i, BTree.build(seq(i), updateF));
     }
 
@@ -146,6 +149,7 @@ public class BTreeTest
 
         final List<Integer> result = new ArrayList<>();
         BTree.<Integer>apply(btree, i -> result.add(i));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         org.junit.Assert.assertArrayEquals(input.toArray(),result.toArray());
     }
@@ -202,9 +206,11 @@ public class BTreeTest
     @Test
     public void testUpdate_UpdateFunctionCallBack()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         Object[] btree = new Object[1];
         CallsMonitor monitor = new CallsMonitor();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         btree = BTree.update(btree, CMP, Arrays.asList(1), monitor);
         assertArrayEquals(new Object[] {1}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
@@ -242,7 +248,9 @@ public class BTreeTest
     public void testBuilding_UpdateFunctionCallBack()
     {
         CallsMonitor monitor = new CallsMonitor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Object[] btree = BTree.build(Arrays.asList(1), monitor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         assertArrayEquals(new Object[] {1}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
 
@@ -269,6 +277,7 @@ public class BTreeTest
         // for numbers x in 1..N, we repeat x x times, and resolve values to their sum,
         // so that the resulting tree is of square numbers
         BTree.Builder.QuickResolver<Accumulator> resolver = (a, b) -> new Accumulator(a.base, a.sum + b.sum);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
 
         for (int count = 0 ; count < 10 ; count ++)
         {
@@ -281,6 +290,7 @@ public class BTreeTest
                 builder.add(i);
             // for sorted input, check non-resolve path works before checking resolution path
             checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             builder = BTree.builder(Comparator.naturalOrder());
             builder.setQuickResolver(resolver);
             for (int i = 0 ; i < 10 ; i++)
@@ -306,6 +316,7 @@ public class BTreeTest
     @Test
     public void testBuilderReuse()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
         List<Integer> sorted = seq(20);
         BTree.Builder<Integer> builder = BTree.builder(Comparator.naturalOrder());
         builder.auto(false);
@@ -373,6 +384,7 @@ public class BTreeTest
             // for sorted input, check non-resolve path works before checking resolution path
             Assert.assertTrue(Iterables.elementsEqual(sorted, BTree.iterable(builder.build())));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             builder = BTree.builder(Comparator.naturalOrder());
             builder.auto(false);
             for (Accumulator i : sorted)
@@ -388,6 +400,7 @@ public class BTreeTest
                 for (Accumulator j : resolverInput(count, true))
                     builder.add(j);
                 checkResolverOutput(count, builder.sort().resolve(resolver).build(), BTree.Dir.ASC);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
                 builder = BTree.builder(Comparator.naturalOrder());
                 builder.auto(false);
                 for (Accumulator j : resolverInput(count, true))
@@ -421,6 +434,7 @@ public class BTreeTest
 
     private static List<List<Accumulator>> splitResolverInput(int count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         List<Accumulator> all = resolverInput(count, false);
         List<List<Accumulator>> result = new ArrayList<>();
         while (!all.isEmpty())
@@ -453,6 +467,7 @@ public class BTreeTest
 
     private static void checkResult(int count, Object[] btree)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
         checkResult(count, btree, BTree.Dir.ASC);
     }
 
@@ -460,6 +475,7 @@ public class BTreeTest
     {
         Iterator<Integer> iter = BTree.slice(btree, CMP, dir);
         int i = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         while (iter.hasNext())
             assertEquals(iter.next(), ints[i++]);
         assertEquals(count, i);
@@ -547,6 +563,7 @@ public class BTreeTest
     public void testTransformAndFilter()
     {
         List<Integer> r = seq(100);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
 
         Object[] b1 = BTree.build(r, UpdateFunction.noOp());
 

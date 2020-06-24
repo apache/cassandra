@@ -87,6 +87,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     @SuppressWarnings("resource")
     public void handlerAdded(ChannelHandlerContext ctx)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         buffers = new AsyncStreamingInputPlus(ctx.channel());
         Thread blockingIOThread = new FastThreadLocalThread(new StreamDeserializingTask(session, ctx.channel()),
                                                             String.format("Stream-Deserializer-%s-%s", remoteAddress.toString(), ctx.channel().id()));
@@ -97,6 +98,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (closed || !(message instanceof ByteBuf) || !buffers.append((ByteBuf) message))
             ReferenceCountUtil.release(message);
     }
@@ -111,6 +113,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     void close()
     {
         closed = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         buffers.requestClosure();
         if (trackInboundHandlers)
             inboundHandlers.remove(this);
@@ -122,6 +125,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         if (cause instanceof IOException)
             logger.trace("connection problem while streaming", cause);
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
             logger.warn("exception occurred while in processing streaming data", cause);
         close();
     }
@@ -129,6 +133,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     /**
      * For testing only!!
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     void setPendingBuffers(AsyncStreamingInputPlus bufChannel)
     {
         this.buffers = bufChannel;
@@ -158,6 +163,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                 while (true)
                 {
                     buffers.maybeIssueRead();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
                     // do a check of available bytes and possibly sleep some amount of time (then continue).
                     // this way we can break out of run() sanely or we end up blocking indefintely in StreamMessage.deserialize()
@@ -170,11 +176,13 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                     }
 
                     StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
 
                     // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
                     // wrt session lifecycle, due to races), just log that we received the message and carry on
                     if (message instanceof KeepAliveMessage)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
                         if (logger.isDebugEnabled())
                             logger.debug("{} Received {}", createLogTag(session, channel), message);
                         continue;
@@ -221,6 +229,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         StreamSession deriveSession(StreamMessage message)
         {
             // StreamInitMessage starts a new channel here, but IncomingStreamMessage needs a session
@@ -229,6 +238,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
             // Attach this channel to the session: this only happens upon receiving the first init message as a follower;
             // in all other cases, no new control channel will be added, as the proper control channel will be already attached.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             streamSession.attachInbound(channel, message instanceof StreamInitMessage);
             return streamSession;
         }

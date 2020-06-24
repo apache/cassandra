@@ -106,6 +106,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
 
     static final void addToMap(Range<Token> range,
                                Replica replica,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                NavigableMap<Range<Token>, EndpointsForRange.Builder> ascendingMap,
                                NavigableMap<Range<Token>, EndpointsForRange.Builder> descendingMap)
     {
@@ -132,6 +133,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
     }
 
     static final void addIntersections(EndpointsForToken.Builder replicasToAdd,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                        NavigableMap<Range<Token>, EndpointsForRange.Builder> smallerMap,
                                        NavigableMap<Range<Token>, EndpointsForRange.Builder> biggerMap)
     {
@@ -153,6 +155,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
         Range<Token> searchRange = new Range<>(token, token);
 
         // search for non-wrap-around maps
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         NavigableMap<Range<Token>, EndpointsForRange.Builder> ascendingTailMap = ascendingMap.tailMap(searchRange, true);
         NavigableMap<Range<Token>, EndpointsForRange.Builder> descendingTailMap = descendingMap.tailMap(searchRange, false);
 
@@ -171,6 +174,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
         descendingTailMap = descendingMapForWrapAround.tailMap(searchRange, false);
 
         // add them since they are all necessary.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         for (Map.Entry<Range<Token>, EndpointsForRange.Builder> entry : ascendingTailMap.entrySet())
         {
             replicas.addAll(entry.getValue());
@@ -187,6 +191,7 @@ public class PendingRangeMaps implements Iterable<Map.Entry<Range<Token>, Endpoi
     {
         StringBuilder sb = new StringBuilder();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         for (Map.Entry<Range<Token>, EndpointsForRange.Builder> entry : this)
         {
             Range<Token> range = entry.getKey();

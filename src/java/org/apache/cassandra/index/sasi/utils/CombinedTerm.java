@@ -43,6 +43,7 @@ public class CombinedTerm implements CombinedValue<DataTerm>
 
     public boolean isPartial()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         return term.isPartial();
     }
 

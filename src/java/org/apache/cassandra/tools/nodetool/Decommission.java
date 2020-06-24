@@ -28,6 +28,7 @@ public class Decommission extends NodeToolCmd
 {
 
     @Option(title = "force",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12510
     name = {"-f", "--force"},
     description = "Force decommission of this node even when it reduces the number of replicas to below configured RF")
     private boolean force = false;
@@ -41,6 +42,7 @@ public class Decommission extends NodeToolCmd
         } catch (InterruptedException e)
         {
             throw new RuntimeException("Error decommissioning node", e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8741
         } catch (UnsupportedOperationException e)
         {
             throw new IllegalStateException("Unsupported operation: " + e.getMessage(), e);

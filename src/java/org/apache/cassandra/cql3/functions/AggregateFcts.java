@@ -38,6 +38,7 @@ public abstract class AggregateFcts
     public static Collection<AggregateFunction> all()
     {
         Collection<AggregateFunction> functions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
         functions.add(countRowsFunction);
 
@@ -51,6 +52,7 @@ public abstract class AggregateFcts
         functions.add(sumFunctionForDecimal);
         functions.add(sumFunctionForVarint);
         functions.add(sumFunctionForCounter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
 
         // avg for primitives
         functions.add(avgFunctionForByte);
@@ -62,6 +64,7 @@ public abstract class AggregateFcts
         functions.add(avgFunctionForDecimal);
         functions.add(avgFunctionForVarint);
         functions.add(avgFunctionForCounter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
 
         // count, max, and min for all standard types
         for (CQL3Type type : CQL3Type.Native.values())
@@ -69,6 +72,7 @@ public abstract class AggregateFcts
             if (type != CQL3Type.Native.VARCHAR) // varchar and text both mapping to UTF8Type
             {
                 functions.add(AggregateFcts.makeCountFunction(type.getType()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
                 if (type != CQL3Type.Native.COUNTER)
                 {
                     functions.add(AggregateFcts.makeMaxFunction(type.getType()));
@@ -105,6 +109,7 @@ public abstract class AggregateFcts
 
                         public ByteBuffer compute(ProtocolVersion protocolVersion)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                             return LongType.instance.decompose(count);
                         }
 
@@ -118,6 +123,7 @@ public abstract class AggregateFcts
                 @Override
                 public String columnName(List<String> columnNames)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
                     return "count";
                 }
             };
@@ -176,6 +182,7 @@ public abstract class AggregateFcts
                         public void reset()
                         {
                             count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                             avg = BigDecimal.ZERO;
                         }
 
@@ -193,8 +200,11 @@ public abstract class AggregateFcts
 
                             count++;
                             BigDecimal number = DecimalType.instance.compose(value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11485
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
 
                             // avg = avg + (value - sum) / count.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                             avg = avg.add(number.subtract(avg).divide(BigDecimal.valueOf(count), RoundingMode.HALF_EVEN));
                         }
                     };
@@ -210,6 +220,7 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9671
                     return new Aggregate()
                     {
                         private BigInteger sum = BigInteger.ZERO;
@@ -231,6 +242,7 @@ public abstract class AggregateFcts
                             if (value == null)
                                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                             BigInteger number = IntegerType.instance.compose(value);
                             sum = sum.add(number);
                         }
@@ -262,6 +274,7 @@ public abstract class AggregateFcts
                         {
                             if (count == 0)
                                 return IntegerType.instance.decompose(BigInteger.ZERO);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
 
                             return IntegerType.instance.decompose(sum.divide(BigInteger.valueOf(count)));
                         }
@@ -379,6 +392,7 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                     return new AvgAggregate(ShortType.instance)
                     {
                         public ByteBuffer compute(ProtocolVersion protocolVersion)
@@ -433,6 +447,7 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                     return new AvgAggregate(Int32Type.instance)
                     {
                         public ByteBuffer compute(ProtocolVersion protocolVersion)
@@ -463,6 +478,7 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                     return new AvgAggregate(LongType.instance)
                     {
                         public ByteBuffer compute(ProtocolVersion protocolVersion)
@@ -517,6 +533,7 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
                     return new FloatSumAggregate(DoubleType.instance)
                     {
                         public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
@@ -599,6 +616,7 @@ public abstract class AggregateFcts
 
         public FloatAvgAggregate(AbstractType numberType)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
             this.numberType = numberType;
         }
 
@@ -691,10 +709,14 @@ public abstract class AggregateFcts
      * The SUM function for counter column values.
      */
     public static final AggregateFunction sumFunctionForCounter =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
     new NativeAggregateFunction("sum", CounterColumnType.instance, CounterColumnType.instance)
     {
         public Aggregate newAggregate()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
             return new LongSumAggregate();
         }
     };
@@ -707,6 +729,7 @@ public abstract class AggregateFcts
     {
         public Aggregate newAggregate()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
             return new AvgAggregate(LongType.instance)
             {
                 public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
@@ -898,6 +921,7 @@ public abstract class AggregateFcts
 
                     public ByteBuffer compute(ProtocolVersion protocolVersion)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
                         return ((LongType) returnType()).decompose(count);
                     }
 
@@ -957,6 +981,7 @@ public abstract class AggregateFcts
 
         public AvgAggregate(AbstractType type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
             this.numberType = type;
         }
 
@@ -988,6 +1013,7 @@ public abstract class AggregateFcts
                 return;
 
             count++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
             long number = ((Number) numberType.compose(value)).longValue();
             if (overflow)
             {

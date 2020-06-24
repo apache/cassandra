@@ -34,6 +34,7 @@ public class FloatType extends NumberType<Float>
     public static final FloatType instance = new FloatType();
 
     FloatType() {super(ComparisonType.CUSTOM);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
@@ -43,11 +44,14 @@ public class FloatType extends NumberType<Float>
     @Override
     public boolean isFloatingPoint()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return true;
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -62,10 +66,12 @@ public class FloatType extends NumberType<Float>
 
       try
       {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
           return decompose(Float.parseFloat(source));
       }
       catch (NumberFormatException e1)
       {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
           throw new MarshalException(String.format("Unable to make float from '%s'", source), e1);
       }
     }
@@ -90,6 +96,7 @@ public class FloatType extends NumberType<Float>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14377
         Float value = getSerializer().deserialize(buffer);
         // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
         if (value.isNaN() || value.isInfinite())
@@ -99,6 +106,7 @@ public class FloatType extends NumberType<Float>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.FLOAT;
     }
 
@@ -110,12 +118,14 @@ public class FloatType extends NumberType<Float>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 4;
     }
 
     @Override
     protected int toInt(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         throw new UnsupportedOperationException();
     }
 

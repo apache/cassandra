@@ -121,6 +121,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
 
     @Override
     public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
@@ -133,6 +134,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     @Override
     public boolean needFiltering(TableMetadata table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         if (isEmpty())
             return false;
 

@@ -77,6 +77,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
 
     public int compareTo(ColumnSubselection other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         assert other.column().name.equals(column().name);
         return column().cellPathComparator().compare(comparisonPath(), other.comparisonPath());
     }
@@ -112,6 +113,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
         public int compareInclusionOf(CellPath path)
         {
             Comparator<CellPath> cmp = column.cellPathComparator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             if (cmp.compare(path, from) < 0)
                 return -1;
             else if (cmp.compare(to, path) < 0)
@@ -151,6 +153,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
 
         public int compareInclusionOf(CellPath path)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return column.cellPathComparator().compare(path, element);
         }
 
@@ -181,6 +184,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
                     Element eltSelection = (Element)subSel;
                     column.cellPathSerializer().serialize(eltSelection.element, out);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10073
                 default:
                     throw new AssertionError();
             }
@@ -197,6 +201,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
                 // deserialization. The column will be ignore later on anyway.
                 column = metadata.getDroppedColumn(name);
                 if (column == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
             }
 
@@ -219,6 +224,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
             long size = 0;
 
             ColumnMetadata column = subSel.column();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             size += TypeSizes.sizeofWithShortLength(column.name.bytes);
             size += 1; // kind
             switch (subSel.kind())

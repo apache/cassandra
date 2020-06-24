@@ -21,6 +21,7 @@ public abstract class AbstractUnfilteredPartitionIterator implements UnfilteredP
 {
     public void remove()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         throw new UnsupportedOperationException();
     }
 

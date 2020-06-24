@@ -81,6 +81,7 @@ public final class CastFcts
             addFunctionIfNeeded(functions, inputType, LongType.instance, Number::longValue);
             addFunctionIfNeeded(functions, inputType, FloatType.instance, Number::floatValue);
             addFunctionIfNeeded(functions, inputType, DoubleType.instance, Number::doubleValue);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14170
             addFunctionIfNeeded(functions, inputType, DecimalType.instance, getDecimalConversionFunction(inputType));
             addFunctionIfNeeded(functions, inputType, IntegerType.instance, p -> BigInteger.valueOf(p.longValue()));
             functions.add(CastAsTextFunction.create(inputType, AsciiType.instance));
@@ -95,6 +96,7 @@ public final class CastFcts
         functions.add(CastAsTextFunction.create(BooleanType.instance, AsciiType.instance));
         functions.add(CastAsTextFunction.create(BooleanType.instance, UTF8Type.instance));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         functions.add(CassandraFunctionWrapper.create(TimeUUIDType.instance, SimpleDateType.instance, toDate(TimeUUIDType.instance)));
         functions.add(CassandraFunctionWrapper.create(TimeUUIDType.instance, TimestampType.instance, toTimestamp(TimeUUIDType.instance)));
         functions.add(CastAsTextFunction.create(TimeUUIDType.instance, AsciiType.instance));
@@ -122,6 +124,7 @@ public final class CastFcts
      */
     private static <I extends Number> java.util.function.Function<I, BigDecimal> getDecimalConversionFunction(AbstractType<? extends Number> inputType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14170
         if (inputType == FloatType.instance || inputType == DoubleType.instance)
             return p -> BigDecimal.valueOf(p.doubleValue());
 
@@ -167,6 +170,7 @@ public final class CastFcts
                                                    java.util.function.Function<I, O> converter)
     {
         if (!inputType.equals(outputType))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10824
             functions.add(wrapJavaFunction(inputType, outputType, converter));
     }
 
@@ -238,6 +242,7 @@ public final class CastFcts
         }
 
         protected JavaFunctionWrapper(AbstractType<I> inputType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10824
                                       AbstractType<O> outputType,
                                       java.util.function.Function<I, O> converter)
         {

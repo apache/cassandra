@@ -37,6 +37,7 @@ public class ChecksummedSequentialWriterTest extends SequentialWriterTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -67,6 +68,7 @@ public class ChecksummedSequentialWriterTest extends SequentialWriterTest
 
         private TestableCSW(File file, File crcFile) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             this(file, crcFile, new ChecksummedSequentialWriter(file, crcFile, null, SequentialWriterOption.newBuilder()
                                                                                                            .bufferSize(BUFFER_SIZE)
                                                                                                            .build()));

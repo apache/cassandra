@@ -98,6 +98,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12071
     We keep a pool of threads for each data directory, size of each pool is memtable_flush_writers.
     When flushing we start a Flush runnable in the flushExecutor. Flush calculates how to split the
     memtable ranges over the existing data directories and creates a FlushRunnable for each of the directories.
@@ -106,6 +107,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     have that many flushes going at the same time.
     */
     private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
                                                                                           Stage.KEEP_ALIVE_SECONDS,
                                                                                           TimeUnit.SECONDS,
                                                                                           new LinkedBlockingQueue<Runnable>(),
@@ -116,9 +118,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         for (int i = 0; i < DatabaseDescriptor.getAllDataFileLocations().length; i++)
         {
             perDiskflushExecutors[i] = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
                                                                         Stage.KEEP_ALIVE_SECONDS,
                                                                         TimeUnit.SECONDS,
                                                                         new LinkedBlockingQueue<Runnable>(),
@@ -129,7 +133,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
     private static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor(1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
                                                                                               Stage.KEEP_ALIVE_SECONDS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
                                                                                               TimeUnit.SECONDS,
                                                                                               new LinkedBlockingQueue<Runnable>(),
                                                                                               new NamedThreadFactory("MemtablePostFlush"),
@@ -137,6 +143,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static final ExecutorService reclaimExecutor = new JMXEnabledThreadPoolExecutor(1,
                                                                                             Stage.KEEP_ALIVE_SECONDS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
                                                                                             TimeUnit.SECONDS,
                                                                                             new LinkedBlockingQueue<Runnable>(),
                                                                                             new NamedThreadFactory("MemtableReclaimMemory"),
@@ -144,6 +151,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static final String[] COUNTER_NAMES = new String[]{"table", "count", "error", "value"};
     private static final String[] COUNTER_DESCS = new String[]
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
     { "keyspace.tablename",
       "number of occurances",
       "error bounds",
@@ -218,11 +226,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     @VisibleForTesting
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
 
     private volatile boolean neverPurgeTombstones = false;
 
     public static void shutdownPostFlushExecutor() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
         postFlushExecutor.shutdown();
         postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
     }
@@ -253,8 +263,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         compactionStrategyManager.maybeReload(metadata());
 
         scheduleFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4237
 
         indexManager.reload();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2982
 
         // If the CF comparator has changed, we need to change the memtable,
         // because the old one still aliases the previous comparator.
@@ -267,11 +279,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int period = metadata().params.memtableFlushPeriodInMs;
         if (period > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("scheduling flush in {} ms", period);
             WrappedRunnable runnable = new WrappedRunnable()
             {
                 protected void runMayThrow()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
                     synchronized (data)
                     {
                         Memtable current = data.getView().getCurrentMemtable();
@@ -292,6 +306,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 }
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
             ScheduledExecutors.scheduledTasks.schedule(runnable, period, TimeUnit.MILLISECONDS);
         }
     }
@@ -304,6 +319,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 for (Keyspace keyspace : Keyspace.all())
                     for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9662
                         CompactionManager.instance.submitBackground(cfs);
             }
         };
@@ -374,16 +390,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                              String columnFamilyName,
                              int generation,
                              TableMetadataRef metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4321
                              Directories directories,
                              boolean loadSSTables,
                              boolean registerBookeeping,
                              boolean offline)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         assert directories != null;
         assert metadata != null : "null metadata for " + keyspace + ":" + columnFamilyName;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
         this.keyspace = keyspace;
         this.metadata = metadata;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2749
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13928
         this.directories = directories;
         name = columnFamilyName;
         minCompactionThreshold = new DefaultValue<>(metadata.get().params.compaction.minCompactionThreshold());
@@ -392,12 +413,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         viewManager = keyspace.viewManager.forTable(metadata.id);
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         sampleReadLatencyNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) / 2;
         additionalWriteLatencyNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) / 2;
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
         // Create Memtable only on online
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         Memtable initialMemtable = null;
         if (DatabaseDescriptor.isDaemonInitialized())
             initialMemtable = new Memtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()), this);
@@ -407,13 +430,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (data.loadsstables)
         {
             Directories.SSTableLister sstableFiles = directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             Collection<SSTableReader> sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata);
             data.addInitialSSTables(sstables);
         }
 
         // compaction strategy should be created after the CFS has been prepared
         compactionStrategyManager = new CompactionStrategyManager(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
         if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
         {
             logger.warn("Disabling compaction strategy by setting compaction thresholds to 0 is deprecated, set the compaction option 'enabled' to 'false' instead.");
@@ -424,10 +450,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         indexManager = new SecondaryIndexManager(this);
         for (IndexMetadata info : metadata.get().indexes)
             indexManager.addIndex(info, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         if (registerBookeeping)
         {
             // register the mbean
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             mbeanName = String.format("org.apache.cassandra.db:type=%s,keyspace=%s,table=%s",
                                          isIndex() ? "IndexTables" : "Tables",
                                          keyspace.getName(), name);
@@ -435,6 +464,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                          isIndex() ? "IndexColumnFamilies" : "ColumnFamilies",
                                          keyspace.getName(), name);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
             String[] objectNames = {mbeanName, oldMBeanName};
             for (String objectName : objectNames)
                 MBeanWrapper.instance.registerMBean(this, objectName);
@@ -442,19 +472,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         else
         {
             mbeanName = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             oldMBeanName= null;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         writeHandler = new CassandraTableWriteHandler(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         streamManager = new CassandraStreamManager(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         repairManager = new CassandraTableRepairManager(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         sstableImporter = new SSTableImporter(this);
     }
 
     public void updateSpeculationThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14338
         try
         {
             sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency.getSnapshot(), sampleReadLatencyNanos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
             additionalWriteLatencyNanos = metadata().params.additionalWritePolicy.calculateThreshold(metric.coordinatorWriteLatency.getSnapshot(), additionalWriteLatencyNanos);
         }
         catch (Throwable e)
@@ -465,6 +502,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public TableWriteHandler getWriteHandler()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         return writeHandler;
     }
 
@@ -475,6 +513,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public TableRepairManager getRepairManager()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         return repairManager;
     }
 
@@ -485,6 +524,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Directories getDirectories()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         return directories;
     }
 
@@ -501,6 +541,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean supportsEarlyOpen()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11754
         return compactionStrategyManager.supportsEarlyOpen();
     }
 
@@ -514,6 +555,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // disable and cancel in-progress compactions before invalidating
         valid = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
 
         try
         {
@@ -521,18 +563,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             if (expectMBean)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 // this shouldn't block anything.
                 logger.warn("Failed unregistering mbean: {}", mbeanName, e);
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         compactionStrategyManager.shutdown();
         SystemKeyspace.removeTruncationRecord(metadata.id);
 
         data.dropSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LifecycleTransaction.waitForDeletions();
         indexManager.dropAllIndexes();
 
@@ -543,11 +589,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * Removes every SSTable in the directory from the Tracker's view.
      * @param directory the unreadable directory, possibly with SSTables in it, but not necessarily.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2118
     void maybeRemoveUnreadableSSTables(File directory)
     {
         data.removeUnreadableSSTables(directory);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
     void unregisterMBean() throws MalformedObjectNameException
     {
         ObjectName[] objectNames = {new ObjectName(mbeanName), new ObjectName(oldMBeanName)};
@@ -572,7 +620,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                          TableMetadataRef metadata,
                                                                          boolean loadSSTables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13928
         Directories directories = new Directories(metadata.get());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         return createColumnFamilyStore(keyspace, columnFamily, metadata, directories, loadSSTables, true, false);
     }
 
@@ -587,13 +637,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // get the max generation number, to prevent generation conflicts
         Directories.SSTableLister lister = directories.sstableLister(Directories.OnTxnErr.IGNORE).includeBackups(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-424
         List<Integer> generations = new ArrayList<Integer>();
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
         {
             Descriptor desc = entry.getKey();
             generations.add(desc.generation);
             if (!desc.isCompatible())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6869
                 throw new RuntimeException(String.format("Incompatible SSTable found. Current version %s is unable to read file: %s. Please run upgradesstables.",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
                                                          desc.getFormat().getLatestVersion(), desc));
         }
         Collections.sort(generations);
@@ -608,13 +661,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static void  scrubDataDirectories(TableMetadata metadata) throws StartupException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13928
         Directories directories = new Directories(metadata);
         Set<File> cleanedDirectories = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12114
 
          // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
         clearEphemeralSnapshots(directories);
 
         directories.removeTemporaryDirectories();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
 
         logger.trace("Removing temporary or obsoleted files from unfinished operations for table {}", metadata.name);
         if (!LifecycleTransaction.removeUnfinishedLeftovers(metadata))
@@ -628,6 +684,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister(Directories.OnTxnErr.IGNORE).list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12114
             File directory = desc.directory;
             Set<Component> components = sstableFiles.getValue();
 
@@ -636,6 +693,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 cleanedDirectories.add(directory);
                 for (File tmpFile : desc.getTemporaryFiles())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15705
                     logger.info("Removing unfinished temporary file {}", tmpFile);
                     tmpFile.delete();
                 }
@@ -645,6 +703,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (components.contains(Component.DATA) && dataFile.length() > 0)
                 // everything appears to be in order... moving on.
                 continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7024
 
             // missing the DATA file! all components are orphaned
             logger.warn("Removing orphans for {}: {}", desc, components);
@@ -652,6 +711,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 File file = new File(desc.filenameFor(component));
                 if (file.exists())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                     FileUtils.deleteWithConfirm(desc.filenameFor(component));
             }
         }
@@ -687,6 +747,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static void loadNewSSTables(String ksName, String cfName)
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(ksName);
         keyspace.getColumnFamilyStore(cfName).loadNewSSTables();
     }
@@ -695,6 +756,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void loadNewSSTables()
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         SSTableImporter.Options options = SSTableImporter.Options.options().resetLevel(true).build();
         sstableImporter.importNewSSTables(options);
     }
@@ -727,6 +789,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                            // Increment the generation until we find a filename that doesn't exist. This is needed because the new
                                            // SSTables that are being loaded might already use these generation numbers.
                                            fileIndexGenerator.incrementAndGet(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                                            descriptor.formatType);
         }
         while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
@@ -742,6 +805,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(cfName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
         logger.info("User Requested secondary index re-build for {}/{} indexes: {}", ksName, cfName, Joiner.on(',').join(idxNames));
         cfs.indexManager.rebuildIndexesBlocking(Sets.newHashSet(Arrays.asList(idxNames)));
     }
@@ -763,6 +827,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Deprecated
     public String getColumnFamilyName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         return getTableName();
     }
 
@@ -773,6 +838,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Descriptor newSSTableDescriptor(File directory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return newSSTableDescriptor(directory, SSTableFormat.Type.current().info.getLatestVersion(), SSTableFormat.Type.current());
     }
 
@@ -785,6 +851,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return new Descriptor(version,
                               directory,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                               keyspace.getName(),
                               name,
                               fileIndexGenerator.incrementAndGet(),
@@ -817,6 +885,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         synchronized (data)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
             logFlush();
             Flush flush = new Flush(false);
             flushExecutor.execute(flush);
@@ -831,12 +900,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // reclaiming includes that which we are GC-ing;
         float onHeapRatio = 0, offHeapRatio = 0;
         long onHeapTotal = 0, offHeapTotal = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         Memtable memtable = getTracker().getView().getCurrentMemtable();
         onHeapRatio +=  memtable.getAllocator().onHeap().ownershipRatio();
         offHeapRatio += memtable.getAllocator().offHeap().ownershipRatio();
         onHeapTotal += memtable.getAllocator().onHeap().owns();
         offHeapTotal += memtable.getAllocator().offHeap().owns();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         for (ColumnFamilyStore indexCfs : indexManager.getAllIndexColumnFamilyStores())
         {
             MemtableAllocator allocator = indexCfs.getTracker().getView().getCurrentMemtable().getAllocator();
@@ -846,7 +917,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             offHeapTotal += allocator.offHeap().owns();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Enqueuing flush of {}: {}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                      name,
                      String.format("%s (%.0f%%) on-heap, %s (%.0f%%) off-heap",
                                    FBUtilities.prettyPrintMemory(onHeapTotal),
@@ -900,6 +973,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // we grab the current memtable; once any preceding memtables have flushed, we know its
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
         final Memtable current = data.getView().getCurrentMemtable();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         ListenableFutureTask<CommitLogPosition> task = ListenableFutureTask.create(() -> {
             logger.debug("forceFlush requested but everything is clean in {}", name);
             return current.getCommitLogLowerBound();
@@ -922,6 +996,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final CountDownLatch latch = new CountDownLatch(1);
         final List<Memtable> memtables;
         volatile Throwable flushFailure = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12956
 
         private PostFlush(List<Memtable> memtables)
         {
@@ -971,6 +1046,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         final OpOrder.Barrier writeBarrier;
         final List<Memtable> memtables = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12358
         final ListenableFutureTask<CommitLogPosition> postFlushTask;
         final PostFlush postFlush;
         final boolean truncate;
@@ -993,6 +1069,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             writeBarrier = keyspace.writeOrder.newBarrier();
 
             // submit flushes for the memtable for any indexed sub-cfses, and our own
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             AtomicReference<CommitLogPosition> commitLogUpperBound = new AtomicReference<>();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
@@ -1013,7 +1090,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
             // commit log segment position have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12956
             postFlush = new PostFlush(memtables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12358
             postFlushTask = ListenableFutureTask.create(postFlush);
         }
 
@@ -1050,11 +1129,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (memtable.isClean() || truncate)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                 memtable.cfs.replaceFlushed(memtable, Collections.emptyList());
                 reclaim(memtable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6774
                 return Collections.emptyList();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
             List<Future<SSTableMultiWriter>> futures = new ArrayList<>();
             long totalBytesOnDisk = 0;
             long maxBytesOnDisk = 0;
@@ -1142,8 +1224,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
             memtable.cfs.replaceFlushed(memtable, sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9388
             reclaim(memtable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
             memtable.cfs.compactionStrategyManager.compactionLogger.flush(sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
                          sstables,
                          sstables.size(),
@@ -1158,6 +1244,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // issue a read barrier for reclaiming the memory, and offload the wait to another thread
             final OpOrder.Barrier readBarrier = readOrdering.newBarrier();
             readBarrier.issue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12358
             postFlushTask.addListener(new WrappedRunnable()
             {
                 public void runMayThrow()
@@ -1175,6 +1262,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // we attempt to set the holder to the current commit log context. at the same time all writes to the memtables are
         // also maintaining this value, so if somebody sneaks ahead of us somehow (should be rare) we simply retry,
         // so that we know all operations prior to the position have not reached it yet
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         CommitLogPosition lastReplayPosition;
         while (true)
         {
@@ -1203,6 +1291,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // to ensure we have some ordering guarantee for performing the switchMemtableIf(), i.e. we will only
                 // swap if the memtables we are measuring here haven't already been swapped by the time we try to swap them
                 Memtable current = cfs.getTracker().getView().getCurrentMemtable();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
 
                 // find the total ownership ratio for the memtable and all SecondaryIndexes owned by this CF,
                 // both on- and off-heap, and select the largest of the two ratios to weight this CF
@@ -1210,6 +1299,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 onHeap += current.getAllocator().onHeap().ownershipRatio();
                 offHeap += current.getAllocator().offHeap().ownershipRatio();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 for (ColumnFamilyStore indexCfs : cfs.indexManager.getAllIndexColumnFamilyStores())
                 {
                     MemtableAllocator allocator = indexCfs.getTracker().getView().getCurrentMemtable().getAllocator();
@@ -1224,6 +1314,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     largestRatio = ratio;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
                 liveOnHeap += onHeap;
                 liveOffHeap += offHeap;
             }
@@ -1236,6 +1327,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 float flushingOffHeap = Memtable.MEMORY_POOL.offHeap.reclaimingRatio();
                 float thisOnHeap = largest.getAllocator().onHeap().ownershipRatio();
                 float thisOffHeap = largest.getAllocator().offHeap().ownershipRatio();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
                 logger.info("Flushing largest {} to free up room. Used total: {}, live: {}, flushing: {}, this: {}",
                             largest.cfs, ratio(usedOnHeap, usedOffHeap), ratio(liveOnHeap, liveOffHeap),
                             ratio(flushingOnHeap, flushingOffHeap), ratio(thisOnHeap, thisOffHeap));
@@ -1259,13 +1351,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
 
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-733
         long start = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12181
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
             long timeDelta = mt.put(update, indexer, opGroup);
             DecoratedKey key = update.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10396
             invalidateCachedPartition(key);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);
             if (metric.topWritePartitionSize.isEnabled()) // dont compute datasize if not needed
                 metric.topWritePartitionSize.addSample(key.getKey(), update.dataSize());
@@ -1295,11 +1392,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Collection<SSTableReader> getOverlappingLiveSSTables(Iterable<SSTableReader> sstables)
     {
         logger.trace("Checking for sstables overlapping {}", sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         // a normal compaction won't ever have an empty sstables list, but we create a skeleton
         // compaction controller for streaming, and that passes an empty list.
         if (!sstables.iterator().hasNext())
             return ImmutableSet.of();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4080
 
         View view = data.getView();
 
@@ -1344,6 +1443,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (AbstractBounds<PartitionPosition> bound : bounds)
             Iterables.addAll(results, view.liveSSTablesInBounds(bound.left, bound.right));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
 
         return Sets.difference(results, ImmutableSet.copyOf(sstables));
     }
@@ -1355,6 +1455,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         while (true)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
             Iterable<SSTableReader> overlapped = getOverlappingLiveSSTables(sstables);
             Refs<SSTableReader> refs = Refs.tryRef(overlapped);
             if (refs != null)
@@ -1379,6 +1480,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void addSSTables(Collection<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2284
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2105
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4174
         data.addSSTables(sstables);
         CompactionManager.instance.submitBackground(this);
     }
@@ -1400,6 +1505,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         if (operation != OperationType.CLEANUP || isIndex())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
             return SSTableReader.getTotalBytes(sstables);
         }
 
@@ -1408,12 +1514,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).ranges();
         for (SSTableReader sstable : sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(ranges);
             for (SSTableReader.PartitionPositionBounds position : positions)
                 expectedFileSize += position.upperPosition - position.lowerPosition;
         }
 
         double compressionRatio = metric.compressionRatio.getValue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9036
         if (compressionRatio > 0d)
             expectedFileSize *= compressionRatio;
 
@@ -1429,6 +1537,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         SSTableReader maxFile = null;
         for (SSTableReader sstable : sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3338
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             if (sstable.onDiskLength() > maxSize)
             {
                 maxSize = sstable.onDiskLength();
@@ -1476,8 +1586,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public boolean rebuildOnFailedScrub(Throwable failure)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
         if (!isIndex() || !SecondaryIndexManager.isIndexColumnFamilyStore(this))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1745
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         truncateBlocking();
 
@@ -1494,6 +1607,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public CompactionManager.AllSSTableOpStatus verify(Verifier.Options options) throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         return CompactionManager.instance.performVerify(ColumnFamilyStore.this, options);
     }
 
@@ -1509,24 +1623,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3536
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         assert !sstables.isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         maybeFail(data.dropSSTables(Predicates.in(sstables), compactionType, null));
     }
 
     void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14081
         data.replaceFlushed(memtable, sstables);
         if (sstables != null && !sstables.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1610
             CompactionManager.instance.submitBackground(this);
     }
 
     public boolean isValid()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return valid;
     }
 
@@ -1535,21 +1656,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Tracker getTracker()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2191
         return data;
     }
 
     public Set<SSTableReader> getLiveSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         return data.getView().liveSSTables();
     }
 
     public Iterable<SSTableReader> getSSTables(SSTableSet sstableSet)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         return data.getView().select(sstableSet);
     }
 
     public Iterable<SSTableReader> getUncompactingSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         return data.getUncompacting();
     }
 
@@ -1590,6 +1715,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @SuppressWarnings("resource")
     public RefViewFragment selectAndReference(Function<View, Iterable<SSTableReader>> filter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9637
         long failingSince = -1L;
         while (true)
         {
@@ -1601,12 +1727,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 failingSince = System.nanoTime();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10829
             else if (System.nanoTime() - failingSince > TimeUnit.MILLISECONDS.toNanos(100))
             {
                 List<SSTableReader> released = new ArrayList<>();
                 for (SSTableReader reader : view.sstables)
                     if (reader.selfRef().globalCount() == 0)
                         released.add(reader);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11552
                 NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS,
                                  "Spinning trying to capture readers {}, released: {}, ", view.sstables, released);
                 failingSince = System.nanoTime();
@@ -1617,13 +1745,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ViewFragment select(Function<View, Iterable<SSTableReader>> filter)
     {
         View view = data.getView();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         List<SSTableReader> sstables = Lists.newArrayList(filter.apply(view));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return new ViewFragment(sstables, view.getAllMemtables());
     }
 
     // WARNING: this returns the set of LIVE sstables only, which may be only partially written
     public List<String> getSSTablesForKey(String key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11337
         return getSSTablesForKey(key, false);
     }
 
@@ -1646,6 +1777,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void beginLocalSampling(String sampler, int capacity, int durationMillis)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         metric.samplers.get(SamplerType.valueOf(sampler)).beginSampling(capacity, durationMillis);
     }
 
@@ -1670,6 +1802,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean isCompactionDiskSpaceCheckEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12180
         return compactionSpaceCheck;
     }
 
@@ -1722,33 +1855,42 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<SSTableReader> snapshottedSSTables = new HashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6326
             final JSONArray filesJSONArr = new JSONArray();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             try (RefViewFragment currentView = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
                     filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6326
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
                     snapshottedSSTables.add(ssTable);
                 }
 
                 writeSnapshotManifest(filesJSONArr, snapshotName);
                 if (!SchemaConstants.isLocalSystemKeyspace(metadata.keyspace) && !SchemaConstants.isReplicatedSystemKeyspace(metadata.keyspace))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
                     writeSnapshotSchema(snapshotName);
             }
         }
         if (ephemeral)
             createEphemeralSnapshotMarkerFile(snapshotName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
         return snapshottedSSTables;
     }
 
     private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
     {
         final File manifestFile = getDirectories().getSnapshotManifestFile(snapshotName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
         try
         {
@@ -1757,6 +1899,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try (PrintStream out = new PrintStream(manifestFile))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6326
                 final JSONObject manifestJSON = new JSONObject();
                 manifestJSON.put("files", filesJSONArr);
                 out.println(manifestJSON.toJSONString());
@@ -1771,6 +1914,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private void writeSnapshotSchema(final String snapshotName)
     {
         final File schemaFile = getDirectories().getSnapshotSchemaFile(snapshotName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
 
         try
         {
@@ -1779,6 +1924,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try (PrintStream out = new PrintStream(schemaFile))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
                 for (String s: TableCQLHelper.dumpReCreateStatements(metadata()))
                     out.println(s);
             }
@@ -1792,6 +1938,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private void createEphemeralSnapshotMarkerFile(final String snapshot)
     {
         final File ephemeralSnapshotMarker = getDirectories().getNewEphemeralSnapshotMarkerFile(snapshot);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
         try
         {
@@ -1799,7 +1946,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 ephemeralSnapshotMarker.getParentFile().mkdirs();
 
             Files.createFile(ephemeralSnapshotMarker.toPath());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
             if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 logger.trace("Created ephemeral snapshot marker file on {}.", ephemeralSnapshotMarker.getAbsolutePath());
         }
         catch (IOException e)
@@ -1815,6 +1964,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         for (String ephemeralSnapshot : directories.listEphemeralSnapshots())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Clearing ephemeral snapshot {} leftover from previous session.", ephemeralSnapshot);
             Directories.clearSnapshot(ephemeralSnapshot, directories.getCFDirectories());
         }
@@ -1823,8 +1973,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Refs<SSTableReader> getSnapshotSSTableReaders(String tag) throws IOException
     {
         Map<Integer, SSTableReader> active = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             active.put(sstable.descriptor.generation, sstable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         Map<Descriptor, Set<Component>> snapshots = getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(tag).list();
         Refs<SSTableReader> refs = new Refs<>();
         try
@@ -1834,14 +1986,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // Try acquire reference to an active sstable instead of snapshot if it exists,
                 // to avoid opening new sstables. If it fails, use the snapshot reference instead.
                 SSTableReader sstable = active.get(entries.getKey().generation);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
                 if (sstable == null || !refs.tryRef(sstable))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     if (logger.isTraceEnabled())
                         logger.trace("using snapshot sstable {}", entries.getKey());
                     // open offline so we don't modify components or track hotness.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
                     sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, true, true);
                     refs.tryRef(sstable);
                     // release the self ref as we never add the snapshot sstable to DataTracker where it is otherwise released
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9998
                     sstable.selfRef().release();
                 }
                 else if (logger.isTraceEnabled())
@@ -1867,6 +2024,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> snapshot(String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
         return snapshot(snapshotName, false);
     }
 
@@ -1897,6 +2055,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean snapshotExists(String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         return getDirectories().snapshotExists(snapshotName);
     }
 
@@ -1913,7 +2072,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void clearSnapshot(String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         List<File> snapshotDirs = getDirectories().getCFDirectories();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6418
         Directories.clearSnapshot(snapshotName, snapshotDirs);
     }
     /**
@@ -1923,6 +2084,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Map<String, Directories.SnapshotSizeDetails> getSnapshotDetails()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         return getDirectories().getSnapshotDetails();
     }
 
@@ -1939,6 +2101,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!isRowCacheEnabled())
             return null;
         IRowCacheEntry cached = CacheService.instance.rowCache.getInternal(new RowCacheKey(metadata(), key));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return cached == null || cached instanceof RowCacheSentinel ? null : (CachedPartition)cached;
     }
 
@@ -1957,9 +2120,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              keyIter.hasNext(); )
         {
             RowCacheKey key = keyIter.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.key));
             if (key.sameTable(metadata()) && Bounds.isInBounds(dk.getToken(), boundsToInvalidate))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 invalidateCachedPartition(dk);
                 invalidatedKeys++;
             }
@@ -1974,6 +2139,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              keyIter.hasNext(); )
         {
             CounterCacheKey key = keyIter.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             DecoratedKey dk = decorateKey(key.partitionKey());
             if (key.sameTable(metadata()) && Bounds.isInBounds(dk.getToken(), boundsToInvalidate))
             {
@@ -1999,6 +2166,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidateCachedPartition(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3849
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3849
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5348
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10396
         if (!isRowCacheEnabled())
             return;
 
@@ -2021,6 +2192,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
         forceMajorCompaction(false);
     }
 
@@ -2031,11 +2203,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
         CompactionManager.instance.forceCompactionForTokenRange(this, tokenRanges);
     }
 
     public static Iterable<ColumnFamilyStore> all()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         List<Iterable<ColumnFamilyStore>> stores = new ArrayList<Iterable<ColumnFamilyStore>>(Schema.instance.getKeyspaces().size());
         for (Keyspace keyspace : Keyspace.all())
         {
@@ -2046,6 +2220,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<DecoratedKey> keySamples(Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         try (RefViewFragment view = selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
         {
             Iterable<DecoratedKey>[] samples = new Iterable[view.sstables.size()];
@@ -2060,8 +2235,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long estimatedKeysForRange(Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         try (RefViewFragment view = selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
             long count = 0;
             for (SSTableReader sstable : view.sstables)
                 count += sstable.estimatedKeysForRanges(Collections.singleton(range));
@@ -2086,6 +2263,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     cfs.data.reset(new Memtable(new AtomicReference<>(CommitLogPosition.NONE), cfs));
                     return null;
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
             }, true, false);
         }
     }
@@ -2108,18 +2286,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // normal reasons post-truncate.  To prevent this, we store truncation
         // position in the System keyspace.
         logger.info("Truncating {}.{}", keyspace.getName(), name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12192
 
         final long truncatedAt;
         final CommitLogPosition replayAfter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         if (keyspace.getMetadata().params.durableWrites || DatabaseDescriptor.isAutoSnapshot())
         {
             replayAfter = forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
             viewManager.forceBlockingFlush();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         else
         {
             // just nuke the memtable data w/o writing to disk first
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
             viewManager.dumpMemtables();
             try
             {
@@ -2134,6 +2318,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long now = System.currentTimeMillis();
         // make sure none of our sstables are somehow in the future (clock drift, perhaps)
         for (ColumnFamilyStore cfs : concatWithIndexes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
             for (SSTableReader sstable : cfs.getLiveSSTables())
                 now = Math.max(now, sstable.maxDataAge);
         truncatedAt = now;
@@ -2144,22 +2329,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 logger.debug("Discarding sstable data for truncated CF + indexes");
                 data.notifyTruncated(truncatedAt);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8088
 
                 if (DatabaseDescriptor.isAutoSnapshot())
                     snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12178
 
                 discardSSTables(truncatedAt);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 indexManager.truncateAllIndexesBlocking(truncatedAt);
                 viewManager.truncateBlocking(replayAfter, truncatedAt);
 
                 SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
                 logger.trace("cleaning out row cache");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7561
                 invalidateCaches();
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
         runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12192
         logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
     }
 
@@ -2172,6 +2363,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             final Flush flush = new Flush(true);
             flushExecutor.execute(flush);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12358
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12358
             postFlushExecutor.execute(flush.postFlushTask);
             return flush.postFlushTask;
         }
@@ -2179,6 +2372,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
         return runWithCompactionsDisabled(callable, (sstable) -> true, interruptValidation, interruptViews, true);
     }
 
@@ -2215,6 +2409,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 CompactionManager.instance.waitForCessation(toInterruptFor, sstablesPredicate);
 
                 // doublecheck that we finished, instead of timing out
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
                 for (ColumnFamilyStore cfs : toInterruptFor)
                 {
                     if (cfs.getTracker().getCompacting().stream().anyMatch(sstablesPredicate))
@@ -2224,6 +2419,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 }
                 logger.trace("Compactions successfully cancelled");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
                 // run our task
                 try
@@ -2232,6 +2428,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 catch (Exception e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
                     throw new RuntimeException(e);
                 }
             }
@@ -2240,12 +2438,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static CompactionManager.CompactionPauser pauseCompactionStrategies(Iterable<ColumnFamilyStore> toPause)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         ArrayList<ColumnFamilyStore> successfullyPaused = new ArrayList<>();
         try
         {
             for (ColumnFamilyStore cfs : toPause)
             {
                 successfullyPaused.ensureCapacity(successfullyPaused.size() + 1); // to avoid OOM:ing after pausing the strategies
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 cfs.getCompactionStrategyManager().pause();
                 successfullyPaused.add(cfs);
             }
@@ -2264,6 +2465,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                 cfs.getCompactionStrategyManager().resume();
             }
             catch (Throwable t)
@@ -2281,6 +2483,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             public LifecycleTransaction call()
             {
                 assert data.getCompacting().isEmpty() : data.getCompacting();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                 Iterable<SSTableReader> sstables = getLiveSSTables();
                 sstables = AbstractCompactionStrategy.filterSuspectSSTables(sstables);
                 LifecycleTransaction modifier = data.tryModify(sstables, operationType);
@@ -2289,6 +2492,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
         return runWithCompactionsDisabled(callable, false, false);
     }
 
@@ -2297,6 +2501,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String toString()
     {
         return "CFS(" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                "Keyspace='" + keyspace.getName() + '\'' +
                ", ColumnFamily='" + name + '\'' +
                ')';
@@ -2306,11 +2511,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // we don't use CompactionStrategy.pause since we don't want users flipping that on and off
         // during runWithCompactionsDisabled
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         compactionStrategyManager.disable();
     }
 
     public void enableAutoCompaction()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
         enableAutoCompaction(false);
     }
 
@@ -2321,6 +2528,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @VisibleForTesting
     public void enableAutoCompaction(boolean waitForFutures)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         compactionStrategyManager.enable();
         List<Future<?>> futures = CompactionManager.instance.submitBackground(this);
         if (waitForFutures)
@@ -2329,6 +2537,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean isAutoCompactionDisabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         return !this.compactionStrategyManager.isEnabled();
     }
 
@@ -2343,17 +2552,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public CompactionStrategyManager getCompactionStrategyManager()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         return compactionStrategyManager;
     }
 
     public void setCrcCheckChance(double crcCheckChance)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4893
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
         try
         {
             TableParams.builder().crcCheckChance(crcCheckChance).build().validate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2294
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2294
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2294
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 cfs.crcCheckChance.set(crcCheckChance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10543
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     sstable.setCrcCheckChance(crcCheckChance);
             }
@@ -2376,6 +2595,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         minCompactionThreshold.set(minThreshold);
         maxCompactionThreshold.set(maxThreshold);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1610
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8004
         CompactionManager.instance.submitBackground(this);
     }
 
@@ -2386,6 +2607,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4455
         validateCompactionThresholds(minCompactionThreshold, maxCompactionThreshold.value());
         this.minCompactionThreshold.set(minCompactionThreshold);
     }
@@ -2397,12 +2619,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4455
         validateCompactionThresholds(minCompactionThreshold.value(), maxCompactionThreshold);
         this.maxCompactionThreshold.set(maxCompactionThreshold);
     }
 
     private void validateCompactionThresholds(int minThreshold, int maxThreshold)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
         if (minThreshold > maxThreshold)
             throw new RuntimeException(String.format("The min_compaction_threshold cannot be larger than the max_compaction_threshold. " +
                                                      "Min is '%d', Max is '%d'.", minThreshold, maxThreshold));
@@ -2420,6 +2644,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long count = 0;
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
             long n = sstable.getEstimatedCellPerPartitionCount().count();
             sum += sstable.getEstimatedCellPerPartitionCount().mean() * n;
             count += n;
@@ -2429,6 +2654,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public double getMeanPartitionSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7237
         long sum = 0;
         long count = 0;
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
@@ -2456,6 +2682,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public long estimateKeys()
     {
         long n = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             n += sstable.estimatedKeys();
         return n;
@@ -2481,6 +2709,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // we return the main CFS first, which we rely on for simplicity in switchMemtable(), for getting the
         // latest commit log segment position
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         return Iterables.concat(Collections.singleton(this), indexManager.getAllIndexColumnFamilyStores());
     }
 
@@ -2491,6 +2720,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int getUnleveledSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         return compactionStrategyManager.getUnleveledSSTables();
     }
 
@@ -2501,6 +2731,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int getLevelFanoutSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         return compactionStrategyManager.getLevelFanoutSize();
     }
 
@@ -2511,6 +2742,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         public ViewFragment(List<SSTableReader> sstables, Iterable<Memtable> memtables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3085
             this.sstables = sstables;
             this.memtables = memtables;
         }
@@ -2522,6 +2754,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         public RefViewFragment(List<SSTableReader> sstables, Iterable<Memtable> memtables, Refs<SSTableReader> refs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
             super(sstables, memtables);
             this.refs = refs;
         }
@@ -2539,6 +2772,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         return data.getView().isEmpty();
     }
 
@@ -2573,9 +2807,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert data.getCompacting().isEmpty() : data.getCompacting();
 
         List<SSTableReader> truncatedSSTables = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3844
             if (!sstable.newSince(truncatedAt))
                 truncatedSSTables.add(sstable);
         }
@@ -2590,9 +2827,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long allColumns = 0;
         int localTime = (int)(System.currentTimeMillis()/1000);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
             allDroppable += sstable.getDroppableTombstonesBefore(localTime - metadata().params.gcGraceSeconds);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
             allColumns += sstable.getEstimatedCellPerPartitionCount().mean() * sstable.getEstimatedCellPerPartitionCount().count();
         }
         return allColumns > 0 ? allDroppable / allColumns : 0;
@@ -2600,6 +2839,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long trueSnapshotsSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         return getDirectories().trueSnapshotsSize();
     }
 
@@ -2634,10 +2874,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Keyspace keyspace = Keyspace.open(ksName);
         if (keyspace == null)
             return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2320
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         TableMetadata table = Schema.instance.getTableMetadata(ksName, cfName);
         if (table == null)
             return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2252
 
         return keyspace.getColumnFamilyStore(table.id);
     }
@@ -2649,6 +2892,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public DiskBoundaries getDiskBoundaries()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
         return diskBoundaryManager.getDiskBoundaries(this);
     }
 
@@ -2660,6 +2904,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Override
     public void setNeverPurgeTombstones(boolean value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (neverPurgeTombstones != value)
             logger.info("Changing neverPurgeTombstones for {}.{} from {} to {}", keyspace.getName(), getTableName(), neverPurgeTombstones, value);
         else

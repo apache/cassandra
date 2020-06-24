@@ -74,6 +74,7 @@ class HintsWriter implements AutoCloseable
 
         CRC32 crc = new CRC32();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             // write the descriptor
@@ -82,6 +83,8 @@ class HintsWriter implements AutoCloseable
             updateChecksum(crc, descriptorBytes);
             channel.write(descriptorBytes);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
             if (descriptor.isEncrypted())
                 return new EncryptedHintsWriter(directory, descriptor, file, channel, fd, crc);
             if (descriptor.isCompressed())
@@ -105,6 +108,7 @@ class HintsWriter implements AutoCloseable
         File checksumFile = new File(directory, descriptor.checksumFileName());
         try (OutputStream out = Files.newOutputStream(checksumFile.toPath()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             out.write(Integer.toHexString((int) globalCRC.getValue()).getBytes(StandardCharsets.UTF_8));
         }
         catch (IOException e)
@@ -144,6 +148,7 @@ class HintsWriter implements AutoCloseable
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
     File getFile()
     {
         return file;
@@ -284,6 +289,7 @@ class HintsWriter implements AutoCloseable
 
         private void maybeFsync()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             if (position() >= lastSyncPosition + DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
                 fsync();
         }
@@ -294,7 +300,9 @@ class HintsWriter implements AutoCloseable
 
             // don't skip page cache for tiny files, on the assumption that if they are tiny, the target node is probably
             // alive, and if so, the file will be closed and dispatched shortly (within a minute), and the file will be dropped.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             if (position >= DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
                 NativeLibrary.trySkipCache(fd, 0, position - (position % PAGE_SIZE), file.getPath());
         }
     }

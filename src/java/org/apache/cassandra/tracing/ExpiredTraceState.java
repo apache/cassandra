@@ -23,12 +23,14 @@ package org.apache.cassandra.tracing;
 
 import org.apache.cassandra.utils.FBUtilities;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10392
 class ExpiredTraceState extends TraceState
 {
     private final TraceState delegate;
 
     ExpiredTraceState(TraceState delegate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         super(FBUtilities.getBroadcastAddressAndPort(), delegate.sessionId, delegate.traceType);
         this.delegate = delegate;
     }

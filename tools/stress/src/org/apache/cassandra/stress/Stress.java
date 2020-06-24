@@ -56,6 +56,7 @@ public final class Stress
 
     public static void main(String[] arguments) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             WindowsTimer.startTimerPeriod(1);
 
@@ -63,6 +64,7 @@ public final class Stress
 
         if (FBUtilities.isWindows)
             WindowsTimer.endTimerPeriod(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
 
         System.exit(exitCode);
     }
@@ -74,6 +76,7 @@ public final class Stress
         {
             DatabaseDescriptor.clientInitialization();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9864
             final StressSettings settings;
             try
             {
@@ -89,7 +92,9 @@ public final class Stress
             }
 
             MultiResultLogger logout = settings.log.getOutput();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
             if (! settings.log.noSettings)
             {
                 settings.printSettings(logout);
@@ -117,12 +122,14 @@ public final class Stress
                 {
                     while (!socket.isClosed() && (line = inp.readLine()) != null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4188
                         if (line.equals("END") || line.equals("FAILURE"))
                         {
                             out.writeInt(1);
                             break;
                         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
                         logout.println(line);
                     }
                 }
@@ -139,8 +146,10 @@ public final class Stress
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
                 StressAction stressAction = new StressAction(settings, logout);
                 stressAction.run();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7918
                 logout.flush();
                 if (settings.graph.inGraphMode())
                     new StressGraph(settings, arguments).generateGraph();
@@ -150,6 +159,7 @@ public final class Stress
         catch (Throwable t)
         {
             t.printStackTrace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
             return 1;
         }
 
@@ -161,6 +171,7 @@ public final class Stress
      */
     public static void printHelpMessage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         StressSettings.printHelp();
     }
 

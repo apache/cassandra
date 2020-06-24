@@ -41,6 +41,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public Range(T left, T right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         super(left, right);
     }
 
@@ -71,6 +72,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public boolean contains(Range<T> that)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-781
         if (this.left.equals(this.right))
         {
             // full ring always contains all other ranges
@@ -81,6 +83,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         boolean thatwraps = isWrapAround(that.left, that.right);
         if (thiswraps == thatwraps)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
             return left.compareTo(that.left) <= 0 && that.right.compareTo(right) <= 0;
         }
         else if (thiswraps)
@@ -120,7 +123,9 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     public boolean intersects(AbstractBounds<T> that)
     {
         // implemented for cleanup compaction membership test, so only Range + Bounds are supported for now
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4079
         if (that instanceof Range)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
             return intersects((Range<T>) that);
         if (that instanceof Bounds)
             return intersects((Bounds<T>) that);
@@ -136,6 +141,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         // Same punishment than in Bounds.contains(), we must be carefull if that.left == that.right as
         // as new Range<T>(that.left, that.right) will then cover the full ring which is not what we
         // want.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5771
         return contains(that.left) || (!that.left.equals(that.right) && intersects(new Range<T>(that.left, that.right)));
     }
 
@@ -171,6 +177,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
             if (!(left.compareTo(that.right) < 0 && that.left.compareTo(right) < 0))
                 return Collections.emptySet();
             return rangeSet(new Range<T>(ObjectUtils.max(this.left, that.left),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
                                          ObjectUtils.min(this.right, that.right)));
         }
         if (thiswraps && thatwraps)
@@ -189,6 +196,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                    ? intersectionBothWrapping(this, that)
                    : intersectionBothWrapping(that, this);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
         if (thiswraps) // this wraps, that does not wrap
             return intersectionOneWrapping(this, that);
         // the last case: this does not wrap, that wraps
@@ -222,6 +230,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         if (position.equals(left) || position.equals(right))
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         AbstractBounds<T> lb = new Range<T>(left, position);
         AbstractBounds<T> rb = new Range<T>(position, right);
         return Pair.create(lb, rb);
@@ -229,6 +238,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public boolean inclusiveLeft()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8946
         return false;
     }
 
@@ -261,6 +271,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
      */
     private static <T extends RingPosition<T>> boolean isFull(T left, T right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14869
         return left.equals(right);
     }
 
@@ -273,9 +284,11 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         boolean rhsWrap = isWrapAround(rhs.left, rhs.right);
 
         // if one of the two wraps, that's the smaller one.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11216
         if (lhsWrap != rhsWrap)
             return Boolean.compare(!lhsWrap, !rhsWrap);
         // otherwise compare by right.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         return right.compareTo(rhs.right);
     }
 
@@ -289,6 +302,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     private List<Range<T>> subtractContained(Range<T> contained)
     {
         // both ranges cover the entire ring, their difference is an empty set
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14869
         if(isFull(left, right) && isFull(contained.left, contained.right))
         {
             return Collections.emptyList();
@@ -302,6 +316,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
         List<Range<T>> difference = new ArrayList<>(2);
         if (!left.equals(contained.left))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
             difference.add(new Range<T>(left, contained.left));
         if (!right.equals(contained.right))
             difference.add(new Range<T>(contained.right, right));
@@ -310,11 +325,14 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public Set<Range<T>> subtract(Range<T> rhs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3639
         return rhs.differenceToFetch(this);
     }
 
     public Set<Range<T>> subtractAll(Collection<Range<T>> ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
         Set<Range<T>> result = new HashSet<>();
         result.add(this);
         for(Range<T> range : ranges)
@@ -345,6 +363,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
      */
     public Set<Range<T>> differenceToFetch(Range<T> rhs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         Set<Range<T>> result;
         Set<Range<T>> intersectionSet = this.intersectionWith(rhs);
         if (intersectionSet.isEmpty())
@@ -367,6 +386,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                 Range<T> first = intersections[0];
                 Range<T> second = intersections[1];
                 List<Range<T>> temp = rhs.subtractContained(first);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14869
 
                 // Because there are two intersections, subtracting only one of them
                 // will yield a single Range.
@@ -383,6 +403,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
         for (Range<T> range : ranges)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-193
             if (range.contains(token))
             {
                 return true;
@@ -396,7 +417,9 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     {
         if (!(o instanceof Range))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
         Range<?> rhs = (Range<?>)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
 
@@ -408,6 +431,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     protected String getOpeningString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4905
         return "(";
     }
 
@@ -418,6 +442,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public boolean isStartInclusive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return false;
     }
 
@@ -428,6 +453,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public List<String> asList()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2805
         ArrayList<String> ret = new ArrayList<String>(2);
         ret.add(left.toString());
         ret.add(right.toString());
@@ -436,6 +462,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public boolean isWrapAround()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-763
         return isWrapAround(left, right);
     }
 
@@ -445,7 +472,9 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     public static <T extends RingPosition<T>> List<Range<T>> normalize(Collection<Range<T>> ranges)
     {
         // unwrap all
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3949
         List<Range<T>> output = new ArrayList<Range<T>>(ranges.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         for (Range<T> range : ranges)
             output.addAll(range.unwrap());
 
@@ -513,11 +542,14 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public AbstractBounds<T> withNewRight(T newRight)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
         return new Range<T>(left, newRight);
     }
 
     public static <T extends RingPosition<T>> List<Range<T>> sort(Collection<Range<T>> ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         List<Range<T>> output = new ArrayList<>(ranges.size());
         for (Range<T> r : ranges)
             output.addAll(r.unwrap());
@@ -538,6 +570,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
      */
     public static Range<PartitionPosition> makeRowRange(Token left, Token right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new Range<PartitionPosition>(left.maxKeyBound(), right.maxKeyBound());
     }
 
@@ -557,6 +590,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
         public OrderedRangeContainmentChecker(Collection<Range<Token>> ranges)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10768
             normalizedRangesIterator = normalize(ranges).iterator();
             assert normalizedRangesIterator.hasNext();
             currentRange = normalizedRangesIterator.next();

@@ -120,6 +120,8 @@ public class CompactionManager implements CompactionManagerMBean
     {
         instance = new CompactionManager();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(instance, MBEAN_OBJECT_NAME);
     }
 
@@ -131,6 +133,7 @@ public class CompactionManager implements CompactionManagerMBean
     private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor, viewBuildExecutor);
     @VisibleForTesting
     final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13801
 
     public final ActiveCompactions active = new ActiveCompactions();
 
@@ -152,6 +155,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public RateLimiter getRateLimiter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10025
         setRate(DatabaseDescriptor.getCompactionThroughputMbPerSec());
         return compactionRateLimiter;
     }
@@ -178,8 +182,10 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public List<Future<?>> submitBackground(final ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
         if (cfs.isAutoCompactionDisabled())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Autocompaction is disabled");
             return Collections.emptyList();
         }
@@ -194,6 +200,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
             logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                          cfs.keyspace.getName(), cfs.name, count);
             return Collections.emptyList();
         }
@@ -202,7 +209,9 @@ public class CompactionManager implements CompactionManagerMBean
                      cfs.keyspace.getName(),
                      cfs.name,
                      cfs.getCompactionStrategyManager().getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
         List<Future<?>> futures = new ArrayList<>(1);
         Future<?> fut = executor.submitIfRunning(new BackgroundCompactionCandidate(cfs), "background task");
         if (!fut.isCancelled())
@@ -215,6 +224,7 @@ public class CompactionManager implements CompactionManagerMBean
     public boolean isCompacting(Iterable<ColumnFamilyStore> cfses, Predicate<SSTableReader> sstablePredicate)
     {
         for (ColumnFamilyStore cfs : cfses)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             if (cfs.getTracker().getCompacting().stream().anyMatch(sstablePredicate))
                 return true;
         return false;
@@ -227,10 +237,14 @@ public class CompactionManager implements CompactionManagerMBean
     public void forceShutdown()
     {
         // shutdown executors to prevent further submission
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10079
         executor.shutdown();
         validationExecutor.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         viewBuildExecutor.shutdown();
         cacheCleanupExecutor.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
         // interrupt compactions and validations
         for (Holder compactionHolder : active.getCompactions())
@@ -241,10 +255,12 @@ public class CompactionManager implements CompactionManagerMBean
         // wait for tasks to terminate
         // compaction tasks are interrupted above, so it shuold be fairy quick
         // until not interrupted tasks to complete.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         for (ExecutorService exec : Arrays.asList(executor, validationExecutor, viewBuildExecutor, cacheCleanupExecutor))
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
                 if (!exec.awaitTermination(1, TimeUnit.MINUTES))
                     logger.warn("Failed to wait for compaction executors shutdown");
             }
@@ -257,6 +273,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void finishCompactionsAndShutdown(long timeout, TimeUnit unit) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8623
         executor.shutdown();
         executor.awaitTermination(timeout, unit);
     }
@@ -264,12 +281,14 @@ public class CompactionManager implements CompactionManagerMBean
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
     // are created between task submission and execution, we execute against the most up-to-date information
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9662
     class BackgroundCompactionCandidate implements Runnable
     {
         private final ColumnFamilyStore cfs;
 
         BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13801
             compactingCF.add(cfs);
             this.cfs = cfs;
         }
@@ -279,22 +298,30 @@ public class CompactionManager implements CompactionManagerMBean
             boolean ranCompaction = false;
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 logger.trace("Checking {}.{}", cfs.keyspace.getName(), cfs.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                 if (!cfs.isValid())
                 {
                     logger.trace("Aborting compaction for dropped CF");
                     return;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                 CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()));
                 if (task == null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
                     if (DatabaseDescriptor.automaticSSTableUpgrade())
                         ranCompaction = maybeRunUpgradeTask(strategy);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13801
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                     task.execute(active);
                     ranCompaction = true;
                 }
@@ -317,6 +344,7 @@ public class CompactionManager implements CompactionManagerMBean
                     AbstractCompactionTask upgradeTask = strategy.findUpgradeSSTableTask();
                     if (upgradeTask != null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                         upgradeTask.execute(active);
                         return true;
                     }
@@ -326,6 +354,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 currentlyBackgroundUpgrading.decrementAndGet();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("No tasks available");
             return false;
         }
@@ -350,34 +379,45 @@ public class CompactionManager implements CompactionManagerMBean
     @SuppressWarnings("resource")
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, int jobs, OperationType operationType) throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15100
         logger.info("Starting {} for {}.{}", operationType, cfs.keyspace.getName(), cfs.getTableName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10274
         List<LifecycleTransaction> transactions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14657
         List<Future<?>> futures = new ArrayList<>();
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13542
             if (compacting == null)
                 return AllSSTableOpStatus.UNABLE_TO_CANCEL;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9566
             Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
             if (Iterables.isEmpty(sstables))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
                 logger.info("No sstables to {} for {}.{}", operationType.name(), cfs.keyspace.getName(), cfs.name);
                 return AllSSTableOpStatus.SUCCESSFUL;
             }
 
             for (final SSTableReader sstable : sstables)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 final LifecycleTransaction txn = compacting.split(singleton(sstable));
                 transactions.add(txn);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
                 Callable<Object> callable = new Callable<Object>()
                 {
                     @Override
                     public Object call() throws Exception
                     {
                         operation.execute(txn);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1610
                         return this;
                     }
                 };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
                 Future<?> fut = executor.submitIfRunning(callable, "paralell sstable operation");
                 if (!fut.isCancelled())
                     futures.add(fut);
@@ -386,18 +426,21 @@ public class CompactionManager implements CompactionManagerMBean
 
                 if (jobs > 0 && futures.size() == jobs)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14210
                     Future<?> f = FBUtilities.waitOnFirstFuture(futures);
                     futures.remove(f);
                 }
             }
             FBUtilities.waitOnFutures(futures);
             assert compacting.originals().isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15100
             logger.info("Finished {} for {}.{} successfully", operationType, cfs.keyspace.getName(), cfs.getTableName());
             return AllSSTableOpStatus.SUCCESSFUL;
         }
         finally
         {
             // wait on any unfinished futures to make sure we don't close an ongoing transaction
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14657
             try
             {
                 FBUtilities.waitOnFutures(futures);
@@ -408,24 +451,28 @@ public class CompactionManager implements CompactionManagerMBean
             }
             Throwable fail = Throwables.close(null, transactions);
             if (fail != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15100
                 logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, cfs.keyspace.getName(), cfs.getTableName(), fail);
         }
     }
 
     private static interface OneSSTableOperation
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9566
         Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction);
         void execute(LifecycleTransaction input) throws IOException;
     }
 
     public enum AllSSTableOpStatus
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13542
         SUCCESSFUL(0),
         ABORTED(1),
         UNABLE_TO_CANCEL(2);
 
         public final int statusCode;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7879
         AllSSTableOpStatus(int statusCode)
         {
             this.statusCode = statusCode;
@@ -454,6 +501,7 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public void execute(LifecycleTransaction input)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 scrubOne(cfs, input, skipCorrupted, checkData, reinsertOverflowedTTL, active);
             }
         }, jobs, OperationType.SCRUB);
@@ -467,12 +515,15 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction input)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9566
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9566
                 return input.originals();
             }
 
             @Override
             public void execute(LifecycleTransaction input)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 verifyOne(cfs, input.onlyOne(), options, active);
             }
         }, 0, OperationType.VERIFY);
@@ -485,9 +536,11 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14210
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(transaction.originals());
                 Collections.sort(sortedSSTables, SSTableReader.sizeComparator.reversed());
                 Iterator<SSTableReader> iter = sortedSSTables.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9566
                 while (iter.hasNext())
                 {
                     SSTableReader sstable = iter.next();
@@ -506,6 +559,7 @@ public class CompactionManager implements CompactionManagerMBean
                 AbstractCompactionTask task = cfs.getCompactionStrategyManager().getCompactionTask(txn, NO_GC, Long.MAX_VALUE);
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.UPGRADE_SSTABLES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 task.execute(active);
             }
         }, jobs, OperationType.UPGRADE_SSTABLES);
@@ -517,12 +571,14 @@ public class CompactionManager implements CompactionManagerMBean
         Keyspace keyspace = cfStore.keyspace;
         if (!StorageService.instance.isJoined())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2191
             logger.info("Cleanup cannot run before a node has joined the ring");
             return AllSSTableOpStatus.ABORTED;
         }
         // if local ranges is empty, it means no data should remain
         final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
         final Set<Range<Token>> allRanges = replicas.ranges();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         final Set<Range<Token>> transientRanges = replicas.onlyTransient().ranges();
         final Set<Range<Token>> fullRanges = replicas.onlyFull().ranges();
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
@@ -532,6 +588,7 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9566
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(transaction.originals());
                 Iterator<SSTableReader> sstableIter = sortedSSTables.iterator();
                 int totalSSTables = 0;
@@ -576,6 +633,7 @@ public class CompactionManager implements CompactionManagerMBean
     public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
     {
         assert !cfStore.isIndex();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
@@ -586,7 +644,9 @@ public class CompactionManager implements CompactionManagerMBean
                 if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
                     originals = Iterables.filter(originals, SSTableReader::isRepaired);
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(originals);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14879
                 Collections.sort(sortedSSTables, SSTableReader.maxTimestampAscending);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14210
                 return sortedSSTables;
             }
 
@@ -599,11 +659,13 @@ public class CompactionManager implements CompactionManagerMBean
                     @Override
                     protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
                         return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
                     }
                 };
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.GARBAGE_COLLECT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 task.execute(active);
             }
         }, jobs, OperationType.GARBAGE_COLLECT);
@@ -624,6 +686,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         final DiskBoundaries diskBoundaries = cfs.getDiskBoundaries();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14082
 
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
@@ -635,6 +698,7 @@ public class CompactionManager implements CompactionManagerMBean
                 transaction.cancel(Sets.difference(originals, needsRelocation));
 
                 Map<Integer, List<SSTableReader>> groupedByDisk = groupByDiskIndex(needsRelocation);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14082
 
                 int maxSize = 0;
                 for (List<SSTableReader> diskSSTables : groupedByDisk.values())
@@ -652,6 +716,7 @@ public class CompactionManager implements CompactionManagerMBean
 
             public Map<Integer, List<SSTableReader>> groupByDiskIndex(Set<SSTableReader> needsRelocation)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14082
                 return needsRelocation.stream().collect(Collectors.groupingBy((s) -> diskBoundaries.getDiskIndex(s)));
             }
 
@@ -673,9 +738,11 @@ public class CompactionManager implements CompactionManagerMBean
             public void execute(LifecycleTransaction txn)
             {
                 logger.debug("Relocating {}", txn.originals());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                 AbstractCompactionTask task = cfs.getCompactionStrategyManager().getCompactionTask(txn, NO_GC, Long.MAX_VALUE);
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.RELOCATE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 task.execute(active);
             }
         }, jobs, OperationType.RELOCATE);
@@ -688,20 +755,24 @@ public class CompactionManager implements CompactionManagerMBean
                                                            RangesAtEndpoint tokenRanges,
                                                            Refs<SSTableReader> sstables,
                                                            LifecycleTransaction txn,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                                            UUID sessionId,
                                                            BooleanSupplier isCancelled)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         Runnable runnable = new WrappedRunnable()
         {
             protected void runMayThrow() throws Exception
             {
                 try (TableMetrics.TableTimer.Context ctx = cfs.metric.anticompactionTime.time())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                     performAnticompaction(cfs, tokenRanges, sstables, txn, sessionId, isCancelled);
                 }
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13688
         ListenableFuture<?> task = null;
         try
         {
@@ -712,6 +783,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             if (task == null || task.isCancelled())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
                 sstables.release();
                 txn.abort();
             }
@@ -730,6 +803,8 @@ public class CompactionManager implements CompactionManagerMBean
                                                      UUID sessionID,
                                                      boolean isTransient) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2428
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (ranges.isEmpty())
             return;
 
@@ -759,17 +834,23 @@ public class CompactionManager implements CompactionManagerMBean
      * @throws IOException
      */
     public void performAnticompaction(ColumnFamilyStore cfs,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                       RangesAtEndpoint replicas,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
                                       Refs<SSTableReader> validatedForRepair,
                                       LifecycleTransaction txn,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                       UUID sessionID,
                                       BooleanSupplier isCancelled) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-184
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15123
         try
         {
             ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
             Preconditions.checkArgument(!prs.isPreview(), "Cannot anticompact for previews");
             Preconditions.checkArgument(!replicas.isEmpty(), "No ranges to anti-compact");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
             if (logger.isInfoEnabled())
                 logger.info("{} Starting anticompaction for {}.{} on {}/{} sstables", PreviewKind.NONE.logPrefix(sessionID), cfs.keyspace.getName(), cfs.getTableName(), validatedForRepair.size(), cfs.getLiveSSTables().size());
@@ -783,6 +864,7 @@ public class CompactionManager implements CompactionManagerMBean
 
             assert txn.originals().equals(sstables);
             if (!sstables.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                 doAntiCompaction(cfs, replicas, txn, sessionID, isCancelled);
             txn.finish();
         }
@@ -819,6 +901,7 @@ public class CompactionManager implements CompactionManagerMBean
     @VisibleForTesting
     static Set<SSTableReader> findSSTablesToAnticompact(Iterator<SSTableReader> sstableIterator, List<Range<Token>> normalizedRanges, UUID parentRepairSession)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13786
         Set<SSTableReader> fullyContainedSSTables = new HashSet<>();
         while (sstableIterator.hasNext())
         {
@@ -831,7 +914,9 @@ public class CompactionManager implements CompactionManagerMBean
                 // ranges are normalized - no wrap around - if first and last are contained we know that all tokens are contained in the range
                 if (r.contains(sstable.first.getToken()) && r.contains(sstable.last.getToken()))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                     logger.info("{} SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", PreviewKind.NONE.logPrefix(parentRepairSession), sstable, r);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13786
                     fullyContainedSSTables.add(sstable);
                     sstableIterator.remove();
                     break;
@@ -847,6 +932,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void performMaximal(final ColumnFamilyStore cfStore, boolean splitOutput)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput));
     }
 
@@ -877,6 +963,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
             Future<?> fut = executor.submitIfRunning(runnable, "maximal task");
             if (!fut.isCancelled())
                 futures.add(fut);
@@ -930,6 +1017,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         for (Range<Token> tokenRange : tokenRangeCollection)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15664
             if (!AbstractBounds.strictlyWrapsAround(tokenRange.left, tokenRange.right))
             {
                 Iterable<SSTableReader> ssTableReaders = View.sstablesInBounds(tokenRange.left.minKeyBound(), tokenRange.right.maxKeyBound(), tree);
@@ -965,18 +1053,23 @@ public class CompactionManager implements CompactionManagerMBean
             }
             // group by keyspace/columnfamily
             ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             descriptors.put(cfs, cfs.getDirectories().find(new File(filename.trim()).getName()));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<Future<?>> futures = new ArrayList<>(descriptors.size());
         int nowInSec = FBUtilities.nowInSeconds();
         for (ColumnFamilyStore cfs : descriptors.keySet())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             futures.add(submitUserDefined(cfs, descriptors.get(cfs), getDefaultGcBefore(cfs, nowInSec)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10274
         FBUtilities.waitOnFutures(futures);
     }
 
     public void forceUserDefinedCleanup(String dataFiles)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10708
         String[] filenames = dataFiles.split(",");
         HashMap<ColumnFamilyStore, Descriptor> descriptors = Maps.newHashMap();
 
@@ -1008,11 +1101,13 @@ public class CompactionManager implements CompactionManagerMBean
             Keyspace keyspace = cfs.keyspace;
             final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
             final Set<Range<Token>> allRanges = replicas.ranges();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             final Set<Range<Token>> transientRanges = replicas.onlyTransient().ranges();
             final Set<Range<Token>> fullRanges = replicas.onlyFull().ranges();
             boolean hasIndexes = cfs.indexManager.hasIndexes();
             SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10708
             if (sstable == null)
             {
                 logger.warn("Will not clean {}, it is not an active sstable", entry.getValue());
@@ -1041,6 +1136,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 // look up the sstables now that we're on the compaction executor, so we don't try to re-compact
                 // something that was already being compacted earlier.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
                 Collection<SSTableReader> sstables = new ArrayList<>(dataFiles.size());
                 for (Descriptor desc : dataFiles)
                 {
@@ -1067,6 +1163,9 @@ public class CompactionManager implements CompactionManagerMBean
                         for (AbstractCompactionTask task : tasks)
                         {
                             if (task != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                 task.execute(active);
                         }
                     }
@@ -1074,6 +1173,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
         return executor.submitIfRunning(runnable, "user defined task");
     }
 
@@ -1081,6 +1181,7 @@ public class CompactionManager implements CompactionManagerMBean
     // This is not efficient, do not use in any critical path
     private SSTableReader lookupSSTable(final ColumnFamilyStore cfs, Descriptor descriptor)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
         {
             if (sstable.descriptor.equals(descriptor))
@@ -1091,12 +1192,14 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitValidation(Callable<Object> validation)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         return validationExecutor.submitIfRunning(validation, "validation");
     }
 
     /* Used in tests. */
     public void disableAutoCompaction()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         for (String ksname : Schema.instance.getNonSystemKeyspaces())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
@@ -1105,6 +1208,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
     void scrubOne(ColumnFamilyStore cfs, LifecycleTransaction modifier, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, ActiveCompactionsTracker activeCompactions)
     {
         CompactionInfo.Holder scrubInfo = null;
@@ -1147,6 +1251,7 @@ public class CompactionManager implements CompactionManagerMBean
     @VisibleForTesting
     public static boolean needsCleanup(SSTableReader sstable, Collection<Range<Token>> ownedRanges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13526
         if (ownedRanges.isEmpty())
         {
             return true; // all data will be cleaned
@@ -1154,10 +1259,12 @@ public class CompactionManager implements CompactionManagerMBean
 
         // unwrap and sort the ranges by LHS token
         List<Range<Token>> sortedRanges = Range.normalize(ownedRanges);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5722
 
         // see if there are any keys LTE the token for the start of the first range
         // (token range ownership is exclusive on the LHS.)
         Range<Token> firstRange = sortedRanges.get(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         if (sstable.first.getToken().compareTo(firstRange.left) <= 0)
             return true;
 
@@ -1180,6 +1287,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return false;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6845
             if (i == (sortedRanges.size() - 1))
             {
                 // we're at the last range and we found a key beyond the end of the range
@@ -1187,6 +1295,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             Range<Token> nextRange = sortedRanges.get(i + 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10740
             if (firstBeyondRange.getToken().compareTo(nextRange.left) <= 0)
             {
                 // we found a key in between the owned ranges
@@ -1194,6 +1303,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5026
         return false;
     }
 
@@ -1225,17 +1335,21 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         long start = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
 
         long totalkeysWritten = 0;
 
         long expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval,
                                                SSTableReader.getApproximateKeyCount(txn.originals()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
             logger.trace("Expected bloom filter size : {}", expectedBloomFilterSize);
 
         logger.info("Cleaning up {}", sstable);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         File compactionFileLocation = sstable.descriptor.directory;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
         RateLimiter limiter = getRateLimiter();
         double compressionRatio = sstable.getCompressionRatio();
         if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
@@ -1245,9 +1359,12 @@ public class CompactionManager implements CompactionManagerMBean
 
         int nowInSec = FBUtilities.nowInSeconds();
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), active))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();
@@ -1268,6 +1385,7 @@ public class CompactionManager implements CompactionManagerMBean
                     long bytesScanned = scanner.getBytesScanned();
 
                     compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12717
 
                     lastBytesScanned = bytesScanned;
                 }
@@ -1275,13 +1393,16 @@ public class CompactionManager implements CompactionManagerMBean
 
             // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
             cfs.indexManager.flushAllIndexesBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
 
             finished = writer.finish();
         }
 
         if (!finished.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             String format = "Cleaned up to %s.  %s to %s (~%d%% of original) for %,d keys.  Time: %,dms.";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
             long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             long startsize = sstable.onDiskLength();
             long endsize = 0;
@@ -1296,6 +1417,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     static void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12717
         long lengthRead = (long) ((bytesScanned - lastBytesScanned) * compressionRatio) + 1;
         while (lengthRead >= Integer.MAX_VALUE)
         {
@@ -1344,6 +1466,7 @@ public class CompactionManager implements CompactionManagerMBean
             public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<Range<Token>> transientRanges, boolean isRepaired, int nowInSec)
             {
                 super(ranges, nowInSec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
                 instance.cacheCleanupExecutor.submit(new Runnable()
                 {
                     @Override
@@ -1374,6 +1497,7 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public UnfilteredRowIterator cleanup(UnfilteredRowIterator partition)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 return partition;
             }
         }
@@ -1391,6 +1515,7 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public ISSTableScanner getScanner(SSTableReader sstable)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                 return sstable.getScanner();
             }
 
@@ -1402,6 +1527,7 @@ public class CompactionManager implements CompactionManagerMBean
 
                 cfs.invalidateCachedPartition(partition.partitionKey());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 cfs.indexManager.deletePartition(partition, nowInSec);
                 return null;
             }
@@ -1410,8 +1536,10 @@ public class CompactionManager implements CompactionManagerMBean
 
     public static SSTableWriter createWriter(ColumnFamilyStore cfs,
                                              File compactionFileLocation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9959
                                              long expectedBloomFilterSize,
                                              long repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                              UUID pendingRepair,
                                              boolean isTransient,
                                              SSTableReader sstable,
@@ -1420,9 +1548,11 @@ public class CompactionManager implements CompactionManagerMBean
         FileUtils.createDirectory(compactionFileLocation);
 
         return SSTableWriter.create(cfs.metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                                     cfs.newSSTableDescriptor(compactionFileLocation),
                                     expectedBloomFilterSize,
                                     repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                     pendingRepair,
                                     isTransient,
                                     sstable.getSSTableLevel(),
@@ -1432,12 +1562,16 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     public static SSTableWriter createWriterForAntiCompaction(ColumnFamilyStore cfs,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6851
                                                               File compactionFileLocation,
                                                               int expectedBloomFilterSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
                                                               long repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                               UUID pendingRepair,
                                                               boolean isTransient,
                                                               Collection<SSTableReader> sstables,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15004
                                                               ILifecycleTransaction txn)
     {
         FileUtils.createDirectory(compactionFileLocation);
@@ -1453,17 +1587,22 @@ public class CompactionManager implements CompactionManagerMBean
             if (minLevel != sstable.getSSTableLevel())
             {
                 minLevel = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7892
                 break;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return SSTableWriter.create(cfs.newSSTableDescriptor(compactionFileLocation),
                                     (long) expectedBloomFilterSize,
                                     repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                     pendingRepair,
                                     isTransient,
                                     cfs.metadata,
                                     new MetadataCollector(sstables, cfs.metadata().comparator, minLevel),
                                     SerializationHeader.make(cfs.metadata(), sstables),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                     cfs.indexManager.listIndexes(),
                                     txn);
     }
@@ -1482,11 +1621,13 @@ public class CompactionManager implements CompactionManagerMBean
     private void doAntiCompaction(ColumnFamilyStore cfs,
                                   RangesAtEndpoint ranges,
                                   LifecycleTransaction txn,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                   UUID pendingRepair,
                                   BooleanSupplier isCancelled)
     {
         int originalCount = txn.originals().size();
         logger.info("Performing anticompaction on {} sstables for {}", originalCount, pendingRepair);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
 
         //Group SSTables
         Set<SSTableReader> sstables = txn.originals();
@@ -1496,6 +1637,7 @@ public class CompactionManager implements CompactionManagerMBean
         // repairedAt values for these, we still avoid anti-compacting already repaired sstables, as we currently don't
         // make use of any actual repairedAt value and splitting up sstables just for that is not worth it at this point.
         Set<SSTableReader> unrepairedSSTables = sstables.stream().filter((s) -> !s.isRepaired()).collect(Collectors.toSet());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
         cfs.metric.bytesAnticompacted.inc(SSTableReader.getTotalBytes(unrepairedSSTables));
         Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(unrepairedSSTables);
 
@@ -1509,14 +1651,18 @@ public class CompactionManager implements CompactionManagerMBean
                 antiCompactedSSTableCount += antiCompacted;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         String format = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s) for {}.";
         logger.info(format, originalCount, antiCompactedSSTableCount, pendingRepair);
     }
 
     @VisibleForTesting
     int antiCompactGroup(ColumnFamilyStore cfs,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                          RangesAtEndpoint ranges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                          LifecycleTransaction txn,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                          UUID pendingRepair,
                          BooleanSupplier isCancelled)
     {
@@ -1536,12 +1682,15 @@ public class CompactionManager implements CompactionManagerMBean
             return 0;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         logger.info("Anticompacting {} in {}.{} for {}", txn.originals(), cfs.keyspace.getName(), cfs.getTableName(), pendingRepair);
         Set<SSTableReader> sstableAsSet = txn.originals();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         File destination = cfs.getDirectories().getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
         int nowInSec = FBUtilities.nowInSeconds();
         RateLimiter limiter = getRateLimiter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
 
         /**
          * HACK WARNING
@@ -1577,6 +1726,7 @@ public class CompactionManager implements CompactionManagerMBean
             public void close() {}
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
         try (SharedTxn sharedTxn = new SharedTxn(txn);
              SSTableRewriter fullWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, false, groupMaxDataAge);
@@ -1585,6 +1735,7 @@ public class CompactionManager implements CompactionManagerMBean
 
              AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs, nowInSec));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
              CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID(), active, isCancelled))
         {
             int expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval, (int)(SSTableReader.getApproximateKeyCount(sstableAsSet)));
@@ -1593,9 +1744,11 @@ public class CompactionManager implements CompactionManagerMBean
             transWriter.switchWriter(CompactionManager.createWriterForAntiCompaction(cfs, destination, expectedBloomFilterSize, UNREPAIRED_SSTABLE, pendingRepair, true, sstableAsSet, txn));
             unrepairedWriter.switchWriter(CompactionManager.createWriterForAntiCompaction(cfs, destination, expectedBloomFilterSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, sstableAsSet, txn));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             Predicate<Token> fullChecker = !ranges.onlyFull().isEmpty() ? new Range.OrderedRangeContainmentChecker(ranges.onlyFull().ranges()) : t -> false;
             Predicate<Token> transChecker = !ranges.onlyTransient().isEmpty() ? new Range.OrderedRangeContainmentChecker(ranges.onlyTransient().ranges()) : t -> false;
             double compressionRatio = scanners.getCompressionRatio();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
             if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
                 compressionRatio = 1.0;
 
@@ -1620,6 +1773,7 @@ public class CompactionManager implements CompactionManagerMBean
                         // otherwise, append it to the unrepaired sstable
                         unrepairedWriter.append(partition);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
                     long bytesScanned = scanners.getTotalBytesScanned();
                     compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
                     lastBytesScanned = bytesScanned;
@@ -1633,6 +1787,7 @@ public class CompactionManager implements CompactionManagerMBean
             txn.obsoleteOriginals();
             txn.prepareToCommit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
             List<SSTableReader> fullSSTables = new ArrayList<>(fullWriter.finished());
             List<SSTableReader> transSSTables = new ArrayList<>(transWriter.finished());
             List<SSTableReader> unrepairedSSTables = new ArrayList<>(unrepairedWriter.finished());
@@ -1653,6 +1808,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
         catch (Throwable e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             if (e instanceof CompactionInterruptedException && isCancelled.getAsBoolean())
             {
                 logger.info("Anticompaction has been canceled for session {}", pendingRepair);
@@ -1660,6 +1816,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                 JVMStabilityInspector.inspectThrowable(e);
                 logger.error("Error anticompacting " + txn + " for " + pendingRepair, e);
             }
@@ -1698,6 +1855,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
         return executor.submitIfRunning(runnable, "index build");
     }
 
@@ -1706,6 +1864,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public ListenableFuture<?> submitIndexBuild(final SecondaryIndexBuilder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         return submitIndexBuild(builder, active);
     }
 
@@ -1716,17 +1875,23 @@ public class CompactionManager implements CompactionManagerMBean
 
     Future<?> submitCacheWrite(final AutoSavingCache.Writer writer, ActiveCompactionsTracker activeCompactions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         Runnable runnable = new Runnable()
         {
             public void run()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4533
                 if (!AutoSavingCache.flushInProgress.add(writer.cacheType()))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
                     return;
                 }
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                     activeCompactions.beginCompaction(writer);
                     try
                     {
@@ -1739,16 +1904,19 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 finally
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4533
                     AutoSavingCache.flushInProgress.remove(writer.cacheType());
                 }
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
         return executor.submitIfRunning(runnable, "cache write");
     }
 
     public List<SSTableReader> runIndexSummaryRedistribution(IndexSummaryRedistribution redistribution) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         return runIndexSummaryRedistribution(redistribution, active);
     }
 
@@ -1756,6 +1924,7 @@ public class CompactionManager implements CompactionManagerMBean
     List<SSTableReader> runIndexSummaryRedistribution(IndexSummaryRedistribution redistribution, ActiveCompactionsTracker activeCompactions) throws IOException
     {
         activeCompactions.beginCompaction(redistribution);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8805
         try
         {
             return redistribution.redistributeSummaries();
@@ -1775,12 +1944,14 @@ public class CompactionManager implements CompactionManagerMBean
 
     public ListenableFuture<Long> submitViewBuilder(final ViewBuilderTask task)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         return submitViewBuilder(task, active);
     }
 
     @VisibleForTesting
     ListenableFuture<Long> submitViewBuilder(final ViewBuilderTask task, ActiveCompactionsTracker activeCompactions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         return viewBuildExecutor.submitIfRunning(() -> {
             activeCompactions.beginCompaction(task);
             try
@@ -1819,6 +1990,7 @@ public class CompactionManager implements CompactionManagerMBean
         protected void beforeExecute(Thread t, Runnable r)
         {
             // can't set this in Thread factory, so we do it redundantly here
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5026
             isCompactionManager.set(true);
             super.beforeExecute(t, r);
         }
@@ -1828,7 +2000,9 @@ public class CompactionManager implements CompactionManagerMBean
         public void afterExecute(Runnable r, Throwable t)
         {
             DebuggableThreadPoolExecutor.maybeResetTraceSessionWrapper(r);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7694
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3582
             if (t == null)
                 t = DebuggableThreadPoolExecutor.extractThrowable(r);
 
@@ -1840,6 +2014,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (t.getSuppressed() != null && t.getSuppressed().length > 0)
                         logger.warn("Interruption of compaction encountered exceptions:", t);
                     else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                         logger.trace("Full interruption stack trace:", t);
                 }
                 else
@@ -1850,11 +2025,14 @@ public class CompactionManager implements CompactionManagerMBean
 
             // Snapshots cannot be deleted on Windows while segments of the root element are mapped in NTFS. Compactions
             // unmap those segments which could free up a snapshot for successful deletion.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10222
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10222
             SnapshotDeletingTask.rescheduleFailedTasks();
         }
 
         public ListenableFuture<?> submitIfRunning(Runnable task, String name)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
             return submitIfRunning(Executors.callable(task, null), name);
         }
 
@@ -1878,7 +2056,9 @@ public class CompactionManager implements CompactionManagerMBean
 
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
                 ListenableFutureTask<T> ret = ListenableFutureTask.create(task);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13833
                 execute(ret);
                 return ret;
             }
@@ -1916,6 +2096,7 @@ public class CompactionManager implements CompactionManagerMBean
                   "ValidationExecutor",
                   new LinkedBlockingQueue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3582
             allowCoreThreadTimeOut(true);
         }
 
@@ -1930,6 +2111,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ViewBuildExecutor()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
             super(DatabaseDescriptor.getConcurrentViewBuilders(), "ViewBuildExecutor");
         }
     }
@@ -1938,12 +2120,14 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public CacheCleanupExecutor()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2524
             super(1, "CacheCleanupExecutor");
         }
     }
 
     public void incrementAborted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13015
         metrics.compactionsAborted.inc();
     }
 
@@ -1960,6 +2144,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public List<Map<String, String>> getCompactions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         List<Holder> compactionHolders = active.getCompactions();
         List<Map<String, String>> out = new ArrayList<Map<String, String>>(compactionHolders.size());
         for (CompactionInfo.Holder ci : compactionHolders)
@@ -1969,6 +2154,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public List<String> getCompactionSummary()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         List<Holder> compactionHolders = active.getCompactions();
         List<String> out = new ArrayList<String>(compactionHolders.size());
         for (CompactionInfo.Holder ci : compactionHolders)
@@ -1978,6 +2164,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public TabularData getCompactionHistory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5078
         try
         {
             return SystemKeyspace.getCompactionHistory();
@@ -1990,6 +2177,8 @@ public class CompactionManager implements CompactionManagerMBean
 
     public long getTotalBytesCompacted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return metrics.bytesCompacted.getCount();
     }
 
@@ -2010,7 +2199,10 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void stopCompaction(String type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1740
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         OperationType operation = OperationType.valueOf(type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         for (Holder holder : active.getCompactions())
         {
             if (holder.getCompactionInfo().getTaskType() == operation)
@@ -2020,9 +2212,12 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void stopCompactionById(String compactionId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         for (Holder holder : active.getCompactions())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14457
             UUID holderId = holder.getCompactionInfo().getTaskId();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
             if (holderId != null && holderId.equals(UUID.fromString(compactionId)))
                 holder.stop();
         }
@@ -2030,6 +2225,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void setConcurrentCompactors(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
         if (value > executor.getCorePoolSize())
         {
             // we are increasing the value
@@ -2039,6 +2235,8 @@ public class CompactionManager implements CompactionManagerMBean
         else if (value < executor.getCorePoolSize())
         {
             // we are reducing the value
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
             executor.setCorePoolSize(value);
             executor.setMaximumPoolSize(value);
         }
@@ -2051,6 +2249,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void setConcurrentViewBuilders(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         if (value > viewBuildExecutor.getCorePoolSize())
         {
             // we are increasing the value
@@ -2067,6 +2266,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public int getCoreCompactorThreads()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
         return executor.getCorePoolSize();
     }
 
@@ -2107,6 +2307,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public boolean getDisableSTCSInL0()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15445
         return DatabaseDescriptor.getDisableSTCSInL0();
     }
 
@@ -2119,6 +2320,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public int getCoreViewBuildThreads()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         return viewBuildExecutor.getCorePoolSize();
     }
 
@@ -2139,6 +2341,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public boolean getAutomaticSSTableUpgradeEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
         return DatabaseDescriptor.automaticSSTableUpgrade();
     }
 
@@ -2179,6 +2382,8 @@ public class CompactionManager implements CompactionManagerMBean
         assert columnFamilies != null;
 
         // interrupt in-progress compactions
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         for (Holder compactionHolder : active.getCompactions())
         {
             CompactionInfo info = compactionHolder.getCompactionInfo();
@@ -2210,6 +2415,7 @@ public class CompactionManager implements CompactionManagerMBean
         while (System.nanoTime() - start < delay)
         {
             if (CompactionManager.instance.isCompacting(cfss, sstablePredicate))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9271
                 Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
             else
                 break;
@@ -2219,7 +2425,9 @@ public class CompactionManager implements CompactionManagerMBean
 
     public List<CompactionInfo> getSSTableTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         return active.getCompactions()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14457
                      .stream()
                      .map(CompactionInfo.Holder::getCompactionInfo)
                      .filter(task -> task.getTaskType() != OperationType.COUNTER_CACHE_SAVE
@@ -2235,6 +2443,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public boolean isGlobalCompactionPaused()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         return globalCompactionPauseCount.get() > 0;
     }
 

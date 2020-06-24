@@ -26,6 +26,7 @@ import org.apache.commons.math3.distribution.AbstractRealDistribution;
 public class DistributionBoundApache extends Distribution
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
     final AbstractRealDistribution delegate;
     final long min, max;
 

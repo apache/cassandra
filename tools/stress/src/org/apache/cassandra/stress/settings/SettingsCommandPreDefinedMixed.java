@@ -48,6 +48,7 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 
         clustering = options.clustering.get();
         ratios = options.probabilities.ratios();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         this.options = options;
         if (ratios.size() == 0)
             throw new IllegalArgumentException("Must specify at least one command with a non-zero ratio");
@@ -55,11 +56,13 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         final SeedManager seeds = new SeedManager(settings);
         return new SampledOpDistributionFactory<Command>(ratios, clustering)
         {
             protected List<? extends Operation> get(Timer timer, Command key, boolean isWarmup)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
                 return Collections.singletonList(PredefinedOperation.operation(key, timer, SettingsCommandPreDefinedMixed.this.newGenerator(settings), seeds, settings, add));
             }
         };
@@ -109,6 +112,7 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         super.printSettings(out);
         out.printf("  Command Ratios: %s%n", ratios);
         out.printf("  Command Clustering Distribution: %s%n", options.clustering.getOptionAsString());

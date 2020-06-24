@@ -108,7 +108,9 @@ public class LoaderOptions
         connectionsPerHost = builder.connectionsPerHost;
         serverEncOptions = builder.serverEncOptions;
         hosts = builder.hosts;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13721
         ignores = builder.ignores;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
         targetKeyspace = builder.targetKeyspace;
     }
 
@@ -127,14 +129,17 @@ public class LoaderOptions
         int interDcThrottle = 0;
         int storagePort;
         int sslStoragePort;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         EncryptionOptions clientEncOptions = new EncryptionOptions();
         int connectionsPerHost = 1;
         EncryptionOptions.ServerEncryptionOptions serverEncOptions = new EncryptionOptions.ServerEncryptionOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddress> hostsArg = new HashSet<>();
         Set<InetAddress> ignoresArg = new HashSet<>();
         Set<InetSocketAddress> hosts = new HashSet<>();
         Set<InetAddressAndPort> ignores = new HashSet<>();
         String targetKeyspace;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
 
         Builder()
         {
@@ -145,6 +150,7 @@ public class LoaderOptions
         {
             constructAuthProvider();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             try
             {
                 for (InetAddress host : hostsArg)
@@ -257,6 +263,7 @@ public class LoaderOptions
         @Deprecated
         public Builder hosts(Set<InetAddress> hosts)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             this.hostsArg.addAll(hosts);
             return this;
         }
@@ -387,6 +394,7 @@ public class LoaderOptions
                 }
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                 if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
                 {
                     String[] nodes = cmd.getOptionValue(INITIAL_HOST_ADDRESS_OPTION).split(",");
@@ -394,6 +402,7 @@ public class LoaderOptions
                     {
                         for (String node : nodes)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                             HostAndPort hap = HostAndPort.fromString(node);
                             hosts.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPortOrDefault(nativePort)));
                         }
@@ -421,6 +430,7 @@ public class LoaderOptions
                     {
                         for (String node : nodes)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                             ignores.add(InetAddressAndPort.getByNameOverrideDefaults(node.trim(), storagePort));
                         }
                     } catch (UnknownHostException e)
@@ -455,9 +465,11 @@ public class LoaderOptions
                 if (cmd.hasOption(SSL_TRUSTSTORE) || cmd.hasOption(SSL_TRUSTSTORE_PW) ||
                             cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     clientEncOptions = clientEncOptions.withEnabled(true);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14904
                 if (cmd.hasOption(NATIVE_PORT_OPTION))
                 {
                     nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
@@ -512,6 +524,7 @@ public class LoaderOptions
                     clientEncOptions = clientEncOptions.withCipherSuites(cmd.getOptionValue(SSL_CIPHER_SUITES).split(","));
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
                 if (cmd.hasOption(TARGET_KEYSPACE))
                 {
                     targetKeyspace = cmd.getOptionValue(TARGET_KEYSPACE);
@@ -625,6 +638,7 @@ public class LoaderOptions
         options.addOption("st", SSL_STORE_TYPE, "STORE-TYPE", "Client SSL: type of store");
         options.addOption("ciphers", SSL_CIPHER_SUITES, "CIPHER-SUITES", "Client SSL: comma-separated list of encryption suites to use");
         options.addOption("f", CONFIG_PATH, "path to config file", "cassandra.yaml file path for streaming throughput and client/server SSL.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
         options.addOption("k", TARGET_KEYSPACE, "target keyspace name", "target keyspace name");
         return options;
     }

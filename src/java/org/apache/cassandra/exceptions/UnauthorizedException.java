@@ -21,11 +21,13 @@ public class UnauthorizedException extends RequestValidationException
 {
     public UnauthorizedException(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.UNAUTHORIZED, msg);
     }
 
     public UnauthorizedException(String msg, Throwable e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15041
         super(ExceptionCode.UNAUTHORIZED, msg, e);
     }
 }

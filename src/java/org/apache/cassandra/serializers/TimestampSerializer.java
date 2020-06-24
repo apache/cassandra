@@ -38,6 +38,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
     {
             "yyyy-MM-dd HH:mm",
             "yyyy-MM-dd HH:mm:ss",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9795
             "yyyy-MM-dd HH:mm z",
             "yyyy-MM-dd HH:mm zz",
             "yyyy-MM-dd HH:mm zzz",
@@ -51,6 +52,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             "yyyy-MM-dd HH:mm:ssX",
             "yyyy-MM-dd HH:mm:ssXX",
             "yyyy-MM-dd HH:mm:ssXXX",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11137
             "yyyy-MM-dd HH:mm:ss.SSS",
             "yyyy-MM-dd HH:mm:ss.SSS z",
             "yyyy-MM-dd HH:mm:ss.SSS zz",
@@ -76,6 +78,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             "yyyy-MM-dd'T'HH:mm:ss.SSS z",
             "yyyy-MM-dd'T'HH:mm:ss.SSS zz",
             "yyyy-MM-dd'T'HH:mm:ss.SSS zzz",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             "yyyy-MM-dd'T'HH:mm:ss.SSSX",  // UTC_FORMAT
             "yyyy-MM-dd'T'HH:mm:ss.SSSXX",
             "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
@@ -104,6 +107,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
     {
         protected SimpleDateFormat initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             SimpleDateFormat sdf = new SimpleDateFormat(UTC_FORMAT);
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             return sdf;
@@ -115,6 +119,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
     {
         protected SimpleDateFormat initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11137
             SimpleDateFormat sdf = new SimpleDateFormat(TO_JSON_FORMAT);
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             return sdf;
@@ -127,6 +132,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public Date deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return bytes.remaining() == 0 ? null : new Date(ByteBufferUtil.toLong(bytes));
     }
 
@@ -137,6 +143,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public static long dateStringToTimestamp(String source) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6973
         if (source.equalsIgnoreCase("now"))
             return System.currentTimeMillis();
 
@@ -149,6 +156,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             }
             catch (NumberFormatException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                 throw new MarshalException(String.format("Unable to make long (for date) from: '%s'", source), e);
             }
         }
@@ -160,12 +168,14 @@ public class TimestampSerializer implements TypeSerializer<Date>
         }
         catch (ParseException e1)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             throw new MarshalException(String.format("Unable to coerce '%s' to a formatted date (long)", source), e1);
         }
     }
 
     public static SimpleDateFormat getJsonDateFormatter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10814
     	return FORMATTER_TO_JSON.get();
     }
 
@@ -177,6 +187,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public String toString(Date value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return value == null ? "" : FORMATTER.get().format(value);
     }
 

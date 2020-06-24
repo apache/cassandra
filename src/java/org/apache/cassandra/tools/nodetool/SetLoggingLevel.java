@@ -34,6 +34,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class SetLoggingLevel extends NodeToolCmd
 {
     @Arguments(usage = "<component|class> <level>", description = "The component or class to change the level for and the log level threshold to set. Will reset to initial level if omitted. "
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12696
         + "Available components:  bootstrap, compaction, repair, streaming, cql, ring")
     private List<String> args = new ArrayList<>();
 

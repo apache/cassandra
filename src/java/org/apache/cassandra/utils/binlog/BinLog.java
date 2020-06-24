@@ -83,6 +83,7 @@ public class BinLog implements Runnable
     private final AtomicLong droppedSamplesSinceLastLog = new AtomicLong();
 
     /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
     This set contains all the paths we are currently logging to, it is used to make sure
     we don't start writing audit and full query logs to the same path.
     */
@@ -93,6 +94,7 @@ public class BinLog implements Runnable
         @Override
         protected long version()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             return 0;
         }
 
@@ -128,11 +130,13 @@ public class BinLog implements Runnable
         ChronicleQueueBuilder builder = ChronicleQueueBuilder.single(path.toFile());
         builder.rollCycle(rollCycle);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14373
         sampleQueue = new WeightedQueue<>(maxQueueWeight);
         this.archiver = archiver;
         builder.storeFileListener(this.archiver);
         queue = builder.build();
         appender = queue.acquireAppender();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         this.blocking = blocking;
         this.path = path;
     }
@@ -166,7 +170,9 @@ public class BinLog implements Runnable
         binLogThread.join();
         appender = null;
         queue = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14373
         archiver.stop();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         currentPaths.remove(path);
     }
 
@@ -275,6 +281,7 @@ public class BinLog implements Runnable
     public void logRecord(ReleaseableWriteMarshallable record)
     {
         boolean putInQueue = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         try
         {
             if (blocking)
@@ -329,6 +336,7 @@ public class BinLog implements Runnable
         @Override
         public final void writeMarshallable(WireOut wire)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             wire.write(VERSION).int16(version());
             wire.write(TYPE).text(type());
 
@@ -356,6 +364,7 @@ public class BinLog implements Runnable
 
         public Builder path(Path path)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             Preconditions.checkNotNull(path, "path was null");
             File pathAsFile = path.toFile();
             //Exists and is a directory or can be created

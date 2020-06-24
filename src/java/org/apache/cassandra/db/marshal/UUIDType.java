@@ -48,11 +48,13 @@ public class UUIDType extends AbstractType<UUID>
 
     UUIDType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     }
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
@@ -64,6 +66,7 @@ public class UUIDType extends AbstractType<UUID>
 
         // should we assert exactly 16 bytes (or 0)? seems prudent
         boolean p1 = l1 - s1 == 16, p2 = l2 - s2 == 16;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8730
         if (!(p1 & p2))
         {
             assert p1 | (l1 == s1);
@@ -104,6 +107,7 @@ public class UUIDType extends AbstractType<UUID>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8759
         return otherType instanceof UUIDType || otherType instanceof TimeUUIDType;
     }
 
@@ -115,12 +119,14 @@ public class UUIDType extends AbstractType<UUID>
         if (parsed != null)
             return parsed;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         throw new MarshalException(String.format("Unable to make UUID from '%s'", source));
     }
 
     @Override
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.UUID;
     }
 
@@ -133,6 +139,7 @@ public class UUIDType extends AbstractType<UUID>
 
     static ByteBuffer parse(String source)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8759
         if (source.isEmpty())
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
@@ -140,10 +147,12 @@ public class UUIDType extends AbstractType<UUID>
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
                 return UUIDGen.toByteBuffer(UUID.fromString(source));
             }
             catch (IllegalArgumentException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                 throw new MarshalException(String.format("Unable to make UUID from '%s'", source), e);
             }
         }
@@ -173,6 +182,7 @@ public class UUIDType extends AbstractType<UUID>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 16;
     }
 }

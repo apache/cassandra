@@ -26,6 +26,7 @@ public class AuthenticationException extends RequestValidationException
 
     public AuthenticationException(String msg, Throwable e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15041
         super(ExceptionCode.BAD_CREDENTIALS, msg, e);
     }
 }

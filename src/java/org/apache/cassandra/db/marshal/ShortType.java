@@ -34,6 +34,7 @@ public class ShortType extends NumberType<Short>
 
     ShortType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     } // singleton
 
@@ -68,6 +69,7 @@ public class ShortType extends NumberType<Short>
 
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
         if (parsed instanceof String || parsed instanceof Number)
             return new Constants.Value(fromString(String.valueOf(parsed)));
 
@@ -95,6 +97,7 @@ public class ShortType extends NumberType<Short>
     @Override
     public short toShort(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return ByteBufferUtil.toShort(value);
     }
 

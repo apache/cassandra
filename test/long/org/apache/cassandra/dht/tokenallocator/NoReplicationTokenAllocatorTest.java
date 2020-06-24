@@ -54,6 +54,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
         for (int perUnitCount = 1; perUnitCount <= MAX_VNODE_COUNT; perUnitCount *= 4)
         {
             testNewCluster(perUnitCount, fixedTokenCount, new NoReplicationStrategy(), partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12983
             testNewCluster(perUnitCount, fixedTokenCount, new ZeroReplicationStrategy(), partitioner);
         }
     }
@@ -87,6 +88,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
         for (int perUnitCount = 1; perUnitCount <= MAX_VNODE_COUNT; perUnitCount *= 4)
         {
             testExistingCluster(perUnitCount, fixedTokenCount, new NoReplicationStrategy(), partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12983
             testExistingCluster(perUnitCount, fixedTokenCount, new ZeroReplicationStrategy(), partitioner);
         }
     }
@@ -251,6 +253,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
     {
         public int replicas()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12983
             return 0;
         }
     }

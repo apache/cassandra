@@ -42,8 +42,10 @@ public class Cleanup extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
         String[] tableNames = parseOptionalTables(args);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
         for (String keyspace : keyspaces)
         {

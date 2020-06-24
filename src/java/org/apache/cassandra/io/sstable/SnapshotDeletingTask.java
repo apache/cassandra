@@ -68,6 +68,7 @@ public class SnapshotDeletingTask implements Runnable
      */
     public static void rescheduleFailedTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10222
         Runnable task;
         while ( null != (task = failedTasks.poll()))
             ScheduledExecutors.nonPeriodicTasks.submit(task);

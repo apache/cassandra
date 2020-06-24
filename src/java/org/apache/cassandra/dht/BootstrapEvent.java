@@ -54,6 +54,7 @@ final class BootstrapEvent extends DiagnosticEvent
         this.address = address;
         this.tokenMetadata = tokenMetadata;
         this.allocationKeyspace = allocationKeyspace;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         this.rf = rf;
         this.numTokens = numTokens;
         this.tokens = tokens;
@@ -78,6 +79,7 @@ final class BootstrapEvent extends DiagnosticEvent
         HashMap<String, Serializable> ret = new HashMap<>();
         ret.put("tokenMetadata", String.valueOf(tokenMetadata));
         ret.put("allocationKeyspace", allocationKeyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         ret.put("rf", rf);
         ret.put("numTokens", numTokens);
         ret.put("tokens", String.valueOf(tokens));

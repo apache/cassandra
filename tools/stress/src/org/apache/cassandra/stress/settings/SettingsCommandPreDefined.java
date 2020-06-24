@@ -56,6 +56,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         {
             public OpDistribution get(boolean isWarmup, MeasurementSink sink)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
                 final Timer timer1 = new Timer(type.toString(), sink);
                 final Timer timer = timer1;
                 return new FixedOpDistribution(PredefinedOperation.operation(type, timer,
@@ -74,6 +75,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         };
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
     PartitionGenerator newGenerator(StressSettings settings)
     {
         List<String> names = settings.columns.namestrs;
@@ -84,12 +86,14 @@ public class SettingsCommandPreDefined extends SettingsCommand
         List<Generator> columns = new ArrayList<>();
         for (int i = 0 ; i < settings.columns.maxColumnsPerKey ; i++)
             columns.add(new Bytes(names.get(i), new GeneratorConfig("randomstr" + names.get(i), null, settings.columns.sizeDistribution, null)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         return new PartitionGenerator(partitionKey, Collections.<Generator>emptyList(), columns, PartitionGenerator.Order.ARBITRARY);
     }
 
     public SettingsCommandPreDefined(Command type, Options options)
     {
         super(type, options.parent);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         this.options = options;
         add = options.add.get();
         keySize = Integer.parseInt(options.keysize.value());
@@ -106,6 +110,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         }
         final OptionDistribution add = new OptionDistribution("add=", "fixed(1)", "Distribution of value of counter increments");
         final OptionSimple keysize = new OptionSimple("keysize=", "[0-9]+", "10", "Key size in bytes", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
 
         @Override
         public List<? extends Option> options()
@@ -117,6 +122,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     public void truncateTables(StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         truncateTables(settings, settings.schema.keyspace, "standard1", "counter1", "counter3");
     }
 
@@ -124,6 +130,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         super.printSettings(out);
         out.printf("  Key Size (bytes): %d%n", keySize);
         out.printf("  Counter Increment Distibution: %s%n", options.add.getOptionAsString());

@@ -84,13 +84,20 @@ public class QueryProcessor implements QueryHandler
         preparedStatements = Caffeine.newBuilder()
                              .executor(MoreExecutors.directExecutor())
                              .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11718
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11718
                              .weigher(QueryProcessor::measure)
                              .removalListener((key, prepared, cause) -> {
                                  MD5Digest md5Digest = (MD5Digest) key;
                                  if (cause.wasEvicted())
                                  {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7921
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7921
                                      metrics.preparedStatementsEvicted.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7930
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7930
                                      lastMinuteEvictionsCount.incrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
                                      SystemKeyspace.removePreparedStatement(md5Digest);
                                  }
                              }).build();
@@ -103,6 +110,7 @@ public class QueryProcessor implements QueryHandler
                             DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
         }, 1, 1, TimeUnit.MINUTES);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         logger.info("Initialized prepared statement caches with {} MB",
                     DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
     }
@@ -114,6 +122,7 @@ public class QueryProcessor implements QueryHandler
 
     public static int preparedStatementsCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         return preparedStatements.asMap().size();
     }
 
@@ -126,12 +135,14 @@ public class QueryProcessor implements QueryHandler
 
         InternalStateInstance()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
             clientState = ClientState.forInternalCalls(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         }
     }
 
     public static void preloadPreparedStatement()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
         ClientState clientState = ClientState.forInternalCalls();
         int count = 0;
         for (Pair<String, String> useKeyspaceAndCQL : SystemKeyspace.loadPreparedStatements())
@@ -139,6 +150,7 @@ public class QueryProcessor implements QueryHandler
             try
             {
                 clientState.setKeyspace(useKeyspaceAndCQL.left);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                 prepare(useKeyspaceAndCQL.right, clientState);
                 count++;
             }
@@ -158,6 +170,7 @@ public class QueryProcessor implements QueryHandler
     public static void clearPreparedStatements(boolean memoryOnly)
     {
         preparedStatements.invalidateAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
         if (!memoryOnly)
             SystemKeyspace.resetPreparedStatements();
     }
@@ -165,6 +178,7 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static QueryState internalQueryState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         return new QueryState(InternalStateInstance.INSTANCE.clientState);
     }
 
@@ -175,6 +189,7 @@ public class QueryProcessor implements QueryHandler
 
     public Prepared getPrepared(MD5Digest id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         return preparedStatements.getIfPresent(id);
     }
 
@@ -184,6 +199,7 @@ public class QueryProcessor implements QueryHandler
         {
             throw new InvalidRequestException("Key may not be empty");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
             throw new InvalidRequestException("Key may not be unset");
 
@@ -196,12 +212,15 @@ public class QueryProcessor implements QueryHandler
     }
 
     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
     throws RequestExecutionException, RequestValidationException
     {
         logger.trace("Process {} @CL.{}", statement, options.getConsistency());
         ClientState clientState = queryState.getClientState();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         statement.authorize(clientState);
         statement.validate(clientState);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4693
 
         ResultMessage result;
         if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
@@ -221,6 +240,7 @@ public class QueryProcessor implements QueryHandler
     public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         QueryOptions options = QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList());
         CQLStatement statement = instance.parse(queryString, queryState, options);
         return instance.process(statement, queryState, options, queryStartNanoTime);
@@ -249,7 +269,9 @@ public class QueryProcessor implements QueryHandler
 
         if (!queryState.getClientState().isInternal)
             metrics.regularStatementsExecuted.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7719
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return processStatement(prepared, queryState, options, queryStartNanoTime);
     }
 
@@ -260,11 +282,13 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9534
         return process(query, cl, Collections.<ByteBuffer>emptyList());
     }
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl, List<ByteBuffer> values) throws RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         QueryState queryState = QueryState.forInternalCalls();
         QueryOptions options = QueryOptions.forInternalCalls(cl, values);
         CQLStatement statement = instance.parse(query, queryState, options);
@@ -278,11 +302,13 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static QueryOptions makeInternalOptions(CQLStatement prepared, Object[] values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return makeInternalOptions(prepared, values, ConsistencyLevel.ONE);
     }
 
     private static QueryOptions makeInternalOptions(CQLStatement prepared, Object[] values, ConsistencyLevel cl)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         if (prepared.getBindVariables().size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.getBindVariables().size(), values.length));
 
@@ -293,6 +319,7 @@ public class QueryProcessor implements QueryHandler
             AbstractType type = prepared.getBindVariables().get(i).type;
             boundValues.add(value instanceof ByteBuffer || value == null ? (ByteBuffer)value : type.decompose(value));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return QueryOptions.forInternalCalls(cl, boundValues);
     }
 
@@ -322,16 +349,19 @@ public class QueryProcessor implements QueryHandler
     }
 
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, Object... values)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
     throws RequestExecutionException
     {
         return execute(query, cl, internalQueryState(), values);
     }
 
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
     throws RequestExecutionException
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             Prepared prepared = prepareInternal(query);
             ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), System.nanoTime());
             if (result instanceof ResultMessage.Rows)
@@ -339,6 +369,7 @@ public class QueryProcessor implements QueryHandler
             else
                 return null;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         catch (RequestValidationException e)
         {
             throw new RuntimeException("Error validating " + query, e);
@@ -347,6 +378,7 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Prepared prepared = prepareInternal(query);
         if (!(prepared.statement instanceof SelectStatement))
             throw new IllegalArgumentException("Only SELECTs can be paged");
@@ -365,7 +397,10 @@ public class QueryProcessor implements QueryHandler
         CQLStatement statement = parseStatement(query, internalQueryState().getClientState());
         statement.validate(internalQueryState().getClientState());
         ResultMessage result = statement.executeLocally(internalQueryState(), makeInternalOptions(statement, values));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         if (result instanceof ResultMessage.Rows)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
             return null;
@@ -378,6 +413,7 @@ public class QueryProcessor implements QueryHandler
      */
     public static UntypedResultSet executeInternalWithNow(int nowInSec, long queryStartNanoTime, String query, Object... values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
         SelectStatement select = (SelectStatement)prepared.statement;
@@ -388,6 +424,7 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet resultify(String query, RowIterator partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return resultify(query, PartitionIterators.singletonIterator(partition));
     }
 
@@ -395,13 +432,17 @@ public class QueryProcessor implements QueryHandler
     {
         try (PartitionIterator iter = partitions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             SelectStatement ss = (SelectStatement) getStatement(query, null);
             ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             return UntypedResultSet.create(cqlRows);
         }
     }
 
     public ResultMessage.Prepared prepare(String query,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
                                           ClientState clientState,
                                           Map<String, ByteBuffer> customPayload) throws RequestValidationException
     {
@@ -414,6 +455,7 @@ public class QueryProcessor implements QueryHandler
         if (existing != null)
             return existing;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CQLStatement statement = getStatement(queryString, clientState);
         Prepared prepared = new Prepared(statement, queryString);
 
@@ -421,6 +463,7 @@ public class QueryProcessor implements QueryHandler
         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
             throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared);
     }
 
@@ -434,6 +477,7 @@ public class QueryProcessor implements QueryHandler
     throws InvalidRequestException
     {
         MD5Digest statementId = computeId(queryString, keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Prepared existing = preparedStatements.getIfPresent(statementId);
         if (existing == null)
             return null;
@@ -451,6 +495,7 @@ public class QueryProcessor implements QueryHandler
     {
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11718
         long statementSize = ObjectSizes.measureDeep(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
         if (statementSize > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
@@ -459,16 +504,21 @@ public class QueryProcessor implements QueryHandler
                                                             DatabaseDescriptor.getPreparedStatementsCacheSizeMB(),
                                                             queryString.substring(0, 200)));
         MD5Digest statementId = computeId(queryString, keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         preparedStatements.put(statementId, prepared);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
         SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(prepared.statement);
         ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(prepared.statement);
         return new ResultMessage.Prepared(statementId, resultMetadata.getResultMetadataId(), preparedMetadata, resultMetadata);
     }
 
     public ResultMessage processPrepared(CQLStatement statement,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                                          QueryState state,
                                          QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                          Map<String, ByteBuffer> customPayload,
                                          long queryStartNanoTime)
                                                  throws RequestExecutionException, RequestValidationException
@@ -477,10 +527,12 @@ public class QueryProcessor implements QueryHandler
     }
 
     public ResultMessage processPrepared(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> variables = options.getValues();
         // Check to see if there are any bound variables to verify
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         if (!(variables.isEmpty() && statement.getBindVariables().isEmpty()))
         {
             if (variables.size() != statement.getBindVariables().size())
@@ -494,11 +546,14 @@ public class QueryProcessor implements QueryHandler
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7719
         metrics.preparedStatementsExecuted.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return processStatement(statement, queryState, options, queryStartNanoTime);
     }
 
     public ResultMessage processBatch(BatchStatement statement,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                                       QueryState state,
                                       BatchQueryOptions options,
                                       Map<String, ByteBuffer> customPayload,
@@ -509,10 +564,15 @@ public class QueryProcessor implements QueryHandler
     }
 
     public ResultMessage processBatch(BatchStatement batch, QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
     throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         ClientState clientState = queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         batch.authorize(clientState);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7351
         batch.validate();
         batch.validate(clientState);
         return batch.execute(queryState, options, queryStartNanoTime);
@@ -521,6 +581,7 @@ public class QueryProcessor implements QueryHandler
     public static CQLStatement getStatement(String queryStr, ClientState clientState)
     throws RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5638
         Tracing.trace("Parsing {}", queryStr);
         CQLStatement.Raw statement = parseStatement(queryStr);
 
@@ -534,6 +595,7 @@ public class QueryProcessor implements QueryHandler
 
     public static <T extends CQLStatement.Raw> T parseStatement(String queryStr, Class<T> klass, String type) throws SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12450
         try
         {
             CQLStatement.Raw stmt = parseStatement(queryStr);
@@ -552,15 +614,19 @@ public class QueryProcessor implements QueryHandler
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             return CQLFragmentParser.parseAnyUnhandled(CqlParser::query, queryStr);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         catch (CassandraException ce)
         {
             throw ce;
         }
         catch (RuntimeException re)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8455
             logger.error(String.format("The statement: [%s] could not be parsed.", queryStr), re);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5893
             throw new SyntaxException(String.format("Failed parsing statement: [%s] reason: %s %s",
                                                     queryStr,
                                                     re.getClass().getSimpleName(),
@@ -590,6 +656,7 @@ public class QueryProcessor implements QueryHandler
     {
         private static void removeInvalidPreparedStatements(String ksName, String cfName)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8693
             removeInvalidPreparedStatements(internalStatements.values().iterator(), ksName, cfName);
             removeInvalidPersistentPreparedStatements(preparedStatements.asMap().entrySet().iterator(), ksName, cfName);
         }
@@ -598,6 +665,7 @@ public class QueryProcessor implements QueryHandler
         {
             Predicate<Function> matchesFunction = f -> ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             for (Iterator<Map.Entry<MD5Digest, Prepared>> iter = preparedStatements.asMap().entrySet().iterator();
                  iter.hasNext();)
             {
@@ -619,7 +687,9 @@ public class QueryProcessor implements QueryHandler
         {
             while (iterator.hasNext())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 Map.Entry<MD5Digest, Prepared> entry = iterator.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12450
                 if (shouldInvalidate(ksName, cfName, entry.getValue().statement))
                 {
                     SystemKeyspace.removePreparedStatement(entry.getKey());
@@ -654,6 +724,7 @@ public class QueryProcessor implements QueryHandler
                 statementKsName = selectStatement.keyspace();
                 statementCfName = selectStatement.columnFamily();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8652
             else if (statement instanceof BatchStatement)
             {
                 BatchStatement batchStatement = ((BatchStatement) statement);
@@ -674,6 +745,7 @@ public class QueryProcessor implements QueryHandler
 
         public void onCreateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
             onCreateFunctionInternal(ksName, functionName, argTypes);
         }
 
@@ -692,6 +764,7 @@ public class QueryProcessor implements QueryHandler
 
         public void onAlterTable(String ksName, String cfName, boolean affectsStatements)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", ksName, cfName);
             if (affectsStatements)
                 removeInvalidPreparedStatements(ksName, cfName);
@@ -712,6 +785,7 @@ public class QueryProcessor implements QueryHandler
             // the new definition is picked (the function is resolved at preparation time).
             // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
             // that was updated. This requires a few changes however and probably doesn't matter much in practice.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
             removeInvalidPreparedStatementsForFunction(ksName, aggregateName);
         }
 
@@ -729,6 +803,9 @@ public class QueryProcessor implements QueryHandler
 
         public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
             removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 

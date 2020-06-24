@@ -45,6 +45,7 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             setArg(i, s.getOutput(protocolVersion));
             s.reset();
         }

@@ -118,6 +118,7 @@ public class RowUpdateBuilder
     public PartitionUpdate buildUpdate()
     {
         for (RangeTombstone rt : rts)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             updateBuilder.addRangeTombstone(rt);
         return updateBuilder.build();
     }
@@ -136,6 +137,7 @@ public class RowUpdateBuilder
 
     public static Mutation deleteRowAt(TableMetadata metadata, long timestamp, int localDeletionTime, Object key, Object... clusteringValues)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
         deleteRow(update, timestamp, localDeletionTime, clusteringValues);
         return new Mutation.PartitionUpdateCollector(update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
@@ -186,6 +188,7 @@ public class RowUpdateBuilder
 
     public RowUpdateBuilder addLegacyCounterCell(String columnName, long value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         assert updateBuilder.metadata().getColumn(new ColumnIdentifier(columnName, true)).isCounterColumn();
         ByteBuffer val = CounterContext.instance().createLocal(value);
         rowBuilder().add(columnName, val);

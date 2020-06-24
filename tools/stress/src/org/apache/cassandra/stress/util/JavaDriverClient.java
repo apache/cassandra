@@ -59,18 +59,22 @@ public class JavaDriverClient
 
     public JavaDriverClient(StressSettings settings, String host, int port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         this(settings, host, port, new EncryptionOptions());
     }
 
     public JavaDriverClient(StressSettings settings, String host, int port, EncryptionOptions encryptionOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
         this.protocolVersion = settings.mode.protocolVersion;
         this.host = host;
         this.port = port;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7985
         this.username = settings.mode.username;
         this.password = settings.mode.password;
         this.authProvider = settings.mode.authProvider;
         this.encryptionOptions = encryptionOptions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12919
         this.loadBalancingPolicy = loadBalancingPolicy(settings);
         this.connectionsPerHost = settings.mode.connectionsPerHost == null ? 8 : settings.mode.connectionsPerHost;
 
@@ -89,6 +93,7 @@ public class JavaDriverClient
 
     private LoadBalancingPolicy loadBalancingPolicy(StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12919
         DCAwareRoundRobinPolicy.Builder policyBuilder = DCAwareRoundRobinPolicy.builder();
         if (settings.node.datacenter != null)
             policyBuilder.withLocalDc(settings.node.datacenter);
@@ -132,9 +137,11 @@ public class JavaDriverClient
                                                 .withPort(port)
                                                 .withPoolingOptions(poolingOpts)
                                                 .withoutJMXReporting()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
                                                 .withProtocolVersion(protocolVersion)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11591
         if (loadBalancingPolicy != null)
             clusterBuilder.withLoadBalancingPolicy(loadBalancingPolicy);
         clusterBuilder.withCompression(compression);
@@ -144,10 +151,12 @@ public class JavaDriverClient
             sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
             SSLOptions sslOptions = JdkSSLOptions.builder()
                                                  .withSSLContext(sslContext)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                                  .withCipherSuites(encryptionOptions.cipher_suites.toArray(new String[0])).build();
             clusterBuilder.withSSL(sslOptions);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7985
         if (authProvider != null)
         {
             clusterBuilder.withAuthProvider(authProvider);
@@ -167,6 +176,7 @@ public class JavaDriverClient
         for (Host host : metadata.getAllHosts())
         {
             System.out.printf("Datacenter: %s; Host: %s; Rack: %s%n",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     host.getDatacenter(), host.getAddress() + ":" + host.getSocketAddress().getPort(), host.getRack());
         }
 
@@ -186,7 +196,9 @@ public class JavaDriverClient
     public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency)
     {
         SimpleStatement stmt = new SimpleStatement(query);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11001
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13925
         if (consistency.isSerialConsistency())
             stmt.setSerialConsistencyLevel(from(consistency));
         else
@@ -204,6 +216,7 @@ public class JavaDriverClient
         {
             stmt.setConsistencyLevel(from(consistency));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         BoundStatement bstmt = stmt.bind((Object[]) queryParams.toArray(new Object[queryParams.size()]));
         return getSession().execute(bstmt);
     }
@@ -237,6 +250,7 @@ public class JavaDriverClient
                 return com.datastax.driver.core.ConsistencyLevel.EACH_QUORUM;
             case LOCAL_ONE:
                 return com.datastax.driver.core.ConsistencyLevel.LOCAL_ONE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13925
             case SERIAL:
                 return com.datastax.driver.core.ConsistencyLevel.SERIAL;
             case LOCAL_SERIAL:

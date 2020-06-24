@@ -31,6 +31,7 @@ public abstract class NativeScalarFunction extends NativeFunction implements Sca
 
     public boolean isCalledOnNullInput()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
         return true;
     }
 

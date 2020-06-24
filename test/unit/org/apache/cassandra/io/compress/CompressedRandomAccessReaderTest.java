@@ -50,6 +50,7 @@ public class CompressedRandomAccessReaderTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -57,6 +58,7 @@ public class CompressedRandomAccessReaderTest
     public void testResetAndTruncate() throws IOException
     {
         // test reset in current buffer or previous one
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         testResetAndTruncate(FileUtils.createTempFile("normal", "1"), false, false, 10, 0);
         testResetAndTruncate(FileUtils.createTempFile("normal", "2"), false, false, CompressionParams.DEFAULT_CHUNK_LENGTH, 0);
     }
@@ -98,7 +100,9 @@ public class CompressedRandomAccessReaderTest
     {
         File f = FileUtils.createTempFile("compressed6791_", "3");
         String filename = f.getAbsolutePath();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
                                                                                null, SequentialWriterOption.DEFAULT,
                                                                                CompressionParams.snappy(32),
@@ -108,6 +112,7 @@ public class CompressedRandomAccessReaderTest
             for (int i = 0; i < 20; i++)
                 writer.write("x".getBytes());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
             DataPosition mark = writer.mark();
             // write enough garbage to create new chunks:
             for (int i = 0; i < 40; ++i)
@@ -117,6 +122,7 @@ public class CompressedRandomAccessReaderTest
 
             for (int i = 0; i < 20; i++)
                 writer.write("x".getBytes());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             writer.finish();
         }
 
@@ -168,6 +174,7 @@ public class CompressedRandomAccessReaderTest
             if (file.exists())
                 assertTrue(file.delete());
             File metadata = new File(filename + ".metadata");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             if (metadata.exists())
                 metadata.delete();
         }
@@ -184,6 +191,7 @@ public class CompressedRandomAccessReaderTest
              RandomAccessReader reader = fh.createReader())
         {
             String expected = "The quick brown fox jumps over the lazy dog";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             assertEquals(expected.length(), reader.length());
             byte[] b = new byte[expected.length()];
             reader.readFully(b);
@@ -210,6 +218,7 @@ public class CompressedRandomAccessReaderTest
                 : new SequentialWriter(f))
         {
             writer.write("The quick ".getBytes());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
             DataPosition mark = writer.mark();
             writer.write("blue fox jumps over the lazy dog".getBytes());
 
@@ -243,16 +252,21 @@ public class CompressedRandomAccessReaderTest
         assertTrue(file.createNewFile());
         assertTrue(metadata.createNewFile());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(),
                                                                       null, SequentialWriterOption.DEFAULT,
                                                                       CompressionParams.snappy(), sstableMetadataCollector))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             writer.write(CONTENT.getBytes());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             writer.finish();
         }
 
         // open compression metadata and get chunk information
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5862
         CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length(), true);
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
@@ -261,6 +275,7 @@ public class CompressedRandomAccessReaderTest
              RandomAccessReader reader = fh.createReader())
         {// read and verify compressed data
             assertEquals(CONTENT, reader.readLine());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12552
             Random random = new Random();
             try(RandomAccessFile checksumModifier = new RandomAccessFile(file, "rw"))
             {
@@ -281,6 +296,7 @@ public class CompressedRandomAccessReaderTest
 
                 try (final RandomAccessReader r = fh.createReader())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                     Throwable exception = null;
                     try
                     {
@@ -311,6 +327,7 @@ public class CompressedRandomAccessReaderTest
     {
         file.seek(checksumOffset);
         file.write(checksum);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9403
         SyncUtil.sync(file);
     }
 }

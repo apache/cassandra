@@ -53,6 +53,7 @@ public class ListType<T> extends CollectionType<List<T>>
 
     public static <T> ListType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ConcurrentHashMap<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
         ListType<T> t = internMap.get(elements);
         return null == t
@@ -62,8 +63,10 @@ public class ListType<T> extends CollectionType<List<T>>
 
     private ListType(AbstractType<T> elements, boolean isMultiCell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM, Kind.LIST);
         this.elements = elements;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         this.serializer = ListSerializer.getInstance(elements.getSerializer());
         this.isMultiCell = isMultiCell;
     }
@@ -71,6 +74,7 @@ public class ListType<T> extends CollectionType<List<T>>
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return elements.referencesUserType(name);
     }
 
@@ -94,6 +98,7 @@ public class ListType<T> extends CollectionType<List<T>>
     @Override
     public boolean referencesDuration()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         return getElementsType().referencesDuration();
     }
 
@@ -114,12 +119,14 @@ public class ListType<T> extends CollectionType<List<T>>
 
     public ListSerializer<T> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return serializer;
     }
 
     @Override
     public AbstractType<?> freeze()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         if (isMultiCell)
             return getInstance(this.elements, false);
         else
@@ -167,6 +174,7 @@ public class ListType<T> extends CollectionType<List<T>>
     static int compareListOrSet(AbstractType<?> elementsComparator, ByteBuffer o1, ByteBuffer o2)
     {
         // Note that this is only used if the collection is frozen
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -178,6 +186,7 @@ public class ListType<T> extends CollectionType<List<T>>
 
         for (int i = 0; i < Math.min(size1, size2); i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             ByteBuffer v1 = CollectionSerializer.readValue(bb1, ProtocolVersion.V3);
             ByteBuffer v2 = CollectionSerializer.readValue(bb2, ProtocolVersion.V3);
             int cmp = elementsComparator.compare(v1, v2);
@@ -193,6 +202,7 @@ public class ListType<T> extends CollectionType<List<T>>
     {
         boolean includeFrozenType = !ignoreFreezing && !isMultiCell();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         StringBuilder sb = new StringBuilder();
         if (includeFrozenType)
             sb.append(FrozenType.class.getName()).append("(");
@@ -206,6 +216,7 @@ public class ListType<T> extends CollectionType<List<T>>
     public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
         assert isMultiCell;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
         while (cells.hasNext())
             bbs.add(cells.next().value());
@@ -215,9 +226,11 @@ public class ListType<T> extends CollectionType<List<T>>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         if (parsed instanceof String)
             parsed = Json.decodeJson((String) parsed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(
                     "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
@@ -236,6 +249,7 @@ public class ListType<T> extends CollectionType<List<T>>
 
     public static String setOrListToJsonString(ByteBuffer buffer, AbstractType elementsType, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13592
         ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
         int size = CollectionSerializer.readCollectionSize(value, protocolVersion);
@@ -251,6 +265,7 @@ public class ListType<T> extends CollectionType<List<T>>
     public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to)
     {
         // We don't support slicing on lists so we don't need that function
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         throw new UnsupportedOperationException();
     }
 

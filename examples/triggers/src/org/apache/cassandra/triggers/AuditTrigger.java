@@ -45,6 +45,7 @@ public class AuditTrigger implements ITrigger
 
         audit.row()
              .add("keyspace_name", update.metadata().keyspace)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13796
              .add("table_name", update.metadata().name)
              .add("primary_key", update.metadata().partitionKeyType.getString(update.partitionKey().getKey()));
 

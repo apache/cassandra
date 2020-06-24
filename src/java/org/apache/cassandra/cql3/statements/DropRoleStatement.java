@@ -35,6 +35,7 @@ public class DropRoleStatement extends AuthenticationStatement
 
     public DropRoleStatement(RoleName name, boolean ifExists)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         this.role = RoleResource.role(name.getName());
         this.ifExists = ifExists;
     }
@@ -74,6 +75,7 @@ public class DropRoleStatement extends AuthenticationStatement
         DatabaseDescriptor.getRoleManager().dropRole(state.getUser(), role);
         DatabaseDescriptor.getAuthorizer().revokeAllFrom(role);
         DatabaseDescriptor.getAuthorizer().revokeAllOn(role);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         DatabaseDescriptor.getNetworkAuthorizer().drop(role);
         return null;
     }
@@ -81,6 +83,7 @@ public class DropRoleStatement extends AuthenticationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 

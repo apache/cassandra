@@ -33,6 +33,7 @@ import com.google.common.util.concurrent.RateLimiter;
  */
 public class LimitingRebufferer implements Rebufferer, Rebufferer.BufferHolder
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
     final private Rebufferer wrapped;
     final private RateLimiter limiter;
     final private int limitQuant;

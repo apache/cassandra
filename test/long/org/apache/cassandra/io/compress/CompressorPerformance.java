@@ -31,10 +31,13 @@ public class CompressorPerformance
 
     public static void testPerformances() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         for (ICompressor compressor: new ICompressor[] {
                 SnappyCompressor.instance,  // warm up
                 DeflateCompressor.instance,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
                 LZ4Compressor.create(Collections.emptyMap()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
                 SnappyCompressor.instance,
                 ZstdCompressor.getOrCreate(ZstdCompressor.FAST_COMPRESSION_LEVEL),
                 ZstdCompressor.getOrCreate(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL)
@@ -72,6 +75,7 @@ public class CompressorPerformance
         int count = 100;
 
         long time = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         long uncompressedBytes = 0;
         long compressedBytes = 0;
         for (int i=0; i<count; ++i)
@@ -108,6 +112,7 @@ public class CompressorPerformance
                           Math.scalb(1.0e9, -20) * count * len / timec,
                           1.0 * timed / (count * len),
                           Math.scalb(1.0e9, -20) * count * len / timed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
                           ((double) uncompressedBytes) / ((double) compressedBytes),
                           checksum == 0 ? " " : "");
     }

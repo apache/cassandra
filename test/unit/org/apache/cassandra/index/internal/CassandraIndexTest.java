@@ -64,6 +64,8 @@ public class CassandraIndexTest extends CQLTester
                         .target("v")
                         .withFirstRow(row(0, 0, 0))
                         .withSecondRow(row(1, 1, 1))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("v=0")
                         .secondQueryExpression("v=1")
@@ -75,6 +77,7 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void testIndexOnPartitionKeyWithPartitionWithoutRows() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13666
         createTable("CREATE TABLE %s (pk1 int, pk2 int, c int, s int static, v int, PRIMARY KEY((pk1, pk2), c))");
         createIndex("CREATE INDEX ON %s (pk2)");
 
@@ -107,6 +110,7 @@ public class CassandraIndexTest extends CQLTester
                         .target("c")
                         .withFirstRow(row(0, 0, 0))
                         .withSecondRow(row(1, 1, 1))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("c=0")
                         .secondQueryExpression("c=1")
@@ -137,6 +141,7 @@ public class CassandraIndexTest extends CQLTester
                         .target("k1")
                         .withFirstRow(row(0, 0, 0, 0, 0))
                         .withSecondRow(row(1, 1, 1, 1, 1))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("k1=0")
                         .secondQueryExpression("k1=1")
@@ -151,6 +156,7 @@ public class CassandraIndexTest extends CQLTester
                         .target("k2")
                         .withFirstRow(row(0, 0, 0, 0, 0))
                         .withSecondRow(row(1, 1, 1, 1, 1))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("k2=0")
                         .secondQueryExpression("k2=1")
@@ -179,6 +185,8 @@ public class CassandraIndexTest extends CQLTester
                         .target("l")
                         .withFirstRow(row(0, 0, Lists.newArrayList(10, 20, 30)))
                         .withSecondRow(row(1, 1, Lists.newArrayList(11, 21, 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("l CONTAINS 10")
                         .secondQueryExpression("l CONTAINS 11")
@@ -209,6 +217,8 @@ public class CassandraIndexTest extends CQLTester
                         .target("s")
                         .withFirstRow(row(0, 0, Sets.newHashSet(10, 20, 30)))
                         .withSecondRow(row(1, 1, Sets.newHashSet(11, 21, 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("s CONTAINS 10")
                         .secondQueryExpression("s CONTAINS 11")
@@ -239,6 +249,8 @@ public class CassandraIndexTest extends CQLTester
                         .target("m")
                         .withFirstRow(row(0, 0, ImmutableMap.of("a", 10, "b", 20, "c", 30)))
                         .withSecondRow(row(1, 1, ImmutableMap.of("d", 11, "e", 21, "f", 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("m CONTAINS 10")
                         .secondQueryExpression("m CONTAINS 11")
@@ -269,6 +281,8 @@ public class CassandraIndexTest extends CQLTester
                         .target("keys(m)")
                         .withFirstRow(row(0, 0, ImmutableMap.of("a", 10, "b", 20, "c", 30)))
                         .withSecondRow(row(1, 1, ImmutableMap.of("d", 11, "e", 21, "f", 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("m CONTAINS KEY 'a'")
                         .secondQueryExpression("m CONTAINS KEY 'd'")
@@ -299,6 +313,8 @@ public class CassandraIndexTest extends CQLTester
                         .target("entries(m)")
                         .withFirstRow(row(0, 0, ImmutableMap.of("a", 10, "b", 20, "c", 30)))
                         .withSecondRow(row(1, 1, ImmutableMap.of("d", 11, "e", 21, "f", 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("m['a'] = 10")
                         .secondQueryExpression("m['d'] = 11")
@@ -314,6 +330,7 @@ public class CassandraIndexTest extends CQLTester
                         .target("full(l)")
                         .withFirstRow(row(0, 0, Lists.newArrayList(10, 20, 30)))
                         .withSecondRow(row(1, 1, Lists.newArrayList(11, 21, 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("l = [10, 20, 30]")
                         .secondQueryExpression("l = [11, 21, 31]")
@@ -329,6 +346,7 @@ public class CassandraIndexTest extends CQLTester
                         .target("full(s)")
                         .withFirstRow(row(0, 0, Sets.newHashSet(10, 20, 30)))
                         .withSecondRow(row(1, 1, Sets.newHashSet(11, 21, 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("s = {10, 20, 30}")
                         .secondQueryExpression("s = {11, 21, 31}")
@@ -344,6 +362,7 @@ public class CassandraIndexTest extends CQLTester
                         .target("full(m)")
                         .withFirstRow(row(0, 0, ImmutableMap.of("a", 10, "b", 20, "c", 30)))
                         .withSecondRow(row(1, 1, ImmutableMap.of("d", 11, "e", 21, "f", 31)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                         .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("m = {'a':10, 'b':20, 'c':30}")
                         .secondQueryExpression("m = {'d':11, 'e':21, 'f':31}")
@@ -355,6 +374,7 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexOnStaticColumn() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13277
         Object[] row1 = row("k0", "c0", "s0");
         Object[] row2 = row("k0", "c1", "s0");
         Object[] row3 = row("k1", "c0", "s1");
@@ -406,6 +426,7 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexOnClusteringColumnWithoutRegularColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13400
         Object[] row1 = row("k0", "c0");
         Object[] row2 = row("k0", "c1");
         Object[] row3 = row("k1", "c0");
@@ -437,6 +458,7 @@ public class CassandraIndexTest extends CQLTester
         Object[] row1 = row(0, 0, ImmutableMap.of("a", 10, "b", 20, "c", 30));
         Object[] row2 = row(1, 1, ImmutableMap.of("d", 11, "e", 21, "f", 32));
         createTable("CREATE TABLE %s (k int, c int, m map<text, int>, PRIMARY KEY(k, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13427
         createIndex("CREATE INDEX ON %s(keys(m))");
         createIndex("CREATE INDEX ON %s(m)");
 
@@ -455,6 +477,7 @@ public class CassandraIndexTest extends CQLTester
         int key = 0;
         int indexedValue = 99;
         createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY(k))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13427
         createIndex("CREATE INDEX ON %s(v)");
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", key, indexedValue);
 
@@ -470,6 +493,7 @@ public class CassandraIndexTest extends CQLTester
         int indexedVal = 2;
         int initialTtl = 3600;
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k,c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12834
         createIndex("CREATE INDEX ON %s(c)");
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, 0) USING TTL ?", basePk, indexedVal, initialTtl);
         ColumnFamilyStore baseCfs = getCurrentColumnFamilyStore();
@@ -544,12 +568,14 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexCorrectlyMarkedAsBuildAndRemoved() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15565
         String selectBuiltIndexesQuery = String.format("SELECT * FROM %s.\"%s\"",
                                                        SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                                        SystemKeyspace.BUILT_INDEXES);
         UntypedResultSet rs = execute(selectBuiltIndexesQuery);
         int initialSize = rs.size();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10601
         String indexName = "build_remove_test_idx";
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
@@ -691,6 +717,7 @@ public class CassandraIndexTest extends CQLTester
 
             // first, create the table as we need the Tablemetadata to build the other cql statements
             String tableName = createTable(tableDefinition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13427
 
             indexName = String.format("index_%s_%d", tableName, indexCounter++);
 
@@ -727,6 +754,7 @@ public class CassandraIndexTest extends CQLTester
             assertEmpty(execute(selectSecondRowCql));
 
             // reload the base cfs and verify queries still work as expected
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10604
             getCurrentColumnFamilyStore().reload();
             assertRows(execute(selectFirstRowCql), firstRow);
             assertEmpty(execute(selectSecondRowCql));
@@ -874,6 +902,7 @@ public class CassandraIndexTest extends CQLTester
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
             long maxWaitMillis = 10000;
             long startTime = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
             while (! cfs.indexManager.getBuiltIndexNames().contains(indexName))
             {
                 Thread.sleep(100);

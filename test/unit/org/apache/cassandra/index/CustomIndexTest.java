@@ -70,6 +70,7 @@ public class CustomIndexTest extends CQLTester
         // see CASSANDRA-10181
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'org.apache.cassandra.index.internal.CustomCassandraIndex'");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 2);
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, 1);
@@ -82,6 +83,7 @@ public class CustomIndexTest extends CQLTester
         // deadlocks and times out the test in the face of the synchronisation
         // issues described in the comments on CASSANDRA-9669
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'org.apache.cassandra.index.StubIndex'");
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 2);
         getCurrentColumnFamilyStore().truncateBlocking();
@@ -163,6 +165,7 @@ public class CustomIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY (k,c))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Duplicate column 'v1' in index target list",
                              String.format("CREATE CUSTOM INDEX ON %%s(v1, v1) USING '%s'",
                                            StubIndex.class.getName()));
@@ -352,6 +355,7 @@ public class CustomIndexTest extends CQLTester
     {
         Object[] row = row(0, 0, 0, 0);
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12353
         String indexName = currentTable() + "_custom_index";
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", row);
 
@@ -361,17 +365,20 @@ public class CustomIndexTest extends CQLTester
 
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'", indexName, StubIndex.class.getName()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", currentTableMetadata().toString()),
                                   QueryValidationException.class,
                                   "SELECT * FROM %s WHERE expr(no_such_index, 'foo bar baz ')");
 
         // simple case
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12353
         assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName)), row);
         assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(\"%s\", 'foo bar baz')", indexName)), row);
         assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(%s, $$foo \" ~~~ bar Baz$$)", indexName)), row);
 
         // multiple expressions on the same index
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   IndexRestrictions.MULTIPLE_EXPRESSIONS,
                                   QueryValidationException.class,
@@ -380,6 +387,7 @@ public class CustomIndexTest extends CQLTester
 
         // multiple expressions on different indexes
         createIndex(String.format("CREATE CUSTOM INDEX other_custom_index ON %%s(d) USING '%s'", StubIndex.class.getName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   IndexRestrictions.MULTIPLE_EXPRESSIONS,
                                   QueryValidationException.class,
@@ -387,6 +395,7 @@ public class CustomIndexTest extends CQLTester
                                                 indexName));
 
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                                   StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                   QueryValidationException.class,
                                   String.format("SELECT * FROM %%s WHERE expr(%s, 'foo') AND d=0", indexName));
@@ -401,6 +410,7 @@ public class CustomIndexTest extends CQLTester
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'",
                                   indexName,
                                   NoCustomExpressionsIndex.class.getName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   String.format( IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, indexName),
                                   QueryValidationException.class,
@@ -415,6 +425,7 @@ public class CustomIndexTest extends CQLTester
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'",
                                   indexName,
                                   AlwaysRejectIndex.class.getName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   "None shall pass",
                                   QueryValidationException.class,
@@ -426,6 +437,7 @@ public class CustomIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex("CREATE INDEX non_custom_index ON %s(c)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   String.format(IndexRestrictions.NON_CUSTOM_INDEX_IN_EXPRESSION, "non_custom_index"),
                                   QueryValidationException.class,
@@ -436,10 +448,12 @@ public class CustomIndexTest extends CQLTester
     public void customExpressionsDisallowedInModifications() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11453
         String indexName = currentTable() + "_custom_index";
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'",
                                   indexName, StubIndex.class.getName()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
                                   QueryValidationException.class,
@@ -453,6 +467,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void indexSelectionPrefersMostSelectiveIndex() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10435
         createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a))");
         createIndex(String.format("CREATE CUSTOM INDEX %s_more_selective ON %%s(b) USING '%s'",
                                   currentTable(),
@@ -484,7 +499,9 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void customExpressionForcesIndexSelection() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10436
         createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11453
         createIndex(String.format("CREATE CUSTOM INDEX %s_more_selective ON %%s(b) USING '%s'",
                                   currentTable(),
                                   SettableSelectivityIndex.class.getName()));
@@ -506,6 +523,7 @@ public class CustomIndexTest extends CQLTester
         assertEquals(0, lessSelective.searchersProvided);
 
         // when a custom expression is present, its target index should be preferred
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11453
         execute(String.format("SELECT * FROM %%s WHERE b=0 AND expr(%s_less_selective, 'expression') ALLOW FILTERING", currentTable()));
         assertEquals(1, moreSelective.searchersProvided);
         assertEquals(1, lessSelective.searchersProvided);
@@ -522,6 +540,7 @@ public class CustomIndexTest extends CQLTester
                                   UTF8ExpressionIndex.class.getName()));
 
         execute("SELECT * FROM %s WHERE expr(text_index, 'foo')");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   "Invalid INTEGER constant (99) for \"custom index expression\" of type text",
                                   QueryValidationException.class,
@@ -539,6 +558,7 @@ public class CustomIndexTest extends CQLTester
     {
         // verify that whenever the base table TableMetadata is reloaded, a reload of the index
         // metadata is performed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10604
         createTable("CREATE TABLE %s (k int, v1 int, PRIMARY KEY(k))");
         createIndex(String.format("CREATE CUSTOM INDEX reload_counter ON %%s() USING '%s'",
                                   CountMetadataReloadsIndex.class.getName()));
@@ -554,6 +574,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void notifyIndexersOfPartitionAndRowRemovalDuringCleanup() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10685
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k,c))");
         createIndex(String.format("CREATE CUSTOM INDEX cleanup_index ON %%s() USING '%s'", StubIndex.class.getName()));
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -583,6 +604,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void notifyIndexersOfExpiredRowsDuringCompaction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11329
         createTable("CREATE TABLE %s (k int, c int, PRIMARY KEY (k,c))");
         createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index ON %%s() USING '%s'", StubIndex.class.getName()));
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -609,6 +631,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void validateOptions() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10924
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY(k,c))");
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v2) USING '%s' WITH OPTIONS = {'foo':'bar'}",
                                   IndexWithValidateOptions.class.getName()));
@@ -631,6 +654,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void testFailing2iFlush() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12956
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, value int)");
         createIndex("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(value) USING 'org.apache.cassandra.index.CustomIndexTest$BrokenCustom2I'");
 
@@ -684,6 +708,7 @@ public class CustomIndexTest extends CQLTester
         assertTrue(index.writeGroups.size() > 1);
         assertFalse(index.readOrderingAtFinish.isBlocking());
         index.writeGroups.forEach(group -> assertFalse(group.isBlocking()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15757
         index.readBarriers.forEach(b -> assertTrue(b.getSyncPoint().isFinished()));
         index.writeBarriers.forEach(b -> {
             b.await(); // Keyspace.writeOrder is global, so this might be temporally blocked by other tests
@@ -694,6 +719,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void partitionIndexTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13075
         createTable("CREATE TABLE %s(k int, c int, v int, s int static, PRIMARY KEY(k,c))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -800,6 +826,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void rangeTombstoneTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14794
         createTable("CREATE TABLE %s(k int, c int, v int, v2 int, PRIMARY KEY(k,c))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         SecondaryIndexManager indexManager = cfs.indexManager;
@@ -889,6 +916,7 @@ public class CustomIndexTest extends CQLTester
 
         public CountMetadataReloadsIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10604
             super(baseCfs, metadata);
         }
 
@@ -921,6 +949,7 @@ public class CustomIndexTest extends CQLTester
     {
         public UTF8ExpressionIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10436
             super(baseCfs, metadata);
         }
 
@@ -950,6 +979,7 @@ public class CustomIndexTest extends CQLTester
 
         public SettableSelectivityIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10435
             super(baseCfs, metadata);
         }
 
@@ -987,6 +1017,7 @@ public class CustomIndexTest extends CQLTester
     {
         public NoCustomExpressionsIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
             super(baseCfs, metadata);
         }
 
@@ -1010,6 +1041,7 @@ public class CustomIndexTest extends CQLTester
 
         public Searcher searcherFor(ReadCommand command)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11043
             throw new InvalidRequestException("None shall pass (though I'd have expected to fail faster)");
         }
     }
@@ -1020,6 +1052,7 @@ public class CustomIndexTest extends CQLTester
 
         public IndexWithValidateOptions(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10924
             super(baseCfs, metadata);
         }
 
@@ -1056,6 +1089,7 @@ public class CustomIndexTest extends CQLTester
         OpOrder.Group readOrderingAtStart = null;
         OpOrder.Group readOrderingAtFinish = null;
         Set<OpOrder.Group> writeGroups = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15757
         List<OpOrder.Barrier> readBarriers = new ArrayList<>();
         List<OpOrder.Barrier> writeBarriers = new ArrayList<>();
 
@@ -1084,6 +1118,7 @@ public class CustomIndexTest extends CQLTester
         public Indexer indexerFor(final DecoratedKey key,
                                   RegularAndStaticColumns columns,
                                   int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                   WriteContext ctx,
                                   IndexTransaction.Type transactionType)
         {
@@ -1103,6 +1138,7 @@ public class CustomIndexTest extends CQLTester
                     // indexing of a partition
                     OpOrder.Barrier readBarrier = baseCfs.readOrdering.newBarrier();
                     readBarrier.issue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15757
                     readBarriers.add(readBarrier);
                     OpOrder.Barrier writeBarrier = Keyspace.writeOrder.newBarrier();
                     writeBarrier.issue();

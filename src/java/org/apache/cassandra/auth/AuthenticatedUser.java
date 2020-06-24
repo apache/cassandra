@@ -48,7 +48,9 @@ public class AuthenticatedUser
 
     public AuthenticatedUser(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
         this.name = name;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         this.role = RoleResource.role(name);
     }
 
@@ -59,6 +61,7 @@ public class AuthenticatedUser
 
     public RoleResource getPrimaryRole()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         return role;
     }
 
@@ -70,6 +73,7 @@ public class AuthenticatedUser
      */
     public boolean isSuper()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8849
         return !isAnonymous() && Roles.hasSuperuserStatus(role);
     }
 
@@ -88,6 +92,7 @@ public class AuthenticatedUser
      */
     public boolean isSystem()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7216
         return this == SYSTEM_USER;
     }
 
@@ -98,6 +103,7 @@ public class AuthenticatedUser
      */
     public Set<RoleResource> getRoles()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8849
         return Roles.getRoles(role);
     }
 
@@ -136,6 +142,7 @@ public class AuthenticatedUser
      */
     public boolean hasLocalAccess()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         return networkAuthCache.get(this.getPrimaryRole()).canAccess(Datacenters.thisDatacenter());
     }
 
@@ -148,6 +155,7 @@ public class AuthenticatedUser
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4295
         if (this == o)
             return true;
 

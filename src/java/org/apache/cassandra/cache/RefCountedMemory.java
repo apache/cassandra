@@ -42,6 +42,7 @@ public class RefCountedMemory extends Memory implements AutoCloseable
             int n = UPDATER.get(this);
             if (n <= 0)
                 return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6278
             if (UPDATER.compareAndSet(this, n, n + 1))
                 return true;
         }
@@ -50,7 +51,9 @@ public class RefCountedMemory extends Memory implements AutoCloseable
     /** decrement reference count.  if count reaches zero, the object is freed. */
     public void unreference()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6278
         if (UPDATER.decrementAndGet(this) == 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
             super.free();
     }
 

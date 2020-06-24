@@ -60,11 +60,13 @@ public class InstanceConfig implements IInstanceConfig
     private volatile InetAddressAndPort broadcastAddressAndPort;
 
     private InstanceConfig(int num,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
                            NetworkTopology networkTopology,
                            String broadcast_address,
                            String listen_address,
                            String broadcast_rpc_address,
                            String rpc_address,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15447
                            String seedIp,
                            int seedPort,
                            String saved_caches_directory,
@@ -77,8 +79,10 @@ public class InstanceConfig implements IInstanceConfig
                            int native_transport_port)
     {
         this.num = num;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
         this.networkTopology = networkTopology;
         this.hostId = java.util.UUID.randomUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
         this    .set("num_tokens", 1)
                 .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)
@@ -91,6 +95,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("cdc_raw_directory", cdc_raw_directory)
                 .set("initial_token", initial_token)
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
                 .set("start_native_transport", true)
                 .set("concurrent_writes", 2)
                 .set("concurrent_counter_writes", 2)
@@ -107,6 +112,7 @@ public class InstanceConfig implements IInstanceConfig
                         Collections.singletonMap("seeds", seedIp + ":" + seedPort)))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
                 .set("auto_bootstrap", false)
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity_in_mb", 50l)
@@ -114,15 +120,18 @@ public class InstanceConfig implements IInstanceConfig
                 .set("key_cache_size_in_mb", 50l)
                 // legacy parameters
                 .forceSet("commitlog_sync_batch_window_in_ms", 1.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         this.featureFlags = EnumSet.noneOf(Feature.class);
     }
 
     private InstanceConfig(InstanceConfig copy)
     {
         this.num = copy.num;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
         this.networkTopology = new NetworkTopology(copy.networkTopology);
         this.params.putAll(copy.params);
         this.hostId = copy.hostId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         this.featureFlags = copy.featureFlags;
         this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
     }
@@ -131,6 +140,7 @@ public class InstanceConfig implements IInstanceConfig
     @Override
     public InetSocketAddress broadcastAddress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return DistributedTestSnitch.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
     }
 
@@ -138,6 +148,7 @@ public class InstanceConfig implements IInstanceConfig
     {
         if (broadcastAddressAndPort == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
             broadcastAddressAndPort = getAddressAndPortFromConfig("broadcast_address", "storage_port");
         }
         return broadcastAddressAndPort;
@@ -173,6 +184,7 @@ public class InstanceConfig implements IInstanceConfig
 
     public InstanceConfig with(Feature... flags)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         for (Feature flag : flags)
             featureFlags.add(flag);
         return this;
@@ -205,11 +217,13 @@ public class InstanceConfig implements IInstanceConfig
     public void propagate(Object writeToConfig, Map<Class<?>, Function<Object, Object>> mapping)
     {
         for (Map.Entry<String, Object> e : params.entrySet())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
             propagate(writeToConfig, e.getKey(), e.getValue(), mapping);
     }
 
     public void validate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
         if (((int) get("num_tokens")) > 1)
             throw new IllegalArgumentException("In-JVM dtests do not support vnodes as of now.");
     }
@@ -219,6 +233,7 @@ public class InstanceConfig implements IInstanceConfig
         if (value == NULL)
             value = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         if (mapping != null && mapping.containsKey(value.getClass()))
             value = mapping.get(value.getClass()).apply(value);
 
@@ -230,7 +245,9 @@ public class InstanceConfig implements IInstanceConfig
         }
         catch (NoSuchFieldException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15708
             logger.warn("No such field: {} in config class {}", fieldName, configClass);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15708
             return;
         }
 
@@ -246,8 +263,10 @@ public class InstanceConfig implements IInstanceConfig
         {
             valueField.set(writeToConfig, value);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
         catch (IllegalAccessException | IllegalArgumentException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
             throw new IllegalStateException(e);
         }
     }

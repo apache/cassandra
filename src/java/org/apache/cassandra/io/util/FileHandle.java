@@ -346,6 +346,7 @@ public class FileHandle extends SharedCloseableImpl
             if (channel == null)
             {
                 channel = new ChannelProxy(path);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
                 channelOpened = true;
             }
 
@@ -382,6 +383,7 @@ public class FileHandle extends SharedCloseableImpl
                     else
                     {
                         int chunkSize = DiskOptimizationStrategy.roundForCaching(bufferSize, ChunkCache.roundUp);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13897
                         rebuffererFactory = maybeCached(new SimpleChunkReader(channelCopy, length, bufferType, chunkSize));
                     }
                 }
@@ -391,6 +393,7 @@ public class FileHandle extends SharedCloseableImpl
             catch (Throwable t)
             {
                 channelCopy.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
                 if (channelOpened)
                 {
                     ChannelProxy c = channel;

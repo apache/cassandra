@@ -206,6 +206,7 @@ public interface ColumnFamilyStoreMBean
     public List<CompositeData> finishLocalSampling(String sampler, int count) throws OpenDataException;
 
     /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12180
         Is Compaction space check enabled
      */
     public boolean isCompactionDiskSpaceCheckEnabled();

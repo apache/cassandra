@@ -76,6 +76,7 @@ public class UnfilteredRowIteratorSerializer
     // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, ColumnFilter selection, DataOutputPlus out, int version) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
         serialize(iterator, selection, out, version, -1);
     }
 
@@ -84,6 +85,7 @@ public class UnfilteredRowIteratorSerializer
     public void serialize(UnfilteredRowIterator iterator, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         SerializationHeader header = new SerializationHeader(false,
                                                              iterator.metadata(),
                                                              iterator.columns(),
@@ -96,8 +98,10 @@ public class UnfilteredRowIteratorSerializer
     public void serialize(UnfilteredRowIterator iterator, SerializationHeader header, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
         assert !header.isForSSTable();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
 
         ByteBufferUtil.writeWithVIntLength(iterator.partitionKey().getKey(), out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9801
 
         int flags = 0;
         if (iterator.isReverseOrder())
@@ -122,17 +126,21 @@ public class UnfilteredRowIteratorSerializer
 
         out.writeByte((byte)flags);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
         SerializationHeader.serializer.serializeForMessaging(header, selection, out, hasStatic);
         SerializationHelper helper = new SerializationHelper(header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         if (!partitionDeletion.isLive())
             header.writeDeletionTime(partitionDeletion, out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
         if (hasStatic)
             UnfilteredSerializer.serializer.serialize(staticRow, helper, out, version);
 
         if (rowEstimate >= 0)
             out.writeUnsignedVInt(rowEstimate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
 
         while (iterator.hasNext())
             UnfilteredSerializer.serializer.serialize(iterator.next(), helper, out, version);
@@ -143,15 +151,18 @@ public class UnfilteredRowIteratorSerializer
     // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate/ArrayBackedCachedPartition.
     public long serializedSize(UnfilteredRowIterator iterator, ColumnFilter selection, int version, int rowEstimate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         SerializationHeader header = new SerializationHeader(false,
                                                              iterator.metadata(),
                                                              iterator.columns(),
                                                              iterator.stats());
 
         SerializationHelper helper = new SerializationHelper(header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         assert rowEstimate >= 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9801
         long size = ByteBufferUtil.serializedSizeWithVIntLength(iterator.partitionKey().getKey())
                   + 1; // flags
 
@@ -163,15 +174,19 @@ public class UnfilteredRowIteratorSerializer
         boolean hasStatic = staticRow != Rows.EMPTY_STATIC_ROW;
 
         size += SerializationHeader.serializer.serializedSizeForMessaging(header, selection, hasStatic);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
 
         if (!partitionDeletion.isLive())
             size += header.deletionTimeSerializedSize(partitionDeletion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
         if (hasStatic)
             size += UnfilteredSerializer.serializer.serializedSize(staticRow, helper, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         if (rowEstimate >= 0)
             size += TypeSizes.sizeofUnsignedVInt(rowEstimate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
 
         while (iterator.hasNext())
             size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), helper, version);
@@ -196,8 +211,10 @@ public class UnfilteredRowIteratorSerializer
         boolean hasRowEstimate = (flags & HAS_ROW_ESTIMATE) != 0;
 
         SerializationHeader header = SerializationHeader.serializer.deserializeForMessaging(in, metadata, selection, hasStatic);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
 
         DeletionTime partitionDeletion = hasPartitionDeletion ? header.readDeletionTime(in) : DeletionTime.LIVE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
         Row staticRow = Rows.EMPTY_STATIC_ROW;
         if (hasStatic)
@@ -211,7 +228,9 @@ public class UnfilteredRowIteratorSerializer
     {
         if (header.isEmpty)
             return EmptyIterators.unfilteredRow(metadata, header.key, header.isReversed);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         final DeserializationHelper helper = new DeserializationHelper(metadata, version, flag);
         final SerializationHeader sHeader = header.sHeader;
         return new AbstractUnfilteredRowIterator(metadata, header.key, header.partitionDeletion, sHeader.columns(), header.staticRow, header.isReversed, sHeader.stats())
@@ -268,6 +287,7 @@ public class UnfilteredRowIteratorSerializer
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
             return String.format("{header=%s, key=%s, isReversed=%b, isEmpty=%b, del=%s, staticRow=%s, rowEstimate=%d}",
                                  sHeader, key, isReversed, isEmpty, partitionDeletion, staticRow, rowEstimate);
         }

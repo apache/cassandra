@@ -36,6 +36,7 @@ public class ClientRequestMetrics extends LatencyMetrics
     {
         super("ClientRequest", scope);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
         unavailables = Metrics.meter(factory.createMetricName("Unavailables"));
         failures = Metrics.meter(factory.createMetricName("Failures"));

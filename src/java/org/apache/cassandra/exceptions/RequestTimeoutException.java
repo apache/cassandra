@@ -35,6 +35,7 @@ public class RequestTimeoutException extends RequestExecutionException
 
     protected RequestTimeoutException(ExceptionCode code, ConsistencyLevel consistency, int received, int blockFor, String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         super(code, msg);
         this.consistency = consistency;
         this.received = received;

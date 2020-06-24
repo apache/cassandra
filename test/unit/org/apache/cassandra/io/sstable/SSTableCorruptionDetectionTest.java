@@ -76,6 +76,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
     public static void setUp()
     {
         // this test writes corrupted data on purpose, disable corrupted tombstone detection
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         original = DatabaseDescriptor.getCorruptedTombstoneStrategy();
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.disabled);
         TableMetadata.Builder cfm =
@@ -92,6 +93,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
         cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
         maxValueSize = DatabaseDescriptor.getMaxValueSize();
         DatabaseDescriptor.setMaxValueSize(1024 * 1024);
 
@@ -128,9 +130,11 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
     public static void tearDown()
     {
         DatabaseDescriptor.setMaxValueSize(maxValueSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
 
         txn.abort();
         writer.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         DatabaseDescriptor.setCorruptedTombstoneStrategy(original);
     }
 

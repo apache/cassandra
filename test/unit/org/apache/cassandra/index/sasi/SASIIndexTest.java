@@ -150,6 +150,7 @@ public class SASIIndexTest
 
         Set<String> rows;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
 
@@ -195,6 +196,7 @@ public class SASIIndexTest
 
         ColumnFamilyStore store = loadData(data, forceFlush);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         Set<String> rows= getIndexed(store, 10, buildExpression(UTF8Type.instance.decompose("first_name"), Operator.LIKE_MATCHES, UTF8Type.instance.decompose("doesntmatter")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{}, rows.toArray(new String[rows.size()])));
     }
@@ -224,6 +226,7 @@ public class SASIIndexTest
 
         Set<String> rows;
         rows = getIndexed(store, 10,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(14)));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
@@ -336,6 +339,7 @@ public class SASIIndexTest
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key11", "key12", "key13", "key14",
                                                                         "key3", "key4", "key6", "key7", "key8" }, rows.toArray(new String[rows.size()])));
@@ -422,6 +426,7 @@ public class SASIIndexTest
         final ByteBuffer age = UTF8Type.instance.decompose("age");
 
         Set<String> rows = getIndexed(store, 10,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                 buildExpression(firstName, Operator.LIKE_CONTAINS,
                         UTF8Type.instance.decompose("What you get by achieving your goals")),
                 buildExpression(age, Operator.GT, Int32Type.instance.decompose(32)));
@@ -437,6 +442,7 @@ public class SASIIndexTest
     @Test
     public void testPrefixSearchWithContainsMode() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12073
         testPrefixSearchWithContainsMode(false);
         cleanupData();
         testPrefixSearchWithContainsMode(true);
@@ -517,6 +523,7 @@ public class SASIIndexTest
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key11", "key12", "key13", "key14",
                                                                         "key3", "key4", "key6", "key7", "key8" }, rows.toArray(new String[rows.size()])));
@@ -556,6 +563,7 @@ public class SASIIndexTest
         store = loadData(part4, forceFlush);
 
         rows = getIndexed(store, 10,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                           buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Susana")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(13)),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(10)));
@@ -571,6 +579,7 @@ public class SASIIndexTest
         Assert.assertTrue(rows.toString(), rows.size() == 0);
 
         rows = getIndexed(store, 10,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(10)));
 
@@ -648,6 +657,7 @@ public class SASIIndexTest
         final ByteBuffer age = UTF8Type.instance.decompose("age");
 
         Set<DecoratedKey> uniqueKeys = getPaged(store, 4,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                 buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                 buildExpression(age, Operator.GTE, Int32Type.instance.decompose(21)));
 
@@ -676,6 +686,7 @@ public class SASIIndexTest
         // now let's test a single equals condition
 
         uniqueKeys = getPaged(store, 4, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
         expected = new ArrayList<String>()
         {{
@@ -716,6 +727,8 @@ public class SASIIndexTest
         // the same but with the page size of 2 to test minimal pagination windows
 
         uniqueKeys = getPaged(store, 2,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                               buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                               buildExpression(age, Operator.EQ, Int32Type.instance.decompose(36)));
 
@@ -747,6 +760,7 @@ public class SASIIndexTest
 
         Set<String> rows;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name LIKE '%%a%%' limit 10 ALLOW FILTERING;", KS_NAME, CF_NAME));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key03", "key04", "key09", "key13", "key14", "key16", "key20", "key22", "key24", "key25" }, rows.toArray(new String[rows.size()])));
 
@@ -778,6 +792,7 @@ public class SASIIndexTest
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm1 = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key1")));
         rm1.add(PartitionUpdate.singleRowUpdate(store.metadata(),
                                                 rm1.key(),
@@ -786,6 +801,7 @@ public class SASIIndexTest
                                                                    AsciiType.instance.decompose("jason"),
                                                                    System.currentTimeMillis()))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm2 = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key2")));
         rm2.add(PartitionUpdate.singleRowUpdate(store.metadata(),
                                                 rm2.key(),
@@ -794,6 +810,7 @@ public class SASIIndexTest
                                                                    AsciiType.instance.decompose("pavel"),
                                                                    System.currentTimeMillis()))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm3 = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key3")));
         rm3.add(PartitionUpdate.singleRowUpdate(store.metadata(),
                                                 rm3.key(),
@@ -802,6 +819,7 @@ public class SASIIndexTest
                                                                    AsciiType.instance.decompose("Aleksey"),
                                                                    System.currentTimeMillis()))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         rm1.build().apply();
         rm2.build().apply();
         rm3.build().apply();
@@ -811,6 +829,7 @@ public class SASIIndexTest
 
         final ByteBuffer dataOutputId = UTF8Type.instance.decompose("/data/output/id");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Set<String> rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2" }, rows.toArray(new String[rows.size()])));
 
@@ -823,6 +842,7 @@ public class SASIIndexTest
 
         store.indexManager.invalidateAllIndexesBlocking();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), rows.isEmpty());
 
@@ -870,6 +890,7 @@ public class SASIIndexTest
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
         final ByteBuffer age = UTF8Type.instance.decompose("age");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Set<String> rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key0", "key3", "key4" }, rows.toArray(new String[rows.size()])));
 
@@ -878,6 +899,7 @@ public class SASIIndexTest
 
         store.indexManager.invalidateAllIndexesBlocking();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), rows.isEmpty());
 
@@ -897,6 +919,7 @@ public class SASIIndexTest
 
         loadData(part2, forceFlush);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key6", "key7" }, rows.toArray(new String[rows.size()])));
 
@@ -1027,6 +1050,7 @@ public class SASIIndexTest
 
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertEquals(rows.toString(), 16, rows.size());
 
@@ -1060,6 +1084,7 @@ public class SASIIndexTest
 
         loadData(part4, 4000, true);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertEquals(rows.toString(), 1, rows.size());
     }
@@ -1099,6 +1124,7 @@ public class SASIIndexTest
 
         int previousCount = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15528
         try
         {
             do
@@ -1107,6 +1133,7 @@ public class SASIIndexTest
                 // to make sure that concurrent updates don't interfere with reads, uses first_name and age
                 // indexes to test correctness of both Trie and SkipList ColumnIndex implementations.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                 Set<DecoratedKey> rows = getPaged(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                                                   buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
 
@@ -1116,11 +1143,13 @@ public class SASIIndexTest
             while (updates.get() < writeCount);
 
             // to make sure that after all of the writes are done we can read all "count" worth of rows
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             Set<DecoratedKey> rows = getPaged(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                             buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
             Assert.assertEquals(writeCount, rows.size());
         } finally {
             scheduler.shutdownNow();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
             Assert.assertTrue(scheduler.awaitTermination(1, TimeUnit.MINUTES));
         }
     }
@@ -1158,6 +1187,7 @@ public class SASIIndexTest
 
         loadData(data3, false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
 
@@ -1186,10 +1216,12 @@ public class SASIIndexTest
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
         final ByteBuffer age = UTF8Type.instance.decompose("age");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key1")));
         update(rm, new ArrayList<Cell>()
         {{
             add(buildCell(age, LongType.instance.decompose(26L), System.currentTimeMillis()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12130
             add(buildCell(firstName, AsciiType.instance.decompose("pavel"), System.currentTimeMillis()));
         }});
         rm.build().apply();
@@ -1207,6 +1239,7 @@ public class SASIIndexTest
     @Test
     public void testUnicodeSupport()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         testUnicodeSupport(false);
         cleanupData();
         testUnicodeSupport(true);
@@ -1218,12 +1251,13 @@ public class SASIIndexTest
 
         final ByteBuffer comment = UTF8Type.instance.decompose("comment");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, comment, UTF8Type.instance.decompose("ⓈⓅⒺⒸⒾⒶⓁ ⒞⒣⒜⒭⒮ and normal ones"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("ⓈⓅⒺⒸⒾⒶⓁ�?�⒞⒣⒜⒭⒮ and normal ones"), System.currentTimeMillis());
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
-        update(rm, comment, UTF8Type.instance.decompose("龍馭鬱"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("龍馭�?"), System.currentTimeMillis());
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
@@ -1231,34 +1265,35 @@ public class SASIIndexTest
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key4"));
-        update(rm, comment, UTF8Type.instance.decompose("レストラン"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("レストラ�?"), System.currentTimeMillis());
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key5"));
         update(rm, comment, UTF8Type.instance.decompose("ベンジャミン ウエスト"), System.currentTimeMillis());
         rm.build().apply();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         if (forceFlush)
             store.forceBlockingFlush();
 
         Set<String> rows;
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ⓈⓅⒺⒸⒾ")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ⓈⓅⒺⒸ�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("normal")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("鬱")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("馭鬱")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍馭鬱")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍馭�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャミン")));
@@ -1270,13 +1305,14 @@ public class SASIIndexTest
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("インディ")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャミ")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャ�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key5" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ン")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4", "key5" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("レストラン")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("レストラ�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
     }
 
@@ -1294,8 +1330,9 @@ public class SASIIndexTest
 
         final ByteBuffer comment = UTF8Type.instance.decompose("comment_suffix_split");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, comment, UTF8Type.instance.decompose("龍馭鬱"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("龍馭�?"), System.currentTimeMillis());
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
@@ -1303,48 +1340,50 @@ public class SASIIndexTest
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
-        update(rm, comment, UTF8Type.instance.decompose("レストラン"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("レストラ�?"), System.currentTimeMillis());
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key4"));
         update(rm, comment, UTF8Type.instance.decompose("ベンジャミン ウエスト"), System.currentTimeMillis());
         rm.build().apply();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         if (forceFlush)
             store.forceBlockingFlush();
 
         Set<String> rows;
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("鬱")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("馭鬱")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍馭鬱")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍馭�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャミン")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("トラン")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("トラ�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ディア")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ディ�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ジャミン")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ン")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ン")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("�?")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("ベンジャミン ウエスト")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
     }
@@ -1363,12 +1402,14 @@ public class SASIIndexTest
 
             final ByteBuffer bigValue = UTF8Type.instance.decompose(new String(randomBytes));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
             update(rm, comment, bigValue, System.currentTimeMillis());
             rm.build().apply();
 
             Set<String> rows;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
             rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, bigValue.duplicate()));
             Assert.assertEquals(0, rows.size());
 
@@ -1423,6 +1464,7 @@ public class SASIIndexTest
 
         try (ReadExecutionController controller = command.executionController())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller));
             Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
         }
@@ -1443,6 +1485,7 @@ public class SASIIndexTest
 
         final ByteBuffer fullName = UTF8Type.instance.decompose("/output/full-name/");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
         update(rm, fullName, UTF8Type.instance.decompose("美加 八田"), System.currentTimeMillis());
         rm.build().apply();
@@ -1460,7 +1503,7 @@ public class SASIIndexTest
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key5"));
-        update(rm, fullName, UTF8Type.instance.decompose("満枝 榎本"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("�?�? 榎本"), System.currentTimeMillis());
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key6"));
@@ -1483,6 +1526,7 @@ public class SASIIndexTest
         rows = getIndexed(store, 10, buildExpression(fullName, Operator.EQ, UTF8Type.instance.decompose("美加 八田")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(fullName, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("美加")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
@@ -1499,6 +1543,7 @@ public class SASIIndexTest
 
         final ByteBuffer comment = UTF8Type.instance.decompose("address");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
         update(rm, comment, UTF8Type.instance.decompose("577 Rogahn Valleys Apt. 178"), System.currentTimeMillis());
         rm.build().apply();
@@ -1516,6 +1561,7 @@ public class SASIIndexTest
 
         Set<String> rows;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("577 Rogahn Valleys")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
@@ -1575,6 +1621,7 @@ public class SASIIndexTest
         final ByteBuffer name = UTF8Type.instance.decompose("first_name_prefix");
 
         Mutation.PartitionUpdateCollector rm;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
         update(rm, name, UTF8Type.instance.decompose("Pavel"), System.currentTimeMillis());
@@ -1619,8 +1666,10 @@ public class SASIIndexTest
 
         Set<String> rows;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("J")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6", "key8"}, rows.toArray(new String[rows.size()])));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("j")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6", "key8" }, rows.toArray(new String[rows.size()])));
@@ -1637,6 +1686,7 @@ public class SASIIndexTest
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("j")),
                                      buildExpression(name, Operator.NEQ, UTF8Type.instance.decompose("joh")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key6", "key8" }, rows.toArray(new String[rows.size()])));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("pavel")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
@@ -1770,7 +1820,9 @@ public class SASIIndexTest
     public void testClusteringIndexes(boolean forceFlush) throws Exception
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12378
         executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, nickname, location, age, height, score) VALUES (?, ?, ?, ?, ?, ?)", "Pavel", "xedin", "US", 27, 183, 1.0);
         executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, nickname, location, age, height, score) VALUES (?, ?, ?, ?, ?, ?)", "Pavel", "xedin", "BY", 28, 182, 2.0);
         executeCQL(CLUSTERING_CF_NAME_1 ,"INSERT INTO %s.%s (name, nickname, location, age, height, score) VALUES (?, ?, ?, ?, ?, ?)", "Jordan", "jrwest", "US", 27, 182, 1.0);
@@ -1809,6 +1861,7 @@ public class SASIIndexTest
         Assert.assertEquals(1, results.size());
 
         results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE 'U%%' ALLOW FILTERING");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
@@ -1837,6 +1890,7 @@ public class SASIIndexTest
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
             executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%' ALLOW FILTERING");
             Assert.fail();
         }
@@ -1848,9 +1902,12 @@ public class SASIIndexTest
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
             executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%%%' ALLOW FILTERING");
             Assert.fail();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
         catch (InvalidRequestException e)
         {
             Assert.assertTrue(e.getMessage().contains("empty"));
@@ -1858,7 +1915,9 @@ public class SASIIndexTest
         }
 
         // check restrictions on non-indexed clustering columns when preceding columns are indexed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
         store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12378
         executeCQL(CLUSTERING_CF_NAME_2 ,"INSERT INTO %s.%s (name, nickname, location, age, height, score) VALUES (?, ?, ?, ?, ?, ?)", "Tony", "tony", "US", 43, 184, 2.0);
         executeCQL(CLUSTERING_CF_NAME_2 ,"INSERT INTO %s.%s (name, nickname, location, age, height, score) VALUES (?, ?, ?, ?, ?, ?)", "Christopher", "chis", "US", 27, 180, 1.0);
 
@@ -1874,6 +1933,7 @@ public class SASIIndexTest
     @Test
     public void testStaticIndex() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
         testStaticIndex(false);
         cleanupData();
         testStaticIndex(true);
@@ -1910,6 +1970,7 @@ public class SASIIndexTest
 
         UntypedResultSet.Row row1 = iterator.next();
         Assert.assertEquals(20160401L, row1.getLong("date"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
         Assert.assertEquals(24.46, row1.getDouble("value"), 0.0);
         Assert.assertEquals(2, row1.getInt("variance"));
 
@@ -1933,6 +1994,7 @@ public class SASIIndexTest
 
         row1 = results.one();
         Assert.assertEquals(20160402L, row1.getLong("date"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
         Assert.assertEquals(1.04, row1.getDouble("value"), 0.0);
         Assert.assertEquals(7, row1.getInt("variance"));
 
@@ -1946,6 +2008,7 @@ public class SASIIndexTest
         row1 = iterator.next();
         Assert.assertEquals("TEMPERATURE", row1.getString("sensor_type"));
         Assert.assertEquals(20160401L, row1.getLong("date"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
         Assert.assertEquals(24.46, row1.getDouble("value"), 0.0);
         Assert.assertEquals(2, row1.getInt("variance"));
 
@@ -1973,6 +2036,7 @@ public class SASIIndexTest
     public void testTableRebuild() throws Exception
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12374
 
         executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, nickname, location, age, height, score) VALUES (?, ?, ?, ?, ?, ?)", "Pavel", "xedin", "US", 27, 183, 1.0);
         executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Pavel", "BY", 28, 182, 2.0);
@@ -2012,6 +2076,7 @@ public class SASIIndexTest
     public void testIndexRebuild() throws Exception
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
 
         executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, nickname) VALUES (?, ?)", "Alex", "ifesdjeen");
 
@@ -2028,11 +2093,13 @@ public class SASIIndexTest
     public void testInvalidIndexOptions()
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11136
 
         try
         {
             // unsupported partition key column
             SASIIndex.validateOptions(Collections.singletonMap("target", "id"), store.metadata());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13228
             Assert.fail();
         }
         catch (ConfigurationException e)
@@ -2096,10 +2163,12 @@ public class SASIIndexTest
     @Test
     public void testLIKEAndEQSemanticsWithDifferenceKindsOfIndexes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         String containsTable = "sasi_like_contains_test";
         String prefixTable = "sasi_like_prefix_test";
         String analyzedPrefixTable = "sasi_like_analyzed_prefix_test";
         String tokenizedContainsTable = "sasi_like_analyzed_contains_test";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
 
         QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, containsTable));
         QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, prefixTable));
@@ -2152,6 +2221,7 @@ public class SASIIndexTest
         Assert.assertNotNull(results);
         Assert.assertEquals(0, results.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Pav%%';", KS_NAME, containsTable));
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
@@ -2298,6 +2368,7 @@ public class SASIIndexTest
     public void testConditionalsWithReversedType()
     {
         final String TABLE_NAME = "reversed_clustering";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12223
 
         QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (pk text, ck int, v int, PRIMARY KEY (pk, ck)) " +
                                                          "WITH CLUSTERING ORDER BY (ck DESC);", KS_NAME, TABLE_NAME));
@@ -2352,6 +2423,7 @@ public class SASIIndexTest
     public void testIndexMemtableSwitching()
     {
         // write some data but don't flush
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         ColumnFamilyStore store = loadData(new HashMap<String, Pair<String, Integer>>()
         {{
             put("key1", Pair.create("Pavel", 14));
@@ -2380,6 +2452,7 @@ public class SASIIndexTest
         IndexMemtable afterFlushMemtable = index.getCurrentMemtable();
 
         Assert.assertNotSame(afterFlushMemtable, beforeFlushMemtable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
         Assert.assertEquals(afterFlushMemtable.search(expression).getCount(), 0);
         Assert.assertEquals(0, index.getPendingMemtables().size());
 
@@ -2407,6 +2480,7 @@ public class SASIIndexTest
 
         Assert.assertEquals(0, index.getPendingMemtables().size());
         Assert.assertEquals(index.searchMemtable(expression).getCount(), 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
 
         // test discarding data from memtable
         loadData(new HashMap<String, Pair<String, Integer>>()
@@ -2420,12 +2494,14 @@ public class SASIIndexTest
         Assert.assertTrue(index.searchMemtable(expression).getCount() > 0);
 
         index.switchMemtable();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
         Assert.assertEquals(index.searchMemtable(expression).getCount(), 0);
     }
 
     @Test
     public void testAnalyzerValidation()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
         final String TABLE_NAME = "analyzer_validation";
         QueryProcessor.executeOnceInternal(String.format("CREATE TABLE %s.%s (" +
                                                          "  pk text PRIMARY KEY, " +
@@ -2515,6 +2591,7 @@ public class SASIIndexTest
     {
         Keyspace ks = Keyspace.open(KS_NAME);
         ks.getColumnFamilyStore(CF_NAME).truncateBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
         ks.getColumnFamilyStore(CLUSTERING_CF_NAME_1).truncateBlocking();
     }
 
@@ -2575,6 +2652,7 @@ public class SASIIndexTest
                                              FBUtilities.nowInSeconds(),
                                              columnFilter,
                                              filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                              DataLimits.cqlLimits(maxResults),
                                              range);
 
@@ -2583,6 +2661,7 @@ public class SASIIndexTest
 
     private static Mutation newMutation(String key, String firstName, String lastName, int age, long timestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose(key)));
         List<Cell> cells = new ArrayList<>(3);
 
@@ -2594,6 +2673,7 @@ public class SASIIndexTest
             cells.add(buildCell(ByteBufferUtil.bytes("last_name"), UTF8Type.instance.decompose(lastName), timestamp));
 
         update(rm, cells);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         return rm.build();
     }
 
@@ -2607,6 +2687,7 @@ public class SASIIndexTest
                 {
                     try (UnfilteredRowIterator row = rows.next())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                         if (!row.isEmpty())
                             add(AsciiType.instance.compose(row.partitionKey().getKey()));
                     }
@@ -2630,12 +2711,14 @@ public class SASIIndexTest
 
     private UntypedResultSet executeCQL(String cfName, String query, Object... values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
         return QueryProcessor.executeOnceInternal(String.format(query, KS_NAME, cfName), values);
     }
 
     private Set<String> executeCQLWithKeys(String rawStatement) throws Exception
     {
         Set<String> results = new TreeSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(rawStatement))
         {
             if (row.has("id"))

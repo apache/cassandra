@@ -61,6 +61,7 @@ public abstract class CommitLogStressTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -103,6 +104,7 @@ public abstract class CommitLogStressTest
     {
         try (FileInputStream fis = new FileInputStream("CHANGES.txt"))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9346
             dataSource = ByteBuffer.allocateDirect((int) fis.getChannel().size());
             while (dataSource.hasRemaining())
             {
@@ -114,6 +116,8 @@ public abstract class CommitLogStressTest
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition(""); // leave def. blank to maintain old behaviour
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12207
         CommitLog.instance.stopUnsafe(true);
     }
 
@@ -129,6 +133,7 @@ public abstract class CommitLogStressTest
                 if (!f.delete())
                     Assert.fail("Failed to delete " + f);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9346
         else
         {
             dir.mkdir();
@@ -138,6 +143,7 @@ public abstract class CommitLogStressTest
     @Parameters()
     public static Collection<Object[]> buildParameterizedVariants()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         return Arrays.asList(new Object[][]{
         {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
         {null, EncryptionContextGenerator.createContext(true)}, // Encryption
@@ -159,6 +165,7 @@ public abstract class CommitLogStressTest
     {
         randomSize = false;
         discardedRun = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         testLog();
     }
 
@@ -166,7 +173,9 @@ public abstract class CommitLogStressTest
     public void testDiscardedRun() throws Exception
     {
         randomSize = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         discardedRun = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         testLog();
     }
 
@@ -189,6 +198,7 @@ public abstract class CommitLogStressTest
     private void testLog(CommitLog commitLog) throws IOException, InterruptedException {
         System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9039
                            commitLog.configuration.getCompressorName(),
                            commitLog.configuration.useEncryption(),
                            commitLog.executor.getClass().getSimpleName(),
@@ -214,6 +224,7 @@ public abstract class CommitLogStressTest
                     discardedPos = t.clsp;
             }
             verifySizes(commitLog);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
 
             commitLog.discardCompletedSegments(Schema.instance.getTableMetadata("Keyspace1", "Standard1").id,
                     CommitLogPosition.NONE, discardedPos);
@@ -232,6 +243,8 @@ public abstract class CommitLogStressTest
 
         int hash = 0;
         int cells = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         for (CommitlogThread t: threads)
         {
             t.join();
@@ -239,11 +252,13 @@ public abstract class CommitLogStressTest
             cells += t.cells;
         }
         verifySizes(commitLog);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
 
         commitLog.shutdownBlocking();
 
         System.out.println("Stopped. Replaying... ");
         System.out.flush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         Reader reader = new Reader();
         File[] files = new File(location).listFiles();
 
@@ -273,6 +288,7 @@ public abstract class CommitLogStressTest
     private void verifySizes(CommitLog commitLog)
     {
         // Complete anything that's still left to write.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         commitLog.executor.syncBlocking();
         // Wait for any concurrent segment allocations to complete.
         commitLog.segmentManager.awaitManagementTasksCompletion();
@@ -286,6 +302,7 @@ public abstract class CommitLogStressTest
         Map<String, Double> ratios = commitLog.getActiveSegmentCompressionRatios();
         Collection<CommitLogSegment> segments = commitLog.segmentManager.getActiveSegments();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9346
         for (CommitLogSegment segment : segments)
         {
             Assert.assertTrue(logFileNames.remove(segment.getName()));
@@ -315,11 +332,13 @@ public abstract class CommitLogStressTest
             public void run()
             {
                 Runtime runtime = Runtime.getRuntime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
                 long maxMemory = runtime.maxMemory();
                 long allocatedMemory = runtime.totalMemory();
                 long freeMemory = runtime.freeMemory();
                 long temp = 0;
                 long sz = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
                 for (CommitlogThread clt : threads)
                 {
                     temp += clt.counter.get();
@@ -375,11 +394,14 @@ public abstract class CommitLogStressTest
         int cells = 0;
         int dataSize = 0;
         final CommitLog commitLog;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         final Random random;
         final AtomicInteger threadID = new AtomicInteger(0);
 
         volatile CommitLogPosition clsp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         CommitlogThread(CommitLog commitLog, Random rand)
         {
             this.commitLog = commitLog;
@@ -391,6 +413,7 @@ public abstract class CommitLogStressTest
             Thread.currentThread().setName("CommitLogThread-" + threadID.getAndIncrement());
             RateLimiter rl = rateLimit != 0 ? RateLimiter.create(rateLimit) : null;
             final Random rand = random != null ? random : ThreadLocalRandom.current();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9346
             while (!stop)
             {
                 if (rl != null)
@@ -408,6 +431,7 @@ public abstract class CommitLogStressTest
                     dataSize += sz;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                 clsp = commitLog.add(new Mutation(builder.build()));
                 counter.incrementAndGet();
             }
@@ -432,6 +456,7 @@ public abstract class CommitLogStressTest
             if (desc.id < discardedPos.segmentId)
             {
                 System.out.format("Mutation from discarded segment, segment %d pos %d\n", desc.id, entryLocation);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
                 discarded++;
                 return;
             }
@@ -442,12 +467,14 @@ public abstract class CommitLogStressTest
                 return;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
             DataInputPlus bufIn = new DataInputBuffer(inputBuffer, 0, size);
             Mutation mutation;
             try
             {
                 mutation = Mutation.serializer.deserialize(bufIn,
                                                            desc.getMessagingVersion(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                                            DeserializationHelper.Flag.LOCAL);
             }
             catch (IOException e)
@@ -456,6 +483,7 @@ public abstract class CommitLogStressTest
                 throw new AssertionError(e);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             for (PartitionUpdate cf : mutation.getPartitionUpdates())
             {
 
@@ -467,6 +495,7 @@ public abstract class CommitLogStressTest
                     if (!(UTF8Type.instance.compose(row.clustering().get(0)).startsWith("name")))
                         continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                     for (Cell cell : row.cells())
                     {
                         hash = hash(hash, cell.value());

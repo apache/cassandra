@@ -28,6 +28,7 @@ public class FloatSerializer implements TypeSerializer<Float>
 
     public Float deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         if (bytes.remaining() == 0)
             return null;
 

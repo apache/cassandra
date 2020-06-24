@@ -26,6 +26,7 @@ public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResourc
 {
     public PermissionsCache(IAuthorizer authorizer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7715
         super("PermissionsCache",
               DatabaseDescriptor::setPermissionsValidity,
               DatabaseDescriptor::getPermissionsValidity,
@@ -39,6 +40,7 @@ public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResourc
 
     public Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13367
         return get(Pair.create(user, resource));
     }
 }

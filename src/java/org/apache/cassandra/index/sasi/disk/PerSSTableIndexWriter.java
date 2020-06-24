@@ -62,6 +62,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13329
         INDEX_FLUSHER_GENERAL = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, TimeUnit.MINUTES,
                                                                  new LinkedBlockingQueue<>(),
                                                                  new NamedThreadFactory("SASI-General"),
@@ -97,6 +98,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         this.keyValidator = keyValidator;
         this.descriptor = descriptor;
         this.source = source;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         this.indexes = Maps.newHashMapWithExpectedSize(supportedIndexes.size());
         for (Map.Entry<ColumnMetadata, ColumnIndex> entry : supportedIndexes.entrySet())
             indexes.put(entry.getKey(), newIndex(entry.getValue()));
@@ -118,6 +120,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
         Row row = (Row) unfiltered;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
         indexes.forEach((column, index) -> {
             ByteBuffer value = ColumnIndex.getValueOf(column, row, nowInSec);
             if (value == null)
@@ -209,6 +212,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                 if (token.remaining() >= OnDiskIndexBuilder.MAX_TERM_SIZE)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                     logger.info("Rejecting value (size {}, maximum {}) for column {} (analyzed {}) at {} SSTable.",
                             FBUtilities.prettyPrintMemory(term.remaining()),
                             FBUtilities.prettyPrintMemory(OnDiskIndexBuilder.MAX_TERM_SIZE),
@@ -222,6 +226,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                 {
                     if ((token = TypeUtil.tryUpcast(token, columnIndex.getValidator())) == null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                         logger.info("({}) Failed to add {} to index for key: {}, value size was {}, validator is {}.",
                                     outputFile,
                                     columnIndex.getColumnName(),

@@ -87,12 +87,15 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
         {
             public void run()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 if (logger.isTraceEnabled())
                     logger.trace("Disseminating load info ...");
                 Gossiper.instance.addLocalApplicationState(ApplicationState.LOAD,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                                                            StorageService.instance.valueFactory.load(StorageMetrics.load.getCount()));
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
         ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(runnable, 2 * Gossiper.intervalInMillis, BROADCAST_INTERVAL, TimeUnit.MILLISECONDS);
     }
 }

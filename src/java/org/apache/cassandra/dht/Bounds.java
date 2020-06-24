@@ -40,6 +40,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
     {
         super(left, right);
         // unlike a Range, a Bounds may not wrap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9462
         assert !strictlyWrapsAround(left, right) : "[" + left + "," + right + "]";
     }
 
@@ -48,6 +49,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         // Range.contains doesnt work correctly if left == right (unless both
         // are minimum) because for Range that means a wrapping range that select
         // the whole ring. So we must explicitely handle this case
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return left.equals(position) || ((right.isMinimum() || !left.equals(right)) && Range.contains(left, right, position));
     }
 
@@ -58,6 +60,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         if (position.equals(right))
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         AbstractBounds<T> lb = new Bounds<T>(left, position);
         AbstractBounds<T> rb = new Range<T>(position, right);
         return Pair.create(lb, rb);
@@ -65,6 +68,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
 
     public boolean inclusiveLeft()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8946
         return true;
     }
 
@@ -76,6 +80,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
     public boolean intersects(Bounds<T> that)
     {
         // We either contains one of the that bounds, or we are fully contained into that.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4321
         return contains(that.left) || contains(that.right) || that.contains(left);
     }
 
@@ -90,6 +95,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
     {
         if (!(o instanceof Bounds))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
         Bounds<?> rhs = (Bounds<?>)o;
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
@@ -102,6 +108,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
 
     protected String getOpeningString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4905
         return "[";
     }
 
@@ -113,6 +120,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
     public static <T extends RingPosition<T>> boolean isInBounds(T token, Iterable<Bounds<T>> bounds)
     {
         assert bounds != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10341
 
         for (Bounds<T> bound : bounds)
         {
@@ -126,6 +134,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
 
     public boolean isStartInclusive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return true;
     }
 
@@ -144,6 +153,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
 
     public AbstractBounds<T> withNewRight(T newRight)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
         return new Bounds<T>(left, newRight);
     }
 
@@ -162,6 +172,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
      */
     public static <T extends RingPosition<T>> Set<Bounds<T>> getNonOverlappingBounds(Iterable<Bounds<T>> bounds)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10341
         ArrayList<Bounds<T>> sortedBounds = Lists.newArrayList(bounds);
         Collections.sort(sortedBounds, new Comparator<Bounds<T>>()
         {

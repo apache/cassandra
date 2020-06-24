@@ -28,6 +28,7 @@ public class DoubleSerializer implements TypeSerializer<Double>
 
     public Double deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         if (bytes.remaining() == 0)
             return null;
         return ByteBufferUtil.toDouble(bytes);

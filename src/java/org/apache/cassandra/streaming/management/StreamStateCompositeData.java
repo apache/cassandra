@@ -35,6 +35,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 public class StreamStateCompositeData
 {
     private static final String[] ITEM_NAMES = new String[]{"planId", "description", "sessions",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4757
                                                             "currentRxBytes", "totalRxBytes", "rxPercentage",
                                                             "currentTxBytes", "totalTxBytes", "txPercentage"};
     private static final String[] ITEM_DESCS = new String[]{"Plan ID of this stream",
@@ -55,6 +56,7 @@ public class StreamStateCompositeData
         {
             ITEM_TYPES = new OpenType[]{SimpleType.STRING,
                                          SimpleType.STRING,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4757
                                          ArrayType.getArrayType(SessionInfoCompositeData.COMPOSITE_TYPE),
                                          SimpleType.LONG, SimpleType.LONG, SimpleType.DOUBLE,
                                          SimpleType.LONG, SimpleType.LONG, SimpleType.DOUBLE};
@@ -75,6 +77,7 @@ public class StreamStateCompositeData
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], streamState.planId.toString());
         valueMap.put(ITEM_NAMES[1], streamState.streamOperation.getDescription());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
 
         CompositeData[] sessions = new CompositeData[streamState.sessions.size()];
         Lists.newArrayList(Iterables.transform(streamState.sessions, new Function<SessionInfo, CompositeData>()
@@ -86,6 +89,7 @@ public class StreamStateCompositeData
         })).toArray(sessions);
         valueMap.put(ITEM_NAMES[2], sessions);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4757
         long currentRxBytes = 0;
         long totalRxBytes = 0;
         long currentTxBytes = 0;
@@ -122,6 +126,7 @@ public class StreamStateCompositeData
         assert cd.getCompositeType().equals(COMPOSITE_TYPE);
         Object[] values = cd.getAll(ITEM_NAMES);
         UUID planId = UUID.fromString((String) values[0]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         String typeString = (String) values[1];
         Set<SessionInfo> sessions = Sets.newHashSet(Iterables.transform(Arrays.asList((CompositeData[]) values[2]),
                                                                         new Function<CompositeData, SessionInfo>()
@@ -131,6 +136,7 @@ public class StreamStateCompositeData
                                                                                 return SessionInfoCompositeData.fromCompositeData(input);
                                                                             }
                                                                         }));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         return new StreamState(planId, StreamOperation.fromString(typeString), sessions);
     }
 }

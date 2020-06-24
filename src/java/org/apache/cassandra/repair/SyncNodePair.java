@@ -42,6 +42,7 @@ public class SyncNodePair
 
     public SyncNodePair(InetAddressAndPort coordinator, InetAddressAndPort peer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         this.coordinator = coordinator;
         this.peer = peer;
     }
@@ -72,6 +73,7 @@ public class SyncNodePair
     {
         public void serialize(SyncNodePair nodePair, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(nodePair.coordinator, out, version);
             inetAddressAndPortSerializer.serialize(nodePair.peer, out, version);
         }

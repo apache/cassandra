@@ -75,7 +75,10 @@ public class Keyspace
     // proper directories here as well as in CassandraDaemon.
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         if (DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
             DatabaseDescriptor.createAllDirectories();
     }
 
@@ -98,6 +101,7 @@ public class Keyspace
     {
         public Keyspace apply(String keyspaceName)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             return Keyspace.open(keyspaceName);
         }
     };
@@ -155,8 +159,11 @@ public class Keyspace
             Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
             if (t != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1548
                 for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
                     t.unloadCf(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6539
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6539
                 t.metric.release();
             }
             return t;
@@ -179,10 +186,12 @@ public class Keyspace
      */
     public static void removeUnreadableSSTables(File directory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         for (Keyspace keyspace : Keyspace.all())
         {
             for (ColumnFamilyStore baseCfs : keyspace.getColumnFamilyStores())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2118
                 for (ColumnFamilyStore cfs : baseCfs.concatWithIndexes())
                     cfs.maybeRemoveUnreadableSSTables(directory);
             }
@@ -191,6 +200,7 @@ public class Keyspace
 
     public void setMetadata(KeyspaceMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         this.metadata = metadata;
         createReplicationStrategy(metadata);
     }
@@ -209,6 +219,7 @@ public class Keyspace
     {
         TableMetadata table = Schema.instance.getTableMetadata(getName(), cfName);
         if (table == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             throw new IllegalArgumentException(String.format("Unknown keyspace/cf pair (%s.%s)", getName(), cfName));
         return getColumnFamilyStore(table.id);
     }
@@ -223,6 +234,7 @@ public class Keyspace
 
     public boolean hasColumnFamilyStore(TableId id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         return columnFamilyStores.containsKey(id);
     }
 
@@ -244,11 +256,13 @@ public class Keyspace
             if (columnFamilyName == null || cfStore.name.equals(columnFamilyName))
             {
                 tookSnapShot = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
                 cfStore.snapshot(snapshotName, skipFlush);
             }
         }
 
         if ((columnFamilyName != null) && !tookSnapShot)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
             throw new IOException("Failed taking snapshot. Table " + columnFamilyName + " does not exist.");
     }
 
@@ -262,6 +276,7 @@ public class Keyspace
      */
     public void snapshot(String snapshotName, String columnFamilyName) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
         snapshot(snapshotName, columnFamilyName, false);
     }
 
@@ -281,6 +296,7 @@ public class Keyspace
 
     public static String getTimestampedSnapshotNameWithPrefix(String clientSuppliedName, String prefix)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12178
         return prefix + "-" + getTimestampedSnapshotName(clientSuppliedName);
     }
 
@@ -309,6 +325,8 @@ public class Keyspace
      */
     public static void clearSnapshot(String snapshotName, String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6281
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13928
         List<File> snapshotDirs = Directories.getKSChildDirectories(keyspace);
         Directories.clearSnapshot(snapshotName, snapshotDirs);
     }
@@ -318,8 +336,11 @@ public class Keyspace
      */
     public List<SSTableReader> getAllSSTables(SSTableSet sstableSet)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         List<SSTableReader> list = new ArrayList<>(columnFamilyStores.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-827
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             Iterables.addAll(list, cfStore.getSSTables(sstableSet));
         return list;
     }
@@ -328,6 +349,7 @@ public class Keyspace
     {
         metadata = Schema.instance.getKeyspaceMetadata(keyspaceName);
         assert metadata != null : "Unknown keyspace " + keyspaceName;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (metadata.isVirtual())
             throw new IllegalStateException("Cannot initialize Keyspace with virtual metadata " + keyspaceName);
         createReplicationStrategy(metadata);
@@ -340,18 +362,30 @@ public class Keyspace
             initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
         }
         this.viewManager.reload(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         this.repairManager = new CassandraKeyspaceRepairManager(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
     }
 
     private Keyspace(KeyspaceMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         this.metadata = metadata;
         createReplicationStrategy(metadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6539
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6539
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
         this.metric = new KeyspaceMetrics(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         this.viewManager = new ViewManager(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         this.repairManager = new CassandraKeyspaceRepairManager(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
     }
 
@@ -367,8 +401,10 @@ public class Keyspace
 
     private void createReplicationStrategy(KeyspaceMetadata ksm)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         logger.info("Creating replication strategy " + ksm.name + " params " + ksm.params);
         replicationStrategy = ksm.createReplicationStrategy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14083
         if (!ksm.params.replication.equals(replicationParams))
         {
             logger.debug("New replication settings for keyspace {} - invalidating disk boundary caches", ksm.name);
@@ -385,9 +421,12 @@ public class Keyspace
         if (cfs == null)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         cfs.getCompactionStrategyManager().shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         CompactionManager.instance.interruptCompactionForCFs(cfs.concatWithIndexes(), (sstable) -> true, true);
         // wait for any outstanding reads/writes that might affect the CFS
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7437
         cfs.keyspace.writeOrder.awaitNewBarrier();
         cfs.readOrdering.awaitNewBarrier();
 
@@ -398,6 +437,9 @@ public class Keyspace
     private void unloadCf(ColumnFamilyStore cfs)
     {
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3437
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         cfs.invalidate();
     }
 
@@ -409,6 +451,7 @@ public class Keyspace
     {
         ColumnFamilyStore cfs = columnFamilyStores.get(newCfs.metadata.id);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         if (cfs == null)
         {
             // CFS being created for the first time, either on server startup or new CF being added.
@@ -427,6 +470,7 @@ public class Keyspace
 
     public KeyspaceWriteHandler getWriteHandler()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         return writeHandler;
     }
 
@@ -458,6 +502,7 @@ public class Keyspace
 
     public CompletableFuture<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
         return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new CompletableFuture<>());
     }
 
@@ -469,6 +514,7 @@ public class Keyspace
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
         apply(mutation, writeCommitLog, updateIndexes, true);
     }
 
@@ -490,6 +536,7 @@ public class Keyspace
      * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
      */
     public void apply(final Mutation mutation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                       final boolean makeDurable,
                       boolean updateIndexes,
                       boolean isDroppable)
@@ -508,12 +555,14 @@ public class Keyspace
      * @param isDeferrable   true if caller is not waiting for future to complete, so that future may be deferred
      */
     private CompletableFuture<?> applyInternal(final Mutation mutation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                                final boolean makeDurable,
                                                boolean updateIndexes,
                                                boolean isDroppable,
                                                boolean isDeferrable,
                                                CompletableFuture<?> future)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
@@ -524,6 +573,7 @@ public class Keyspace
         if (requiresViewUpdate)
         {
             mutation.viewLockAcquireStart.compareAndSet(0L, System.currentTimeMillis());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
 
             // the order of lock acquisition doesn't matter (from a deadlock perspective) because we only use tryLock()
             Collection<TableId> tableIds = mutation.getTableIds();
@@ -546,14 +596,17 @@ public class Keyspace
                     if (lock == null)
                     {
                         //throw WTE only if request is droppable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         if (isDroppable && (approxTime.isAfter(mutation.approxCreatedAtNanos + DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS))))
                         {
                             for (int j = 0; j < i; j++)
                                 locks[j].unlock();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
                             if (logger.isTraceEnabled())
                                 logger.trace("Could not acquire lock for {} and table {}", ByteBufferUtil.bytesToHex(mutation.key().getKey()), columnFamilyStores.get(tableId).name);
                             Tracing.trace("Could not acquire MV lock");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10779
                             if (future != null)
                             {
                                 future.completeExceptionally(new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1));
@@ -570,7 +623,10 @@ public class Keyspace
                             // This view update can't happen right now. so rather than keep this thread busy
                             // we will re-apply ourself to the queue and try again later
                             final CompletableFuture<?> mark = future;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                             Stage.MUTATION.execute(() ->
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                                    applyInternal(mutation, makeDurable, true, isDroppable, true, mark)
                             );
                             return future;
@@ -604,13 +660,16 @@ public class Keyspace
             long acquireTime = System.currentTimeMillis() - mutation.viewLockAcquireStart.get();
             // Metrics are only collected for droppable write operations
             // Bulk non-droppable operations (e.g. commitlog replay, hint delivery) are not measured
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
             if (isDroppable)
             {
                 for(TableId tableId : tableIds)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     columnFamilyStores.get(tableId).metric.viewLockAcquireTime.update(acquireTime, MILLISECONDS);
             }
         }
         int nowInSec = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         try (WriteContext ctx = getWriteHandler().beginWrite(mutation, makeDurable))
         {
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
@@ -628,6 +687,7 @@ public class Keyspace
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         viewManager.forTable(upd.metadata().id).pushViewReplicaUpdates(upd, makeDurable, baseComplete);
                     }
                     catch (Throwable t)
@@ -640,21 +700,26 @@ public class Keyspace
                 }
 
                 UpdateTransaction indexTransaction = updateIndexes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                                      ? cfs.indexManager.newUpdateTransaction(upd, ctx, nowInSec)
                                                      : UpdateTransaction.NO_OP;
                 cfs.getWriteHandler().write(upd, ctx, indexTransaction);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
                 if (requiresViewUpdate)
                     baseComplete.set(System.currentTimeMillis());
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
             if (future != null) {
                 future.complete(null);
             }
             return future;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10981
             if (locks != null)
             {
                 for (Lock lock : locks)
@@ -666,11 +731,14 @@ public class Keyspace
 
     public AbstractReplicationStrategy getReplicationStrategy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1762
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return replicationStrategy;
     }
 
     public List<Future<?>> flush()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8261
         List<Future<?>> futures = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores.values())
             futures.add(cfs.forceFlush());
@@ -679,6 +747,7 @@ public class Keyspace
 
     public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes,
                                                               boolean autoAddIndexes,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                                                               String... cfNames) throws IOException
     {
         Set<ColumnFamilyStore> valid = new HashSet<>();
@@ -690,6 +759,7 @@ public class Keyspace
             {
                 valid.add(cfStore);
                 if (autoAddIndexes)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                     valid.addAll(getIndexColumnFamilyStores(cfStore));
             }
             return valid;
@@ -698,6 +768,7 @@ public class Keyspace
         // include the specified stores and possibly the stores of any of their indexes
         for (String cfName : cfNames)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
             if (SecondaryIndexManager.isIndexColumnFamily(cfName))
             {
                 if (!allowIndexes)
@@ -743,6 +814,7 @@ public class Keyspace
 
     public static Iterable<Keyspace> all()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         return Iterables.transform(Schema.instance.getKeyspaces(), keyspaceTransformer);
     }
 
@@ -753,6 +825,7 @@ public class Keyspace
 
     public static Iterable<Keyspace> nonLocalStrategy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         return Iterables.transform(Schema.instance.getNonLocalStrategyKeyspaces(), keyspaceTransformer);
     }
 

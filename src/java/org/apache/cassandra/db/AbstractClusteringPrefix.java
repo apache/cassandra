@@ -44,6 +44,7 @@ public abstract class AbstractClusteringPrefix implements ClusteringPrefix
         {
             ByteBuffer bb = get(i);
             if (bb != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
                 digest.update(bb);
         }
         digest.updateWithByte(kind().ordinal());

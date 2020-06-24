@@ -41,15 +41,19 @@ public class CompressedSegment extends FileDirectSegment
     /**
      * Constructs a new segment file.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
     CompressedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         super(commitLog, manager);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9039
         this.compressor = commitLog.configuration.getCompressor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
         manager.getBufferPool().setPreferredReusableBufferType(compressor.preferredBufferType());
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return manager.getBufferPool().createBuffer(commitLog.configuration.getCompressor().preferredBufferType());
     }
 
@@ -65,6 +69,7 @@ public class CompressedSegment extends FileDirectSegment
         {
             int neededBufferSize = compressor.initialCompressedBufferLength(length) + COMPRESSED_MARKER_SIZE;
             ByteBuffer compressedBuffer = manager.getBufferPool().getThreadLocalReusableBuffer(neededBufferSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
 
             ByteBuffer inputBuffer = buffer.duplicate();
             inputBuffer.limit(contentStart + length).position(contentStart);
@@ -76,7 +81,9 @@ public class CompressedSegment extends FileDirectSegment
 
             // Only one thread can be here at a given time.
             // Protected by synchronization on CommitLogSegment.sync().
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13918
             writeSyncMarker(id, compressedBuffer, 0, (int) channel.position(), (int) channel.position() + compressedBuffer.remaining());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             manager.addSize(compressedBuffer.limit());
             channel.write(compressedBuffer);
             assert channel.position() - lastWrittenPos == compressedBuffer.limit();
@@ -91,6 +98,7 @@ public class CompressedSegment extends FileDirectSegment
     @Override
     public long onDiskSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
         return lastWrittenPos;
     }
 }

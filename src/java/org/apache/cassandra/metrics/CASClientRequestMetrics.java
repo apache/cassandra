@@ -34,6 +34,7 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
     {
         super(scope);
         contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         unfinishedCommit = Metrics.counter(factory.createMetricName("UnfinishedCommit"));
         unknownResult = Metrics.meter(factory.createMetricName("UnknownResult"));
     }
@@ -43,6 +44,7 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         super.release();
         Metrics.remove(factory.createMetricName("ContentionHistogram"));
         Metrics.remove(factory.createMetricName("UnfinishedCommit"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         Metrics.remove(factory.createMetricName("UnknownResult"));
     }
 }

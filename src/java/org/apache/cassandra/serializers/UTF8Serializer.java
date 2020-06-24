@@ -26,6 +26,7 @@ public class UTF8Serializer extends AbstractTextSerializer
 
     private UTF8Serializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         super(StandardCharsets.UTF_8);
     }
 
@@ -79,6 +80,7 @@ public class UTF8Serializer extends AbstractTextSerializer
                                 state = State.TWO_80;
                             else if ((b & 0x1e) == 0)
                                 return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10748
                             else
                                 state = State.TWO;
                         }

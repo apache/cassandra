@@ -28,6 +28,7 @@ public interface LocalAwareExecutorService extends ExecutorService, ResizableThr
     // we need a way to inject a TraceState directly into the Executor context without going through
     // the global Tracing sessions; see CASSANDRA-5668
     void execute(Runnable command, ExecutorLocals locals);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
 
     // permits executing in the context of the submitting thread
     void maybeExecuteImmediately(Runnable command);
@@ -72,6 +73,8 @@ public interface LocalAwareExecutorService extends ExecutorService, ResizableThr
         /**
          * Listener to follow changes to the maximum pool size
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         void onUpdateMaximumPoolSize(int maximumPoolSize);
     }
 }

@@ -26,6 +26,7 @@ public class TimingIntervals
 
     public String str(TimingInterval.TimingParameter value, double rank, String unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
         if (intervals.size() == 0)
         {
             return "[]";
@@ -54,6 +55,7 @@ public class TimingIntervals
 
     public String opRates()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11352
         return str(TimingInterval.TimingParameter.OPRATE, "op/s");
     }
 

@@ -228,6 +228,7 @@ public class Legacy implements Serializable
             }
 
             r.add("-mode", (cmd.hasOption("P") ? "prepared" : "") + "native" +  "cql3");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
 
             if (cmd.hasOption("I"))
                 r.add("-schema", "compression=" + cmd.getOptionValue("I"));
@@ -248,6 +249,7 @@ public class Legacy implements Serializable
             if (cmd.hasOption("ns"))
                 r.add("-log", "no-summary");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6641
             if(cmd.hasOption(SSL_TRUSTSTORE))
                 r.add("-transport", "truststore=" + cmd.getOptionValue(SSL_TRUSTSTORE));
 

@@ -170,6 +170,7 @@ public abstract class ConsistentSession
             put(REPAIRING, ImmutableSet.of(FINALIZE_PROMISED, FAILED));
             put(FINALIZE_PROMISED, ImmutableSet.of(FINALIZED, FAILED));
             put(FINALIZED, ImmutableSet.of());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13658
             put(FAILED, ImmutableSet.of());
         }};
 
@@ -277,6 +278,7 @@ public abstract class ConsistentSession
             this.sessionID = sessionID;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         void withCoordinator(InetAddressAndPort coordinator)
         {
             this.coordinator = coordinator;
@@ -302,6 +304,7 @@ public abstract class ConsistentSession
             this.ranges = ranges;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         void withParticipants(Set<InetAddressAndPort> peers)
         {
             this.participants = peers;
@@ -314,6 +317,7 @@ public abstract class ConsistentSession
             Preconditions.checkArgument(coordinator != null);
             Preconditions.checkArgument(ids != null);
             Preconditions.checkArgument(!ids.isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
             Preconditions.checkArgument(repairedAt > 0
                                         || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE);
             Preconditions.checkArgument(ranges != null);

@@ -43,6 +43,7 @@ public class CassandraMetricsRegistryTest
     @Test
     public void testChooseType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         assertEquals("StrangeName", MetricName.chooseType(null, StrangeName$.class));
         assertEquals("StrangeName", MetricName.chooseType("", StrangeName$.class));
         assertEquals("String", MetricName.chooseType(null, String.class));
@@ -89,6 +90,7 @@ public class CassandraMetricsRegistryTest
     @Test
     public void testDeltaBaseCase()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13642
         long[] last = new long[10];
         long[] now = new long[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         // difference between all zeros and a value should be the value

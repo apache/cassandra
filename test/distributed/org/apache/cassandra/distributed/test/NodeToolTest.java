@@ -32,6 +32,7 @@ public class NodeToolTest extends TestBaseImpl
         try (ICluster cluster = init(builder().withNodes(1).start()))
         {
             assertEquals(0, cluster.get(1).nodetool("help"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
             assertEquals(0, cluster.get(1).nodetool("flush"));
             assertEquals(1, cluster.get(1).nodetool("not_a_legal_command"));
         }

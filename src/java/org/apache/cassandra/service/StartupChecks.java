@@ -86,17 +86,21 @@ public class StartupChecks
     // keyspace. All other checks should not require any schema initialization.
     private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkJemalloc,
                                                                       checkLz4Native,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10628
                                                                       checkValidLaunchDate,
                                                                       checkJMXPorts,
                                                                       checkJMXProperties,
                                                                       inspectJvmOptions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
                                                                       checkNativeLibraryInitialization,
                                                                       initSigarLibrary,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13008
                                                                       checkMaxMapCount,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13371
                                                                       checkRack,
                                                                       checkLegacyAuthTables);
 
@@ -131,7 +135,9 @@ public class StartupChecks
     {
         public void execute()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
             if (FBUtilities.isWindows)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10628
                 return;
             String jemalloc = System.getProperty("cassandra.libjemalloc");
             if (jemalloc == null)
@@ -166,6 +172,7 @@ public class StartupChecks
         {
             long now = System.currentTimeMillis();
             if (now < EARLIEST_LAUNCH_DATE)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                 throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
                                            String.format("current machine time is %s, but that is seemingly incorrect. exiting now.",
                                                          new Date(now).toString()));
@@ -176,6 +183,7 @@ public class StartupChecks
     {
         public void execute()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
             String jmxPort = System.getProperty("cassandra.jmx.remote.port");
             if (jmxPort == null)
             {
@@ -212,12 +220,15 @@ public class StartupChecks
                 logger.warn("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
 
             String javaVmName = System.getProperty("java.vm.name");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13916
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13916
             if (!(javaVmName.contains("HotSpot") || javaVmName.contains("OpenJDK")))
             {
                 logger.warn("Non-Oracle JVM detected.  Some features, such as immediate unmap of compacted SSTables, may not work as intended");
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14112
                 checkOutOfMemoryHandling();
             }
         }
@@ -227,6 +238,7 @@ public class StartupChecks
          */
         private void checkOutOfMemoryHandling()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14112
             if (JavaUtils.supportExitOnOutOfMemory(System.getProperty("java.version")))
             {
                 if (!jvmOptionsContainsOneOf("-XX:OnOutOfMemoryError=", "-XX:+ExitOnOutOfMemoryError", "-XX:+CrashOnOutOfMemoryError"))
@@ -276,6 +288,7 @@ public class StartupChecks
     {
         public void execute()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7925
             SigarLibrary.instance.warnIfRunningInDegradedMode();
         }
     };
@@ -287,6 +300,7 @@ public class StartupChecks
 
         private long getMaxMapCount()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13008
             final Path path = Paths.get(MAX_MAP_COUNT_PATH);
             try (final BufferedReader bufferedReader = Files.newBufferedReader(path))
             {
@@ -330,6 +344,7 @@ public class StartupChecks
     public static final StartupCheck checkDataDirs = () ->
     {
         // check all directories(data, commitlog, saved cache) for existence and permission
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
                                                  Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                                DatabaseDescriptor.getSavedCachesLocation(),
@@ -345,6 +360,7 @@ public class StartupChecks
                 logger.warn("Directory {} doesn't exist", dataDir);
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.mkdirs())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                     throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
                                                "Has no permission to create directory "+ dataDir);
             }
@@ -361,6 +377,8 @@ public class StartupChecks
         public void execute() throws StartupException
         {
             final Set<String> invalid = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10902
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10902
             final Set<String> nonSSTablePaths = new HashSet<>();
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getCommitLogLocation()));
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation()));
@@ -370,6 +388,7 @@ public class StartupChecks
             {
                 public FileVisitResult visitFile(Path path, BasicFileAttributes attrs)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                     File file = path.toFile();
                     if (!Descriptor.isValidFile(file))
                         return FileVisitResult.CONTINUE;
@@ -390,6 +409,7 @@ public class StartupChecks
                 {
                     String name = dir.getFileName().toString();
                     return (name.equals(Directories.SNAPSHOT_SUBDIR)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10902
                             || name.equals(Directories.BACKUPS_SUBDIR)
                             || nonSSTablePaths.contains(dir.toFile().getCanonicalPath()))
                            ? FileVisitResult.SKIP_SUBTREE
@@ -410,6 +430,7 @@ public class StartupChecks
             }
 
             if (!invalid.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                 throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
                                            String.format("Detected unreadable sstables %s, please check " +
                                                          "NEWS.txt and ensure that you have upgraded through " +
@@ -451,12 +472,14 @@ public class StartupChecks
                 String storedDc = SystemKeyspace.getDatacenter();
                 if (storedDc != null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                     String currentDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
                     if (!storedDc.equals(currentDc))
                     {
                         String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
                                                "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_dc=true.";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                         throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentDc, storedDc));
                     }
                 }
@@ -473,12 +496,14 @@ public class StartupChecks
                 String storedRack = SystemKeyspace.getRack();
                 if (storedRack != null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                     String currentRack = DatabaseDescriptor.getEndpointSnitch().getLocalRack();
                     if (!storedRack.equals(currentRack))
                     {
                         String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
                                                "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_rack=true.";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                         throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentRack, storedRack));
                     }
                 }

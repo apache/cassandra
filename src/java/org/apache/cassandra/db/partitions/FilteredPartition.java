@@ -29,6 +29,7 @@ public class FilteredPartition extends ImmutableBTreePartition
 {
     public FilteredPartition(RowIterator rows)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         super(rows.metadata(), rows.partitionKey(), build(rows, DeletionInfo.LIVE, false, 16));
     }
 
@@ -40,6 +41,7 @@ public class FilteredPartition extends ImmutableBTreePartition
      */
     public static FilteredPartition create(RowIterator iterator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         return new FilteredPartition(iterator);
     }
 
@@ -60,6 +62,7 @@ public class FilteredPartition extends ImmutableBTreePartition
 
             public RegularAndStaticColumns columns()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
                 return FilteredPartition.this.columns();
             }
 
@@ -70,6 +73,7 @@ public class FilteredPartition extends ImmutableBTreePartition
 
             public Row staticRow()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 return FilteredPartition.this.staticRow();
             }
 
@@ -87,6 +91,7 @@ public class FilteredPartition extends ImmutableBTreePartition
 
             public boolean isEmpty()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 return staticRow().isEmpty() && !hasRows();
             }
         };

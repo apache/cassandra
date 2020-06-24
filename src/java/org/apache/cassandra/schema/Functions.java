@@ -41,6 +41,7 @@ public final class Functions implements Iterable<Function>
     public enum Filter implements Predicate<Function>
     {
         ALL, UDF, UDA;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         public boolean test(Function function)
         {
@@ -72,6 +73,7 @@ public final class Functions implements Iterable<Function>
 
     public static Functions of(Function... funs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         return builder().add(funs).build();
     }
 
@@ -87,6 +89,7 @@ public final class Functions implements Iterable<Function>
 
     public int size()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return functions.size();
     }
 
@@ -103,6 +106,7 @@ public final class Functions implements Iterable<Function>
      */
     public Stream<UDAggregate> udas()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return stream().filter(Filter.UDA).map(f -> (UDAggregate) f);
     }
 
@@ -144,6 +148,7 @@ public final class Functions implements Iterable<Function>
 
     public Optional<Function> find(FunctionName name, List<AbstractType<?>> argTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return find(name, argTypes, Filter.ALL);
     }
 
@@ -157,6 +162,7 @@ public final class Functions implements Iterable<Function>
     public Optional<Function> find(FunctionName name, List<AbstractType<?>> argTypes, Filter filter)
     {
         return get(name).stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                         .filter(filter.and(fun -> typesMatch(fun.argTypes(), argTypes)))
                         .findAny();
     }
@@ -211,6 +217,7 @@ public final class Functions implements Iterable<Function>
 
     public Functions filter(Predicate<Function> predicate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Builder builder = builder();
         stream().filter(predicate).forEach(builder::add);
         return builder.build();
@@ -235,6 +242,7 @@ public final class Functions implements Iterable<Function>
         Function fun =
             find(name, argTypes).orElseThrow(() -> new IllegalStateException(String.format("Function %s doesn't exists", name)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return without(fun);
     }
 
@@ -306,6 +314,7 @@ public final class Functions implements Iterable<Function>
     @SuppressWarnings("unchecked")
     static FunctionsDiff<UDFunction> udfsDiff(Functions before, Functions after)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return (FunctionsDiff<UDFunction>) FunctionsDiff.diff(before, after, Filter.UDF);
     }
 

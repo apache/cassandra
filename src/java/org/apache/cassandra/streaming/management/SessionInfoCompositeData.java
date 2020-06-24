@@ -36,18 +36,23 @@ public class SessionInfoCompositeData
 {
     private static final String[] ITEM_NAMES = new String[]{"planId",
                                                             "peer",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                             "peer_port",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8084
                                                             "connecting",
                                                             "connecting_port",
                                                             "receivingSummaries",
                                                             "sendingSummaries",
                                                             "state",
                                                             "receivingFiles",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7270
                                                             "sendingFiles",
                                                             "sessionIndex"};
     private static final String[] ITEM_DESCS = new String[]{"Plan ID",
                                                             "Session peer",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                             "Session peer storage port",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8084
                                                             "Connecting address",
                                                             "Connecting storage port",
                                                             "Summaries of receiving data",
@@ -65,13 +70,16 @@ public class SessionInfoCompositeData
         {
             ITEM_TYPES = new OpenType[]{SimpleType.STRING,
                                         SimpleType.STRING,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                         SimpleType.INTEGER,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8084
                                         SimpleType.STRING,
                                         SimpleType.INTEGER,
                                         ArrayType.getArrayType(StreamSummaryCompositeData.COMPOSITE_TYPE),
                                         ArrayType.getArrayType(StreamSummaryCompositeData.COMPOSITE_TYPE),
                                         SimpleType.STRING,
                                         ArrayType.getArrayType(ProgressInfoCompositeData.COMPOSITE_TYPE),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7270
                                         ArrayType.getArrayType(ProgressInfoCompositeData.COMPOSITE_TYPE),
                                         SimpleType.INTEGER};
             COMPOSITE_TYPE = new CompositeType(SessionInfo.class.getName(),
@@ -90,6 +98,7 @@ public class SessionInfoCompositeData
     {
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         valueMap.put(ITEM_NAMES[1], sessionInfo.peer.address.getHostAddress());
         valueMap.put(ITEM_NAMES[2], sessionInfo.peer.port);
         valueMap.put(ITEM_NAMES[3], sessionInfo.connecting.address.getHostAddress());
@@ -101,6 +110,7 @@ public class SessionInfoCompositeData
                 return StreamSummaryCompositeData.toCompositeData(input);
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         valueMap.put(ITEM_NAMES[5], toArrayOfCompositeData(sessionInfo.receivingSummaries, fromStreamSummary));
         valueMap.put(ITEM_NAMES[6], toArrayOfCompositeData(sessionInfo.sendingSummaries, fromStreamSummary));
         valueMap.put(ITEM_NAMES[7], sessionInfo.state.name());
@@ -111,6 +121,7 @@ public class SessionInfoCompositeData
                 return ProgressInfoCompositeData.toCompositeData(planId, input);
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         valueMap.put(ITEM_NAMES[8], toArrayOfCompositeData(sessionInfo.getReceivingFiles(), fromProgressInfo));
         valueMap.put(ITEM_NAMES[9], toArrayOfCompositeData(sessionInfo.getSendingFiles(), fromProgressInfo));
         valueMap.put(ITEM_NAMES[10], sessionInfo.sessionIndex);
@@ -129,6 +140,7 @@ public class SessionInfoCompositeData
         assert cd.getCompositeType().equals(COMPOSITE_TYPE);
 
         Object[] values = cd.getAll(ITEM_NAMES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort peer, connecting;
         try
         {
@@ -147,6 +159,7 @@ public class SessionInfoCompositeData
             }
         };
         SessionInfo info = new SessionInfo(peer,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                            (int)values[10],
                                            connecting,
                                            fromArrayOfCompositeData((CompositeData[]) values[5], toStreamSummary),
@@ -159,6 +172,7 @@ public class SessionInfoCompositeData
                 return ProgressInfoCompositeData.fromCompositeData(input);
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (ProgressInfo progress : fromArrayOfCompositeData((CompositeData[]) values[8], toProgressInfo))
         {
             info.updateProgress(progress);

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 public enum OperationType
 {
     /** Each modification here should be also applied to {@link org.apache.cassandra.tools.nodetool.Stop#compactionType} */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3154
     COMPACTION("Compaction"),
     VALIDATION("Validation"),
     KEY_CACHE_SAVE("Key cache save"),
@@ -27,9 +28,12 @@ public enum OperationType
     COUNTER_CACHE_SAVE("Counter cache save"),
     CLEANUP("Cleanup"),
     SCRUB("Scrub"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
     UPGRADE_SSTABLES("Upgrade sstables"),
     INDEX_BUILD("Secondary index build"),
     /** Compaction for tombstone removal */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4234
     TOMBSTONE_COMPACTION("Tombstone Compaction"),
     UNKNOWN("Unknown compaction type"),
     ANTICOMPACTION("Anticompaction after repair"),
@@ -39,6 +43,7 @@ public enum OperationType
     WRITE("Write"),
     VIEW_BUILD("View build"),
     INDEX_SUMMARY("Index summary redistribution"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
     RELOCATE("Relocate sstables to correct disk"),
     GARBAGE_COLLECT("Remove deleted data");
 

@@ -26,10 +26,13 @@ import java.util.Map;
 
 public enum CliOption
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
     POP("Population distribution and intra-partition visit order", SettingsPopulation.helpPrinter()),
     INSERT("Insert specific options relating to various methods for batching and splitting partition updates", SettingsInsert.helpPrinter()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
     COL("Column details such as size and count distribution, data generator, names, comparator and if super columns should be used", SettingsColumn.helpPrinter()),
     RATE("Thread count, rate limit or automatic mode (default is auto)", SettingsRate.helpPrinter()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
     MODE("CQL mode options", SettingsMode.helpPrinter()),
     ERRORS("How to handle errors when encountered during stress", SettingsErrors.helpPrinter()),
     SCHEMA("Replication settings, compression, compaction, etc.", SettingsSchema.helpPrinter()),
@@ -38,6 +41,7 @@ public enum CliOption
     TRANSPORT("Custom transport factories", SettingsTransport.helpPrinter()),
     PORT("The port to connect to cassandra nodes on", SettingsPort.helpPrinter()),
     SENDTO("-send-to", "Specify a stress server to send this command to", SettingsMisc.sendToDaemonHelpPrinter()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
     GRAPH("-graph", "Graph recorded metrics", SettingsGraph.helpPrinter()),
     TOKENRANGE("Token range settings", SettingsTokenRange.helpPrinter())
     ;

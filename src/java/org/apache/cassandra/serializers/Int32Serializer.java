@@ -28,6 +28,7 @@ public class Int32Serializer implements TypeSerializer<Integer>
 
     public Integer deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return bytes.remaining() == 0 ? null : ByteBufferUtil.toInt(bytes);
     }
 

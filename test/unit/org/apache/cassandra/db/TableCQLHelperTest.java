@@ -104,6 +104,7 @@ public class TableCQLHelperTest extends CQLTester
         assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a (a1 varint, a2 varint, a3 varint);",
                                       "CREATE TYPE cql_test_keyspace_user_types.b (b1 a, b2 a, b3 a);",
                                       "CREATE TYPE cql_test_keyspace_user_types.c (c1 b, c2 b, c3 b);"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
                      TableCQLHelper.getUserTypesAsCQL(cfs.metadata()));
     }
 
@@ -141,6 +142,7 @@ public class TableCQLHelperTest extends CQLTester
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg3 USING TIMESTAMP 30000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg2 USING TIMESTAMP 20000;"),
                      TableCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
 
         assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
@@ -183,6 +185,7 @@ public class TableCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present in CREATE, then in DROP and then in ADD again, to record DROP with a proper timestamp
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
         assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
         "\tpk1 varint,\n" +
@@ -196,6 +199,7 @@ public class TableCQLHelperTest extends CQLTester
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg1 varint;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP reg2 USING TIMESTAMP 20000;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg2 varint static;"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
                      TableCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
     }
 
@@ -220,6 +224,7 @@ public class TableCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
         assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
         "\tpk1 varint,\n" +
@@ -255,7 +260,9 @@ public class TableCQLHelperTest extends CQLTester
                .minIndexInterval(6)
                .maxIndexInterval(7)
                .memtableFlushPeriod(8)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14293
                .speculativeRetry(AlwaysSpeculativeRetryPolicy.INSTANCE)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
                .additionalWritePolicy(NeverSpeculativeRetryPolicy.INSTANCE)
                .extensions(ImmutableMap.of("ext1", ByteBuffer.wrap("val1".getBytes())))
                .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance),
@@ -265,6 +272,7 @@ public class TableCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
         assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).endsWith(
         "AND bloom_filter_fp_chance = 1.0\n" +
         "\tAND crc_check_chance = 0.3\n" +
@@ -274,9 +282,11 @@ public class TableCQLHelperTest extends CQLTester
         "\tAND max_index_interval = 7\n" +
         "\tAND memtable_flush_period_in_ms = 8\n" +
         "\tAND speculative_retry = 'ALWAYS'\n" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         "\tAND additional_write_policy = 'NEVER'\n" +
         "\tAND comment = 'comment'\n" +
         "\tAND caching = { 'keys': 'ALL', 'rows_per_partition': 'NONE' }\n" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14388
         "\tAND compaction = { 'max_threshold': '32', 'min_threshold': '4', 'sstable_size_in_mb': '1', 'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy' }\n" +
         "\tAND compression = { 'chunk_length_in_kb': '64', 'min_compress_ratio': '2.0', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor' }\n" +
         "\tAND cdc = false\n" +
@@ -329,6 +339,7 @@ public class TableCQLHelperTest extends CQLTester
                                       "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (keys(reg1));",
                                       "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (entries(reg1));",
                                       "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
                      TableCQLHelper.getIndexesAsCQL(cfs.metadata()));
     }
 
@@ -409,6 +420,7 @@ public class TableCQLHelperTest extends CQLTester
         String tableName = createTable("CREATE TABLE IF NOT EXISTS %s (" +
                                        "pk1 varint," +
                                        "ck1 varint," +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                        "reg1 frozen<" + typeB + ">," +
                                        "reg2 varint," +
                                        "PRIMARY KEY (pk1, ck1));");

@@ -40,6 +40,7 @@ public abstract class SettingsCommand implements Serializable
 
     public static enum TruncateWhen
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         NEVER, ONCE, ALWAYS
     }
 
@@ -71,9 +72,11 @@ public abstract class SettingsCommand implements Serializable
         this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
         this.noWarmup = options.noWarmup.setByUser();
         this.truncate = TruncateWhen.valueOf(options.truncate.value().toUpperCase());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
 
         if (count != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7926
             this.count = OptionDistribution.parseLong(count.count.value());
             this.duration = 0;
             this.durationUnits = null;
@@ -96,6 +99,7 @@ public abstract class SettingsCommand implements Serializable
                 case 'h':
                     this.durationUnits = TimeUnit.HOURS;
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13029
                 case 'd':
                     this.durationUnits = TimeUnit.DAYS;
                     break;
@@ -121,27 +125,33 @@ public abstract class SettingsCommand implements Serializable
 
     static abstract class Options extends GroupedOptions
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         final OptionSimple noWarmup = new OptionSimple("no-warmup", "", null, "Do not warmup the process", false);
         final OptionSimple truncate = new OptionSimple("truncate=", "never|once|always", "never", "Truncate the table: never, before performing any work, or before each iteration", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13925
         final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY|TWO|THREE|LOCAL_ONE|SERIAL|LOCAL_SERIAL", "LOCAL_ONE", "Consistency level to use", false);
     }
 
     static class Count extends Options
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7926
         final OptionSimple count = new OptionSimple("n=", "[0-9]+[bmk]?", null, "Number of operations to perform", true);
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             return Arrays.asList(count, noWarmup, truncate, consistencyLevel);
         }
     }
 
     static class Duration extends Options
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13029
         final OptionSimple duration = new OptionSimple("duration=", "[0-9]+[smhd]", null, "Time to run in (in seconds, minutes, hours or days)", true);
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             return Arrays.asList(duration, noWarmup, truncate, consistencyLevel);
         }
     }
@@ -154,6 +164,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, noWarmup, truncate, consistencyLevel);
         }
     }
@@ -178,6 +189,7 @@ public abstract class SettingsCommand implements Serializable
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  Type: %s%n", type.toString().toLowerCase());
         out.printf("  Count: %,d%n", count);
         if (durationUnits != null)
@@ -204,6 +216,7 @@ public abstract class SettingsCommand implements Serializable
             if (cmd.category == null)
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6824
             for (String name : cmd.names)
             {
                 final String[] params = clArgs.remove(name);

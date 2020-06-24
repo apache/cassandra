@@ -92,6 +92,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
         // Note that we don't filter markers because that's a bit trickier (we don't know in advance until when
         // the range extend) and it's harmless to leave them.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class FilterNotIndexed extends Transformation
         {
             @Override
@@ -159,6 +160,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
     protected long serializedSizeInternal(int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return Slices.serializer.serializedSize(slices, version);
     }
 

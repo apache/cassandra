@@ -57,6 +57,7 @@ public class TableBuilder
 
     public TableBuilder(char columnDelimiter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14787
         this(String.valueOf(columnDelimiter));
     }
 
@@ -67,6 +68,7 @@ public class TableBuilder
 
     private TableBuilder(TableBuilder base, int[] maximumColumnWidth)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15305
         this(base.columnDelimiter);
         this.maximumColumnWidth = maximumColumnWidth;
         this.rows.addAll(base.rows);
@@ -125,6 +127,7 @@ public class TableBuilder
 
         public SharedTable()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15305
             this(' ');
         }
 

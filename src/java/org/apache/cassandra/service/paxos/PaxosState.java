@@ -47,6 +47,7 @@ public class PaxosState
     {
         assert promised.update.partitionKey().equals(accepted.update.partitionKey()) && accepted.update.partitionKey().equals(mostRecentCommit.update.partitionKey());
         assert promised.update.metadata().id.equals(accepted.update.metadata().id) && accepted.update.metadata().id.equals(mostRecentCommit.update.metadata().id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14356
 
         this.promised = promised;
         this.accepted = accepted;
@@ -55,6 +56,8 @@ public class PaxosState
 
     public static PrepareResponse prepare(Commit toPrepare)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
         long start = System.nanoTime();
         try
         {
@@ -69,6 +72,7 @@ public class PaxosState
                 // tombstone that hides any re-submit). See CASSANDRA-12043 for details.
                 int nowInSec = UUIDGen.unixTimestampInSec(toPrepare.ballot);
                 PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.update.partitionKey(), toPrepare.update.metadata(), nowInSec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6023
                 if (toPrepare.isAfter(state.promised))
                 {
                     Tracing.trace("Promising ballot {}", toPrepare.ballot);
@@ -82,6 +86,7 @@ public class PaxosState
                     return new PrepareResponse(false, state.promised, state.mostRecentCommit);
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7359
             finally
             {
                 lock.unlock();
@@ -105,6 +110,7 @@ public class PaxosState
             {
                 int nowInSec = UUIDGen.unixTimestampInSec(proposal.ballot);
                 PaxosState state = SystemKeyspace.loadPaxosState(proposal.update.partitionKey(), proposal.update.metadata(), nowInSec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6023
                 if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
                 {
                     Tracing.trace("Accepting proposal {}", proposal);
@@ -113,10 +119,12 @@ public class PaxosState
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6023
                     Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
                     return false;
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7359
             finally
             {
                 lock.unlock();
@@ -144,6 +152,7 @@ public class PaxosState
             {
                 Tracing.trace("Committing proposal {}", proposal);
                 Mutation mutation = proposal.makeMutation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
                 Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
             }
             else
@@ -151,6 +160,7 @@ public class PaxosState
                 Tracing.trace("Not committing proposal {} as ballot timestamp predates last truncation time", proposal);
             }
             // We don't need to lock, we're just blindly updating
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6023
             SystemKeyspace.savePaxosCommit(proposal);
         }
         finally

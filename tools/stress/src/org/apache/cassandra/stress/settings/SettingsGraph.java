@@ -55,6 +55,7 @@ public class SettingsGraph implements Serializable
 
         if (inGraphMode())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             temporaryLogFile = FileUtils.createTempFile("cassandra-stress", ".log");
         }
         else
@@ -86,6 +87,7 @@ public class SettingsGraph implements Serializable
     // CLI Utility Methods
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.println("  File: " + file);
         out.println("  Revision: " + revision);
         out.println("  Title: " + title);

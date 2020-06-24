@@ -81,12 +81,14 @@ public class HintTest
     public void resetGcGraceSeconds()
     {
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         tokenMeta.clearUnsafe();
         tokenMeta.updateHostId(UUID.randomUUID(), local);
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
         for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14378
             MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build(), true);
     }
 
@@ -247,6 +249,7 @@ public class HintTest
         // Process hint message.
         HintMessage message = new HintMessage(localId, hint);
         HINT_REQ.handler().doVerb(Message.out(HINT_REQ, message));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         // hint should not be applied as we no longer are a replica
         assertNoPartitions(key, TABLE0);
@@ -269,6 +272,8 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
@@ -289,6 +294,7 @@ public class HintTest
             long totalHintCount = StorageMetrics.totalHints.getCount();
             // Process hint message.
             HintMessage message = new HintMessage(localId, hint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             HINT_REQ.<HintMessage>handler().doVerb(
                     Message.builder(HINT_REQ, message).from(local).build());
 

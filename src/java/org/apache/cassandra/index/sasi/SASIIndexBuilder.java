@@ -96,11 +96,13 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                             dataFile.seek(indexEntry.position);
                             ByteBufferUtil.readWithShortLength(dataFile); // key
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                             try (SSTableIdentityIterator partition = SSTableIdentityIterator.create(sstable, dataFile, key))
                             {
                                 // if the row has statics attached, it has to be indexed separately
                                 if (cfs.metadata().hasStaticColumns())
                                     indexWriter.nextUnfilteredCluster(partition.staticRow());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
                                 while (partition.hasNext())
                                     indexWriter.nextUnfilteredCluster(partition.next());
@@ -127,6 +129,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                                   OperationType.INDEX_BUILD,
                                   bytesProcessed,
                                   totalSizeInBytes,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                   compactionId,
                                   sstables.keySet());
     }

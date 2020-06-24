@@ -67,8 +67,10 @@ public class MessageForwardingTest extends TestBaseImpl
             // about the result so
             //noinspection ResultOfMethodCallIgnored
             inserts.map(IsolatedExecutor::waitOn).collect(Collectors.toList());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15463
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddress().getAddress(), 0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
             traces.forEach(traceEntry -> {
@@ -76,6 +78,7 @@ public class MessageForwardingTest extends TestBaseImpl
                 {
                     commitCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15318
                 else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
                 {
                     forwardFromCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);

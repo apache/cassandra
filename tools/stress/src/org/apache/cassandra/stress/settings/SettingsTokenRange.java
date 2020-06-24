@@ -72,6 +72,7 @@ public class SettingsTokenRange implements Serializable
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  Wrap: %b%n", wrap);
         out.printf("  Split Factor: %d%n", splitFactor);
     }

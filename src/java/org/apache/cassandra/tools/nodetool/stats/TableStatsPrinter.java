@@ -28,10 +28,12 @@ public class TableStatsPrinter
         switch (format)
         {
             case "json":
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12035
                 return new StatsPrinter.JsonPrinter();
             case "yaml":
                 return new StatsPrinter.YamlPrinter();
             default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
                 if (sorted)
                     return new SortedDefaultPrinter();
                 else
@@ -47,6 +49,7 @@ public class TableStatsPrinter
         @Override
         public void print(TableStatsHolder data, PrintStream out)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11880
             out.println("Total number of tables: " + data.numberOfTables);
             out.println("----------------");
 
@@ -56,6 +59,7 @@ public class TableStatsPrinter
                 // print each keyspace's information
                 out.println("Keyspace : " + keyspace.name);
                 out.println("\tRead Count: " + keyspace.readCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14233
                 out.println("\tRead Latency: " + keyspace.readLatency() + " ms");
                 out.println("\tWrite Count: " + keyspace.writeCount);
                 out.println("\tWrite Latency: " + keyspace.writeLatency() + " ms");
@@ -65,6 +69,7 @@ public class TableStatsPrinter
                 List<StatsTable> tables = keyspace.tables;
                 for (StatsTable table : tables)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
                     printStatsTable(table, table.tableName, "\t\t", out);
                 }
                 out.println("----------------");
@@ -75,6 +80,7 @@ public class TableStatsPrinter
         {
             out.println(indent + "Table" + (table.isIndex ? " (index): " : ": ") + tableDisplayName);
             out.println(indent + "SSTable count: " + table.sstableCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
             out.println(indent + "Old SSTable count: " + table.oldSSTableCount);
             if (table.isLeveledSstable)
                 out.println(indent + "SSTables in each level: [" + String.join(", ",

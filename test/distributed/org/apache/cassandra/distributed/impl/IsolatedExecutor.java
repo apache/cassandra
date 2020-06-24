@@ -58,6 +58,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
 
     IsolatedExecutor(String name, ClassLoader classLoader)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         this.name = name;
         this.isolatedExecutor = Executors.newCachedThreadPool(new NamedThreadFactory("isolatedExecutor", Thread.NORM_PRIORITY, classLoader, new ThreadGroup(name)));
         this.classLoader = classLoader;
@@ -67,18 +68,21 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public Future<Void> shutdown()
     {
         isolatedExecutor.shutdownNow();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
 
         /* Use a thread pool with a core pool size of zero to terminate the thread as soon as possible
         ** so the instance class loader can be garbage collected.  Uses a custom thread factory
         ** rather than NamedThreadFactory to avoid calling FastThreadLocal.removeAll() in 3.0 and up
         ** as it was observed crashing during test failures and made it harder to find the real cause.
         */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         ThreadFactory threadFactory = (Runnable r) -> {
             Thread t = new Thread(r, name + "_shutdown");
             t.setDaemon(true);
             return t;
         };
         ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
                                                                   new LinkedBlockingQueue<>(), threadFactory);
         return shutdownExecutor.submit(() -> {
             try
@@ -170,6 +174,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public static Object deserializeOneObject(byte[] bytes)
     {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
              ObjectInputStream ois = new ObjectInputStream(bais))
         {
             return ois.readObject();
@@ -203,6 +208,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
         catch (InterruptedException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
             Thread.currentThread().interrupt();
             throw Throwables.throwAsUncheckedException(e);
         }
@@ -218,6 +224,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
 
         public static Runnable toRunnable(ThrowingRunnable runnable)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15014
             return () -> {
                 try
                 {

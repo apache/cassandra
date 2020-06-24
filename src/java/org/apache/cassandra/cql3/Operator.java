@@ -30,6 +30,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public enum Operator
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
     EQ(0)
     {
         @Override
@@ -41,6 +42,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return type.compareForCQL(leftOperand, rightOperand) == 0;
         }
     },
@@ -55,6 +57,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return type.compareForCQL(leftOperand, rightOperand) < 0;
         }
     },
@@ -69,6 +72,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return type.compareForCQL(leftOperand, rightOperand) <= 0;
         }
     },
@@ -83,6 +87,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return type.compareForCQL(leftOperand, rightOperand) >= 0;
         }
     },
@@ -97,6 +102,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return type.compareForCQL(leftOperand, rightOperand) > 0;
         }
     },
@@ -155,6 +161,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             MapType<?, ?> mapType = (MapType<?, ?>) type;
             Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
             return map.containsKey(mapType.getKeysType().getSerializer().deserialize(rightOperand));
@@ -172,8 +179,10 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             return type.compareForCQL(leftOperand, rightOperand) != 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
 
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
     },
     IS_NOT(9)
     {
@@ -186,8 +195,10 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             throw new UnsupportedOperationException();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
     },
     LIKE_PREFIX(10)
     {
@@ -200,6 +211,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return ByteBufferUtil.startsWith(leftOperand, rightOperand);
         }
     },
@@ -214,6 +226,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return ByteBufferUtil.endsWith(leftOperand, rightOperand);
         }
     },
@@ -228,8 +241,10 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return ByteBufferUtil.contains(leftOperand, rightOperand);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
     },
     LIKE_MATCHES(13)
     {
@@ -241,8 +256,10 @@ public enum Operator
 
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             return ByteBufferUtil.contains(leftOperand, rightOperand);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
     },
     LIKE(14)
     {
@@ -255,6 +272,7 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             throw new UnsupportedOperationException();
         }
     };
@@ -286,6 +304,7 @@ public enum Operator
 
     public int getValue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         return b;
     }
 
@@ -322,6 +341,7 @@ public enum Operator
      */
     public boolean isSlice()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         return this == LT || this == LTE || this == GT || this == GTE;
     }
 
@@ -337,6 +357,7 @@ public enum Operator
      */
     public boolean isIN()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
         return this == IN;
     }
 }

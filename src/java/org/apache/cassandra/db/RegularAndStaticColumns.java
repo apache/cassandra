@@ -39,6 +39,7 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 
     public RegularAndStaticColumns(Columns statics, Columns regulars)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         assert statics != null && regulars != null;
         this.statics = statics;
         this.regulars = regulars;
@@ -58,6 +59,7 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 
     public RegularAndStaticColumns mergeTo(RegularAndStaticColumns that)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         if (this == that)
             return this;
         Columns statics = this.statics.mergeTo(that.statics);
@@ -76,6 +78,7 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 
     public Columns columns(boolean isStatic)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return isStatic ? statics : regulars;
     }
 
@@ -86,6 +89,7 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 
     public boolean includes(RegularAndStaticColumns columns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         return statics.containsAll(columns.statics) && regulars.containsAll(columns.regulars);
     }
 
@@ -102,6 +106,7 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
     /** * Returns the total number of static and regular columns. */
     public int size()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         return regulars.size() + statics.size();
     }
 
@@ -172,6 +177,7 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
         {
             if (regularColumns == null && !columns.regulars.isEmpty())
                 regularColumns = BTreeSet.builder(naturalOrder());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
 
             for (ColumnMetadata c : columns.regulars)
                 regularColumns.add(c);

@@ -144,6 +144,7 @@ public class ByteOrderedPartitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return new BufferDecoratedKey(getToken(key), key);
     }
 
@@ -162,6 +163,7 @@ public class ByteOrderedPartitioner implements IPartitioner
 
     public Token split(Token left, Token right, double ratioToLeft)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         throw new UnsupportedOperationException();
     }
 
@@ -211,6 +213,7 @@ public class ByteOrderedPartitioner implements IPartitioner
 
     public BytesToken getRandomToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
        return getRandomToken(ThreadLocalRandom.current());
     }
 
@@ -237,6 +240,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         @Override
         public int byteSize(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             return ((BytesToken) token).token.length;
         }
 
@@ -281,6 +285,7 @@ public class ByteOrderedPartitioner implements IPartitioner
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         Map<Token, Float> allTokens = Maps.newHashMapWithExpectedSize(sortedTokens.size());
         List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
 
@@ -322,6 +327,7 @@ public class ByteOrderedPartitioner implements IPartitioner
 
     public AbstractType<?> partitionOrdering()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return BytesType.instance;
     }
 }

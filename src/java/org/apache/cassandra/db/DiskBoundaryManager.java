@@ -47,6 +47,7 @@ public class DiskBoundaryManager
     {
         if (!cfs.getPartitioner().splitter().isPresent())
             return new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(), DisallowedDirectories.getDirectoriesVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         if (diskBoundaries == null || diskBoundaries.isOutOfDate())
         {
             synchronized (this)
@@ -79,9 +80,11 @@ public class DiskBoundaryManager
         {
             tmd = StorageService.instance.getTokenMetadata();
             ringVersion = tmd.getRingVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14084
             if (StorageService.instance.isBootstrapMode()
                 && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14083
                 PendingRangeCalculatorService.instance.blockUntilFinished();
                 localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddressAndPort());
             }
@@ -110,6 +113,7 @@ public class DiskBoundaryManager
             return new DiskBoundaries(cfs, dirs, null, ringVersion, directoriesVersion);
 
         List<PartitionPosition> positions = getDiskBoundaries(localRanges, cfs.getPartitioner(), dirs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
 
         return new DiskBoundaries(cfs, dirs, positions, ringVersion, directoriesVersion);
     }
@@ -130,6 +134,7 @@ public class DiskBoundaryManager
         Splitter splitter = partitioner.splitter().get();
         boolean dontSplitRanges = DatabaseDescriptor.getNumTokens() > 1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         List<Splitter.WeightedRange> weightedRanges = new ArrayList<>(replicas.size());
         // note that Range.sort unwraps any wraparound ranges, so we need to sort them here
         for (Range<Token> r : Range.sort(replicas.onlyFull().ranges()))

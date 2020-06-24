@@ -42,6 +42,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
         super(TableMetadata.builder(keyspace, "sstable_tasks")
                            .comment("current sstable tasks")
                            .kind(TableMetadata.Kind.VIRTUAL)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14640
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                            .addClusteringColumn(TABLE_NAME, UTF8Type.instance)

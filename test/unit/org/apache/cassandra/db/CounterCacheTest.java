@@ -168,6 +168,7 @@ public class CounterCacheTest
         Clustering c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
         ColumnMetadata cd = cfs.metadata().getColumn(ByteBufferUtil.bytes("c"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9811
         assertEquals(1L, cfs.getCachedCounter(bytes(1), c1, cd, null).count);
         assertEquals(2L, cfs.getCachedCounter(bytes(1), c2, cd, null).count);
         assertEquals(1L, cfs.getCachedCounter(bytes(2), c1, cd, null).count);

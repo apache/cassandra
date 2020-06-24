@@ -86,11 +86,13 @@ public class CleanupTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED1, true));
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13526
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {
             @Override
@@ -110,6 +112,7 @@ public class CleanupTest
                                     KeyspaceParams.nts("DC1", 1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD2),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE2, CF_INDEXED2, true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15100
         SchemaLoader.createKeyspace(KEYSPACE3,
                                     KeyspaceParams.nts("DC1", 1),
                                     SchemaLoader.standardCFMD(KEYSPACE3, CF_STANDARD3));
@@ -129,16 +132,20 @@ public class CleanupTest
 
         // record max timestamps of the sstables pre-cleanup
         List<Long> expectedMaxTimestamps = getMaxTimestampList(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2753
 
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15100
 
         // with one token in the ring, owned by the local node, cleanup should be a no-op
         CompactionManager.instance.performCleanup(cfs, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
 
         // ensure max timestamp of the sstables are retained post-cleanup
         assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
 
         // check data is still there
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15100
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
     }
 
@@ -154,6 +161,7 @@ public class CleanupTest
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
 
         ColumnMetadata cdef = cfs.metadata().getColumn(COLUMN);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         String indexName = "birthdate_key_index";
         long start = System.nanoTime();
         while (!cfs.getBuiltIndexes().contains(indexName) && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10))
@@ -173,12 +181,15 @@ public class CleanupTest
         tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
 
         CompactionManager.instance.performCleanup(cfs, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
 
         // row data should be gone
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         // not only should it be gone but there should be no data on disk, not even tombstones
         assert cfs.getLiveSSTables().isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // 2ary indexes should result in no results, too (although tombstones won't be gone until compacted)
         assertEquals(0, Util.getAll(Util.cmd(cfs).filterOn("birthdate", Operator.EQ, VALUE).build()).size());
@@ -201,6 +212,8 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
         CompactionManager.instance.performCleanup(cfs, 2);
@@ -223,8 +236,10 @@ public class CleanupTest
     private void testCleanupWithNoTokenRange(boolean isUserDefined) throws Exception
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13526
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.1"));
         byte[] tk1 = {2};
         tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
@@ -249,6 +264,7 @@ public class CleanupTest
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
             CompactionManager.instance.performCleanup(cfs, 2);
         }
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
@@ -297,9 +313,11 @@ public class CleanupTest
     public void testuserDefinedCleanupWithNewToken() throws ExecutionException, InterruptedException, UnknownHostException
     {
         StorageService.instance.getTokenMetadata().clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10708
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, "val", LOOPS);
@@ -310,12 +328,14 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
 
         for(SSTableReader r: cfs.getLiveSSTables())
             CompactionManager.instance.forceUserDefinedCleanup(r.getFilename());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
     }
 
@@ -323,6 +343,8 @@ public class CleanupTest
     public void testNeedsCleanup() throws Exception
     {
         // setup
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6679
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10740
         StorageService.instance.getTokenMetadata().clearUnsafe();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
@@ -369,6 +391,7 @@ public class CleanupTest
                 add(entry(true, Arrays.asList(range(ssTableMin, ssTableMax)))); // first token of SSTable is not owned
                 add(entry(false, Arrays.asList(range(before4, max)))); // first token of SSTable is not owned
                 add(entry(false, Arrays.asList(range(min, before1), range(before2, before3), range(before4, max)))); // SSTable owned by the last range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13526
                 add(entry(true, Collections.EMPTY_LIST)); // empty token range means discard entire sstable
             }
         };
@@ -401,6 +424,7 @@ public class CleanupTest
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
             new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                     .clustering(COLUMN)
                     .add(colName, VALUE)
                     .build()
@@ -412,7 +436,9 @@ public class CleanupTest
 
     protected List<Long> getMaxTimestampList(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2753
         List<Long> list = new LinkedList<Long>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             list.add(sstable.getMaxTimestamp());
         return list;

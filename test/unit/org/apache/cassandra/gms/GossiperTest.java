@@ -51,7 +51,9 @@ public class GossiperTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -61,6 +63,7 @@ public class GossiperTest
     TokenMetadata tmd = StorageService.instance.getTokenMetadata();
     ArrayList<Token> endpointTokens = new ArrayList<>();
     ArrayList<Token> keyTokens = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     List<InetAddressAndPort> hosts = new ArrayList<>();
     List<UUID> hostIds = new ArrayList<>();
 
@@ -70,6 +73,7 @@ public class GossiperTest
     public void setup()
     {
         tmd.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
         originalSeedProvider = DatabaseDescriptor.getSeedProvider();
     }
 
@@ -82,6 +86,7 @@ public class GossiperTest
     @Test
     public void testHaveVersion3Nodes() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
         VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
         EndpointState es = new EndpointState(null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.0-SNAPSHOT"));
@@ -120,6 +125,7 @@ public class GossiperTest
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15097
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -169,6 +175,7 @@ public class GossiperTest
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
@@ -239,6 +246,7 @@ public class GossiperTest
     @Test
     public void testReloadSeeds() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
         Gossiper gossiper = new Gossiper(false);
         List<String> loadedList;
 
@@ -266,6 +274,7 @@ public class GossiperTest
         Assert.assertEquals(nextSize, loadedList.size());
         for (InetAddressAndPort a : nextSeeds)
             assertTrue(loadedList.contains(a.toString()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
 
         // Check that the return value of the reloadSeeds matches the content of the getSeeds call
         // and that they both match the internal contents of the Gossiper seeds list
@@ -287,6 +296,7 @@ public class GossiperTest
         Assert.assertEquals(uniqueSize, loadedList.size());
         for (InetAddressAndPort a : nextSeeds)
             assertTrue(loadedList.contains(a.toString()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
 
         // Create a new list that has no overlaps with the previous list
         addr = InetAddressAndPort.getByAddress(InetAddress.getByName("127.99.2.1"));
@@ -305,6 +315,7 @@ public class GossiperTest
         Assert.assertEquals(disjointSize, loadedList.size());
         for (InetAddressAndPort a : disjointSeeds)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
             assertTrue(gossiper.getSeeds().contains(a.toString()));
             assertTrue(loadedList.contains(a.toString()));
         }
@@ -317,6 +328,7 @@ public class GossiperTest
         Assert.assertEquals(disjointSize, loadedList.size());
         for (InetAddressAndPort a : disjointSeeds)
             assertTrue(loadedList.contains(a.toString()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
 
         // Change the seed provider to one that throws an unchecked exception
         DatabaseDescriptor.setSeedProvider(new ErrorSeedProvider());
@@ -328,6 +340,7 @@ public class GossiperTest
         // Check that the in memory seed node list was not modified and the exception was caught
         Assert.assertEquals(disjointSize, gossiper.getSeeds().size());
         for (InetAddressAndPort a : disjointSeeds)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
             assertTrue(gossiper.getSeeds().contains(a.toString()));
     }
 

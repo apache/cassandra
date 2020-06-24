@@ -126,6 +126,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     public NettyStreamingMessageSender(StreamSession session, OutboundConnectionSettings template, StreamConnectionFactory factory, int streamingVersion, boolean isPreview)
     {
         this.session = session;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         this.streamingVersion = streamingVersion;
         this.template = template;
         this.factory = factory;
@@ -140,6 +141,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     @Override
     public void initialize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPort(),
                                                           session.sessionIndex(),
                                                           session.planId(),
@@ -177,6 +179,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
              *  b) for streaming receiver (note: both initiator and follower can receive streaming files) to reveive files,
              *     in {@link Handler#setupStreamingPipeline}
              */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             controlMessageChannel = createChannel(true);
             scheduleKeepAliveTask(controlMessageChannel);
         }
@@ -185,6 +188,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private void scheduleKeepAliveTask(Channel channel)
     {
         int keepAlivePeriod = DatabaseDescriptor.getStreamingKeepAlivePeriod();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isDebugEnabled())
             logger.debug("{} Scheduling keep-alive task with {}s period.", createLogTag(session, channel), keepAlivePeriod);
 
@@ -196,8 +200,10 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     
     private Channel createChannel(boolean isInboundHandlerNeeded) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Channel channel = factory.createConnection(template, streamingVersion);
         session.attachOutbound(channel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
 
         if (isInboundHandlerNeeded)
         {
@@ -205,6 +211,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             pipeline.addLast("stream", new StreamingInboundHandler(template.to, streamingVersion, session));
         }
         channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14389
         logger.debug("Creating channel id {} local {} remote {}", channel.id(), channel.localAddress(), channel.remoteAddress());
         return channel;
     }
@@ -230,10 +237,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         if (closed)
             throw new RuntimeException("stream has been closed, cannot send " + message);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         if (message instanceof OutgoingStreamMessage)
         {
             if (isPreview)
                 throw new RuntimeException("Cannot send stream data messages for preview streaming sessions");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
             if (logger.isDebugEnabled())
                 logger.debug("{} Sending {}", createLogTag(session, null), message);
             fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage)message));
@@ -254,10 +263,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
     private void sendControlMessage(Channel channel, StreamMessage message, GenericFutureListener listener) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isDebugEnabled())
             logger.debug("{} Sending {}", createLogTag(session, channel), message);
 
         // we anticipate that the control messages are rather small, so allocating a ByteBuf shouldn't  blow out of memory.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long messageSize = StreamMessage.serializedSize(message, streamingVersion);
         if (messageSize > 1 << 30)
         {
@@ -270,6 +281,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         ByteBuffer nioBuf = buf.nioBuffer(0, (int) messageSize);
         @SuppressWarnings("resource")
         DataOutputBufferFixed out = new DataOutputBufferFixed(nioBuf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         StreamMessage.serialize(message, out, streamingVersion, session);
         assert nioBuf.position() == nioBuf.limit();
         buf.writerIndex(nioBuf.position());
@@ -293,8 +305,10 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             return null;
 
         Channel channel = channelFuture.channel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         logger.error("{} failed to send a stream message/data to peer {}: msg = {}",
                      createLogTag(session, channel), template.to, msg, future.cause());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         // StreamSession will invoke close(), but we have to mark this sender as closed so the session doesn't try
         // to send any failure messages
@@ -315,6 +329,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
          */
         private final StreamMessage msg;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         FileStreamTask(OutgoingStreamMessage ofm)
         {
             this.msg = ofm;
@@ -334,6 +349,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             if (!acquirePermit(SEMAPHORE_UNAVAILABLE_LOG_INTERVAL))
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             Channel channel = null;
             try
             {
@@ -342,6 +358,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     throw new IllegalStateException("channel's transferring state is currently set to true. refusing to start new stream");
 
                 // close the DataOutputStreamPlus as we're done with it - but don't close the channel
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 try (DataOutputStreamPlus outPlus = new AsyncStreamingOutputPlus(channel))
                 {
                     StreamMessage.serialize(msg, outPlus, streamingVersion, session);
@@ -355,6 +372,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             {
                 session.onError(e);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             catch (Throwable t)
             {
                 if (closed && Throwables.getRootCause(t) instanceof ClosedByInterruptException && fileTransferExecutor.isShutdown())
@@ -393,7 +411,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     {
                         timeOfLastLogging = now;
                         OutgoingStreamMessage ofm = (OutgoingStreamMessage)msg;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
                         if (logger.isInfoEnabled())
                             logger.info("{} waiting to acquire a permit to begin streaming {}. This message logs every {} minutes",
                                         createLogTag(session, null), ofm.getName(), logInterval);
@@ -411,10 +431,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             Thread currentThread = Thread.currentThread();
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13905
                 Channel channel = threadToChannelMap.get(currentThread);
                 if (channel != null)
                     return channel;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                 channel = createChannel(false);
                 threadToChannelMap.put(currentThread, channel);
                 return channel;
@@ -427,6 +449,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
         private void onError(Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             try
             {
                 session.onError(t).get(DEFAULT_CLOSE_WAIT_IN_MILLIS, TimeUnit.MILLISECONDS);
@@ -443,6 +466,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         void injectChannel(Channel channel)
         {
             Thread currentThread = Thread.currentThread();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13905
             if (threadToChannelMap.get(currentThread) != null)
                 throw new IllegalStateException("previous channel already set");
 
@@ -454,6 +478,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
          */
         void unsetChannel()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13905
             threadToChannelMap.remove(Thread.currentThread());
         }
     }
@@ -497,6 +522,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
                 if (logger.isTraceEnabled())
                     logger.trace("{} Sending keep-alive to {}.", createLogTag(session, channel), session.peer);
                 sendControlMessage(channel, new KeepAliveMessage(), this::keepAliveListener);
@@ -512,6 +538,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             if (future.isSuccess() || future.isCancelled())
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
             if (logger.isDebugEnabled())
                 logger.debug("{} Could not send keep-alive message (perhaps stream session is finished?).",
                              createLogTag(session, channel), future.cause());
@@ -539,18 +566,22 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     @Override
     public boolean connected()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return !closed && (controlMessageChannel == null || controlMessageChannel.isOpen());
     }
 
     @Override
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (closed)
             return;
 
         closed = true;
         if (logger.isDebugEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             logger.debug("{} Closing stream connection channels on {}", createLogTag(session, null), template.to);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14389
         for (ScheduledFuture<?> future : channelKeepAlives)
             future.cancel(false);
         channelKeepAlives.clear();

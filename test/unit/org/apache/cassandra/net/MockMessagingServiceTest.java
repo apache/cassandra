@@ -55,6 +55,7 @@ public class MockMessagingServiceTest
     public void testRequestResponse() throws InterruptedException, ExecutionException
     {
         // echo message that we like to mock as incoming response for outgoing echo message
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, NoPayload.noPayload);
         MockMessagingSpy spy = MockMessagingService
                 .when(

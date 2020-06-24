@@ -57,10 +57,13 @@ public class SettingsMode implements Serializable
         {
             cqlVersion = CqlVersion.CQL3;
             Cql3Options opts = (Cql3Options) options;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
             protocolVersion = "NEWEST_SUPPORTED".equals(opts.protocolVersion.value())
                     ? ProtocolVersion.NEWEST_SUPPORTED
                     : ProtocolVersion.fromInt(Integer.parseInt(opts.protocolVersion.value()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             api = ConnectionAPI.JAVA_DRIVER_NATIVE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7985
             style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL :  ConnectionStyle.CQL_PREPARED;
             compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
             username = opts.user.value();
@@ -99,10 +102,14 @@ public class SettingsMode implements Serializable
         {
             cqlVersion = CqlVersion.CQL3;
             Cql3SimpleNativeOptions opts = (Cql3SimpleNativeOptions) options;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
             protocolVersion = ProtocolVersion.NEWEST_SUPPORTED;
             api = ConnectionAPI.SIMPLE_NATIVE;
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
             compression = ProtocolOptions.Compression.NONE.name();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7985
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7985
             username = null;
             password = null;
             authProvider = null;
@@ -133,13 +140,16 @@ public class SettingsMode implements Serializable
     private static abstract class Cql3Options extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
         final OptionSimple protocolVersion = new OptionSimple("protocolVersion=", "[2-4]+", "NEWEST_SUPPORTED", "CQL Protocol Version", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7985
         final OptionSimple useUnPrepared = new OptionSimple("unprepared", "", null, "force use of unprepared statements", false);
         final OptionSimple useCompression = new OptionSimple("compression=", "none|lz4|snappy", "none", "", false);
         final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
         final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
         final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
         final OptionSimple authProvider = new OptionSimple("auth-provider=", ".*", null, "Fully qualified implementation of com.datastax.driver.core.AuthProvider", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "128", "Maximum pending requests per connection", false);
         final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "8", "Number of connections per host", false);
 
@@ -148,6 +158,7 @@ public class SettingsMode implements Serializable
         public List<? extends Option> options()
         {
             return Arrays.asList(mode(), useUnPrepared, api, useCompression, port, user, password, authProvider,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11410
                                  maxPendingPerConnection, connectionsPerHost, protocolVersion);
         }
     }
@@ -169,6 +180,7 @@ public class SettingsMode implements Serializable
     // CLI Utility Methods
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  API: %s%n", api);
         out.printf("  Connection Style: %s%n", style);
         out.printf("  CQL Version: %s%n", cqlVersion);
@@ -195,6 +207,7 @@ public class SettingsMode implements Serializable
             return new SettingsMode(opts);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         GroupedOptions options = GroupedOptions.select(params, new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
         if (options == null)
         {
@@ -207,6 +220,7 @@ public class SettingsMode implements Serializable
 
     public static void printHelp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         GroupedOptions.printOptions(System.out, "-mode", new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
     }
 

@@ -49,11 +49,13 @@ public class ColumnSpecification
      */
     public ColumnSpecification withAlias(ColumnIdentifier alias)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8090
         return new ColumnSpecification(ksName, cfName, alias, type);
     }
 
     public boolean isReversedType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         return type instanceof ReversedType;
     }
 
@@ -62,6 +64,7 @@ public class ColumnSpecification
      */
     public static boolean allInSameTable(Collection<ColumnSpecification> names)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
         if (names == null || names.isEmpty())
             return false;
 
@@ -98,6 +101,8 @@ public class ColumnSpecification
     public String toString()
     {
         return MoreObjects.toStringHelper(this)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
                           .add("name", name)
                           .add("type", type)
                           .toString();

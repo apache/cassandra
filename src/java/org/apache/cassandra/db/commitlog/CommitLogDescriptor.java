@@ -78,6 +78,7 @@ public class CommitLogDescriptor
         this.version = version;
         this.id = id;
         this.compression = compression;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         this.encryptionContext = encryptionContext;
     }
 
@@ -96,18 +97,22 @@ public class CommitLogDescriptor
      */
     public static void writeHeader(ByteBuffer out, CommitLogDescriptor descriptor, Map<String, String> additionalHeaders)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9650
         CRC32 crc = new CRC32();
         out.putInt(descriptor.version);
         updateChecksumInt(crc, descriptor.version);
         out.putLong(descriptor.id);
         updateChecksumInt(crc, (int) (descriptor.id & 0xFFFFFFFFL));
         updateChecksumInt(crc, (int) (descriptor.id >>> 32));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         String parametersString = constructParametersString(descriptor.compression, descriptor.encryptionContext, additionalHeaders);
         byte[] parametersBytes = parametersString.getBytes(StandardCharsets.UTF_8);
         if (parametersBytes.length != (((short) parametersBytes.length) & 0xFFFF))
             throw new ConfigurationException(String.format("Compression parameters too long, length %d cannot be above 65535.",
                         parametersBytes.length));
         out.putShort((short) parametersBytes.length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9650
         updateChecksumInt(crc, parametersBytes.length);
         out.put(parametersBytes);
         crc.update(parametersBytes, 0, parametersBytes.length);
@@ -117,6 +122,7 @@ public class CommitLogDescriptor
     @VisibleForTesting
     static String constructParametersString(ParameterizedClass compression, EncryptionContext encryptionContext, Map<String, String> additionalHeaders)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         Map<String, Object> params = new TreeMap<>();
         if (compression != null)
         {
@@ -148,8 +154,10 @@ public class CommitLogDescriptor
 
     public static CommitLogDescriptor readHeader(DataInput input, EncryptionContext encryptionContext) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9650
         CRC32 checkcrc = new CRC32();
         int version = input.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         if (version < VERSION_30)
             throw new IllegalArgumentException("Unsupported pre-3.0 commit log found; cannot read.");
 
@@ -166,8 +174,10 @@ public class CommitLogDescriptor
         checkcrc.update(parametersBytes, 0, parametersBytes.length);
         int crc = input.readInt();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9650
         if (crc == (int) checkcrc.getValue())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
             Map<?, ?> map = (Map<?, ?>) JSONValue.parse(new String(parametersBytes, StandardCharsets.UTF_8));
             return new CommitLogDescriptor(version, id, parseCompression(map), EncryptionContext.createFromMap(map, encryptionContext));
         }
@@ -185,6 +195,7 @@ public class CommitLogDescriptor
             return null;
 
         Map<String, String> cparams = (Map<String, String>) params.get(COMPRESSION_PARAMETERS_KEY);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         return new ParameterizedClass(className, cparams);
     }
 
@@ -194,10 +205,12 @@ public class CommitLogDescriptor
         if (!(matcher = COMMIT_LOG_FILE_PATTERN.matcher(name)).matches())
             throw new RuntimeException("Cannot parse the version of the file: " + name);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
         if (matcher.group(3) == null)
             throw new UnsupportedOperationException("Commitlog segment is too old to open; upgrade to 1.2.5+ first");
 
         long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id, null, new EncryptionContext());
     }
 
@@ -205,8 +218,11 @@ public class CommitLogDescriptor
     {
         switch (version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             case VERSION_30:
                 return MessagingService.VERSION_30;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13161
             case VERSION_40:
                 return MessagingService.VERSION_40;
             default:
@@ -221,6 +237,7 @@ public class CommitLogDescriptor
 
     public String cdcIndexFileName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         return FILENAME_PREFIX + version + SEPARATOR + id + "_cdc.idx";
     }
 
@@ -235,16 +252,19 @@ public class CommitLogDescriptor
 
     public EncryptionContext getEncryptionContext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         return encryptionContext;
     }
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         return "(" + version + "," + id + (compression != null ? "," + compression : "") + ")";
     }
 
     public boolean equals(Object that)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6974
         return that instanceof CommitLogDescriptor && equals((CommitLogDescriptor) that);
     }
 
@@ -255,6 +275,7 @@ public class CommitLogDescriptor
 
     public boolean equals(CommitLogDescriptor that)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         return equalsIgnoringCompression(that) && Objects.equal(this.compression, that.compression)
                 && Objects.equal(encryptionContext, that.encryptionContext);
     }

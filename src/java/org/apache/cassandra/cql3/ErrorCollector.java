@@ -98,6 +98,7 @@ public final class ErrorCollector implements ErrorListener
     public void throwFirstSyntaxError() throws SyntaxException
     {
         if (!errorMsgs.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7111
             throw new SyntaxException(errorMsgs.getFirst());
     }
 
@@ -116,6 +117,7 @@ public final class ErrorCollector implements ErrorListener
         Token from = tokenStream.get(getSnippetFirstTokenIndex(index));
         Token to = tokenStream.get(getSnippetLastTokenIndex(index, size));
         Token offending = tokenStream.get(getOffendingTokenIndex(index, size));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7569
 
         appendSnippet(builder, from, to, offending);
     }
@@ -132,6 +134,7 @@ public final class ErrorCollector implements ErrorListener
                              Token to,
                              Token offending)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7111
         if (!areTokensValid(from, to, offending))
             return;
 
@@ -146,6 +149,7 @@ public final class ErrorCollector implements ErrorListener
         if (!includeQueryStart)
             builder.append("...");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7769
         String toLine = lines[lineIndex(to)];
         int toEnd = getLastCharPositionInLine(to);
         lines[lineIndex(to)] = toEnd >= toLine.length() ? toLine : toLine.substring(0, toEnd);
@@ -170,6 +174,7 @@ public final class ErrorCollector implements ErrorListener
      */
     private static boolean areTokensValid(Token... tokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7111
         for (Token token : tokens)
         {
             if (!isTokenValid(token))
@@ -201,6 +206,7 @@ public final class ErrorCollector implements ErrorListener
      */
     private static int getOffendingTokenIndex(int index, int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7569
         return Math.min(index, size - 1);
     }
 

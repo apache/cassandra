@@ -31,22 +31,28 @@ import org.apache.cassandra.utils.MD5Digest;
 public interface QueryHandler
 {
     CQLStatement parse(String queryString, QueryState queryState, QueryOptions options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
     ResultMessage process(CQLStatement statement,
                           QueryState state,
                           QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                           Map<String, ByteBuffer> customPayload,
                           long queryStartNanoTime) throws RequestExecutionException, RequestValidationException;
 
     ResultMessage.Prepared prepare(String query,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
                                    ClientState clientState,
                                    Map<String, ByteBuffer> customPayload) throws RequestValidationException;
 
     QueryHandler.Prepared getPrepared(MD5Digest id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
     ResultMessage processPrepared(CQLStatement statement,
                                   QueryState state,
                                   QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                   Map<String, ByteBuffer> customPayload,
                                   long queryStartNanoTime) throws RequestExecutionException, RequestValidationException;
 
@@ -71,6 +77,7 @@ public interface QueryHandler
 
         public Prepared(CQLStatement statement)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             this(statement, "");
         }
 

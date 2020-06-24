@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 public abstract class MemtablePool
 {
     final MemtableCleanerThread<?> cleaner;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
 
     // the total memory used by this pool
     public final SubPool onHeap;
@@ -47,11 +48,13 @@ public abstract class MemtablePool
 
     final WaitQueue hasRoom = new WaitQueue();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
     MemtablePool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanThreshold, Runnable cleaner)
     {
         this.onHeap = getSubPool(maxOnHeapMemory, cleanThreshold);
         this.offHeap = getSubPool(maxOffHeapMemory, cleanThreshold);
         this.cleaner = getCleaner(cleaner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11327
         blockedOnAllocating = CassandraMetricsRegistry.Metrics.timer(new DefaultNameFactory("MemtablePool")
                                                                          .createMetricName("BlockedOnAllocation"));
         if (this.cleaner != null)
@@ -63,6 +66,7 @@ public abstract class MemtablePool
         return new SubPool(limit, cleanThreshold);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
     MemtableCleanerThread<?> getCleaner(Runnable cleaner)
     {
         return cleaner == null ? null : new MemtableCleanerThread<>(this, cleaner);
@@ -71,6 +75,7 @@ public abstract class MemtablePool
     @VisibleForTesting
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         ExecutorUtils.shutdownNowAndWait(timeout, unit, cleaner);
     }
 
@@ -157,6 +162,7 @@ public abstract class MemtablePool
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
         void allocated(long size)
         {
             assert size >= 0;
@@ -204,6 +210,7 @@ public abstract class MemtablePool
         public float reclaimingRatio()
         {
             float r = reclaiming / (float) limit;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
             if (Float.isNaN(r))
                 return 0;
             return r;
@@ -219,6 +226,7 @@ public abstract class MemtablePool
 
         public MemtableAllocator.SubAllocator newAllocator()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             return new MemtableAllocator.SubAllocator(this);
         }
 
@@ -229,6 +237,7 @@ public abstract class MemtablePool
 
         public Timer.Context blockedTimerContext()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11327
             return blockedOnAllocating.time();
         }
     }

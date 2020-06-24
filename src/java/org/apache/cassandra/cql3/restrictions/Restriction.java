@@ -32,6 +32,7 @@ public interface Restriction
 {
     public default boolean isOnToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         return false;
     }
 
@@ -59,6 +60,7 @@ public interface Restriction
      * @param functions the list to add to
      */
     void addFunctionsTo(List<Function> functions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
 
     /**
      * Check if the restriction is on indexed columns.
@@ -76,6 +78,8 @@ public interface Restriction
      * @param options the query options
      */
     public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                IndexRegistry indexRegistry,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
                                QueryOptions options);
 }

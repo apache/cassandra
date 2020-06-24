@@ -63,12 +63,14 @@ public class BigTableWriter extends SSTableWriter
     private final Optional<ChunkCache> chunkCache = Optional.ofNullable(ChunkCache.instance);
 
     private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
                                                         .trickleFsync(DatabaseDescriptor.getTrickleFsync())
                                                         .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
                                                         .build();
 
     public BigTableWriter(Descriptor descriptor,
                           long keyCount,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
                           long repairedAt,
                           UUID pendingRepair,
                           boolean isTransient,
@@ -87,15 +89,19 @@ public class BigTableWriter extends SSTableWriter
 
             dataFile = new CompressedSequentialWriter(new File(getFilename()),
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                                              new File(descriptor.filenameFor(Component.DIGEST)),
                                              writerOption,
                                              compressionParams,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
                                              metadataCollector);
         }
         else
         {
             dataFile = new ChecksummedSequentialWriter(new File(getFilename()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                     new File(descriptor.filenameFor(Component.CRC)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                     new File(descriptor.filenameFor(Component.DIGEST)),
                     writerOption);
         }
@@ -103,7 +109,10 @@ public class BigTableWriter extends SSTableWriter
                                               .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap);
         chunkCache.ifPresent(dbuilder::withChunkCache);
         iwriter = new IndexWriter(keyCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3497
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11736
         columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, getRowIndexEntrySerializer().indexInfoSerializer());
     }
 
@@ -163,14 +172,18 @@ public class BigTableWriter extends SSTableWriter
      */
     protected long beforeAppend(DecoratedKey decoratedKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4832
         assert decoratedKey != null : "Keys must not be null"; // empty keys ARE allowed b/c of indexed column values
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4321
         if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) >= 0)
             throw new RuntimeException("Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
         return (lastWrittenKey == null) ? 0 : dataFile.position();
     }
 
     private void afterAppend(DecoratedKey decoratedKey, long dataEnd, RowIndexEntry index, ByteBuffer indexInfo) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         metadataCollector.addKey(decoratedKey.getKey());
         lastWrittenKey = decoratedKey;
         last = lastWrittenKey;
@@ -194,6 +207,7 @@ public class BigTableWriter extends SSTableWriter
     public RowIndexEntry append(UnfilteredRowIterator iterator)
     {
         DecoratedKey key = iterator.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         if (key.getKey().remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
         {
@@ -209,6 +223,7 @@ public class BigTableWriter extends SSTableWriter
 
         //Reuse the writer for each row
         columnIndexWriter.reset();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
 
         try (UnfilteredRowIterator collecting = Transformation.apply(iterator, new StatsCollector(metadataCollector)))
         {
@@ -227,7 +242,9 @@ public class BigTableWriter extends SSTableWriter
                                                        columnIndexWriter.offsets(),
                                                        getRowIndexEntrySerializer().indexInfoSerializer());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
             long endPosition = dataFile.position();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9643
             long rowSize = endPosition - startPosition;
             maybeLogLargePartitionWarning(key, rowSize);
             metadataCollector.addPartitionSizeInBytes(rowSize);
@@ -259,6 +276,7 @@ public class BigTableWriter extends SSTableWriter
         private final MetadataCollector collector;
         private int cellCount;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         StatsCollector(MetadataCollector collector)
         {
             this.collector = collector;
@@ -267,6 +285,7 @@ public class BigTableWriter extends SSTableWriter
         @Override
         public Row applyToStatic(Row row)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             if (!row.isEmpty())
                 cellCount += Rows.collectStats(row, collector);
             return row;
@@ -306,6 +325,7 @@ public class BigTableWriter extends SSTableWriter
         @Override
         public DeletionTime applyToDeletion(DeletionTime deletionTime)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
             collector.update(deletionTime);
             return deletionTime;
         }
@@ -319,22 +339,27 @@ public class BigTableWriter extends SSTableWriter
         if (boundary == null)
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         StatsMetadata stats = statsMetadata();
         assert boundary.indexLength > 0 && boundary.dataLength > 0;
         // open the reader early
         IndexSummary indexSummary = iwriter.summary.build(metadata().partitioner, boundary);
         long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
         int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12292
         FileHandle ifile = iwriter.builder.bufferSize(indexBufferSize).complete(boundary.indexLength);
         if (compression)
             dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataFile).open(boundary.dataLength));
         int dataBufferSize = optimizationStrategy.bufferSize(stats.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
         FileHandle dfile = dbuilder.bufferSize(dataBufferSize).complete(boundary.dataLength);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         invalidateCacheAtBoundary(dfile);
         SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components, metadata,
                                                            ifile, dfile, indexSummary,
                                                            iwriter.bf.sharedCopy(), maxDataAge, stats, SSTableReader.OpenReason.EARLY, header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);
@@ -342,6 +367,7 @@ public class BigTableWriter extends SSTableWriter
         return sstable;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
     void invalidateCacheAtBoundary(FileHandle dfile)
     {
         chunkCache.ifPresent(cache -> {
@@ -357,6 +383,7 @@ public class BigTableWriter extends SSTableWriter
         dataFile.sync();
         iwriter.indexFile.sync();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         return openFinal(SSTableReader.OpenReason.EARLY);
     }
 
@@ -372,10 +399,13 @@ public class BigTableWriter extends SSTableWriter
         long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
         int dataBufferSize = optimizationStrategy.bufferSize(stats.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
         int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12292
         FileHandle ifile = iwriter.builder.bufferSize(indexBufferSize).complete();
         if (compression)
             dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataFile).open(0));
         FileHandle dfile = dbuilder.bufferSize(dataBufferSize).complete();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         invalidateCacheAtBoundary(dfile);
         SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components,
@@ -386,8 +416,11 @@ public class BigTableWriter extends SSTableWriter
                                                            iwriter.bf.sharedCopy(),
                                                            maxDataAge,
                                                            stats,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                            openReason,
                                                            header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         sstable.first = getMinimalKey(first);
         sstable.last = getMinimalKey(last);
         return sstable;
@@ -406,13 +439,18 @@ public class BigTableWriter extends SSTableWriter
             iwriter.prepareToCommit();
 
             // write sstable statistics
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             dataFile.prepareToCommit();
             writeMetadata(descriptor, finalizeMetadata());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10775
 
             // save the table of components
             SSTable.appendTOC(descriptor, components);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
 
             if (openResult)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                 finalReader = openFinal(SSTableReader.OpenReason.NORMAL);
         }
 
@@ -441,8 +479,10 @@ public class BigTableWriter extends SSTableWriter
     private void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
     {
         File file = new File(desc.filenameFor(Component.STATS));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter out = new SequentialWriter(file, writerOption))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
             desc.getMetadataSerializer().serialize(components, out, desc.version);
             out.finish();
         }
@@ -454,22 +494,27 @@ public class BigTableWriter extends SSTableWriter
 
     public long getFilePointer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
         return dataFile.position();
     }
 
     public long getOnDiskFilePointer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4341
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4341
         return dataFile.getOnDiskFilePointer();
     }
 
     public long getEstimatedOnDiskBytesWritten()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         return dataFile.getEstimatedOnDiskBytesWritten();
     }
 
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
     class IndexWriter extends AbstractTransactional implements Transactional
     {
         private final SequentialWriter indexFile;
@@ -478,12 +523,16 @@ public class BigTableWriter extends SSTableWriter
         public final IFilter bf;
         private DataPosition mark;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         IndexWriter(long keyCount)
         {
             indexFile = new SequentialWriter(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), writerOption);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             builder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap);
             chunkCache.ifPresent(builder::withChunkCache);
             summary = new IndexSummaryBuilder(keyCount, metadata().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
             bf = FilterFactory.getFilter(keyCount, metadata().params.bloomFilterFpChance);
             // register listeners to be alerted when the data files are flushed
             indexFile.setPostFlushListener(() -> summary.markIndexSynced(indexFile.getLastFlushOffset()));
@@ -498,7 +547,9 @@ public class BigTableWriter extends SSTableWriter
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd, ByteBuffer indexInfo) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
             bf.add(key);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
             long indexStart = indexFile.position();
             try
             {
@@ -510,6 +561,7 @@ public class BigTableWriter extends SSTableWriter
                 throw new FSWriteError(e, indexFile.getPath());
             }
             long indexEnd = indexFile.position();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
 
             if (logger.isTraceEnabled())
                 logger.trace("wrote index entry: {} at {}", indexEntry, indexStart);
@@ -520,17 +572,21 @@ public class BigTableWriter extends SSTableWriter
         /**
          * Closes the index and bloomfilter, making the public state of this writer valid for consumption.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         void flushBf()
         {
             if (components.contains(Component.FILTER))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
                 String path = descriptor.filenameFor(Component.FILTER);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
                 try (FileOutputStream fos = new FileOutputStream(path);
                      DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos))
                 {
                     // bloom filter
                     BloomFilterSerializer.serialize((BloomFilter) bf, stream);
                     stream.flush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9403
                     SyncUtil.sync(fos);
                 }
                 catch (IOException e)
@@ -556,8 +612,10 @@ public class BigTableWriter extends SSTableWriter
         protected void doPrepare()
         {
             flushBf();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
 
             // truncate index file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             long position = indexFile.position();
             indexFile.prepareToCommit();
             FileUtils.truncate(indexFile.getPath(), position);
@@ -566,6 +624,7 @@ public class BigTableWriter extends SSTableWriter
             summary.prepareToCommit();
             try (IndexSummary indexSummary = summary.build(getPartitioner()))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                 SSTableReader.saveSummary(descriptor, first, last, indexSummary);
             }
         }

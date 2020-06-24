@@ -31,6 +31,7 @@ public class HexBytes extends Generator<ByteBuffer>
 
     public HexBytes(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(BytesType.instance, config, name, ByteBuffer.class);
         bytes = new byte[(int) sizeDistribution.maxValue()];
     }

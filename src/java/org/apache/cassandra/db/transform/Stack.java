@@ -22,6 +22,7 @@ package org.apache.cassandra.db.transform;
 
 import java.util.Arrays;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 class Stack
 {
     public static final Transformation[] EMPTY_TRANSFORMATIONS = new Transformation[0];
@@ -46,6 +47,7 @@ class Stack
 
     Stack()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
         stack = EMPTY_TRANSFORMATIONS;
         moreContents = EMPTY_MORE_CONTENTS_HOLDERS;
     }

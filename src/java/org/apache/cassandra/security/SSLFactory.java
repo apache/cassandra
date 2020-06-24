@@ -137,6 +137,7 @@ public final class SSLFactory
         private final File file;
         private volatile long lastModTime;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
         HotReloadableFile(String path)
         {
             file = new File(path);
@@ -154,6 +155,8 @@ public final class SSLFactory
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
             return "HotReloadableFile{" +
                        "file=" + file +
                        ", lastModTime=" + lastModTime +
@@ -167,6 +170,7 @@ public final class SSLFactory
     @SuppressWarnings("resource")
     public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
         TrustManager[] trustManagers = null;
         if (buildTruststore)
             trustManagers = buildTrustManagerFactory(options).getTrustManagers();
@@ -190,6 +194,7 @@ public final class SSLFactory
         try (InputStream tsf = Files.newInputStream(Paths.get(options.truststore)))
         {
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
             options.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : options.algorithm);
             KeyStore ts = KeyStore.getInstance(options.store_type);
             ts.load(tsf, options.truststore_password.toCharArray());
@@ -207,9 +212,11 @@ public final class SSLFactory
         try (InputStream ksf = Files.newInputStream(Paths.get(options.keystore)))
         {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
             options.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : options.algorithm);
             KeyStore ks = KeyStore.getInstance(options.store_type);
             ks.load(ksf, options.keystore_password.toCharArray());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7528
             if (!checkedExpiry)
             {
                 for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
@@ -225,6 +232,7 @@ public final class SSLFactory
                 checkedExpiry = true;
             }
             kmf.init(ks, options.keystore_password.toCharArray());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
             return kmf;
         }
         catch (Exception e)
@@ -235,6 +243,7 @@ public final class SSLFactory
 
     public static String[] filterCipherSuites(String[] supported, String[] desired)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11164
         if (Arrays.equals(supported, desired))
             return desired;
         List<String> ldesired = Arrays.asList(desired);
@@ -263,6 +272,7 @@ public final class SSLFactory
     @VisibleForTesting
     static SslContext getOrCreateSslContext(EncryptionOptions options,
                                             boolean buildTruststore,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
                                             SocketType socketType,
                                             boolean useOpenSsl) throws IOException
     {
@@ -297,6 +307,7 @@ public final class SSLFactory
             {@link SslContextBuilder#forServer(File, File, String)}). However, we are not supporting that now to keep
             the config/yaml API simple.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
         KeyManagerFactory kmf = buildKeyManagerFactory(options);
         SslContextBuilder builder;
         if (socketType == SocketType.SERVER)
@@ -313,12 +324,14 @@ public final class SSLFactory
 
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (options.cipher_suites != null && !options.cipher_suites.isEmpty())
             builder.ciphers(options.cipher_suites, SupportedCipherSuiteFilter.INSTANCE);
 
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory(options));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
         return builder.build();
     }
 
@@ -329,21 +342,28 @@ public final class SSLFactory
      *                               is not called first
      */
     public static void checkCertFilesForHotReloading(EncryptionOptions.ServerEncryptionOptions serverOpts,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
                                                      EncryptionOptions clientOpts)
     {
         if (!isHotReloadingInitialized)
             throw new IllegalStateException("Hot reloading functionality has not been initialized.");
 
         logger.debug("Checking whether certificates have been updated {}", hotReloadableFiles);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
         if (hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload))
         {
             logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
             try
             {
                 validateSslCerts(serverOpts, clientOpts);
                 cachedSslContexts.clear();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
             catch(Exception e)
             {
                 logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files.", e);
@@ -412,6 +432,8 @@ public final class SSLFactory
                 createNettySslContext(serverOpts, true, SocketType.CLIENT, openSslIsAvailable());
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         catch (Exception e)
         {
             throw new IOException("Failed to create SSL context using server_encryption_options!", e);
@@ -426,6 +448,8 @@ public final class SSLFactory
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, openSslIsAvailable());
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         catch (Exception e)
         {
             throw new IOException("Failed to create SSL context using client_encryption_options!", e);
@@ -440,8 +464,10 @@ public final class SSLFactory
 
         public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType, boolean useOpenSSL)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
             this.encryptionOptions = encryptionOptions;
             this.socketType = socketType;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
             this.useOpenSSL = useOpenSSL;
         }
 
@@ -450,7 +476,9 @@ public final class SSLFactory
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
             return (socketType == cacheKey.socketType &&
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
                     useOpenSSL == cacheKey.useOpenSSL &&
                     Objects.equals(encryptionOptions, cacheKey.encryptionOptions));
         }
@@ -460,6 +488,7 @@ public final class SSLFactory
             int result = 0;
             result += 31 * socketType.hashCode();
             result += 31 * encryptionOptions.hashCode();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
             result += 31 * Boolean.hashCode(useOpenSSL);
             return result;
         }

@@ -49,12 +49,14 @@ public class RepairOptionTest
     @Test
     public void testParseOptions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         IPartitioner partitioner = Murmur3Partitioner.instance;
         Token.TokenFactory tokenFactory = partitioner.getTokenFactory();
 
         // parse with empty options
         RepairOption option = RepairOption.parse(new HashMap<String, String>(), partitioner);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows && (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard))
             assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
         else
@@ -96,6 +98,7 @@ public class RepairOptionTest
         assertEquals(expectedDCs, option.getDataCenters());
 
         // expect an error when parsing with hosts as well
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         options.put(RepairOption.HOSTS_KEY, "127.0.0.1,127.0.0.2,127.0.0.3");
         assertParseThrowsIllegalArgumentExceptionWithMessage(options, "Cannot combine -dc and -hosts options");
 
@@ -115,6 +118,8 @@ public class RepairOptionTest
     {
         DatabaseDescriptor.daemonInitialization();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12522
         Map<String, String> options = new HashMap<>();
         options.put(RepairOption.PARALLELISM_KEY, "parallel");
         options.put(RepairOption.PRIMARY_RANGE_KEY, "true");
@@ -134,6 +139,7 @@ public class RepairOptionTest
     public void testPullRepairParseOptions()
     {
         Map<String, String> options = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
 
         options.put(RepairOption.PULL_REPAIR_KEY, "true");
         assertParseThrowsIllegalArgumentExceptionWithMessage(options, "Pull repair can only be performed between two hosts");
@@ -152,6 +158,7 @@ public class RepairOptionTest
     @Test
     public void testForceOption() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
         RepairOption option;
         Map<String, String> options = new HashMap<>();
 
@@ -172,6 +179,7 @@ public class RepairOptionTest
 
     private void assertParseThrowsIllegalArgumentExceptionWithMessage(Map<String, String> optionsToParse, String expectedErrorMessage)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         try
         {
             RepairOption.parse(optionsToParse, Murmur3Partitioner.instance);

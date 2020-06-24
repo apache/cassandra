@@ -29,6 +29,7 @@ public class DecimalSerializer implements TypeSerializer<BigDecimal>
 
     public BigDecimal deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         if (bytes == null || bytes.remaining() == 0)
             return null;
 
@@ -61,6 +62,7 @@ public class DecimalSerializer implements TypeSerializer<BigDecimal>
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // We at least store the scale.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         if (bytes.remaining() != 0 && bytes.remaining() < 4)
             throw new MarshalException(String.format("Expected 0 or at least 4 bytes (%d)", bytes.remaining()));
     }

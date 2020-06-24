@@ -50,6 +50,7 @@ public class BatchlogEndpointFilterTest
                 .put("2", InetAddressAndPort.getByName("2"))
                 .put("2", InetAddressAndPort.getByName("22"))
                 .build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         assertThat(result.size(), is(2));
         assertTrue(result.contains(InetAddressAndPort.getByName("11")));
@@ -64,6 +65,7 @@ public class BatchlogEndpointFilterTest
                 .put(LOCAL, InetAddressAndPort.getByName("00"))
                 .put("1", InetAddressAndPort.getByName("1"))
                 .build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         assertThat(result.size(), is(2));
         assertTrue(result.contains(InetAddressAndPort.getByName("1")));
@@ -76,6 +78,7 @@ public class BatchlogEndpointFilterTest
         Multimap<String, InetAddressAndPort> endpoints = ImmutableMultimap.<String, InetAddressAndPort> builder()
                 .put(LOCAL, InetAddressAndPort.getByName("0"))
                 .build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         assertThat(result.size(), is(1));
         assertTrue(result.contains(InetAddressAndPort.getByName("0")));
@@ -91,6 +94,7 @@ public class BatchlogEndpointFilterTest
                 .put("1", InetAddressAndPort.getByName("11"))
                 .put("1", InetAddressAndPort.getByName("111"))
                 .build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         // result should be the last two non-local replicas
         // (Collections.shuffle has been replaced with Collections.reverse for testing)
@@ -108,6 +112,7 @@ public class BatchlogEndpointFilterTest
                 .put(LOCAL, InetAddressAndPort.getByName("111"))
                 .put(LOCAL, InetAddressAndPort.getByName("1111"))
                 .build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         // result should be the last two non-local replicas
         // (Collections.shuffle has been replaced with Collections.reverse for testing)

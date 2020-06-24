@@ -107,6 +107,7 @@ public class StorageServiceTest
     public static <K, C extends ReplicaCollection<? extends C>>  void assertMultimapEqualsIgnoreOrder(ReplicaMultimap<K, C> a, ReplicaMultimap<K, C> b)
     {
         if (!a.keySet().equals(b.keySet()))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             fail(formatNeq(a, b));
         for (K key : a.keySet())
         {
@@ -149,6 +150,7 @@ public class StorageServiceTest
 
         EndpointsByReplica result = StorageService.getChangedReplicasForLeaving("StorageServiceTest", aAddress, tmd, strat);
         System.out.println(result);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
         expectedResult.put(new Replica(aAddress, aRange, true), new Replica(cAddress, new Range<>(oneToken, sixToken), true));
         expectedResult.put(new Replica(aAddress, aRange, true), new Replica(dAddress, new Range<>(oneToken, sixToken), false));

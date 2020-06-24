@@ -136,6 +136,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      **/
     void trackNew(SSTable table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         txnFile.add(table);
     }
 
@@ -144,6 +145,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     void untrackNew(SSTable table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         txnFile.remove(table);
     }
 
@@ -151,6 +153,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      * helper method for tests, creates the remove records per sstable
      */
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
     SSTableTidier obsoleted(SSTableReader sstable)
     {
         return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable));
@@ -177,6 +180,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         return new SSTableTidier(reader, false, this);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
     Map<SSTable, LogRecord> makeRemoveRecords(Iterable<SSTableReader> sstables)
     {
         return txnFile.makeRecords(Type.REMOVE, sstables);
@@ -215,6 +219,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15705
             if (!StorageService.instance.isDaemonSetupCompleted())
                 logger.info("Unfinished transaction log, deleting {} ", file);
             else if (logger.isTraceEnabled())
@@ -228,6 +233,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             if (logger.isDebugEnabled())
             {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12583
                 try (PrintStream ps = new PrintStream(baos))
                 {
                     e.printStackTrace(ps);
@@ -238,6 +244,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         catch (IOException e)
         {
             logger.error("Unable to delete {}", file, e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
             FileUtils.handleFSErrorAndPropagate(new FSWriteError(e, file));
         }
     }
@@ -271,6 +278,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         {
             if (logger.isTraceEnabled())
                 logger.trace("Removing files for transaction log {}", data);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
 
             // this happens if we forget to close a txn and the garbage collector closes it for us
             // or if the transaction journal was never properly created in the first place
@@ -401,6 +409,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
         catch (Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             logger.error("Failed to complete file transaction id {}", id(), t);
             return Throwables.merge(accumulate, t);
         }
@@ -408,6 +417,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
     protected Throwable doCommit(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10538
         return complete(Throwables.perform(accumulate, txnFile::commit));
     }
 
@@ -434,6 +444,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     static boolean removeUnfinishedLeftovers(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13928
         return removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
     }
 
@@ -472,6 +484,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         boolean removeUnfinishedLeftovers()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             return files.entrySet()
                         .stream()
                         .map(LogFilesByName::removeUnfinishedLeftovers)
@@ -482,6 +495,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         {
             try(LogFile txn = LogFile.make(entry.getKey(), entry.getValue()))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15705
                 logger.info("Verifying logfile transaction {}", txn);
                 if (txn.verify())
                 {

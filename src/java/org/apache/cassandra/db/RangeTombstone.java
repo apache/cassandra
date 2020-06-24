@@ -37,6 +37,7 @@ public class RangeTombstone
     public RangeTombstone(Slice slice, DeletionTime deletion)
     {
         this.slice = slice;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         this.deletion = deletion;
     }
 
@@ -62,6 +63,7 @@ public class RangeTombstone
 
     public String toString(ClusteringComparator comparator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return slice.toString(comparator) + '@' + deletion;
     }
 

@@ -45,6 +45,7 @@ final class HintsBufferPool implements Closeable
 
     HintsBufferPool(int bufferSize, FlushCallback flushCallback)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10972
         reserveBuffers = new LinkedBlockingQueue<>();
         this.bufferSize = bufferSize;
         this.flushCallback = flushCallback;
@@ -81,6 +82,7 @@ final class HintsBufferPool implements Closeable
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10972
     void offer(HintsBuffer buffer)
     {
         if (!reserveBuffers.offer(buffer))
@@ -108,6 +110,7 @@ final class HintsBufferPool implements Closeable
             return false;
 
         HintsBuffer buffer = reserveBuffers.poll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10972
         if (buffer == null && allocatedBuffers >= MAX_ALLOCATED_BUFFERS)
         {
             try
@@ -127,12 +130,14 @@ final class HintsBufferPool implements Closeable
 
     private HintsBuffer createBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10972
         allocatedBuffers++;
         return HintsBuffer.create(bufferSize);
     }
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
         currentBuffer.free();
     }
 }

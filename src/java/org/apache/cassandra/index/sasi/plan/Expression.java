@@ -48,9 +48,11 @@ public class Expression
     public enum Op
     {
         EQ, MATCH, PREFIX, SUFFIX, CONTAINS, NOT_EQ, RANGE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
 
         public static Op valueOf(Operator operator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             switch (operator)
             {
                 case EQ:
@@ -74,6 +76,7 @@ public class Expression
                 case LIKE_CONTAINS:
                     return CONTAINS;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                 case LIKE_MATCHES:
                     return MATCH;
 
@@ -141,9 +144,11 @@ public class Expression
         boolean lowerInclusive = false, upperInclusive = false;
         switch (op)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
             case LIKE_CONTAINS:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
             case LIKE_MATCHES:
             case EQ:
                 lower = new Bound(value, true);
@@ -166,6 +171,7 @@ public class Expression
                 break;
 
             case LTE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12223
                 if (index.getDefinition().isReversedType())
                     lowerInclusive = true;
                 else
@@ -209,6 +215,7 @@ public class Expression
             int size = value.remaining();
             if ((value = TypeUtil.tryUpcast(value, validator)) == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 logger.error("Can't cast value for {} to size accepted by {}, value size is {}.",
                              index.getColumnName(),
                              validator,
@@ -277,9 +284,11 @@ public class Expression
             ByteBuffer term = analyzer.next();
 
             boolean isMatch = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             switch (operation)
             {
                 case EQ:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                 case MATCH:
                 // Operation.isSatisfiedBy handles conclusion on !=,
                 // here we just need to make sure that term matched it
@@ -414,6 +423,7 @@ public class Expression
 
         public int hashCode()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
             HashCodeBuilder builder = new HashCodeBuilder();
             builder.append(value);
             builder.append(inclusive);

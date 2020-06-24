@@ -55,6 +55,7 @@ public class BlockingReadRepairs
         Mutation mutation = new Mutation(update);
         int messagingVersion = MessagingService.instance().versions.get(destination);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         try
         {
             mutation.validateSize(messagingVersion, 0);

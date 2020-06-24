@@ -58,6 +58,7 @@ public class TokenRange
     {
         List<EndpointDetails> details = new ArrayList<>(endpoints.size());
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort ep : endpoints)
             details.add(new EndpointDetails(ep,
                                             StorageService.instance.getNativeaddress(ep, withPorts),
@@ -69,6 +70,7 @@ public class TokenRange
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return toString(false);
     }
 
@@ -89,6 +91,7 @@ public class TokenRange
             endpointDetails.add(ep.toString(withPorts));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15682
         sb.append(", endpoints:").append(hosts);
         sb.append(", rpc_endpoints:").append(rpcs);
         sb.append(", endpoint_details:").append(endpointDetails);
@@ -117,6 +120,7 @@ public class TokenRange
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return toString(false);
         }
 

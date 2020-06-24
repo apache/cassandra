@@ -37,11 +37,13 @@ public class DataResource implements IResource
 {
     enum Level
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         ROOT, KEYSPACE, TABLE
     }
 
     // permissions which may be granted on tables
     private static final Set<Permission> TABLE_LEVEL_PERMISSIONS = Sets.immutableEnumSet(Permission.ALTER,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                                                                          Permission.DROP,
                                                                                          Permission.SELECT,
                                                                                          Permission.MODIFY,
@@ -65,6 +67,7 @@ public class DataResource implements IResource
 
     private DataResource(Level level, String keyspace, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         this.level = level;
         this.keyspace = keyspace;
         this.table = table;
@@ -88,6 +91,7 @@ public class DataResource implements IResource
      */
     public static DataResource keyspace(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         return new DataResource(Level.KEYSPACE, keyspace, null);
     }
 
@@ -100,6 +104,7 @@ public class DataResource implements IResource
      */
     public static DataResource table(String keyspace, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         return new DataResource(Level.TABLE, keyspace, table);
     }
 
@@ -122,6 +127,7 @@ public class DataResource implements IResource
         if (parts.length == 2)
             return keyspace(parts[1]);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return table(parts[1], parts[2]);
     }
 
@@ -136,6 +142,7 @@ public class DataResource implements IResource
                 return ROOT_NAME;
             case KEYSPACE:
                 return String.format("%s/%s", ROOT_NAME, keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
             case TABLE:
                 return String.format("%s/%s/%s", ROOT_NAME, keyspace, table);
         }
@@ -151,6 +158,7 @@ public class DataResource implements IResource
         {
             case KEYSPACE:
                 return root();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
             case TABLE:
                 return keyspace(keyspace);
         }
@@ -169,6 +177,7 @@ public class DataResource implements IResource
 
     public boolean isTableLevel()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return level == Level.TABLE;
     }
     /**
@@ -186,7 +195,9 @@ public class DataResource implements IResource
      */
     public String getTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         if (!isTableLevel())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
             throw new IllegalStateException(String.format("%s data resource has no table", level));
         return table;
     }
@@ -209,6 +220,7 @@ public class DataResource implements IResource
             case ROOT:
                 return true;
             case KEYSPACE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                 return Schema.instance.getKeyspaces().contains(keyspace);
             case TABLE:
                 return Schema.instance.getTableMetadata(keyspace, table) != null;
@@ -218,6 +230,7 @@ public class DataResource implements IResource
 
     public Set<Permission> applicablePermissions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         switch (level)
         {
             case ROOT:
@@ -238,6 +251,7 @@ public class DataResource implements IResource
                 return "<all keyspaces>";
             case KEYSPACE:
                 return String.format("<keyspace %s>", keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
             case TABLE:
                 return String.format("<table %s.%s>", keyspace, table);
         }
@@ -263,6 +277,7 @@ public class DataResource implements IResource
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         return hash;
     }
 }

@@ -93,6 +93,7 @@ public abstract class CassandraIndex implements Index
      */
     protected boolean supportsOperator(ColumnMetadata indexedColumn, Operator operator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         return operator == Operator.EQ;
     }
 
@@ -210,6 +211,7 @@ public abstract class CassandraIndex implements Index
     public void validate(ReadCommand command) throws InvalidRequestException
     {
         Optional<RowFilter.Expression> target = getTargetExpression(command.rowFilter().getExpressions());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
 
         if (target.isPresent())
         {
@@ -248,6 +250,7 @@ public abstract class CassandraIndex implements Index
 
     public boolean dependsOn(ColumnMetadata column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         return indexedColumn.name.equals(column.name);
     }
 
@@ -264,6 +267,7 @@ public abstract class CassandraIndex implements Index
 
     public AbstractType<?> customExpressionValueType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
         return null;
     }
 
@@ -297,6 +301,7 @@ public abstract class CassandraIndex implements Index
 
         if (target.isPresent())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
             switch (getIndexMetadata().kind)
             {
                 case COMPOSITES:
@@ -305,6 +310,7 @@ public abstract class CassandraIndex implements Index
                     return new KeysSearcher(command, target.get(), this);
                 default:
                     throw new IllegalStateException(String.format("Unsupported index type %s for index %s on %s",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
                                                                   metadata.kind,
                                                                   metadata.name,
                                                                   indexedColumn.name.toString()));
@@ -326,6 +332,7 @@ public abstract class CassandraIndex implements Index
                 validateClusterings(update);
                 break;
             case REGULAR:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10690
                 if (update.columns().regulars.contains(indexedColumn))
                     validateRows(update);
                 break;
@@ -339,6 +346,7 @@ public abstract class CassandraIndex implements Index
     public Indexer indexerFor(final DecoratedKey key,
                               final RegularAndStaticColumns columns,
                               final int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                               final WriteContext ctx,
                               final IndexTransaction.Type transactionType)
     {
@@ -392,6 +400,7 @@ public abstract class CassandraIndex implements Index
             {
                 if (isPrimaryKeyIndex())
                     return;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11329
 
                 if (indexedColumn.isComplex())
                     removeCells(row.clustering(), row.getComplexColumnData(indexedColumn));
@@ -443,7 +452,9 @@ public abstract class CassandraIndex implements Index
                 insert(key.getKey(),
                        clustering,
                        cell,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                        LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                        ctx);
             }
 
@@ -461,6 +472,7 @@ public abstract class CassandraIndex implements Index
                 if (cell == null || !cell.isLive(nowInSec))
                     return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                 delete(key.getKey(), clustering, cell, ctx, nowInSec);
             }
 
@@ -470,6 +482,7 @@ public abstract class CassandraIndex implements Index
             {
                 if (liveness.timestamp() != LivenessInfo.NO_TIMESTAMP)
                     insert(key.getKey(), clustering, null, liveness, ctx);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
 
                 if (!deletion.isLive())
                     delete(key.getKey(), clustering, deletion.time(), ctx);
@@ -491,6 +504,7 @@ public abstract class CassandraIndex implements Index
                         }
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                 return LivenessInfo.create(timestamp, ttl, nowInSec);
             }
         };
@@ -507,6 +521,7 @@ public abstract class CassandraIndex implements Index
     public void deleteStaleEntry(DecoratedKey indexKey,
                                  Clustering indexClustering,
                                  DeletionTime deletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                  WriteContext ctx)
     {
         doDelete(indexKey, indexClustering, deletion, ctx);
@@ -520,6 +535,7 @@ public abstract class CassandraIndex implements Index
                         Clustering clustering,
                         Cell cell,
                         LivenessInfo info,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         WriteContext ctx)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
@@ -537,6 +553,7 @@ public abstract class CassandraIndex implements Index
     private void delete(ByteBuffer rowKey,
                         Clustering clustering,
                         Cell cell,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         WriteContext ctx,
                         int nowInSec)
     {
@@ -555,6 +572,7 @@ public abstract class CassandraIndex implements Index
     private void delete(ByteBuffer rowKey,
                         Clustering clustering,
                         DeletionTime deletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         WriteContext ctx)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
@@ -563,6 +581,8 @@ public abstract class CassandraIndex implements Index
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, null),
                  deletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                  ctx);
     }
 
@@ -580,6 +600,7 @@ public abstract class CassandraIndex implements Index
     private void validatePartitionKey(DecoratedKey partitionKey) throws InvalidRequestException
     {
         assert indexedColumn.isPartitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         validateIndexedValue(getIndexedValue(partitionKey.getKey(), null, null));
     }
 
@@ -619,6 +640,7 @@ public abstract class CassandraIndex implements Index
             throw new InvalidRequestException(String.format(
                                                            "Cannot index value of size %d for index %s on %s(%s) (maximum allowed size=%d)",
                                                            value.remaining(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                                                            metadata.name,
                                                            baseCfs.metadata,
                                                            indexedColumn.name.toString(),
@@ -659,8 +681,10 @@ public abstract class CassandraIndex implements Index
     {
         // interrupt in-progress compactions
         Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true);
         CompactionManager.instance.waitForCessation(cfss, (sstable) -> true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         Keyspace.writeOrder.awaitNewBarrier();
         indexCfs.forceBlockingFlush();
         indexCfs.readOrdering.awaitNewBarrier();
@@ -690,6 +714,7 @@ public abstract class CassandraIndex implements Index
     {
         baseCfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
              Refs<SSTableReader> sstables = viewFragment.refs)
         {
@@ -698,6 +723,7 @@ public abstract class CassandraIndex implements Index
                 logger.info("No SSTable data for {}.{} to build index {} from, marking empty index as built",
                             baseCfs.metadata.keyspace,
                             baseCfs.metadata.name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                             metadata.name);
                 return;
             }
@@ -708,12 +734,14 @@ public abstract class CassandraIndex implements Index
 
             SecondaryIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
                                                                          Collections.singleton(this),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                                                          new ReducingKeyIterator(sstables),
                                                                          ImmutableSet.copyOf(sstables));
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
         logger.info("Index build of {} complete", metadata.name);
     }
 
@@ -740,6 +768,7 @@ public abstract class CassandraIndex implements Index
 
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                          .kind(TableMetadata.Kind.INDEX)
                          // tables for legacy KEYS indexes are non-compound and dense
                          .isDense(indexMetadata.isKeys())
@@ -793,6 +822,7 @@ public abstract class CassandraIndex implements Index
                 case SET:
                     return CassandraIndexFunctions.COLLECTION_KEY_INDEX_FUNCTIONS;
                 case MAP:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
                     switch (target.right)
                     {
                         case KEYS:
@@ -811,6 +841,8 @@ public abstract class CassandraIndex implements Index
             case CLUSTERING:
                 return CassandraIndexFunctions.CLUSTERING_COLUMN_INDEX_FUNCTIONS;
             case REGULAR:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
             case STATIC:
                 return CassandraIndexFunctions.REGULAR_COLUMN_INDEX_FUNCTIONS;
             case PARTITION_KEY:

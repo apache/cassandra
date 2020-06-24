@@ -36,6 +36,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  *
  * <p>This class is immutable.</p>
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
 final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
 {
     /**
@@ -77,6 +78,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options) throws InvalidRequestException
     {
         for (Restriction restriction : restrictions.values())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             restriction.addRowFilterTo(filter, indexRegistry, options);
     }
 
@@ -89,6 +91,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         for (Restriction restriction : this)
             restriction.addFunctionsTo(functions);
     }
@@ -96,6 +99,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
         return restrictions.isEmpty();
     }
 
@@ -114,6 +118,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     {
         for (ColumnMetadata column : restrictions.keySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
             if (column.kind == kind)
                 return true;
         }
@@ -130,6 +135,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     {
         // RestrictionSet is immutable so we need to clone the restrictions map.
         TreeMap<ColumnMetadata, SingleRestriction> newRestrictions = new TreeMap<>(this.restrictions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         return new RestrictionSet(mergeRestrictions(newRestrictions, restriction), hasMultiColumnRestrictions || restriction.isMultiColumn());
     }
 
@@ -146,6 +152,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
             for (SingleRestriction existing : existingRestrictions)
             {
                 SingleRestriction newRestriction = mergeRestrictions(existing, restriction);
@@ -161,6 +168,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public Set<Restriction> getRestrictions(ColumnMetadata columnDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         Restriction existing = restrictions.get(columnDef);
         return existing == null ? Collections.emptySet() : Collections.singleton(existing);
     }
@@ -188,6 +196,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     {
         for (Restriction restriction : restrictions.values())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             if (restriction.hasSupportingIndex(indexRegistry))
                 return true;
         }
@@ -222,6 +231,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      *
      * @return the last restriction.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
     SingleRestriction lastRestriction()
     {
         return isEmpty() ? null : this.restrictions.lastEntry().getValue();
@@ -236,6 +246,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      * @throws InvalidRequestException if the two restrictions cannot be merged
      */
     private static SingleRestriction mergeRestrictions(SingleRestriction restriction,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
                                                        SingleRestriction otherRestriction)
     {
         return restriction == null ? otherRestriction
@@ -251,10 +262,12 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     public final boolean hasMultipleContains()
     {
         int numberOfContains = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         for (SingleRestriction restriction : restrictions.values())
         {
             if (restriction.isContains())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 ContainsRestriction contains = (ContainsRestriction) restriction;
                 numberOfContains += (contains.numberOfValues() + contains.numberOfKeys() + contains.numberOfEntries());
             }
@@ -265,6 +278,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public Iterator<SingleRestriction> iterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         Iterator<SingleRestriction> iterator = restrictions.values().iterator();
         return hasMultiColumnRestrictions ? new DistinctIterator<>(iterator) : iterator;
     }
@@ -275,6 +289,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     public final boolean hasIN()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         for (SingleRestriction restriction : this)
         {
             if (restriction.isIN())
@@ -285,6 +300,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
 
     public boolean hasContains()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
         for (SingleRestriction restriction : this)
         {
             if (restriction.isContains())
@@ -295,6 +311,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
 
     public final boolean hasSlice()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         for (SingleRestriction restriction : this)
         {
             if (restriction.isSlice())
@@ -311,6 +328,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     public final boolean hasOnlyEqualityRestrictions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         for (SingleRestriction restriction : this)
         {
             if (!restriction.isEQ() && !restriction.isIN())
@@ -360,6 +378,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

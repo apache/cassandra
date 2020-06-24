@@ -59,10 +59,13 @@ public abstract class MemoryUtil
             DIRECT_BYTE_BUFFER_ADDRESS_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("address"));
             DIRECT_BYTE_BUFFER_CAPACITY_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("capacity"));
             DIRECT_BYTE_BUFFER_LIMIT_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("limit"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             DIRECT_BYTE_BUFFER_POSITION_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("position"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
             DIRECT_BYTE_BUFFER_ATTACHMENT_OFFSET = unsafe.objectFieldOffset(clazz.getDeclaredField("att"));
             DIRECT_BYTE_BUFFER_CLASS = clazz;
             RO_DIRECT_BYTE_BUFFER_CLASS = ByteBuffer.allocateDirect(0).asReadOnlyBuffer().getClass();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
 
             clazz = ByteBuffer.allocate(0).getClass();
             BYTE_BUFFER_OFFSET_OFFSET = unsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("offset"));
@@ -79,6 +82,7 @@ public abstract class MemoryUtil
 
     public static int pageSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         return unsafe.pageSize();
     }
 
@@ -90,6 +94,7 @@ public abstract class MemoryUtil
 
     public static long allocate(long size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
         return Native.malloc(size);
     }
 
@@ -157,6 +162,7 @@ public abstract class MemoryUtil
     public static ByteBuffer getByteBuffer(long address, int length, ByteOrder order)
     {
         ByteBuffer instance = getHollowDirectByteBuffer(order);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         setDirectByteBuffer(instance, address, length);
         return instance;
     }
@@ -183,6 +189,7 @@ public abstract class MemoryUtil
 
     public static ByteBuffer getHollowByteBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         ByteBuffer instance;
         try
         {
@@ -192,17 +199,20 @@ public abstract class MemoryUtil
         {
             throw new AssertionError(e);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8793
         instance.order(ByteOrder.nativeOrder());
         return instance;
     }
 
     public static boolean isExactlyDirect(ByteBuffer buffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         return buffer.getClass() == DIRECT_BYTE_BUFFER_CLASS;
     }
 
     public static Object getAttachment(ByteBuffer instance)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         assert instance.getClass() == DIRECT_BYTE_BUFFER_CLASS;
         return unsafe.getObject(instance, DIRECT_BYTE_BUFFER_ATTACHMENT_OFFSET);
     }
@@ -215,6 +225,7 @@ public abstract class MemoryUtil
 
     public static ByteBuffer duplicateDirectByteBuffer(ByteBuffer source, ByteBuffer hollowBuffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         assert source.getClass() == DIRECT_BYTE_BUFFER_CLASS || source.getClass() == RO_DIRECT_BYTE_BUFFER_CLASS;
         unsafe.putLong(hollowBuffer, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, unsafe.getLong(source, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET));
         unsafe.putInt(hollowBuffer, DIRECT_BYTE_BUFFER_POSITION_OFFSET, unsafe.getInt(source, DIRECT_BYTE_BUFFER_POSITION_OFFSET));
@@ -225,6 +236,7 @@ public abstract class MemoryUtil
 
     public static ByteBuffer sliceDirectByteBuffer(ByteBuffer source, ByteBuffer hollowBuffer, int offset, int length)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         assert source.getClass() == DIRECT_BYTE_BUFFER_CLASS || source.getClass() == RO_DIRECT_BYTE_BUFFER_CLASS;
         setDirectByteBuffer(hollowBuffer, offset + unsafe.getLong(source, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET), length);
         return hollowBuffer;
@@ -354,8 +366,10 @@ public abstract class MemoryUtil
             return;
 
         if (buffer.isDirect())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             setBytes(getAddress(buffer) + start, address, count);
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8719
             setBytes(address, buffer.array(), buffer.arrayOffset() + start, count);
     }
 

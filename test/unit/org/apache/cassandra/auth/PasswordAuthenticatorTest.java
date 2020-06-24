@@ -83,6 +83,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     @Test(expected = AuthenticationException.class)
     public void testEmptyUsername()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15198
         testDecodeIllegalUserAndPwd("", "pwd");
     }
 

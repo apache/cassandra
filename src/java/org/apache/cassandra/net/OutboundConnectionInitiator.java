@@ -131,6 +131,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         {
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
             return new FailedFuture<>(eventLoop, new IOException("authentication failed to " + settings.connectToId()));
         }
 
@@ -146,6 +147,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                              if (future.isCancelled() && !timedout.get())
                                                  resultPromise.cancel(true);
                                              else if (future.isCancelled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
                                                  resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
                                              else
                                                  resultPromise.tryFailure(future.cause());
@@ -171,6 +173,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      */
     private Bootstrap createBootstrap(EventLoop eventLoop)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
         Bootstrap bootstrap = settings.socketFactory
                                       .newClientBootstrap(eventLoop, settings.tcpUserTimeoutInMS)
                                       .option(ChannelOption.ALLOCATOR, GlobalBufferPoolAllocator.instance)
@@ -229,6 +232,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         public void channelActive(final ChannelHandlerContext ctx)
         {
             Initiate msg = new Initiate(requestMessagingVersion, settings.acceptVersions, type, settings.framing, settings.from);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
             logger.trace("starting handshake with peer {}, msg = {}", settings.connectToId(), msg);
             AsyncChannelPromise.writeAndFlush(ctx, msg.encode(),
                   future -> { if (!future.isSuccess()) exceptionCaught(ctx, future.cause()); });
@@ -368,6 +372,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 JVMStabilityInspector.inspectThrowable(cause, false);
                 resultPromise.tryFailure(cause);
                 if (isCausedByConnectionReset(cause))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
                     logger.info("Failed to connect to peer {}", settings.connectToId(), cause);
                 else
                     logger.error("Failed to handshake with peer {}", settings.connectToId(), cause);

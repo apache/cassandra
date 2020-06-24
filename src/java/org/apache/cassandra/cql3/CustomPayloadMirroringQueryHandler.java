@@ -37,6 +37,7 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
 
     public CQLStatement parse(String query, QueryState state, QueryOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         return queryProcessor.parse(query, state, options);
     }
 
@@ -53,6 +54,8 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
 
     public ResultMessage.Prepared prepare(String query, ClientState clientState, Map<String, ByteBuffer> customPayload)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         ResultMessage.Prepared prepared = queryProcessor.prepare(query, clientState, customPayload);
         prepared.setCustomPayload(customPayload);
         return prepared;
@@ -66,6 +69,7 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
     public ResultMessage processPrepared(CQLStatement statement,
                                          QueryState state,
                                          QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                          Map<String, ByteBuffer> customPayload,
                                          long queryStartNanoTime)
     {
@@ -77,6 +81,7 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
     public ResultMessage processBatch(BatchStatement statement,
                                       QueryState state,
                                       BatchQueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                       Map<String, ByteBuffer> customPayload,
                                       long queryStartNanoTime)
     {

@@ -37,9 +37,11 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
 
     public void doVerb(Message<GossipDigestSyn> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         InetAddressAndPort from = message.from();
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestSynMessage from {}", from);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
         {
             if (logger.isTraceEnabled())
@@ -55,6 +57,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4282
         if (gDigestMessage.partioner != null && !gDigestMessage.partioner.equals(DatabaseDescriptor.getPartitionerName()))
         {
             logger.warn("Partitioner mismatch from {} {}!={}", from, gDigestMessage.partioner, DatabaseDescriptor.getPartitionerName());
@@ -68,6 +71,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
         // be in the sender's seed list and doing this allows the sender to
         // differentiate between seeds from which it is partitioned and those which
         // are in their shadow round
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (!Gossiper.instance.isEnabled() && Gossiper.instance.isInShadowRound())
         {
             // a genuine syn (as opposed to one from a node currently
@@ -81,6 +85,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
             logger.debug("Received a shadow round syn from {}. Gossip is disabled but " +
                          "currently also in shadow round, responding with a minimal ack", from);
             MessagingService.instance()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                             .send(Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), Collections.emptyMap())),
                                   from);
             return;
@@ -98,9 +103,12 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
         }
 
         List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<InetAddressAndPort, EndpointState>();
         Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5916
         logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<GossipDigestAck> gDigestAckMessage = Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(deltaGossipDigestList, deltaEpStateMap));
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestAckMessage to {}", from);

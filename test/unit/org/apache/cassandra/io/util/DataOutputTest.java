@@ -49,6 +49,7 @@ public class DataOutputTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -56,6 +57,7 @@ public class DataOutputTest
     public void testWrappedDataOutputStreamPlus() throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         DataOutputStreamPlus write = new WrappedDataOutputStreamPlus(bos);
         DataInput canon = testWrite(write);
         DataInput test = new DataInputStream(new ByteArrayInputStream(bos.toByteArray()));
@@ -95,6 +97,8 @@ public class DataOutputTest
     @Test
     public void testDataOutputBufferZeroReallocate() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
         try (DataOutputBufferSpy write = new DataOutputBufferSpy())
         {
             for (int ii = 0; ii < 1000000; ii++)
@@ -118,6 +122,8 @@ public class DataOutputTest
     public void testDataOutputHeapByteBuffer() throws IOException
     {
         ByteBuffer buf = wrap(new byte[345], false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         BufferedDataOutputStreamPlus write = new BufferedDataOutputStreamPlus(null, buf.duplicate());
         DataInput canon = testWrite(write);
         DataInput test = new DataInputStream(new ByteArrayInputStream(ByteBufferUtil.getArray(buf)));
@@ -127,6 +133,8 @@ public class DataOutputTest
     private static class DataOutputBufferSpy extends DataOutputBuffer
     {
         Deque<Long> sizes = new ArrayDeque<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
 
         DataOutputBufferSpy()
         {
@@ -141,6 +149,7 @@ public class DataOutputTest
 
         void superReallocate(int count) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
             super.expandToFit(count);
         }
 
@@ -314,8 +323,10 @@ public class DataOutputTest
     @Test
     public void testSafeMemoryWriter() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
         try (SafeMemoryWriter write = new SafeMemoryWriter(10))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
             DataInput canon = testWrite(write);
             byte[] bytes = new byte[345];
             write.currentBuffer().getBytes(0, bytes, 0, 345);
@@ -327,6 +338,7 @@ public class DataOutputTest
     @Test
     public void testWrappedFileOutputStream() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         File file = FileUtils.createTempFile("dataoutput", "test");
         try
         {
@@ -370,9 +382,12 @@ public class DataOutputTest
         {
             @SuppressWarnings("resource")
             final RandomAccessFile raf = new RandomAccessFile(file, "rw");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             DataOutputStreamPlus write = new BufferedDataOutputStreamPlus(raf.getChannel());
             DataInput canon = testWrite(write);
             write.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7265
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7265
             DataInputStream test = new DataInputStream(new FileInputStream(file));
             testRead(test, canon);
             test.close();
@@ -387,12 +402,15 @@ public class DataOutputTest
     public void testSequentialWriter() throws IOException
     {
         File file = FileUtils.createTempFile("dataoutput", "test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         SequentialWriterOption option = SequentialWriterOption.newBuilder().bufferSize(32).finishOnClose(true).build();
         final SequentialWriter writer = new SequentialWriter(file, option);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         DataOutputStreamPlus write = new WrappedDataOutputStreamPlus(writer);
         DataInput canon = testWrite(write);
         write.flush();
         write.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7265
         DataInputStream test = new DataInputStream(new FileInputStream(file));
         testRead(test, canon);
         test.close();
@@ -406,6 +424,7 @@ public class DataOutputTest
         Random rnd = ThreadLocalRandom.current();
 
         int size = 50;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         byte[] bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(bytes, test);
@@ -491,6 +510,7 @@ public class DataOutputTest
             test.readInt();
             assert false;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7675
         catch (EOFException ignore)
         {
             // it worked

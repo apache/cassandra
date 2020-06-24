@@ -50,6 +50,7 @@ public class SettingsInsert implements Serializable
         this.rowPopulationRatio = options.rowPopulationRatio.get();
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
 
         this.batchType = !options.batchType.setByUser() ? null : BatchStatement.Type.valueOf(options.batchType.value());
     }
@@ -76,6 +77,7 @@ public class SettingsInsert implements Serializable
     public void printSettings(ResultLogger out)
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         if (revisit != null)
         {
             out.println("  Revisits: " +revisit.getConfigAsString());

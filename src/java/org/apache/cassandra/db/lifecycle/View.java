@@ -66,6 +66,7 @@ public class View
      * flushed. In chronologically ascending order.
      */
     public final List<Memtable> flushingMemtables;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
     final Set<SSTableReader> compacting;
     final Set<SSTableReader> sstables;
     // we use a Map here so that we can easily perform identity checks as well as equality checks.
@@ -77,6 +78,7 @@ public class View
 
     final SSTableIntervalTree intervalTree;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
     View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Map<SSTableReader, SSTableReader> compacting, SSTableIntervalTree intervalTree)
     {
         assert liveMemtables != null;
@@ -90,6 +92,7 @@ public class View
 
         this.sstablesMap = sstables;
         this.sstables = sstablesMap.keySet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         this.compactingMap = compacting;
         this.compacting = compactingMap.keySet();
         this.intervalTree = intervalTree;
@@ -116,6 +119,7 @@ public class View
 
     public Iterable<SSTableReader> sstables(SSTableSet sstableSet, Predicate<SSTableReader> filter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         return filter(select(sstableSet), filter);
     }
 
@@ -136,6 +140,7 @@ public class View
             case NONCOMPACTING:
                 return filter(sstables, (s) -> !compacting.contains(s));
             case CANONICAL:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
                 Set<SSTableReader> canonicalSSTables = new HashSet<>();
                 for (SSTableReader sstable : compacting)
                     if (sstable.openReason != SSTableReader.OpenReason.EARLY)
@@ -166,6 +171,7 @@ public class View
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         return sstables.isEmpty()
                && liveMemtables.size() <= 1
                && flushingMemtables.size() == 0
@@ -190,6 +196,7 @@ public class View
             return Collections.emptyList();
 
         PartitionPosition stopInTree = right.isMinimum() ? intervalTree.max() : right;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         return intervalTree.search(Interval.create(left, stopInTree));
     }
 
@@ -206,6 +213,7 @@ public class View
 
     public static Function<View, Iterable<SSTableReader>> selectFunction(SSTableSet sstableSet)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         return (view) -> view.select(sstableSet);
     }
 
@@ -235,6 +243,7 @@ public class View
         // place and the returned sstables will (almost) never cover *exactly* rowBounds anyway. It's also
         // *very* unlikely that a sstable is included *just* because we consider one of the bound inclusively
         // instead of exclusively, so the performance impact is negligible in practice.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
         return (view) -> view.liveSSTablesInBounds(rowBounds.left, rowBounds.right);
     }
 
@@ -251,7 +260,9 @@ public class View
             {
                 assert all(mark, Helpers.idIn(view.sstablesMap));
                 return new View(view.liveMemtables, view.flushingMemtables, view.sstablesMap,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                                 replace(view.compactingMap, unmark, mark),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                                 view.intervalTree);
             }
         };
@@ -266,6 +277,7 @@ public class View
             public boolean apply(View view)
             {
                 for (SSTableReader reader : readers)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                     if (view.compacting.contains(reader) || view.sstablesMap.get(reader) != reader || reader.isMarkedCompacted())
                         return false;
                 return true;
@@ -283,6 +295,8 @@ public class View
             public View apply(View view)
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                 return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
                                 SSTableIntervalTree.build(sstableMap.keySet()));
             }
@@ -298,6 +312,8 @@ public class View
             {
                 List<Memtable> newLive = ImmutableList.<Memtable>builder().addAll(view.liveMemtables).add(newMemtable).build();
                 assert newLive.size() == view.liveMemtables.size() + 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                 return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compactingMap, view.intervalTree);
             }
         };
@@ -317,6 +333,8 @@ public class View
                                                            filter(flushing, not(lessThan(toFlush)))));
                 assert newLive.size() == live.size() - 1;
                 assert newFlushing.size() == flushing.size() + 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                 return new View(newLive, newFlushing, view.sstablesMap, view.compactingMap, view.intervalTree);
             }
         };
@@ -335,7 +353,10 @@ public class View
                 if (flushed == null || Iterables.isEmpty(flushed))
                     return new View(view.liveMemtables, flushingMemtables, view.sstablesMap,
                                     view.compactingMap, view.intervalTree);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
                 return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
                                 SSTableIntervalTree.build(sstableMap.keySet()));

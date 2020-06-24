@@ -84,6 +84,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             sortedUnits.add(new Weighted<UnitInfo>(unitInfo.ownership, unitInfo));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         TokenAllocatorDiagnostics.tokenInfosCreated(this, sortedUnits, sortedTokens, first);
         return first;
     }
@@ -122,6 +123,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
 
         if (unitInfos.isEmpty())
             return generateSplits(newUnit, numTokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
 
         if (numTokens > sortedTokens.size())
             return generateSplits(newUnit, numTokens);
@@ -222,11 +224,13 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
 
             // adjust the weight for current unit
             sortedUnits.add(new Weighted<>(unit.value.ownership, unit.value));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
             target -= step;
             ++nr;
         }
         sortedUnits.add(new Weighted<>(newUnitInfo.ownership, newUnitInfo));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         TokenAllocatorDiagnostics.unitedAdded(this, numTokens, sortedUnits, sortedTokens, newTokens, newUnit);
         return newTokens;
     }
@@ -261,6 +265,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             tokens.add(tokenInfo.value.token);
         }
         sortedTokens.keySet().removeAll(tokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         TokenAllocatorDiagnostics.unitRemoved(this, n, sortedUnits, sortedTokens);
     }
 
@@ -271,6 +276,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
         return getClass().getSimpleName();
     }
 }

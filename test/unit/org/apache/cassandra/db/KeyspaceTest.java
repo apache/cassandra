@@ -47,6 +47,7 @@ public class KeyspaceTest extends CQLTester
     @Override
     protected String createTable(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         return super.createTable(KEYSPACE_PER_TEST, query);
     }
 
@@ -91,6 +92,7 @@ public class KeyspaceTest extends CQLTester
     public void testGetRowSingleColumn() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
 
         for (int i = 0; i < 2; i++)
             execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "0", i, i);
@@ -126,6 +128,7 @@ public class KeyspaceTest extends CQLTester
     public void testGetSliceBloomFilterFalsePositive() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
 
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "1", 1, 1);
 
@@ -140,6 +143,7 @@ public class KeyspaceTest extends CQLTester
         for (String key : new String[]{"0", "2"})
             Util.assertEmpty(Util.cmd(cfs, key).build());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
         sstables.iterator().next().forceFilterFailures();
@@ -155,6 +159,7 @@ public class KeyspaceTest extends CQLTester
         Slices slices = Slices.with(cfs.getComparator(), Slice.make(startClustering, endClustering));
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, reversed);
         SinglePartitionReadCommand command = singlePartitionSlice(cfs, key, filter, limit);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
 
         try (ReadExecutionController executionController = command.executionController();
              PartitionIterator iterator = command.executeInternal(executionController))
@@ -187,6 +192,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testGetSliceWithCutoff() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c text, PRIMARY KEY (a, b))");
         String prefix = "omg!thisisthevalue!";
 
@@ -214,6 +220,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testReversedWithFlushing() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -228,6 +235,7 @@ public class KeyspaceTest extends CQLTester
 
             RegularAndStaticColumns columns = RegularAndStaticColumns.of(cfs.metadata().getColumn(new ColumnIdentifier("c", false)));
             ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.ALL, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
             SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", filter, null);
             try (ReadExecutionController executionController = command.executionController();
                  PartitionIterator iterator = command.executeInternal(executionController))
@@ -271,6 +279,7 @@ public class KeyspaceTest extends CQLTester
 
     private static ClusteringIndexSliceFilter slices(ColumnFamilyStore cfs, Integer sliceStart, Integer sliceEnd, boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBound startBound = sliceStart == null
                                    ? ClusteringBound.BOTTOM
                                    : ClusteringBound.create(ClusteringPrefix.Kind.INCL_START_BOUND, new ByteBuffer[]{ByteBufferUtil.bytes(sliceStart)});
@@ -286,6 +295,7 @@ public class KeyspaceTest extends CQLTester
         DataLimits limit = rowLimit == null
                          ? DataLimits.NONE
                          : DataLimits.cqlLimits(rowLimit);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         return SinglePartitionReadCommand.create(
                 cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, limit, Util.dk(key), filter);
     }
@@ -293,6 +303,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testGetSliceFromBasic() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -309,6 +320,7 @@ public class KeyspaceTest extends CQLTester
         {
 
             ClusteringIndexSliceFilter filter = slices(cfs, 5, null, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
             SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", filter, 2);
             assertRowsInResult(cfs, command, 5, 7);
 
@@ -341,6 +353,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testGetSliceWithExpiration() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -350,6 +363,7 @@ public class KeyspaceTest extends CQLTester
 
         for (int round = 0; round < 2; round++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
             SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, null, false), 2);
             assertRowsInResult(cfs, command, 0, 1);
 
@@ -364,6 +378,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testGetSliceFromAdvanced() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -378,6 +393,7 @@ public class KeyspaceTest extends CQLTester
 
         for (int round = 0; round < 2; round++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
             SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, 2, null, false), 3);
             assertRowsInResult(cfs, command, -1, -1, 4);
 
@@ -389,6 +405,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testGetSliceFromLarge() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -400,11 +417,13 @@ public class KeyspaceTest extends CQLTester
         validateSliceLarge(cfs);
 
         // compact so we have a big row with more than the minimum index count
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         if (cfs.getLiveSSTables().size() > 1)
             CompactionManager.instance.performMaximal(cfs, false);
 
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         RowIndexEntry<?> indexEntry = sstable.getPosition(Util.dk("0"), SSTableReader.Operator.EQ);
         assert indexEntry.columnsIndexCount() > 2;
 
@@ -414,6 +433,7 @@ public class KeyspaceTest extends CQLTester
     @Test
     public void testLimitSSTables() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12820
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -428,6 +448,7 @@ public class KeyspaceTest extends CQLTester
 
         ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, 1499, false), 1000);
         int[] expectedValues = new int[500];
         for (int i = 0; i < 500; i++)
@@ -455,6 +476,7 @@ public class KeyspaceTest extends CQLTester
     private void validateSliceLarge(ColumnFamilyStore cfs)
     {
         ClusteringIndexSliceFilter filter = slices(cfs, 1000, null, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         SinglePartitionReadCommand command = SinglePartitionReadCommand.create(
                 cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1000, 1001, 1002);
@@ -473,6 +495,7 @@ public class KeyspaceTest extends CQLTester
         assertRowsInResult(cfs, command, expectedValues);
 
         filter = slices(cfs, 1990, null, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         command = SinglePartitionReadCommand.create(
                 cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1990, 1991, 1992);

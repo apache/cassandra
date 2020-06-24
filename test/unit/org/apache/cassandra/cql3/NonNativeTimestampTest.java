@@ -29,6 +29,7 @@ public class NonNativeTimestampTest extends CQLTester
     public void setServerTimestampForNonCqlNativeStatements() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         execute("INSERT INTO %s (k, v) values (1, ?)", 2);
 

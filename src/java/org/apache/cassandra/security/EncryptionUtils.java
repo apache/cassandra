@@ -286,6 +286,7 @@ public class EncryptionUtils
 
         public ChannelProxyReadChannel(ChannelProxy channelProxy, long currentPosition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
             this.channelProxy = channelProxy;
             this.currentPosition = currentPosition;
         }
@@ -315,6 +316,7 @@ public class EncryptionUtils
 
         public void setPosition(long sourcePosition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
             this.currentPosition = sourcePosition;
         }
     }

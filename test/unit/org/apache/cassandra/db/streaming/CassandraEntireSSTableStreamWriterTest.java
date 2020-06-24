@@ -115,6 +115,7 @@ public class CassandraEntireSSTableStreamWriterTest
         CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         EmbeddedChannel channel = new EmbeddedChannel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
         writer.write(out);
 
@@ -135,6 +136,7 @@ public class CassandraEntireSSTableStreamWriterTest
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
         AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         writer.write(out);
 
@@ -156,6 +158,7 @@ public class CassandraEntireSSTableStreamWriterTest
 
         CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null), header, session);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         SSTableMultiWriter sstableWriter = reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
         Collection<SSTableReader> newSstables = sstableWriter.finished();
 
@@ -189,6 +192,7 @@ public class CassandraEntireSSTableStreamWriterTest
                 @Override
                 public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     ((SharedDefaultFileRegion) msg).transferTo(wbc, 0);
                     super.write(ctx, msg, promise);
                 }
@@ -197,6 +201,7 @@ public class CassandraEntireSSTableStreamWriterTest
 
     private StreamSession setupStreamingSessionForTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
         StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 

@@ -45,6 +45,7 @@ public class StressYaml
         public String fields;
         public String getConfigAsString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
             return String.format("CQL:%s;Fields:%s;", cql, fields);
         }
     }

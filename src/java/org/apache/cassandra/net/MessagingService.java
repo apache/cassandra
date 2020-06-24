@@ -217,6 +217,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
     public static MessagingService instance()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return MSHandle.instance;
     }
 
@@ -230,6 +231,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     // the inbound global reserve limits and associated wait queue
     private final InboundMessageHandlers.GlobalResourceLimits inboundGlobalReserveLimits = new InboundMessageHandlers.GlobalResourceLimits(
         new ResourceLimits.Concurrent(DatabaseDescriptor.getInternodeApplicationReceiveQueueReserveGlobalCapacityInBytes()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
     // the socket bindings we accept incoming connections on
     private final InboundSockets inboundSockets = new InboundSockets(new InboundConnectionSettings()
@@ -271,6 +273,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb, ConnectionType specifyConnection)
     {
         callbacks.addWithExpiration(cb, message, to);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
         updateBackPressureOnSend(to, cb, message);
         if (cb.invokeOnFailure() && !message.callBackOnFailure())
             message = message.withCallBackOnFailure();
@@ -350,10 +353,12 @@ public final class MessagingService extends MessagingServiceMBeanImpl
      * @param callback The message callback.
      * @param message The actual message.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     void updateBackPressureOnSend(InetAddressAndPort host, RequestCallback callback, Message<?> message)
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
             BackPressureState backPressureState = getBackPressureState(host);
             if (backPressureState != null)
                 backPressureState.onMessageSent(message);
@@ -367,10 +372,12 @@ public final class MessagingService extends MessagingServiceMBeanImpl
      * @param callback The message callback.
      * @param timeout True if updated following a timeout, false otherwise.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     void updateBackPressureOnReceive(InetAddressAndPort host, RequestCallback callback, boolean timeout)
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
             BackPressureState backPressureState = getBackPressureState(host);
             if (backPressureState == null)
                 return;
@@ -394,7 +401,9 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         if (DatabaseDescriptor.backPressureEnabled())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Set<BackPressureState> states = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (InetAddressAndPort host : hosts)
             {
                 if (host.equals(FBUtilities.getBroadcastAddressAndPort()))
@@ -473,6 +482,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     @SuppressWarnings("UnusedReturnValue")
     public Future<Void> maybeReconnectWithNewIp(InetAddressAndPort address, InetAddressAndPort preferredAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (!SystemKeyspace.updatePreferredIP(address, preferredAddress))
             return null;
 
@@ -488,6 +498,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
      */
     public void shutdown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         shutdown(1L, MINUTES, true, true);
     }
 
@@ -497,6 +508,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !MUTATION.executor().isShutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
 
         if (shutdownGracefully)
         {

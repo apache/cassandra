@@ -28,5 +28,6 @@ public interface StreamManagerMBean extends NotificationEmitter
     /**
      * Returns the current state of all ongoing streams.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5859
     Set<CompositeData> getCurrentStreams();
 }

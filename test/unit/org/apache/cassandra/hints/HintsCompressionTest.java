@@ -32,6 +32,7 @@ public class HintsCompressionTest extends AlteredHints
 {
     private Class<? extends ICompressor> compressorClass;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
     ImmutableMap<String, Object> params()
     {
         ImmutableMap<String, Object> compressionParams = ImmutableMap.<String, Object>builder()
@@ -44,6 +45,7 @@ public class HintsCompressionTest extends AlteredHints
 
     boolean looksLegit(HintsWriter writer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
         if (!(writer instanceof CompressedHintsWriter))
             return false;
         CompressedHintsWriter compressedHintsWriter = (CompressedHintsWriter)writer;
@@ -82,6 +84,7 @@ public class HintsCompressionTest extends AlteredHints
     @Test
     public void zstdCompressor() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         compressorClass = ZstdCompressor.class;
         multiFlushAndDeserializeTest();
     }

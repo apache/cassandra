@@ -45,6 +45,7 @@ public class TimeFctsTest
     private static final ZonedDateTime DATE = LOCAL_DATE.atStartOfDay(ZoneOffset.UTC);
     private static final LocalTime LOCAL_TIME = LocalTime.of(11, 3, 2);
     private static final ZonedDateTime DATE_TIME =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
             ZonedDateTime.of(LOCAL_DATE, LOCAL_TIME, ZoneOffset.UTC);
     private static final String DATE_STRING = DATE.format(DateTimeFormatter.ISO_LOCAL_DATE);
     private static final String DATE_TIME_STRING =
@@ -62,6 +63,7 @@ public class TimeFctsTest
     @Test
     public void testMaxTimeUuid()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = TimestampType.instance.fromString(DATE_TIME_STRING + "+00");
         ByteBuffer output = executeFunction(TimeFcts.maxTimeuuidFct, input);
@@ -72,6 +74,7 @@ public class TimeFctsTest
     public void testDateOf()
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(TimeFcts.dateOfFct, input);
@@ -83,6 +86,7 @@ public class TimeFctsTest
     {
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         ByteBuffer output = executeFunction(toTimestamp(TimeUUIDType.instance), input);
         assertEquals(Date.from(DATE_TIME.toInstant()), TimestampType.instance.compose(output));
     }
@@ -99,8 +103,10 @@ public class TimeFctsTest
     @Test
     public void testTimeUuidToUnixTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         ByteBuffer output = executeFunction(toUnixTimestamp(TimeUUIDType.instance), input);
         assertEquals(timeInMillis, LongType.instance.compose(output).longValue());
     }
@@ -108,9 +114,11 @@ public class TimeFctsTest
     @Test
     public void testTimeUuidToDate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(toDate(TimeUUIDType.instance), input);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
 
         long expectedTime = DATE.toInstant().toEpochMilli();
 
@@ -120,7 +128,9 @@ public class TimeFctsTest
     @Test
     public void testDateToTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         ByteBuffer input = SimpleDateType.instance.fromString(DATE_STRING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         ByteBuffer output = executeFunction(toTimestamp(SimpleDateType.instance), input);
         assertEquals(Date.from(DATE.toInstant()), TimestampType.instance.compose(output));
     }
@@ -129,6 +139,7 @@ public class TimeFctsTest
     public void testDateToUnixTimestamp()
     {
         ByteBuffer input = SimpleDateType.instance.fromString(DATE_STRING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         ByteBuffer output = executeFunction(toUnixTimestamp(SimpleDateType.instance), input);
         assertEquals(DATE.toInstant().toEpochMilli(), LongType.instance.compose(output).longValue());
     }
@@ -137,6 +148,7 @@ public class TimeFctsTest
     public void testTimestampToDate()
     {
         ByteBuffer input = TimestampType.instance.fromString(DATE_TIME_STRING + "+00");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         ByteBuffer output = executeFunction(toDate(TimestampType.instance), input);
         assertEquals(DATE.toInstant().toEpochMilli(), SimpleDateType.instance.toTimeInMillis(output));
     }
@@ -151,7 +163,9 @@ public class TimeFctsTest
     @Test
     public void testTimestampToUnixTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         ByteBuffer input = TimestampType.instance.decompose(Date.from(DATE_TIME.toInstant()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         ByteBuffer output = executeFunction(toUnixTimestamp(TimestampType.instance), input);
         assertEquals(DATE_TIME.toInstant().toEpochMilli(), LongType.instance.compose(output).longValue());
     }
@@ -165,7 +179,9 @@ public class TimeFctsTest
 
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         List<ByteBuffer> params = Collections.singletonList(input);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return ((ScalarFunction) function).execute(ProtocolVersion.CURRENT, params);
     }
 }

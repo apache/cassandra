@@ -280,6 +280,7 @@ public class SimpleQueryTest extends CQLTester
 
         for (int t = 0; t < N; t++)
             execute("INSERT INTO %s (k, t, v1, v2) values (?, ?, ?, ?)", "key", t, "v" + t, t + 10);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         flush();
 
@@ -364,6 +365,7 @@ public class SimpleQueryTest extends CQLTester
         execute("INSERT INTO %s (k, t, v, s) values (?, ?, ?, ?)", "key1", 3, "foo3", "st3");
         execute("INSERT INTO %s (k, t, v) values (?, ?, ?)", "key1", 4, "foo4");
         execute("INSERT INTO %s (k, t, v, s) values (?, ?, ?, ?)", "key1", 2, "foo2", "st2-repeat");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11513
 
         flush();
 
@@ -427,6 +429,7 @@ public class SimpleQueryTest extends CQLTester
     public void collectionDeletionTest() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<int>);");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         execute("INSERT INTO %s (k, s) VALUES (?, ?)", 1, set(1));
 
@@ -507,6 +510,8 @@ public class SimpleQueryTest extends CQLTester
     public void restrictionOnRegularColumnWithStaticColumnPresentTest() throws Throwable
     {
         createTable("CREATE TABLE %s (id int, id2 int, age int static, extra int, PRIMARY KEY(id, id2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
 
         execute("INSERT INTO %s (id, id2, age, extra) VALUES (?, ?, ?, ?)", 1, 1, 1, 1);
         execute("INSERT INTO %s (id, id2, age, extra) VALUES (?, ?, ?, ?)", 2, 2, 2, 2);
@@ -544,6 +549,7 @@ public class SimpleQueryTest extends CQLTester
     @Test
     public void testSStableTimestampOrdering() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14010
         createTable("CREATE TABLE %s (k1 int, v1 int, v2 int, PRIMARY KEY (k1))");
         disableCompaction();
 

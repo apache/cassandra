@@ -56,6 +56,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
     {
         public void serialize(TraceType traceType, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             out.write((byte)traceType.ordinal());
         }
 
@@ -72,6 +73,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public enum TraceType
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         NONE,
         QUERY,
         REPAIR;
@@ -112,6 +114,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10392
         Tracing tracing = null;
         String customTracingClass = System.getProperty("cassandra.custom_tracing_class");
         if (null != customTracingClass)
@@ -124,6 +127,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
             catch (Exception e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11706
                 logger.error(String.format("Cannot use class %s for tracing, ignoring by defaulting to normal tracing", customTracingClass), e);
             }
         }
@@ -138,6 +142,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public TraceType getTraceType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         assert isTracing();
         return state.get().traceType;
     }
@@ -153,11 +158,13 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
      */
     public static boolean isTracing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10392
         return instance.get() != null;
     }
 
     public UUID newSession(Map<String,ByteBuffer> customPayload)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11706
         return newSession(
                 TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())),
                 TraceType.QUERY,
@@ -174,6 +181,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public UUID newSession(UUID sessionId, Map<String,ByteBuffer> customPayload)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11706
         return newSession(sessionId, TraceType.QUERY, customPayload);
     }
 
@@ -201,9 +209,11 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
      */
     public void stopSession()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10392
         TraceState state = get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("request complete");
         }
         else
@@ -225,6 +235,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public TraceState get(UUID sessionId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4861
         return sessions.get(sessionId);
     }
 
@@ -235,6 +246,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public TraceState begin(final String request, final Map<String, String> parameters)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
         return begin(request, null, parameters);
     }
 
@@ -247,15 +259,18 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
      */
     public TraceState initializeFromMessage(final Message.Header header)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         final UUID sessionId = header.traceSession();
         if (sessionId == null)
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10392
         TraceState ts = get(sessionId);
         if (ts != null && ts.acquireReference())
             return ts;
 
         TraceType traceType = header.traceType();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         if (header.verb.isResponse())
         {
@@ -281,6 +296,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
             if (sessionId == null)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15687
             String logMessage = String.format("Sending %s message to %s message size %d bytes", message.verb(), sendTo,
                                               serializedSize);
 
@@ -354,6 +370,10 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public static void trace(String format, Object... args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5625
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5625
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5625
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5625
         final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;

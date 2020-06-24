@@ -61,6 +61,7 @@ public abstract class AbstractBufferClusteringPrefix extends AbstractClusteringP
 
     public long unsharedHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15498
         return Clustering.EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(values);
     }
 

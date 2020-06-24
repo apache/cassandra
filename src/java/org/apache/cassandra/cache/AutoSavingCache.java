@@ -89,17 +89,20 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {
         private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
                                                                     .trickleFsync(DatabaseDescriptor.getTrickleFsync())
                                                                     .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
                                                                     .finishOnClose(true).build();
 
         public InputStream getInputStream(File dataPath, File crcPath) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             return ChecksummedRandomAccessReader.open(dataPath, crcPath);
         }
 
         public OutputStream getOutputStream(File dataPath, File crcPath)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             return new ChecksummedSequentialWriter(dataPath, crcPath, null, writerOption);
         }
     };
@@ -112,6 +115,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     public AutoSavingCache(ICache<K, V> cache, CacheService.CacheType cacheType, CacheSerializer<K, V> cacheloader)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
         super(cacheType.toString(), cache);
         this.cacheType = cacheType;
         this.cacheLoader = cacheloader;
@@ -141,13 +145,16 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
         if (savePeriodInSeconds > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             Runnable runnable = new Runnable()
             {
                 public void run()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1966
                     submitWrite(keysToSave);
                 }
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
             saveTask = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(runnable,
                                                                                savePeriodInSeconds,
                                                                                savePeriodInSeconds,
@@ -196,12 +203,15 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         if (dataPath.exists() && crcPath.exists())
         {
             DataInputStreamPlus in = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10359
             try
             {
                 logger.info("reading saved cache {}", dataPath);
                 in = new DataInputStreamPlus(new LengthAvailableInputStream(new BufferedInputStream(streamFactory.getInputStream(dataPath, crcPath)), dataPath.length()));
 
                 //Check the schema has not changed since CFs are looked up by name which is ambiguous
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10359
                 UUID schemaVersion = new UUID(in.readLong(), in.readLong());
                 if (!schemaVersion.equals(Schema.instance.getVersion()))
                     throw new RuntimeException("Cache schema version "
@@ -255,12 +265,15 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 while ((future = futures.poll()) != null)
                 {
                     Pair<K, V> entry = future.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8740
                     if (entry != null && entry.right != null)
                         put(entry.left, entry.right);
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9265
             catch (CorruptFileException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 logger.warn(String.format("Non-fatal checksum error reading saved cache %s", dataPath.getAbsolutePath()), e);
             }
@@ -274,14 +287,17 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 FileUtils.closeQuietly(in);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
             logger.trace("completed reading ({} ms; {} keys) saved cache {}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9265
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), count, dataPath);
         return count;
     }
 
     public Future<?> submitWrite(int keysToSave)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1966
         return CompactionManager.instance.submitCacheWrite(getWriter(keysToSave));
     }
 
@@ -295,6 +311,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         protected Writer(int keysToSave)
         {
             int size = size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
             if (keysToSave >= size || keysToSave == 0)
             {
                 keyIterator = keyIterator();
@@ -306,6 +323,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 keysEstimate = keysToSave;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3154
             OperationType type;
             if (cacheType == CacheService.CacheType.KEY_CACHE)
                 type = OperationType.KEY_CACHE_SAVE;
@@ -316,16 +334,20 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             info = CompactionInfo.withoutSSTables(TableMetadata.minimal(SchemaConstants.SYSTEM_KEYSPACE_NAME, cacheType.toString()),
                                                   type,
                                                   0,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
                                                   keysEstimate,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12244
                                                   Unit.KEYS,
                                                   UUIDGen.getTimeUUID());
         }
 
         public CacheService.CacheType cacheType()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4533
             return cacheType;
         }
 
@@ -333,14 +355,17 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         {
             // keyset can change in size, thus total can too
             // TODO need to check for this one... was: info.forProgress(keysWritten, Math.max(keysWritten, keys.size()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
             return info.forProgress(keysWritten, Math.max(keysWritten, keysEstimate));
         }
 
         public void saveCache()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
             if (!keyIterator.hasNext())
             {
                 logger.trace("Skipping {} save, cache is empty.", cacheType);
@@ -348,8 +373,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             }
 
             long start = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
 
             Pair<File, File> cacheFilePaths = tempCacheFiles();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             try (WrappedDataOutputStreamPlus writer = new WrappedDataOutputStreamPlus(streamFactory.getOutputStream(cacheFilePaths.left, cacheFilePaths.right)))
             {
 
@@ -363,6 +392,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 writer.writeLong(schemaVersion.getMostSignificantBits());
                 writer.writeLong(schemaVersion.getLeastSignificantBits());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
                 while (keyIterator.hasNext())
                 {
                     K key = keyIterator.next();
@@ -401,6 +431,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             if (!cacheFilePaths.right.renameTo(crcFile))
                 logger.error("Unable to rename {} to {}", cacheFilePaths.right, crcFile);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
             logger.info("Saved {} ({} items) in {} ms", cacheType, keysWritten, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         }
 
@@ -416,6 +447,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         {
             File savedCachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
             assert savedCachesDir.exists() && savedCachesDir.isDirectory();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7632
             File[] files = savedCachesDir.listFiles();
             if (files != null)
             {
@@ -425,6 +457,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     if (!file.isFile())
                         continue; // someone's been messing with our directory.  naughty!
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
                     if (file.getName().endsWith(cacheNameFormat)
                      || file.getName().endsWith(cacheType.toString()))
                     {
@@ -441,6 +474,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
         public boolean isGlobal()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
             return false;
         }
     }
@@ -449,6 +483,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     {
         void serialize(K key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         Future<Pair<K, V>> deserialize(DataInputPlus in, ColumnFamilyStore cfs) throws IOException;
     }
 }

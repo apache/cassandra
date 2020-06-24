@@ -45,7 +45,9 @@ public class NameSortTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF, 1000, AsciiType.instance));
     }
 
@@ -72,7 +74,9 @@ public class NameSortTest
 
     private void testNameSort(int N) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         for (int i = 0; i < N; i++)
         {

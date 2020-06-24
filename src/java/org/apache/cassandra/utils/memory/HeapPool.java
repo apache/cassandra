@@ -31,6 +31,7 @@ public class HeapPool extends MemtablePool
 
     public MemtableAllocator newAllocator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12900
         return new Allocator(this);
     }
 

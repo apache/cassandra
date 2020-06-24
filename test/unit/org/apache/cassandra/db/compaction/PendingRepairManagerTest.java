@@ -137,6 +137,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     {
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
@@ -153,6 +154,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         Assert.assertEquals(2, prm.getSessions().size());
         Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
         AbstractCompactionTask compactionTask = prm.getNextRepairFinishedTask();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
         try
         {
             Assert.assertNotNull(compactionTask);
@@ -179,6 +181,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     @Test
     public void getNextBackgroundTaskAllCleanup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13769
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
@@ -208,7 +211,10 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         Assert.assertNotNull(prm.get(repairID));
         LocalSessionAccessor.finalizeUnsafe(repairID);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
         Collection<AbstractCompactionTask> tasks = prm.getMaximalTasks(FBUtilities.nowInSeconds(), false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
         try
         {
             Assert.assertEquals(1, tasks.size());
@@ -238,6 +244,8 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     public void mixedPendingSessionsTest()
     {
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairId = registerSession(cfs, true, true);
         UUID repairId2 = registerSession(cfs, true, true);
         SSTableReader sstable = makeSSTable(true);
@@ -260,6 +268,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     @Test(expected = PendingRepairManager.IllegalSSTableArgumentException.class)
     public void getScannersInvalidSSTable() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
         SSTableReader sstable = makeSSTable(true);
         prm.getScanners(Collections.singleton(sstable), Collections.singleton(RANGE1));
@@ -281,7 +290,14 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     public void sessionHasData()
     {
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13758
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
@@ -295,6 +311,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     @Test
     public void noEmptyCompactionTask()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14780
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
         SSTableReader sstable = makeSSTable(false);
         UUID id = UUID.randomUUID();

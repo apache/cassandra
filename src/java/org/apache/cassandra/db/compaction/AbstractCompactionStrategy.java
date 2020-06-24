@@ -98,9 +98,11 @@ public abstract class AbstractCompactionStrategy
         assert cfs != null;
         this.cfs = cfs;
         this.options = ImmutableMap.copyOf(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7290
 
         /* checks must be repeated here, as user supplied strategies might not call validateOptions directly */
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         try
         {
             validateOptions(options);
@@ -110,6 +112,7 @@ public abstract class AbstractCompactionStrategy
             tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
             optionValue = options.get(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
             uncheckedTombstoneCompaction = optionValue == null ? DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION : Boolean.parseBoolean(optionValue);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
             optionValue = options.get(LOG_ALL_OPTION);
             logAll = optionValue == null ? DEFAULT_LOG_ALL_OPTION : Boolean.parseBoolean(optionValue);
         }
@@ -121,6 +124,7 @@ public abstract class AbstractCompactionStrategy
             uncheckedTombstoneCompaction = DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         directories = cfs.getDirectories();
     }
 
@@ -152,6 +156,7 @@ public abstract class AbstractCompactionStrategy
      */
     public void startup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6637
         isActive = true;
     }
 
@@ -195,6 +200,8 @@ public abstract class AbstractCompactionStrategy
 
     public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
         return new CompactionTask(cfs, txn, gcBefore);
     }
 
@@ -216,6 +223,7 @@ public abstract class AbstractCompactionStrategy
      */
     public static List<SSTableReader> filterSuspectSSTables(Iterable<SSTableReader> originalCandidates)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         List<SSTableReader> filtered = new ArrayList<>();
         for (SSTableReader sstable : originalCandidates)
         {
@@ -228,6 +236,7 @@ public abstract class AbstractCompactionStrategy
 
     public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11412
         return range == null ? getScanners(sstables, (Collection<Range<Token>>)null) : getScanners(sstables, Collections.singleton(range));
     }
     /**
@@ -243,10 +252,12 @@ public abstract class AbstractCompactionStrategy
         try
         {
             for (SSTableReader sstable : sstables)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                 scanners.add(sstable.getScanner(ranges));
         }
         catch (Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
             ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
         return new ScannerList(scanners);
@@ -254,6 +265,7 @@ public abstract class AbstractCompactionStrategy
 
     public boolean shouldDefragment()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8004
         return false;
     }
 
@@ -264,6 +276,7 @@ public abstract class AbstractCompactionStrategy
 
     public synchronized void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8463
         for (SSTableReader remove : removed)
             removeSSTable(remove);
         for (SSTableReader add : added)
@@ -274,6 +287,7 @@ public abstract class AbstractCompactionStrategy
 
     public synchronized void addSSTables(Iterable<SSTableReader> added)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         for (SSTableReader sstable : added)
             addSSTable(sstable);
     }
@@ -282,6 +296,7 @@ public abstract class AbstractCompactionStrategy
 
     public void removeSSTables(Iterable<SSTableReader> removed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         for (SSTableReader sstable : removed)
             removeSSTable(sstable);
     }
@@ -315,7 +330,9 @@ public abstract class AbstractCompactionStrategy
 
         public long getTotalBytesScanned()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
             long bytesScanned = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
             for (int i=0, isize=scanners.size(); i<isize; i++)
                 bytesScanned += scanners.get(i).getBytesScanned();
 
@@ -325,6 +342,7 @@ public abstract class AbstractCompactionStrategy
         public long getTotalCompressedSize()
         {
             long compressedSize = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
             for (int i=0, isize=scanners.size(); i<isize; i++)
                 compressedSize += scanners.get(i).getCompressedLengthInBytes();
 
@@ -336,6 +354,7 @@ public abstract class AbstractCompactionStrategy
             double compressed = 0.0;
             double uncompressed = 0.0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
             for (int i=0, isize=scanners.size(); i<isize; i++)
             {
                 @SuppressWarnings("resource")
@@ -352,12 +371,14 @@ public abstract class AbstractCompactionStrategy
 
         public void close()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
             ISSTableScanner.closeAllAndPropagate(scanners, null);
         }
     }
 
     public ScannerList getScanners(Collection<SSTableReader> toCompact)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11412
         return getScanners(toCompact, (Collection<Range<Token>>)null);
     }
 
@@ -371,15 +392,18 @@ public abstract class AbstractCompactionStrategy
      */
     protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
             return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
         // elapsed since SSTable created.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4781
         if (System.currentTimeMillis() < sstable.getCreationTimeFor(Component.DATA) + tombstoneCompactionInterval * 1000)
            return false;
 
         double droppableRatio = sstable.getEstimatedDroppableTombstoneRatio(gcBefore);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4234
         if (droppableRatio <= tombstoneThreshold)
             return false;
 
@@ -387,12 +411,14 @@ public abstract class AbstractCompactionStrategy
         if (uncheckedTombstoneCompaction)
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
         Collection<SSTableReader> overlaps = cfs.getOverlappingLiveSSTables(Collections.singleton(sstable));
         if (overlaps.isEmpty())
         {
             // there is no overlap, tombstones are safely droppable
             return true;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5528
         else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), overlaps, gcBefore).size() > 0)
         {
             return true;
@@ -400,18 +426,22 @@ public abstract class AbstractCompactionStrategy
         else
         {
             // what percentage of columns do we expect to compact outside of overlap?
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
             if (sstable.getIndexSummarySize() < 2)
             {
                 // we have too few samples to estimate correct percentage
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4781
                 return false;
             }
             // first, calculate estimated keys that do not overlap
             long keys = sstable.estimatedKeys();
             Set<Range<Token>> ranges = new HashSet<Range<Token>>(overlaps.size());
             for (SSTableReader overlap : overlaps)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
                 ranges.add(new Range<>(overlap.first.getToken(), overlap.last.getToken()));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
             // next, calculate what percentage of columns we have within those keys
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
             long columns = sstable.getEstimatedCellPerPartitionCount().mean() * remainingKeys;
             double remainingColumnsRatio = ((double) columns) / (sstable.getEstimatedCellPerPartitionCount().count() * sstable.getEstimatedCellPerPartitionCount().mean());
 
@@ -422,6 +452,7 @@ public abstract class AbstractCompactionStrategy
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         String threshold = options.get(TOMBSTONE_THRESHOLD_OPTION);
         if (threshold != null)
         {
@@ -460,6 +491,7 @@ public abstract class AbstractCompactionStrategy
         if (unchecked != null)
         {
             if (!unchecked.equalsIgnoreCase("true") && !unchecked.equalsIgnoreCase("false"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
                 throw new ConfigurationException(String.format("'%s' should be either 'true' or 'false', not '%s'", UNCHECKED_TOMBSTONE_COMPACTION_OPTION, unchecked));
         }
 
@@ -472,6 +504,7 @@ public abstract class AbstractCompactionStrategy
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
         String compactionEnabled = options.get(COMPACTION_ENABLED);
         if (compactionEnabled != null)
         {
@@ -485,9 +518,12 @@ public abstract class AbstractCompactionStrategy
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         uncheckedOptions.remove(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         uncheckedOptions.remove(LOG_ALL_OPTION);
         uncheckedOptions.remove(COMPACTION_ENABLED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
         uncheckedOptions.remove(ONLY_PURGE_REPAIRED_TOMBSTONES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         uncheckedOptions.remove(CompactionParams.Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString());
         return uncheckedOptions;
     }
@@ -501,11 +537,13 @@ public abstract class AbstractCompactionStrategy
     public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
     {
         int groupSize = 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6851
         List<SSTableReader> sortedSSTablesToGroup = new ArrayList<>(sstablesToGroup);
         Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
         Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
 
         for (SSTableReader sstable : sortedSSTablesToGroup)
         {
@@ -513,6 +551,7 @@ public abstract class AbstractCompactionStrategy
             if (currGroup.size() == groupSize)
             {
                 groupedSSTables.add(currGroup);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
                 currGroup = new ArrayList<>(groupSize);
             }
         }
@@ -524,6 +563,7 @@ public abstract class AbstractCompactionStrategy
 
     public CompactionLogger.Strategy strategyLogger()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         return CompactionLogger.Strategy.none;
     }
 
@@ -542,6 +582,7 @@ public abstract class AbstractCompactionStrategy
 
     public boolean supportsEarlyOpen()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11754
         return true;
     }
 }

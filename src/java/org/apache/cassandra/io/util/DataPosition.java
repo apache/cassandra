@@ -18,4 +18,5 @@
 package org.apache.cassandra.io.util;
 
 public interface DataPosition
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
 {}

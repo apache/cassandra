@@ -111,6 +111,7 @@ public abstract class RebufferingInputStream extends InputStream implements Data
         int len = dst.limit() - offset;
 
         int copied = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
         while (copied < len)
         {
             int position = buffer.position();
@@ -146,7 +147,9 @@ public abstract class RebufferingInputStream extends InputStream implements Data
     @Override
     public int skipBytes(int n) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
         if (n <= 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
             return 0;
         int requested = n;
         int position = buffer.position(), limit = buffer.limit(), remaining;

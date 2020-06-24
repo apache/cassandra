@@ -116,6 +116,7 @@ public final class HeapUtils
      */
     private static Long getProcessId()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         long pid = NativeLibrary.getProcessID();
         if (pid >= 0)
             return pid;

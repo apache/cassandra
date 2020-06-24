@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ViewLongTest extends CQLTester
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();
 
@@ -55,6 +56,7 @@ public class ViewLongTest extends CQLTester
     @Before
     public void begin()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         views.clear();
     }
 
@@ -70,6 +72,7 @@ public class ViewLongTest extends CQLTester
         executeNet(protocolVersion, String.format(query, name));
         // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
         // the desired behavior
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         views.add(name);
     }
 
@@ -96,6 +99,8 @@ public class ViewLongTest extends CQLTester
         for (int i = 0; i < writers; i++)
         {
             final int writer = i;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
             Thread t = NamedThreadFactory.createThread(new WrappedRunnable()
             {
                 public void runMayThrow()
@@ -108,6 +113,7 @@ public class ViewLongTest extends CQLTester
                         {
                             try
                             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10197
                                 executeNet(protocolVersion, "INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP 1",
                                            1,
                                            1,
@@ -134,6 +140,7 @@ public class ViewLongTest extends CQLTester
 
         for (int i = 0; i < writers * insertsPerWriter; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             if (executeNet(protocolVersion, "SELECT COUNT(*) FROM system.batches").one().getLong(0) == 0)
                 break;
             try
@@ -193,6 +200,7 @@ public class ViewLongTest extends CQLTester
     @Test
     public void testExpiredLivenessInfoWithDefaultTTLWithFlush() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
         testExpiredLivenessInfoWithDefaultTTL(true);
     }
 
@@ -406,6 +414,8 @@ public class ViewLongTest extends CQLTester
     private void updateViewWithFlush(String query, boolean flush, Object... params) throws Throwable
     {
         executeNet(protocolVersion, query, params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
                 && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {

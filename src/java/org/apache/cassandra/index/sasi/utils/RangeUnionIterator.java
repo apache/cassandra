@@ -153,6 +153,7 @@ public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue
 
         protected RangeIterator<K, D> buildIterator()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
             switch (rangeCount())
             {
                 case 1:

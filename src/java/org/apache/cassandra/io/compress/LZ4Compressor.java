@@ -56,6 +56,7 @@ public class LZ4Compressor implements ICompressor
 
     public static LZ4Compressor create(Map<String, String> args) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
         String compressorType = validateCompressorType(args.get(LZ4_COMPRESSOR_TYPE));
         Integer compressionLevel = validateCompressionLevel(args.get(LZ4_HIGH_COMPRESSION_LEVEL));
 
@@ -107,6 +108,7 @@ public class LZ4Compressor implements ICompressor
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
         decompressor = lz4Factory.safeDecompressor();
     }
 
@@ -118,6 +120,7 @@ public class LZ4Compressor implements ICompressor
     public void compress(ByteBuffer input, ByteBuffer output) throws IOException
     {
         int len = input.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         output.put((byte) len);
         output.put((byte) (len >>> 8));
         output.put((byte) (len >>> 16));
@@ -141,6 +144,7 @@ public class LZ4Compressor implements ICompressor
                 | ((input[inputOffset + 2] & 0xFF) << 16)
                 | ((input[inputOffset + 3] & 0xFF) << 24);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
         final int writtenLength;
         try
         {
@@ -166,6 +170,7 @@ public class LZ4Compressor implements ICompressor
 
     public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         final int decompressedLength = (input.get() & 0xFF)
                 | ((input.get() & 0xFF) << 8)
                 | ((input.get() & 0xFF) << 16)
@@ -174,6 +179,7 @@ public class LZ4Compressor implements ICompressor
         try
         {
             int compressedLength = input.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
             decompressor.decompress(input, input.position(), input.remaining(), output, output.position(), decompressedLength);
             input.position(input.position() + compressedLength);
             output.position(output.position() + decompressedLength);
@@ -191,6 +197,7 @@ public class LZ4Compressor implements ICompressor
 
     public Set<String> supportedOptions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
         return new HashSet<>(Arrays.asList(LZ4_HIGH_COMPRESSION_LEVEL, LZ4_COMPRESSOR_TYPE));
     }
 
@@ -244,6 +251,7 @@ public class LZ4Compressor implements ICompressor
 
     public boolean supports(BufferType bufferType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9240
         return true;
     }
 

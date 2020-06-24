@@ -32,6 +32,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
         super(left, right);
         // unlike a Range, an IncludingExcludingBounds may not wrap, nor have
         // right == left unless the right is the min token
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9462
         assert !strictlyWrapsAround(left, right) && (right.isMinimum() || left.compareTo(right) != 0) : "(" + left + "," + right + ")";
     }
 
@@ -43,6 +44,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
     public Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position)
     {
         assert contains(position);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         AbstractBounds<T> lb = new Bounds<T>(left, position);
         AbstractBounds<T> rb = new ExcludingBounds<T>(position, right);
         return Pair.create(lb, rb);
@@ -50,6 +52,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
 
     public boolean inclusiveLeft()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8946
         return true;
     }
 
@@ -69,6 +72,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
     {
         if (!(o instanceof IncludingExcludingBounds))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
         IncludingExcludingBounds<?> rhs = (IncludingExcludingBounds<?>)o;
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
@@ -76,6 +80,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4905
         return "[" + left + "," + right + ")";
     }
 
@@ -91,6 +96,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
 
     public boolean isStartInclusive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return true;
     }
 
@@ -101,6 +107,7 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
 
     public AbstractBounds<T> withNewRight(T newRight)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
         return new IncludingExcludingBounds<T>(left, newRight);
     }
 }

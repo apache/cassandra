@@ -42,6 +42,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
 
     static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         InetAddressAndPort m = cacheInverse.get(addressAndPort);
         if (m == null)
         {
@@ -75,6 +76,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     public String getRack(InetAddressAndPort endpoint)
     {
         assert mapping != null : "network topology must be assigned before using snitch";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return maybeGetFromEndpointState(mapping.localRack(fromCassandraInetAddressAndPort(endpoint)), endpoint, ApplicationState.RACK, DEFAULT_RACK);
     }
 
@@ -87,6 +89,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     public String getDatacenter(InetAddressAndPort endpoint)
     {
         assert mapping != null : "network topology must be assigned before using snitch";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return maybeGetFromEndpointState(mapping.localDC(fromCassandraInetAddressAndPort(endpoint)), endpoint, ApplicationState.DC, DEFAULT_DC);
     }
 

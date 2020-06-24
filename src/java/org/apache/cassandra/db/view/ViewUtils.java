@@ -63,6 +63,7 @@ public final class ViewUtils
     {
         AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
         EndpointsForToken naturalBaseReplicas = replicationStrategy.getNaturalReplicasForToken(baseToken);
         EndpointsForToken naturalViewReplicas = replicationStrategy.getNaturalReplicasForToken(viewToken);
@@ -93,6 +94,7 @@ public final class ViewUtils
         int baseIdx = -1;
         for (int i=0; i<baseReplicas.size(); i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
             if (baseReplicas.get(i).isSelf())
             {
                 baseIdx = i;

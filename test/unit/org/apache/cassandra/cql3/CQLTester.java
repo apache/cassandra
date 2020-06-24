@@ -115,6 +115,7 @@ public abstract class CQLTester
 
     private static final String CREATE_INDEX_NAME_REGEX = "(\\s*(\\w*|\"\\w*\")\\s*)";
     private static final String CREATE_INDEX_REGEX = String.format("\\A\\s*CREATE(?:\\s+CUSTOM)?\\s+INDEX" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
                                                                    "(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s*" +
                                                                    "%s?\\s*ON\\s+(%<s\\.)?%<s\\s*" +
                                                                    "(\\((?:\\s*\\w+\\s*\\()?%<s\\))?",
@@ -128,6 +129,7 @@ public abstract class CQLTester
      */
     public static final ProtocolVersion getDefaultVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return PROTOCOL_VERSIONS.contains(ProtocolVersion.CURRENT)
                ? ProtocolVersion.CURRENT
                : PROTOCOL_VERSIONS.get(PROTOCOL_VERSIONS.size() - 1);
@@ -135,6 +137,7 @@ public abstract class CQLTester
     static
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         // The latest versions might not be supported yet by the java driver
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
@@ -198,10 +201,14 @@ public abstract class CQLTester
 
     public static void prepareServer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10682
         if (isServerPrepared)
             return;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         CommitLog.instance.start();
 
@@ -234,9 +241,12 @@ public abstract class CQLTester
         });
 
         ThreadAwareSecurityManager.install();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
 
         Keyspace.setInitialized();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         SystemKeyspace.persistLocalMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogManager.instance.initialize();
         isServerPrepared = true;
     }
@@ -249,6 +259,7 @@ public abstract class CQLTester
         mkdirs();
         cleanup();
         mkdirs();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
         CommitLog.instance.restartUnsafe();
     }
 
@@ -264,6 +275,7 @@ public abstract class CQLTester
             FileUtils.deleteRecursive(dir);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         File cdcDir = new File(DatabaseDescriptor.getCDCLogLocation());
         if (cdcDir.exists())
             FileUtils.deleteRecursive(cdcDir);
@@ -303,12 +315,15 @@ public abstract class CQLTester
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         // Once per-JVM is enough
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10682
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         prepareServer();
     }
 
     @AfterClass
     public static void tearDownClass()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
         for (Session sess : sessions.values())
                 sess.close();
         for (Cluster cl : clusters.values())
@@ -319,6 +334,8 @@ public abstract class CQLTester
 
         // We use queryInternal for CQLTester so prepared statement will populate our internal cache (if reusePrepared is used; otherwise prepared
         // statements are not cached but re-prepared every time). So we clear the cache between test files to avoid accumulating too much.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
         if (reusePrepared)
             QueryProcessor.clearInternalStatementsCache();
 
@@ -339,10 +356,14 @@ public abstract class CQLTester
         dropPerTestKeyspace();
 
         // Restore standard behavior in case it was changed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         usePrepared = USE_PREPARED_VALUES;
         reusePrepared = REUSE_PREPARED;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         final List<String> keyspacesToDrop = copy(keyspaces);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
         final List<String> tablesToDrop = copy(tables);
         final List<String> typesToDrop = copy(types);
         final List<String> functionsToDrop = copy(functions);
@@ -354,6 +375,7 @@ public abstract class CQLTester
         aggregates = null;
 
         // We want to clean up after the test, but dropping a table is rather long so just do that asynchronously
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
         ScheduledExecutors.optionalTasks.execute(new Runnable()
         {
             public void run()
@@ -372,6 +394,7 @@ public abstract class CQLTester
                     for (int i = typesToDrop.size() - 1; i >= 0; i--)
                         schemaChange(String.format("DROP TYPE IF EXISTS %s.%s", KEYSPACE, typesToDrop.get(i)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
                     for (int i = keyspacesToDrop.size() - 1; i >= 0; i--)
                         schemaChange(String.format("DROP KEYSPACE IF EXISTS %s", keyspacesToDrop.get(i)));
 
@@ -381,15 +404,18 @@ public abstract class CQLTester
                     // mono-threaded, just push a task on the queue to find when it's empty. No perfect but good enough.
 
                     final CountDownLatch latch = new CountDownLatch(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
                     ScheduledExecutors.nonPeriodicTasks.execute(new Runnable()
                     {
                         public void run()
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7484
                             latch.countDown();
                         }
                     });
                     latch.await(2, TimeUnit.SECONDS);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
                     removeAllSSTables(KEYSPACE, tablesToDrop);
                 }
                 catch (Exception e)
@@ -408,14 +434,18 @@ public abstract class CQLTester
 
         SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
 
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
         server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         ClientMetrics.instance.init(Collections.singleton(server));
         server.start();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
             if (clusters.containsKey(version))
@@ -451,19 +481,23 @@ public abstract class CQLTester
      */
     private static List<String> copy(List<String> list)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
         return list.isEmpty() ? Collections.<String>emptyList() : new ArrayList<>(list);
     }
 
     public ColumnFamilyStore getCurrentColumnFamilyStore()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12282
         return getCurrentColumnFamilyStore(KEYSPACE);
     }
 
     public ColumnFamilyStore getCurrentColumnFamilyStore(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String currentTable = currentTable();
         return currentTable == null
              ? null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
              : Keyspace.open(keyspace).getColumnFamilyStore(currentTable);
     }
 
@@ -475,6 +509,7 @@ public abstract class CQLTester
 
     public void flush()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12282
         flush(KEYSPACE);
     }
 
@@ -496,10 +531,12 @@ public abstract class CQLTester
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
             ColumnFamilyStore store = getCurrentColumnFamilyStore();
             if (store != null)
                 store.forceMajorCompaction();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7769
         catch (InterruptedException | ExecutionException e)
         {
             throw new RuntimeException(e);
@@ -525,6 +562,7 @@ public abstract class CQLTester
 
     public void cleanupCache()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         ColumnFamilyStore store = getCurrentColumnFamilyStore();
         if (store != null)
             store.cleanupCache();
@@ -533,6 +571,7 @@ public abstract class CQLTester
     public static FunctionName parseFunctionName(String qualifiedName)
     {
         int i = qualifiedName.indexOf('.');
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8053
         return i == -1
                ? FunctionName.nativeFunction(qualifiedName)
                : new FunctionName(qualifiedName.substring(0, i).trim(), qualifiedName.substring(i+1).trim());
@@ -548,6 +587,7 @@ public abstract class CQLTester
         // clean up data directory which are stored as data directory/keyspace/data files
         for (File d : Directories.getKSChildDirectories(ks))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
             if (d.exists() && containsAny(d.getName(), tables))
                 FileUtils.deleteRecursive(d);
         }
@@ -558,6 +598,7 @@ public abstract class CQLTester
         for (int i = 0, m = tables.size(); i < m; i++)
             // don't accidentally delete in-use directories with the
             // same prefix as a table to delete, i.e. table_1 & table_11
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9166
             if (filename.contains(tables.get(i) + "-"))
                 return true;
         return false;
@@ -565,11 +606,13 @@ public abstract class CQLTester
 
     protected String keyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7606
         return KEYSPACE;
     }
 
     protected String currentTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
         if (tables.isEmpty())
             return null;
         return tables.get(tables.size() - 1);
@@ -584,11 +627,13 @@ public abstract class CQLTester
 
     protected ByteBuffer unset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         return ByteBufferUtil.UNSET_BYTE_BUFFER;
     }
 
     protected void forcePreparedValues()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         this.usePrepared = true;
     }
 
@@ -599,11 +644,14 @@ public abstract class CQLTester
 
     protected void disablePreparedReuseForTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
         this.reusePrepared = false;
     }
 
     protected String createType(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7484
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8392
         String typeName = "type_" + seqNumber.getAndIncrement();
         String fullQuery = String.format(query, KEYSPACE + "." + typeName);
         types.add(typeName);
@@ -614,6 +662,7 @@ public abstract class CQLTester
 
     protected String createFunction(String keyspace, String argTypes, String query) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8392
         String functionName = keyspace + ".function_" + seqNumber.getAndIncrement();
         createFunctionOverload(functionName, argTypes, query);
         return functionName;
@@ -624,11 +673,13 @@ public abstract class CQLTester
         String fullQuery = String.format(query, functionName);
         functions.add(functionName + '(' + argTypes + ')');
         logger.info(fullQuery);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
         schemaChange(fullQuery);
     }
 
     protected String createAggregate(String keyspace, String argTypes, String query) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8392
         String aggregateName = keyspace + "." + "aggregate_" + seqNumber.getAndIncrement();
         createAggregateOverload(aggregateName, argTypes, query);
         return aggregateName;
@@ -644,6 +695,7 @@ public abstract class CQLTester
 
     protected String createKeyspace(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         String currentKeyspace = createKeyspaceName();
         String fullQuery = String.format(query, currentKeyspace);
         logger.info(fullQuery);
@@ -653,6 +705,7 @@ public abstract class CQLTester
 
     protected void alterKeyspace(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         String fullQuery = String.format(query, currentKeyspace());
         logger.info(fullQuery);
         schemaChange(fullQuery);
@@ -674,6 +727,8 @@ public abstract class CQLTester
 
     protected String createTable(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12282
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
         return createTable(KEYSPACE, query);
     }
 
@@ -688,6 +743,8 @@ public abstract class CQLTester
 
     protected String createTableName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8427
         String currentTable = "table_" + seqNumber.getAndIncrement();
         tables.add(currentTable);
         return currentTable;
@@ -695,14 +752,18 @@ public abstract class CQLTester
 
     protected void createTableMayThrow(String query) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         String currentTable = createTableName();
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         QueryProcessor.executeOnceInternal(fullQuery);
     }
 
     protected void alterTable(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
         schemaChange(fullQuery);
@@ -712,11 +773,13 @@ public abstract class CQLTester
     {
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         QueryProcessor.executeOnceInternal(fullQuery);
     }
 
     protected void dropTable(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
         dropFormattedTable(String.format(query, KEYSPACE + "." + currentTable()));
     }
 
@@ -728,6 +791,7 @@ public abstract class CQLTester
 
     protected String createIndex(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
         String formattedQuery = formatQuery(query);
         return createFormattedIndex(formattedQuery);
     }
@@ -760,6 +824,7 @@ public abstract class CQLTester
 
         String column = matcher.group(9);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         String baseName = Strings.isNullOrEmpty(column)
                         ? IndexMetadata.generateDefaultIndexName(table)
                         : IndexMetadata.generateDefaultIndexName(table, new ColumnIdentifier(column, true));
@@ -782,6 +847,7 @@ public abstract class CQLTester
             Object[][] results = getRows(execute("select index_name from system.\"IndexInfo\" where table_name = ?", keyspace));
             for(int i = 0; i < results.length; i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
                 if (index.equals(results[i][0]))
                 {
                     indexCreated = true;
@@ -810,6 +876,7 @@ public abstract class CQLTester
      */
     protected boolean waitForIndexBuilds(String keyspace, String indexName) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13963
         long start = System.currentTimeMillis();
         SecondaryIndexManager indexManager = getCurrentColumnFamilyStore(keyspace).indexManager;
 
@@ -834,6 +901,7 @@ public abstract class CQLTester
     {
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         QueryProcessor.executeOnceInternal(fullQuery);
     }
 
@@ -841,6 +909,7 @@ public abstract class CQLTester
     {
         String fullQuery = String.format(query, KEYSPACE);
         logger.info(fullQuery);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
         schemaChange(fullQuery);
     }
 
@@ -861,6 +930,7 @@ public abstract class CQLTester
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             ClientState state = ClientState.forInternalCalls(SchemaConstants.SYSTEM_KEYSPACE_NAME);
             QueryState queryState = new QueryState(state);
 
@@ -873,6 +943,7 @@ public abstract class CQLTester
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11453
             logger.info("Error performing schema change", e);
             throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
         }
@@ -885,16 +956,19 @@ public abstract class CQLTester
 
     protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, String query, Object... values) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
         return sessionNet(protocolVersion).execute(formatQuery(query), values);
     }
 
     protected com.datastax.driver.core.ResultSet executeNet(String query, Object... values) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return sessionNet().execute(formatQuery(query), values);
     }
 
     protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return sessionNet(version).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
     }
 
@@ -905,6 +979,7 @@ public abstract class CQLTester
 
     protected Session sessionNet()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return sessionNet(getDefaultVersion());
     }
 
@@ -927,6 +1002,8 @@ public abstract class CQLTester
 
     protected String formatQuery(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12282
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
         return formatQuery(KEYSPACE, query);
     }
 
@@ -938,21 +1015,27 @@ public abstract class CQLTester
 
     protected ResultMessage.Prepared prepare(String query) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return QueryProcessor.prepare(formatQuery(query), ClientState.forInternalCalls());
     }
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12282
         return executeFormattedQuery(formatQuery(query), values);
     }
 
     protected UntypedResultSet executeFormattedQuery(String query, Object... values) throws Throwable
     {
         UntypedResultSet rs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         if (usePrepared)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12425
             if (logger.isTraceEnabled())
                 logger.trace("Executing: {} with values {}", query, formatAllValues(values));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
             if (reusePrepared)
             {
                 rs = QueryProcessor.executeInternal(query, transformValues(values));
@@ -972,6 +1055,7 @@ public abstract class CQLTester
         else
         {
             query = replaceValues(query, values);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12425
             if (logger.isTraceEnabled())
                 logger.trace("Executing: {}", query);
             rs = QueryProcessor.executeOnceInternal(query);
@@ -986,6 +1070,7 @@ public abstract class CQLTester
 
     protected void assertRowsNet(ResultSet result, Object[]... rows)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertRowsNet(getDefaultVersion(), result, rows);
     }
 
@@ -995,7 +1080,9 @@ public abstract class CQLTester
         // It's reasonably certain that the network setup has already been done
         // by the time we arrive at this point, but adding this check doesn't hurt
         requireNetwork();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
         if (result == null)
         {
             if (rows.length > 0)
@@ -1011,6 +1098,7 @@ public abstract class CQLTester
             Object[] expected = rows[i];
             Row actual = iter.next();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d (using protocol version %s)",
                                               i, protocolVersion),
                                 meta.size(), expected.length);
@@ -1018,9 +1106,11 @@ public abstract class CQLTester
             for (int j = 0; j < meta.size(); j++)
             {
                 DataType type = meta.getType(j);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
                 com.datastax.driver.core.TypeCodec<Object> codec = clusters.get(protocolVersion).getConfiguration()
                                                                                                 .getCodecRegistry()
                                                                                                 .codecFor(type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 ByteBuffer expectedByteValue = codec.serialize(expected[j], com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()));
                 int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
@@ -1046,6 +1136,7 @@ public abstract class CQLTester
                 iter.next();
                 i++;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             Assert.fail(String.format("Got less rows than expected. Expected %d but got %d (using protocol version %s).",
                                       rows.length, i, protocolVersion));
         }
@@ -1068,6 +1159,7 @@ public abstract class CQLTester
         int i = 0;
         while (iter.hasNext() && i < rows.length)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             Object[] expected = rows[i];
             UntypedResultSet.Row actual = iter.next();
 
@@ -1082,6 +1174,7 @@ public abstract class CQLTester
                 if (!Objects.equal(expectedByteValue, actualValue))
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                     if (!Objects.equal(expected[j], actualValueDecoded))
                         Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
                                                   i,
@@ -1111,9 +1204,11 @@ public abstract class CQLTester
                 }
                 logger.info("Extra row num {}: {}", i, str.toString());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.", rows.length, i));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7769
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
     }
 
@@ -1122,6 +1217,7 @@ public abstract class CQLTester
      */
     public static void assertRowsIgnoringOrder(UntypedResultSet result, Object[]... rows)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         assertRowsIgnoringOrderInternal(result, false, rows);
     }
 
@@ -1132,6 +1228,7 @@ public abstract class CQLTester
 
     private static void assertRowsIgnoringOrderInternal(UntypedResultSet result, boolean ignoreExtra, Object[]... rows)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         if (result == null)
         {
             if (rows.length > 0)
@@ -1162,6 +1259,7 @@ public abstract class CQLTester
 
         com.google.common.collect.Sets.SetView<List<ByteBuffer>> extra = com.google.common.collect.Sets.difference(actualRows, expectedRows);
         com.google.common.collect.Sets.SetView<List<ByteBuffer>> missing = com.google.common.collect.Sets.difference(expectedRows, actualRows);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         if ((!ignoreExtra && !extra.isEmpty()) || !missing.isEmpty())
         {
             List<String> extraRows = makeRowStrings(extra, meta);
@@ -1183,11 +1281,13 @@ public abstract class CQLTester
                 Assert.fail("Missing " + missing.size() + " row(s) in result: \n    " + missingRows.stream().collect(Collectors.joining("\n    ")));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         assert ignoreExtra || expectedRows.size() == actualRows.size();
     }
 
     protected static List<String> makeRowStrings(UntypedResultSet resultSet)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13238
         List<List<ByteBuffer>> rows = new ArrayList<>();
         for (UntypedResultSet.Row row : resultSet)
         {
@@ -1244,6 +1344,7 @@ public abstract class CQLTester
             while (iter.hasNext())
             {
                 iter.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                 i++;
             }
             Assert.fail(String.format("Got less rows than expected. Expected %d but got %d.", numExpectedRows, i));
@@ -1281,6 +1382,7 @@ public abstract class CQLTester
 
     protected void assertColumnNames(UntypedResultSet result, String... expectedColumnNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8229
         if (result == null)
         {
             Assert.fail("No rows returned by query.");
@@ -1309,17 +1411,21 @@ public abstract class CQLTester
 
     protected void assertEmpty(UntypedResultSet result) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         if (result != null && !result.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13238
             throw new AssertionError(String.format("Expected empty result but got %d rows: %s \n", result.size(), makeRowStrings(result)));
     }
 
     protected void assertInvalid(String query, Object... values) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         assertInvalidMessage(null, query, values);
     }
 
     protected void assertInvalidMessage(String errorMessage, String query, Object... values) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         assertInvalidThrowMessage(errorMessage, null, query, values);
     }
 
@@ -1330,6 +1436,7 @@ public abstract class CQLTester
 
     protected void assertInvalidThrowMessage(String errorMessage, Class<? extends Throwable> exception, String query, Object... values) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         assertInvalidThrowMessage(Optional.empty(), errorMessage, exception, query, values);
     }
 
@@ -1343,18 +1450,22 @@ public abstract class CQLTester
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (!protocolVersion.isPresent())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
                 execute(query, values);
             else
                 executeNet(protocolVersion.get(), query, values);
 
             String q = USE_PREPARED_VALUES
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                        ? query + " (values: " + formatAllValues(values) + ")"
                        : replaceValues(query, values);
             Assert.fail("Query should be invalid but no error was thrown. Query is: " + q);
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
             if (exception != null && !exception.isAssignableFrom(e.getClass()))
             {
                 Assert.fail("Query should be invalid but wrong error was thrown. " +
@@ -1370,6 +1481,7 @@ public abstract class CQLTester
 
     private static String queryInfo(String query, Object[] values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         return USE_PREPARED_VALUES
                ? query + " (values: " + formatAllValues(values) + ")"
                : replaceValues(query, values);
@@ -1377,6 +1489,7 @@ public abstract class CQLTester
 
     protected void assertValidSyntax(String query) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
         try
         {
             QueryProcessor.parseStatement(query);
@@ -1398,6 +1511,7 @@ public abstract class CQLTester
         try
         {
             execute(query, values);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
             Assert.fail("Query should have invalid syntax but no error was thrown. Query is: " + queryInfo(query, values));
         }
         catch (SyntaxException e)
@@ -1498,12 +1612,14 @@ public abstract class CQLTester
                 buffers[i] = null;
                 continue;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             else if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
                 buffers[i] = ByteBufferUtil.UNSET_BYTE_BUFFER;
                 continue;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             try
             {
                 buffers[i] = typeFor(value).decompose(serializeTuples(value));
@@ -1580,6 +1696,7 @@ public abstract class CQLTester
 
         // We need to reach inside collections for TupleValue. Besides, for some reason the format
         // of collection that CollectionType.getString gives us is not at all 'CQL compatible'
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6599
         if (value instanceof Collection || value instanceof Map)
         {
             StringBuilder sb = new StringBuilder();
@@ -1593,6 +1710,7 @@ public abstract class CQLTester
                         sb.append(", ");
                     sb.append(formatForCQL(l.get(i)));
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6599
                 sb.append("]");
             }
             else if (value instanceof Set)
@@ -1628,6 +1746,7 @@ public abstract class CQLTester
         AbstractType type = typeFor(value);
         String s = type.getString(type.decompose(value));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (type instanceof InetAddressType || type instanceof TimestampType)
             return String.format("'%s'", s);
         else if (type instanceof UTF8Type)
@@ -1654,6 +1773,7 @@ public abstract class CQLTester
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6599
         if (bb == null)
             return "null";
 
@@ -1698,6 +1818,7 @@ public abstract class CQLTester
 
     protected Object set(Object...values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7502
         return ImmutableSet.copyOf(values);
     }
 
@@ -1705,8 +1826,10 @@ public abstract class CQLTester
     {
         if (values.length % 2 != 0)
             throw new IllegalArgumentException("Invalid number of arguments, got " + values.length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
 
         int size = values.length / 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6599
         Map m = new LinkedHashMap(size);
         for (int i = 0; i < size; i++)
             m.put(values[2 * i], values[(2 * i) + 1]);
@@ -1716,6 +1839,7 @@ public abstract class CQLTester
     protected com.datastax.driver.core.TupleType tupleTypeOf(ProtocolVersion protocolVersion, com.datastax.driver.core.DataType...types)
     {
         requireNetwork();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
         return clusters.get(protocolVersion).getMetadata().newTupleType(types);
     }
 
@@ -1726,6 +1850,7 @@ public abstract class CQLTester
         if (value instanceof ByteBuffer || value instanceof TupleValue || value == null)
             return BytesType.instance;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8951
         if (value instanceof Byte)
             return ByteType.instance;
 
@@ -1741,12 +1866,15 @@ public abstract class CQLTester
         if (value instanceof Float)
             return FloatType.instance;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         if (value instanceof Duration)
             return DurationType.instance;
 
         if (value instanceof Double)
             return DoubleType.instance;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7526
         if (value instanceof BigInteger)
             return IntegerType.instance;
 
@@ -1756,9 +1884,11 @@ public abstract class CQLTester
         if (value instanceof String)
             return UTF8Type.instance;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7684
         if (value instanceof Boolean)
             return BooleanType.instance;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (value instanceof InetAddress)
             return InetAddressType.instance;
 
@@ -1772,9 +1902,11 @@ public abstract class CQLTester
         {
             List l = (List)value;
             AbstractType elt = l.isEmpty() ? BytesType.instance : typeFor(l.get(0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             return ListType.getInstance(elt, true);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7502
         if (value instanceof Set)
         {
             Set s = (Set)value;
@@ -1797,6 +1929,7 @@ public abstract class CQLTester
                 keys = typeFor(entry.getKey());
                 values = typeFor(entry.getValue());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             return MapType.getInstance(keys, values, true);
         }
 
@@ -1836,6 +1969,7 @@ public abstract class CQLTester
 
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             return "TupleValue" + toCQLString();
         }
     }

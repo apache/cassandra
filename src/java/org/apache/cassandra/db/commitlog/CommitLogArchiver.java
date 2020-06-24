@@ -54,11 +54,13 @@ public class CommitLogArchiver
     private static final Pattern TO = Pattern.compile("%to");
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5909
         format.setTimeZone(TimeZone.getTimeZone("GMT"));
     }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
     private final ExecutorService executor;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8734
     final String archiveCommand;
     final String restoreCommand;
     final String restoreDirectories;
@@ -66,6 +68,8 @@ public class CommitLogArchiver
     public final TimeUnit precision;
 
     public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
             long restorePointInTime, TimeUnit precision)
     {
         this.archiveCommand = archiveCommand;
@@ -88,6 +92,7 @@ public class CommitLogArchiver
         {
             if (stream == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 logger.trace("No commitlog_archiving properties found; archive + pitr will be disabled");
                 return disabled();
             }
@@ -99,6 +104,7 @@ public class CommitLogArchiver
                 String restoreDirectories = commitlog_commands.getProperty("restore_directories");
                 if (restoreDirectories != null && !restoreDirectories.isEmpty())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8111
                     for (String dir : restoreDirectories.split(DELIMITER))
                     {
                         File directory = new File(dir);
@@ -112,6 +118,8 @@ public class CommitLogArchiver
                     }
                 }
                 String targetTime = commitlog_commands.getProperty("restore_point_in_time");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
                 TimeUnit precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MICROSECONDS"));
                 long restorePointInTime;
                 try
@@ -122,6 +130,8 @@ public class CommitLogArchiver
                 {
                     throw new RuntimeException("Unable to parse restore target time", e);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
                 return new CommitLogArchiver(archiveCommand, restoreCommand, restoreDirectories, restorePointInTime, precision);
             }
         }
@@ -142,6 +152,7 @@ public class CommitLogArchiver
             protected void runMayThrow() throws IOException
             {
                 segment.waitForFinalSync();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
                 String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(segment.getName()));
                 command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(segment.getPath()));
                 exec(command);
@@ -163,12 +174,14 @@ public class CommitLogArchiver
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         archivePending.put(name, executor.submit(new Runnable()
         {
             public void run()
             {
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
                     String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(name));
                     command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(path));
                     exec(command);
@@ -197,6 +210,7 @@ public class CommitLogArchiver
         }
         catch (ExecutionException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10593
             if (e.getCause() instanceof RuntimeException)
             {
                 if (e.getCause().getCause() instanceof IOException)
@@ -216,6 +230,7 @@ public class CommitLogArchiver
         if (Strings.isNullOrEmpty(restoreDirectories))
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8111
         for (String dir : restoreDirectories.split(DELIMITER))
         {
             File[] files = new File(dir).listFiles();
@@ -225,26 +240,32 @@ public class CommitLogArchiver
             }
             for (File fromFile : files)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
                 CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile, DatabaseDescriptor.getEncryptionContext());
                 CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.getName()) ? CommitLogDescriptor.fromFileName(fromFile.getName()) : null;
                 CommitLogDescriptor descriptor;
                 if (fromHeader == null && fromName == null)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
                 else if (fromHeader != null && fromName != null && !fromHeader.equalsIgnoringCompression(fromName))
                     throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 else if (fromName != null && fromHeader == null)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
                 else if (fromHeader != null)
                     descriptor = fromHeader;
                 else descriptor = fromName;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 if (descriptor.version > CommitLogDescriptor.current_version)
                     throw new IllegalStateException("Unsupported commit log version: " + descriptor.version);
 
                 if (descriptor.compression != null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                         CompressionParams.createCompressor(descriptor.compression);
                     }
                     catch (ConfigurationException e)
@@ -256,11 +277,13 @@ public class CommitLogArchiver
                 File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
                 if (toFile.exists())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("Skipping restore of archive {} as the segment already exists in the restore location {}",
                                  fromFile.getPath(), toFile.getPath());
                     continue;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
                 String command = FROM.matcher(restoreCommand).replaceAll(Matcher.quoteReplacement(fromFile.getPath()));
                 command = TO.matcher(command).replaceAll(Matcher.quoteReplacement(toFile.getPath()));
                 try

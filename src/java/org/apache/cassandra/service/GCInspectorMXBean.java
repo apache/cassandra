@@ -24,6 +24,7 @@ public interface GCInspectorMXBean
      * 
      */
     double[] getAndResetStats();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12661
     void setGcWarnThresholdInMs(long threshold);
     long getGcWarnThresholdInMs();
     void setGcLogThresholdInMs(long threshold);

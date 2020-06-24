@@ -235,9 +235,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         this.messageSender = new NettyStreamingMessageSender(this, template, factory, current_version, previewKind.isPreview());
         this.metrics = StreamingMetrics.get(peer);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         logger.debug("Creating stream session to {} as {}", template, isFollower ? "follower" : "initiator");
     }
 
@@ -253,26 +255,31 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public int sessionIndex()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         return index;
     }
 
     public StreamOperation streamOperation()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         return streamResult == null ? null : streamResult.streamOperation;
     }
 
     public StreamOperation getStreamOperation()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         return streamOperation;
     }
 
     public UUID getPendingRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return pendingRepair;
     }
 
     public boolean isPreview()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         return previewKind.isPreview();
     }
 
@@ -284,6 +291,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public StreamReceiver getAggregator(TableId tableId)
     {
         assert receivers.containsKey(tableId) : "Missing tableId " + tableId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         return receivers.get(tableId).getReceiver();
     }
 
@@ -296,6 +304,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void init(StreamResultFuture streamResult)
     {
         this.streamResult = streamResult;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11173
         StreamHook.instance.reportStreamFuture(this, streamResult);
     }
 
@@ -309,6 +318,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized boolean attachInbound(Channel channel, boolean isControlChannel)
     {
         failIfFinished();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
 
         if (!messageSender.hasControlChannel() && isControlChannel)
             messageSender.injectControlMessageChannel(channel);
@@ -357,12 +367,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             logger.info("[Stream #{}] Starting streaming to {}{}", planId(),
                                                                    peer,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                                                    template.connectTo == null ? "" : " through " + template.connectTo);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             messageSender.initialize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5542
             onInitializationComplete();
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             onError(e);
         }
@@ -382,6 +396,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void addStreamRequest(String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges, Collection<String> columnFamilies)
     {
         //It should either be a dummy address for repair or if it's a bootstrap/move/rebuild it should be this node
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         assert all(fullRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
         assert all(transientRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
 
@@ -409,6 +424,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         RangesAtEndpoint unwrappedRanges = replicas.unwrap();
         List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind);
         addTransferStreams(streams);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12008
         Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
         if (toBeUpdated == null)
         {
@@ -420,6 +436,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private void failIfFinished()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (state().isFinalState())
             throw new RuntimeException(String.format("Stream %s is finished with state %s", planId(), state().name()));
     }
@@ -430,6 +447,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // if columnfamilies are not specified, we add all cf under the keyspace
         if (columnFamilies.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             stores.addAll(Keyspace.open(keyspace).getColumnFamilyStores());
         }
         else
@@ -474,6 +492,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 if (task == null)
                     task = newTask;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
             task.addTransferStream(stream);
         }
     }
@@ -481,6 +500,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private synchronized Future closeSession(State finalState)
     {
         // it's session is already closed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (closeFuture != null)
             return closeFuture;
 
@@ -517,6 +537,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             logger.warn("[Stream #{}] failed to abort some streaming tasks", planId(), e);
         }
     }
@@ -528,6 +549,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void state(State newState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (logger.isTraceEnabled())
             logger.trace("[Stream #{}] Changing session state from {} to {}", planId(), state, newState);
 
@@ -545,6 +567,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public NettyStreamingMessageSender getMessageSender()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         return messageSender;
     }
 
@@ -560,6 +583,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public synchronized void messageReceived(StreamMessage message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (message.type != StreamMessage.Type.KEEP_ALIVE)
             failIfFinished();
 
@@ -567,6 +591,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         switch (message.type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             case STREAM_INIT:
                 // at follower, nop
                 break;
@@ -583,6 +608,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 // at follower
                 prepareAck((PrepareAckMessage) message);
                 break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
             case STREAM:
                 receive((IncomingStreamMessage) message);
                 break;
@@ -614,6 +640,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         state(State.PREPARING);
         PrepareSynMessage prepare = new PrepareSynMessage();
         prepare.requests.addAll(requests);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15656
         long totalBytesToStream = 0;
         long totalSSTablesStreamed = 0;
         for (StreamTransferTask task : transfers.values())
@@ -640,6 +667,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized Future onError(Throwable e)
     {
         boolean isEofException = e instanceof EOFException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (isEofException)
         {
             if (state.finalState)
@@ -674,6 +702,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
                          "If not, maybe try increasing streaming_keep_alive_period_in_secs.", planId(),
                          peer.getHostAddress(true),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                          template.connectTo == null ? "" : " through " + template.connectTo.getHostAddress(true),
                          2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),
                          e);
@@ -682,6 +711,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             logger.error("[Stream #{}] Streaming error occurred on session with peer {}{}", planId(),
                          peer.getHostAddress(true),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                          template.connectTo == null ? "" : " through " + template.connectTo.getHostAddress(true),
                          e);
         }
@@ -694,6 +724,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         // prepare tasks
         state(State.PREPARING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         ScheduledExecutors.nonPeriodicTasks.execute(() -> prepareAsync(requests, summaries));
     }
 
@@ -709,6 +740,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             prepareReceiving(summary);
 
         PrepareSynAckMessage prepareSynAck = new PrepareSynAckMessage();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
@@ -716,6 +748,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         streamResult.handleSessionPrepared(this);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (isPreview())
             completePreview();
         else
@@ -730,6 +764,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 prepareReceiving(summary);
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             if (!isPreview())
                 messageSender.sendMessage(new PrepareAckMessage());
         }
@@ -743,6 +778,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private void prepareAck(PrepareAckMessage msg)
     {
         if (isPreview())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive PrepareAckMessage for preview session", planId()));
         startStreamingFiles(true);
     }
@@ -754,6 +790,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void streamSent(OutgoingStreamMessage message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         long headerSize = message.stream.getSize();
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);
         metrics.outgoingBytes.inc(headerSize);
@@ -772,8 +809,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void receive(IncomingStreamMessage message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         if (isPreview())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive files for preview session", planId()));
         }
 
@@ -781,6 +820,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         receivers.get(message.header.tableId).received(message.stream);
@@ -788,6 +828,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, total);
         streamResult.handleProgress(progress);
     }
@@ -803,6 +844,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized void complete()
     {
         logger.debug("[Stream #{}] handling Complete message, state = {}", planId(), state);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
 
         if (!isFollower)
         {
@@ -840,6 +882,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             messageSender.sendMessage(new CompleteMessage());
             closeSession(State.COMPLETE);
         }
@@ -852,6 +896,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized void sessionFailed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.toString());
         closeSession(State.FAILED);
     }
@@ -868,6 +913,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         for (StreamTask transfer : transfers.values())
             transferSummaries.add(transfer.getSummary());
         // TODO: the connectTo treatment here is peculiar, and needs thinking about - since the connection factory can change it
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new SessionInfo(peer, index, template.connectTo == null ? peer : template.connectTo, receivingSummaries, transferSummaries, state);
     }
 
@@ -891,27 +937,36 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void onRemove(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3569
         closeSession(State.FAILED);
     }
 
     public void onRestart(InetAddressAndPort endpoint, EndpointState epState)
     {
         logger.error("[Stream #{}] Session failed because remote peer {} was restarted.", planId(), peer.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5699
         closeSession(State.FAILED);
     }
 
     private void completePreview()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         try
         {
             state(State.WAIT_COMPLETE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5699
             closeSession(State.COMPLETE);
         }
         finally
         {
             // aborting the tasks here needs to be the last thing we do so that we accurately report
             // expected streaming, but don't leak any resources held by the task
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6818
             for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
                 task.abort();
         }
@@ -939,6 +994,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private void startStreamingFiles(boolean notifyPrepared)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         if (notifyPrepared)
             streamResult.handleSessionPrepared(this);
 
@@ -946,6 +1002,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         for (StreamTransferTask task : transfers.values())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
             Collection<OutgoingStreamMessage> messages = task.getFileMessages();
             if (!messages.isEmpty())
             {
@@ -995,6 +1052,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             {
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
 
         /**
          * @param from peer that is connected in the stream session

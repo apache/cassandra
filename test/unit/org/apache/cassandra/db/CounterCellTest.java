@@ -58,8 +58,10 @@ public class CounterCellTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1),
                                     SchemaLoader.counterCFMD(KEYSPACE1, COUNTER1));
@@ -73,6 +75,7 @@ public class CounterCellTest
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4647
         idLength      = CounterId.LENGTH;
         clockLength   = 8; // size of long
         countLength   = 8; // size of long
@@ -87,6 +90,7 @@ public class CounterCellTest
         long delta = 3L;
 
         Cell cell = createLegacyCounterCell(cfs, ByteBufferUtil.bytes("val"), delta, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         assertEquals(delta, CounterContext.instance().total(cell.value()));
         assertEquals(1, cell.value().getShort(0));
@@ -101,6 +105,7 @@ public class CounterCellTest
     {
         ColumnMetadata cDef = cfs.metadata().getColumn(colName);
         ByteBuffer val = CounterContext.instance().createLocal(count);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         return BufferCell.live(cDef, ts, val);
     }
 
@@ -120,6 +125,7 @@ public class CounterCellTest
     private Cell createDeleted(ColumnFamilyStore cfs, ByteBuffer colName, long ts, int localDeletionTime)
     {
         ColumnMetadata cDef = cfs.metadata().getColumn(colName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return BufferCell.tombstone(cDef, ts, localDeletionTime);
     }
 
@@ -218,6 +224,7 @@ public class CounterCellTest
         leftContext.writeRemote(CounterId.fromInt(9), 1L, 0L);
         rightContext = ContextState.wrap(ByteBufferUtil.clone(leftContext.context));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         leftCell = createCounterCellFromContext(cfs, col, leftContext, 1);
         rightCell = createCounterCellFromContext(cfs, col, rightContext, 1);
         assertEquals(CounterContext.Relationship.EQUAL, CounterContext.instance().diff(leftCell.value(), rightCell.value()));
@@ -234,6 +241,7 @@ public class CounterCellTest
         rightContext.writeRemote(CounterId.fromInt(6), 2L, 0L);
         rightContext.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         leftCell = createCounterCellFromContext(cfs, col, leftContext, 1);
         rightCell = createCounterCellFromContext(cfs, col, rightContext, 1);
         assertEquals(CounterContext.Relationship.GREATER_THAN, CounterContext.instance().diff(leftCell.value(), rightCell.value()));
@@ -250,6 +258,7 @@ public class CounterCellTest
         rightContext.writeRemote(CounterId.fromInt(6), 1L, 0L);
         rightContext.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         leftCell = createCounterCellFromContext(cfs, col, leftContext, 1);
         rightCell = createCounterCellFromContext(cfs, col, rightContext, 1);
         assertEquals(CounterContext.Relationship.DISJOINT, CounterContext.instance().diff(leftCell.value(), rightCell.value()));
@@ -262,9 +271,12 @@ public class CounterCellTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         ByteBuffer col = ByteBufferUtil.bytes("val");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest digest1 = Digest.forReadResponse();
         Digest digest2 = Digest.forReadResponse();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
         state.writeLocal(CounterId.fromInt(2), 4L, 4L);
@@ -275,7 +287,10 @@ public class CounterCellTest
 
         ColumnMetadata cDef = cfs.metadata().getColumn(col);
         Cell cleared = BufferCell.live(cDef, 5, CounterContext.instance().clearAllLocal(state.context));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13750
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         original.digest(digest1);
         cleared.digest(digest2);
 
@@ -287,6 +302,7 @@ public class CounterCellTest
     {
         // For DB-1881
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14167
 
         ColumnMetadata emptyColDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val2"));
         BufferCell emptyCell = BufferCell.live(emptyColDef, 0, ByteBuffer.allocate(0));
@@ -296,6 +312,7 @@ public class CounterCellTest
         builder.addCell(emptyCell);
         Row row = builder.build();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest digest = Digest.forReadResponse();
         row.digest(digest);
         assertNotNull(digest.digest());

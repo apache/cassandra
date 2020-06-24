@@ -86,6 +86,7 @@ public class VIntCoding
     public static void skipUnsignedVInt(DataInputPlus input) throws IOException
     {
         int firstByte = input.readByte();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (firstByte < 0)
             input.skipBytesFully(numberOfExtraBytesToRead(firstByte));
     }
@@ -136,6 +137,7 @@ public class VIntCoding
      */
     public static int computeUnsignedVIntSize(ByteBuffer input, int readerIndex)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return computeUnsignedVIntSize(input, readerIndex, input.limit());
     }
     public static int computeUnsignedVIntSize(ByteBuffer input, int readerIndex, int readerLimit)
@@ -192,6 +194,7 @@ public class VIntCoding
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         output.write(VIntCoding.encodeUnsignedVInt(value, size), 0, size);
     }
 

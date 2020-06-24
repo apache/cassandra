@@ -61,6 +61,7 @@ public class AlwaysSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 
     static boolean stringMatches(String str)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
         return str.equalsIgnoreCase("ALWAYS");
     }
 }

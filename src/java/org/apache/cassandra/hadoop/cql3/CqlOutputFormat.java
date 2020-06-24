@@ -53,6 +53,7 @@ import org.apache.hadoop.mapreduce.*;
  * </p>
  */
 public class CqlOutputFormat extends OutputFormat<Map<String, ByteBuffer>, List<ByteBuffer>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         implements org.apache.hadoop.mapred.OutputFormat<Map<String, ByteBuffer>, List<ByteBuffer>>
 {
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
@@ -104,6 +105,7 @@ public class CqlOutputFormat extends OutputFormat<Map<String, ByteBuffer>, List<
     @Deprecated
     public CqlRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
         return new CqlRecordWriter(job, progress);
     }
 
@@ -133,6 +135,7 @@ public class CqlOutputFormat extends OutputFormat<Map<String, ByteBuffer>, List<
 
         public boolean needsTaskCommit(TaskAttemptContext taskContext)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
             return false;
         }
 

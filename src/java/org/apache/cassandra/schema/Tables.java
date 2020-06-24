@@ -48,6 +48,7 @@ public final class Tables implements Iterable<TableMetadata>
     private Tables(Builder builder)
     {
         tables = builder.tables.build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         tablesById = builder.tablesById.build();
         indexTables = builder.indexTables.build();
     }
@@ -59,6 +60,7 @@ public final class Tables implements Iterable<TableMetadata>
 
     public static Tables none()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return NONE;
     }
 
@@ -79,6 +81,7 @@ public final class Tables implements Iterable<TableMetadata>
 
     public Iterable<TableMetadata> referencingUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Iterables.filter(tables.values(), t -> t.referencesUserType(name));
     }
 
@@ -116,6 +119,7 @@ public final class Tables implements Iterable<TableMetadata>
     }
 
     @Nullable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     TableMetadata getNullable(TableId id)
     {
         return tablesById.get(id);
@@ -157,6 +161,7 @@ public final class Tables implements Iterable<TableMetadata>
         TableMetadata table =
             get(name).orElseThrow(() -> new IllegalStateException(String.format("Table %s doesn't exists", name)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return without(table);
     }
 
@@ -204,6 +209,7 @@ public final class Tables implements Iterable<TableMetadata>
     public static final class Builder
     {
         final ImmutableMap.Builder<String, TableMetadata> tables = new ImmutableMap.Builder<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         final ImmutableMap.Builder<TableId, TableMetadata> tablesById = new ImmutableMap.Builder<>();
         final ImmutableMap.Builder<String, TableMetadata> indexTables = new ImmutableMap.Builder<>();
 
@@ -221,6 +227,7 @@ public final class Tables implements Iterable<TableMetadata>
             tables.put(table.name, table);
 
             tablesById.put(table.id, table);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
             table.indexes
                  .stream()
@@ -247,6 +254,7 @@ public final class Tables implements Iterable<TableMetadata>
 
     static TablesDiff diff(Tables before, Tables after)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return TablesDiff.diff(before, after);
     }
 

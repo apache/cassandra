@@ -50,6 +50,7 @@ public class SetHostStatWithPort implements Iterable<HostStatWithPort>
     public void add(String token, String host, Map<String, Float> ownerships) throws UnknownHostException
     {
         InetAddressAndPort endpoint = InetAddressAndPort.getByName(host);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14216
         Float owns = ownerships.get(endpoint.toString());
         hostStats.add(new HostStatWithPort(token, endpoint, resolveIp, owns));
     }

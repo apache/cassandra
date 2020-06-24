@@ -45,15 +45,19 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
     {
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8564
             if (executor.isShutdown())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
                 if (!StorageService.instance.isShutdown())
                     throw new RejectedExecutionException("ScheduledThreadPoolExecutor has shut down.");
 
                 //Give some notification to the caller the task isn't going to run
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9417
                 if (task instanceof Future)
                     ((Future) task).cancel(false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
                 logger.debug("ScheduledThreadPoolExecutor has shut down as part of C* shutdown");
             }
             else
@@ -71,6 +75,7 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
 
     public DebuggableScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8285
         super(corePoolSize, threadFactory);
         setRejectedExecutionHandler(rejectedExecutionHandler);
     }
@@ -93,6 +98,7 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3537
         return super.scheduleAtFixedRate(new UncomplainingRunnable(command), initialDelay, period, unit);
     }
 
@@ -117,6 +123,7 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
             {
                 runnable.run();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);

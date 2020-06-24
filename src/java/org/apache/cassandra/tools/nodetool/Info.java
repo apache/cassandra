@@ -117,6 +117,7 @@ public class Info extends NodeToolCmd
                 cacheService.getCounterCacheSavePeriodInSeconds());
 
         // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         try
         {
             System.out.printf("%-23s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",

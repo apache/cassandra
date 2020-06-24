@@ -39,6 +39,7 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
 
     public KeyRangeIterator(ConcurrentSkipListSet<DecoratedKey> keys, int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15526
         super((Long) keys.first().getToken().getTokenValue(), (Long) keys.last().getToken().getTokenValue(), size);
         this.iterator = new DKIterator(keys.iterator());
     }
@@ -95,6 +96,7 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
 
         public LongSet getOffsets()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
             LongSet offsets = new LongHashSet(4);
             for (DecoratedKey key : keys)
                 offsets.add((long) key.getToken().getTokenValue());

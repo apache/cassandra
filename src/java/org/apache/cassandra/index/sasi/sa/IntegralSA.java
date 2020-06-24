@@ -78,6 +78,7 @@ public class IntegralSA extends SA<ByteBuffer>
                 return endOfData();
 
             Term<ByteBuffer> term = termIterator.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
             return Pair.create(new IndexedTerm(term.getTerm(), false), term.getTokens().finish());
         }
     }

@@ -67,6 +67,7 @@ public class DataRange
      */
     public static DataRange allData(IPartitioner partitioner)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15503
         return forTokenRange(new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
     }
 
@@ -105,6 +106,7 @@ public class DataRange
      */
     public static DataRange allData(IPartitioner partitioner, ClusteringIndexFilter filter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15503
         return new DataRange(Range.makeRowRange(new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())), filter);
     }
 
@@ -155,6 +157,7 @@ public class DataRange
      */
     public boolean isPaging()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         return false;
     }
 
@@ -166,6 +169,7 @@ public class DataRange
     public boolean isWrapAround()
     {
         // Only range can ever wrap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
         return keyRange instanceof Range && ((Range<?>)keyRange).isWrapAround();
     }
 
@@ -288,6 +292,7 @@ public class DataRange
     {
         sb.append("token(");
         sb.append(ColumnMetadata.toCQLString(metadata.partitionKeyColumns()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15503
         sb.append(") ");
         if (pos instanceof DecoratedKey)
         {
@@ -351,6 +356,7 @@ public class DataRange
 
             // When using a paging range, we don't allow wrapped ranges, as it's unclear how to handle them properly.
             // This is ok for now since we only need this in range queries, and the range are "unwrapped" in that case.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
             assert !(range instanceof Range) || !((Range<?>)range).isWrapAround() || range.right.isMinimum() : range;
             assert lastReturned != null;
 
@@ -382,12 +388,14 @@ public class DataRange
          */
         public Clustering getLastReturned()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
             return lastReturned;
         }
 
         @Override
         public boolean isPaging()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8502
             return true;
         }
 
@@ -400,6 +408,7 @@ public class DataRange
         @Override
         public String toString(TableMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
             return String.format("range=%s (paging) pfilter=%s lastReturned=%s (%s)",
                                  keyRange.getString(metadata.partitionKeyType),
                                  clusteringIndexFilter.toString(metadata),
@@ -425,6 +434,7 @@ public class DataRange
 
         public DataRange deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             AbstractBounds<PartitionPosition> range = AbstractBounds.rowPositionSerializer.deserialize(in, metadata.partitioner, version);
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             if (in.readBoolean())
@@ -448,6 +458,7 @@ public class DataRange
 
             if (range instanceof Paging)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                 size += Clustering.serializer.serializedSize(((Paging)range).lastReturned, version, metadata.comparator.subtypes());
                 size += 1; // inclusive boolean
             }

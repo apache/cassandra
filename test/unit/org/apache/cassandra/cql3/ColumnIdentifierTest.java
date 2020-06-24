@@ -64,6 +64,7 @@ public class ColumnIdentifierTest
     @Test
     public void testMaybeQuote()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         String unquotable = "a";
         assertEquals(unquotable, ColumnIdentifier.maybeQuote(unquotable));
         unquotable = "z4";
@@ -82,6 +83,7 @@ public class ColumnIdentifierTest
     @Test
     public void testInternedCache()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12516
         AbstractType<?> utf8Type = UTF8Type.instance;
         AbstractType<?> bytesType = BytesType.instance;
 
@@ -104,6 +106,7 @@ public class ColumnIdentifierTest
     @Test
     public void testInterningUsesMinimalByteBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13533
         byte[] bytes = new byte[2];
         bytes[0] = 0x63;
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);

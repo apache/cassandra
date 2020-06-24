@@ -59,6 +59,7 @@ public class RepairJobDesc
         this.sessionId = sessionId;
         this.keyspace = keyspace;
         this.columnFamily = columnFamily;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         this.ranges = ranges;
     }
 
@@ -70,6 +71,7 @@ public class RepairJobDesc
 
     public String toString(PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         return '[' + previewKind.logPrefix() + " #" + sessionId + " on " + keyspace + "/" + columnFamily + ", " + ranges + "]";
     }
 
@@ -83,9 +85,11 @@ public class RepairJobDesc
 
         if (!columnFamily.equals(that.columnFamily)) return false;
         if (!keyspace.equals(that.keyspace)) return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         if (ranges != null ? that.ranges == null || (ranges.size() != that.ranges.size()) || (ranges.size() == that.ranges.size() && !ranges.containsAll(that.ranges)) : that.ranges != null) return false;
         if (!sessionId.equals(that.sessionId)) return false;
         if (parentSessionId != null ? !parentSessionId.equals(that.parentSessionId) : that.parentSessionId != null) return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
 
         return true;
     }
@@ -93,6 +97,7 @@ public class RepairJobDesc
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         return Objects.hashCode(sessionId, keyspace, columnFamily, ranges);
     }
 
@@ -100,6 +105,7 @@ public class RepairJobDesc
     {
         public void serialize(RepairJobDesc desc, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             out.writeBoolean(desc.parentSessionId != null);
             if (desc.parentSessionId != null)
                 UUIDSerializer.serializer.serialize(desc.parentSessionId, out, version);
@@ -107,6 +113,7 @@ public class RepairJobDesc
             UUIDSerializer.serializer.serialize(desc.sessionId, out, version);
             out.writeUTF(desc.keyspace);
             out.writeUTF(desc.columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             IPartitioner.validate(desc.ranges);
             out.writeInt(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
@@ -116,6 +123,7 @@ public class RepairJobDesc
         public RepairJobDesc deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID parentSessionId = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             if (in.readBoolean())
                 parentSessionId = UUIDSerializer.serializer.deserialize(in, version);
             UUID sessionId = UUIDSerializer.serializer.deserialize(in, version);
@@ -123,12 +131,15 @@ public class RepairJobDesc
             String columnFamily = in.readUTF();
 
             int nRanges = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
             Collection<Range<Token>> ranges = new ArrayList<>(nRanges);
             Range<Token> range;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
 
             for (int i = 0; i < nRanges; i++)
             {
                 range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         IPartitioner.global(), version);
                 ranges.add(range);
             }
@@ -139,11 +150,13 @@ public class RepairJobDesc
         public long serializedSize(RepairJobDesc desc, int version)
         {
             int size = TypeSizes.sizeof(desc.parentSessionId != null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             if (desc.parentSessionId != null)
                 size += UUIDSerializer.serializer.serializedSize(desc.parentSessionId, version);
             size += UUIDSerializer.serializer.serializedSize(desc.sessionId, version);
             size += TypeSizes.sizeof(desc.keyspace);
             size += TypeSizes.sizeof(desc.columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
             size += TypeSizes.sizeof(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
             {

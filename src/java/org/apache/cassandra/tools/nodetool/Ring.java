@@ -53,7 +53,9 @@ public class Ring extends NodeToolCmd
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14392
             Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(printPort);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
             boolean haveVnodes = false;
             for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
@@ -77,6 +79,7 @@ public class Ring extends NodeToolCmd
             StringBuilder errors = new StringBuilder();
             boolean showEffectiveOwnership = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14392
             if (printPort)
             {
                 // Calculate per-token ownership of the ring
@@ -155,6 +158,7 @@ public class Ring extends NodeToolCmd
                          LinkedHashMultimap<String, String> endpointsToTokens,
                          SetHostStat hoststats,boolean showEffectiveOwnership)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<String> liveNodes = probe.getLiveNodes(false);
         Collection<String> deadNodes = probe.getUnreachableNodes(false);
         Collection<String> joiningNodes = probe.getJoiningNodes(false);
@@ -220,6 +224,7 @@ public class Ring extends NodeToolCmd
     }
 
     private void printDc(NodeProbe probe, String format,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                          String dc,
                          LinkedHashMultimap<String, String> endpointsToTokens,
                          SetHostStatWithPort hoststats,boolean showEffectiveOwnership)

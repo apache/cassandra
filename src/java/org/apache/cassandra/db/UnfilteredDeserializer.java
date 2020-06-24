@@ -47,8 +47,11 @@ public class UnfilteredDeserializer
     private final Row.Builder builder;
 
     private UnfilteredDeserializer(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                                    DataInputPlus in,
                                    SerializationHeader header,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                    DeserializationHelper helper)
     {
         this.metadata = metadata;
@@ -56,12 +59,17 @@ public class UnfilteredDeserializer
         this.helper = helper;
         this.header = header;
         this.clusteringDeserializer = new ClusteringPrefix.Deserializer(metadata.comparator, in, header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         this.builder = BTreeRow.sortedBuilder();
     }
 
     public static UnfilteredDeserializer create(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                                                 DataInputPlus in,
                                                 SerializationHeader header,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                                 DeserializationHelper helper)
     {
         return new UnfilteredDeserializer(metadata, in, header, helper);
@@ -74,6 +82,7 @@ public class UnfilteredDeserializer
     {
         if (isReady)
             return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
 
         prepareNext();
         return !isDone;
@@ -93,6 +102,7 @@ public class UnfilteredDeserializer
         }
 
         nextExtendedFlags = UnfilteredSerializer.readExtendedFlags(in, nextFlags);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
 
         clusteringDeserializer.prepare(nextFlags, nextExtendedFlags);
         isReady = true;
@@ -107,6 +117,7 @@ public class UnfilteredDeserializer
      */
     public int compareNextTo(ClusteringBound bound) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         if (!isReady)
             prepareNext();
 
@@ -134,6 +145,7 @@ public class UnfilteredDeserializer
         isReady = false;
         if (UnfilteredSerializer.kind(nextFlags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             ClusteringBoundOrBoundary bound = clusteringDeserializer.deserializeNextBound();
             return UnfilteredSerializer.serializer.deserializeMarkerBody(in, header, bound);
         }
@@ -159,6 +171,7 @@ public class UnfilteredDeserializer
     public void skipNext() throws IOException
     {
         isReady = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         clusteringDeserializer.skipNext();
         if (UnfilteredSerializer.kind(nextFlags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
         {

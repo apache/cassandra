@@ -64,6 +64,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     private AuditLogManager()
     {
         final AuditLogOptions auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
 
         if (auditLogOptions.enabled)
         {
@@ -81,12 +82,14 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void initialize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
             registerAsListener();
     }
 
     private IAuditLogger getAuditLogger(ParameterizedClass logger) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         if (logger.class_name != null)
         {
             return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
@@ -103,6 +106,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public boolean isEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         return auditLogger.isEnabled();
     }
 
@@ -121,6 +125,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     private void log(AuditLogEntry logEntry, Exception e)
     {
         AuditLogEntry.Builder builder = new AuditLogEntry.Builder(logEntry);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
         if (e instanceof UnauthorizedException)
         {
@@ -147,6 +152,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     {
         unregisterAsListener();
         IAuditLogger oldLogger = auditLogger;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         auditLogger = new NoOpAuditLogger(Collections.emptyMap());
         oldLogger.stop();
     }
@@ -164,6 +170,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         // next, check to see if we're changing the logging implementation; if not, keep the same instance and bail.
         // note: auditLogger should never be null
         IAuditLogger oldLogger = auditLogger;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger.class_name))
             return;
 
@@ -267,6 +274,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         List<AuditLogEntry> auditLogEntries = new ArrayList<>(statements.size() + 1);
         UUID batchId = UUID.randomUUID();
         String queryString = String.format("BatchId:[%s] - BATCH of [%d] statements", batchId, statements.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         AuditLogEntry entry = new AuditLogEntry.Builder(state)
                               .setOperation(queryString)
                               .setOptions(options)
@@ -276,9 +284,11 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                               .build();
         auditLogEntries.add(entry);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         for (int i = 0; i < statements.size(); i++)
         {
             CQLStatement statement = statements.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
             entry = new AuditLogEntry.Builder(state)
                     .setType(statement.getAuditLogContext().auditLogEntryType)
                     .setOperation(queries.get(i))
@@ -296,6 +306,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void prepareSuccess(CQLStatement statement, String query, QueryState state, long queryTime, ResultMessage.Prepared response)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
                                                               .setType(AuditLogEntryType.PREPARE_STATEMENT)
                                                               .setScope(statement)

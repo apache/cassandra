@@ -69,6 +69,7 @@ public class CompactionIteratorTest extends CQLTester
 
     static {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         kk = Util.dk("key");
 
@@ -323,6 +324,7 @@ public class CompactionIteratorTest extends CQLTester
     @Test
     public void transformTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14397
         UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(metadata.comparator, false);
         List<List<Unfiltered>> inputLists = parse(new String[] {"10[100] 11[100] 12[100]"}, generator);
         List<List<Unfiltered>> tombstoneLists = parse(new String[] {}, generator);
@@ -356,6 +358,7 @@ public class CompactionIteratorTest extends CQLTester
     @Test
     public void transformPartitionTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14936
         UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(metadata.comparator, false);
         List<List<Unfiltered>> inputLists = parse(new String[] {"10[100] 11[100] 12[100]"}, generator);
         List<List<Unfiltered>> tombstoneLists = parse(new String[] {}, generator);
@@ -441,6 +444,7 @@ public class CompactionIteratorTest extends CQLTester
         @Override
         public long getBytesScanned()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
             return 0;
         }
 
@@ -453,6 +457,7 @@ public class CompactionIteratorTest extends CQLTester
         @Override
         public Set<SSTableReader> getBackingSSTables()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             return ImmutableSet.of();
         }
     }

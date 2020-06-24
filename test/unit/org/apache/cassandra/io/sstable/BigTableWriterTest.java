@@ -46,7 +46,9 @@ public class BigTableWriterTest extends AbstractTransactionalTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD, 0, Int32Type.instance, AsciiType.instance, Int32Type.instance));
         cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
     }
@@ -64,6 +66,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
 
         private TestableBTW()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             this(cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables()));
         }
 
@@ -85,6 +88,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
             for (int i = 0; i < 100; i++)
             {
                 UpdateBuilder update = UpdateBuilder.create(cfs.metadata(), i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 for (int j = 0; j < 10; j++)
                     update.newRow(j).add("val", SSTableRewriterTest.random(0, 1000));
                 writer.append(update.build().unfilteredIterator());
@@ -117,6 +121,8 @@ public class BigTableWriterTest extends AbstractTransactionalTest
         @Override
         protected boolean commitCanThrow()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
             return true;
         }
 

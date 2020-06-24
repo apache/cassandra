@@ -75,6 +75,7 @@ class Helpers
     static void setupOnline(Iterable<SSTableReader> readers)
     {
         for (SSTableReader reader : readers)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             reader.setupOnline();
     }
 
@@ -128,6 +129,7 @@ class Helpers
 
     static Throwable prepareForObsoletion(Iterable<SSTableReader> readers, LogTransaction txnLogs, List<LogTransaction.Obsoletion> obsoletions, Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
         Map<SSTable, LogRecord> logRecords = txnLogs.makeRemoveRecords(readers);
         for (SSTableReader reader : readers)
         {
@@ -148,6 +150,8 @@ class Helpers
         if (obsoletions == null || obsoletions.isEmpty())
             return accumulate;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         for (LogTransaction.Obsoletion obsoletion : obsoletions)
         {
             try

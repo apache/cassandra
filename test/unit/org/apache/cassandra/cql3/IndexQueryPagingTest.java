@@ -122,6 +122,7 @@ public class IndexQueryPagingTest extends CQLTester
     @Test
     public void testPagingOnPartitionsWithoutClusteringColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14242
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
         createIndex("CREATE INDEX on %s(v)");
 
@@ -151,7 +152,9 @@ public class IndexQueryPagingTest extends CQLTester
         // setting the fetch size < than the row count. Assert
         // that all rows are returned, so we know that paging
         // of the results was involved.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
         Session session = sessionNet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11001
         Statement stmt = new SimpleStatement(String.format(cql, KEYSPACE + '.' + currentTable()));
         stmt.setFetchSize(rowCount - 1);
         assertEquals(rowCount, session.execute(stmt).all().size());

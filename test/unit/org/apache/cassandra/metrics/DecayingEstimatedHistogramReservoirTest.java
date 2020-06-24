@@ -159,6 +159,7 @@ public class DecayingEstimatedHistogramReservoirTest
 
         executors.shutdown();
         Assert.assertTrue(executors.awaitTermination(1, TimeUnit.MINUTES));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
 
         Snapshot modelSnapshot = model.getSnapshot();
         Snapshot testSnapshot = test.getSnapshot();
@@ -512,6 +513,7 @@ public class DecayingEstimatedHistogramReservoirTest
     {
         {
             TestClock clock = new TestClock();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12876
 
             DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
 
@@ -537,6 +539,7 @@ public class DecayingEstimatedHistogramReservoirTest
     public void testAggregation()
     {
         TestClock clock = new TestClock();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
 
         DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
         DecayingEstimatedHistogramReservoir another = new DecayingEstimatedHistogramReservoir(clock);
@@ -572,6 +575,7 @@ public class DecayingEstimatedHistogramReservoirTest
     public void testSize()
     {
         TestClock clock = new TestClock();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14696
 
         DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
         histogram.update(42);
@@ -590,6 +594,7 @@ public class DecayingEstimatedHistogramReservoirTest
 
         public void addMillis(long millis)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12876
             tick += millis * 1_000_000L;
         }
 

@@ -55,6 +55,7 @@ public class SerDeserTest
     public static void setupDD()
     {
         // required for making the paging state
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -68,6 +69,7 @@ public class SerDeserTest
     public void collectionSerDeserTest(ProtocolVersion version) throws Exception
     {
         // Lists
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
         List<Integer> l = Arrays.asList(2, 6, 1, 9);
 
@@ -78,6 +80,7 @@ public class SerDeserTest
         assertEquals(l, lt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(lb, lb.size(), version), version));
 
         // Sets
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
         Set<String> s = new LinkedHashSet<>();
         s.addAll(Arrays.asList("bar", "foo", "zee"));
@@ -89,6 +92,7 @@ public class SerDeserTest
         assertEquals(s, st.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(sb, sb.size(), version), version));
 
         // Maps
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
         Map<String, Long> m = new LinkedHashMap<>();
         m.put("bar", 12L);
@@ -108,6 +112,7 @@ public class SerDeserTest
     @Test
     public void eventSerDeserTest() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             eventSerDeserTest(version);
     }
@@ -116,6 +121,7 @@ public class SerDeserTest
     {
         List<Event> events = new ArrayList<>();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         events.add(TopologyChange.newNode(FBUtilities.getBroadcastAddressAndPort()));
         events.add(TopologyChange.removedNode(FBUtilities.getBroadcastAddressAndPort()));
         events.add(TopologyChange.movedNode(FBUtilities.getBroadcastAddressAndPort()));
@@ -131,6 +137,7 @@ public class SerDeserTest
         events.add(new SchemaChange(SchemaChange.Change.UPDATED, SchemaChange.Target.TABLE, "ks", "table"));
         events.add(new SchemaChange(SchemaChange.Change.DROPPED, SchemaChange.Target.TABLE, "ks", "table"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
         {
             events.add(new SchemaChange(SchemaChange.Change.CREATED, SchemaChange.Target.TYPE, "ks", "type"));
@@ -141,6 +148,7 @@ public class SerDeserTest
         if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
         {
             List<String> moreTypes = Arrays.asList("text", "bigint");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
 
             events.add(new SchemaChange(SchemaChange.Change.CREATED, SchemaChange.Target.FUNCTION, "ks", "func", Collections.<String>emptyList()));
             events.add(new SchemaChange(SchemaChange.Change.UPDATED, SchemaChange.Target.FUNCTION, "ks", "func", moreTypes));
@@ -166,6 +174,7 @@ public class SerDeserTest
 
     private static FieldIdentifier field(String field)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         return FieldIdentifier.forQuoted(field);
     }
 
@@ -192,6 +201,7 @@ public class SerDeserTest
     @Test
     public void udtSerDeserTest() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             udtSerDeserTest(version);
     }
@@ -199,12 +209,14 @@ public class SerDeserTest
 
     public void udtSerDeserTest(ProtocolVersion version) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
 
         UserType udt = new UserType("ks",
                                     bb("myType"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                                     Arrays.asList(field("f1"), field("f2"), field("f3"), field("f4")),
                                     Arrays.asList(LongType.instance, lt, st, mt),
                                     true);
@@ -235,6 +247,7 @@ public class SerDeserTest
         // on purpose below.
 
         assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserializeForNativeProtocol(fields[1], ProtocolVersion.V3));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         LinkedHashSet<String> s = new LinkedHashSet<>();
         s.addAll(Arrays.asList("bar", "foo"));
@@ -313,6 +326,7 @@ public class SerDeserTest
     {
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             queryOptionsSerDeserTest(
                 version,
                 QueryOptions.create(ConsistencyLevel.ALL,
@@ -368,6 +382,7 @@ public class SerDeserTest
         QueryOptions decodedOptions = QueryOptions.codec.decode(buf, version);
 
         QueryState state = new QueryState(ClientState.forInternalCalls());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
 
         assertNotNull(decodedOptions);
         assertEquals(options.getConsistency(), decodedOptions.getConsistency());
@@ -377,7 +392,9 @@ public class SerDeserTest
         assertEquals(options.getValues(), decodedOptions.getValues());
         assertEquals(options.getPagingState(), decodedOptions.getPagingState());
         assertEquals(options.skipMetadata(), decodedOptions.skipMetadata());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         assertEquals(options.getKeyspace(), decodedOptions.getKeyspace());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         assertEquals(options.getTimestamp(state), decodedOptions.getTimestamp(state));
         assertEquals(options.getNowInSeconds(state), decodedOptions.getNowInSeconds(state));
     }

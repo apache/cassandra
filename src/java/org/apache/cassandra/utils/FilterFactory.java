@@ -43,6 +43,7 @@ public class FilterFactory
             logger.warn("Cannot provide an optimal BloomFilter for {} elements ({}/{} buckets per element).", numElements, bucketsPerElement, targetBucketsPerElem);
         }
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         return createFilter(spec.K, numElements, spec.bucketsPerElement);
     }
 
@@ -56,10 +57,12 @@ public class FilterFactory
     public static IFilter getFilter(long numElements, double maxFalsePosProbability)
     {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4876
         if (maxFalsePosProbability == 1.0)
             return new AlwaysPresentFilter();
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         return createFilter(spec.K, numElements, spec.bucketsPerElement);
     }
 
@@ -68,6 +71,7 @@ public class FilterFactory
     {
         long numBits = (numElements * bucketsPer) + BITSET_EXCESS;
         IBitSet bitset = new OffHeapBitSet(numBits);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return new BloomFilter(hash, bitset);
     }
 }

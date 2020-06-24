@@ -110,6 +110,7 @@ public class DurationTest
     @Test
     public void testAddTo()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("0m").addTo(toMillis("2016-09-21T00:00:00")));
         assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("10us").addTo(toMillis("2016-09-21T00:00:00")));
         assertEquals(toMillis("2016-09-21T00:10:00"), Duration.from("10m").addTo(toMillis("2016-09-21T00:00:00")));

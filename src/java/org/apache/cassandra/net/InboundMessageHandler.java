@@ -578,6 +578,7 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
         {
             globalReserve.release(allocatedExcess);
             globalWaitQueue.signal();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15607
             return ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
         }
 
@@ -850,6 +851,8 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter implemen
         if (state != null) state.trace("{} message received from {}", header.verb, header.from);
 
         callbacks.onDispatched(task.size(), header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         header.verb.stage.execute(task, ExecutorLocals.create(state));
     }
 

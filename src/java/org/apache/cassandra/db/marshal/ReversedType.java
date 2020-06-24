@@ -46,6 +46,7 @@ public class ReversedType<T> extends AbstractType<T>
 
     public static <T> ReversedType<T> getInstance(AbstractType<T> baseType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ReversedType<T> t = instances.get(baseType);
         return null == t
              ? instances.computeIfAbsent(baseType, ReversedType::new)
@@ -54,23 +55,27 @@ public class ReversedType<T> extends AbstractType<T>
 
     private ReversedType(AbstractType<T> baseType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
         this.baseType = baseType;
     }
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return baseType.isEmptyValueMeaningless();
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3658
         return baseType.compare(o2, o1);
     }
 
     @Override
     public int compareForCQL(ByteBuffer v1, ByteBuffer v2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return baseType.compare(v1, v2);
     }
 
@@ -87,6 +92,7 @@ public class ReversedType<T> extends AbstractType<T>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         return baseType.fromJSONObject(parsed);
     }
 
@@ -99,6 +105,7 @@ public class ReversedType<T> extends AbstractType<T>
     @Override
     public boolean isCompatibleWith(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7797
         if (!(otherType instanceof ReversedType))
             return false;
 
@@ -108,12 +115,14 @@ public class ReversedType<T> extends AbstractType<T>
     @Override
     public boolean isValueCompatibleWith(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         return this.baseType.isValueCompatibleWith(otherType);
     }
 
     @Override
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5386
         return baseType.asCQL3Type();
     }
 
@@ -125,6 +134,7 @@ public class ReversedType<T> extends AbstractType<T>
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return baseType.referencesUserType(name);
     }
 
@@ -148,12 +158,14 @@ public class ReversedType<T> extends AbstractType<T>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return baseType.valueLengthIfFixed();
     }
 
     @Override
     public boolean isReversed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10296
         return true;
     }
 

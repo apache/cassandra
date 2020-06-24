@@ -120,6 +120,7 @@ public class HintsDescriptorTest
     @Test
     public void testMessagingVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14536
         String errorMsg = "Please update the current Hints messaging version to match the current messaging version";
         int messageVersion = HintsDescriptor.messagingVersion(HintsDescriptor.CURRENT_VERSION);
         assertEquals(errorMsg, messageVersion, MessagingService.current_version);

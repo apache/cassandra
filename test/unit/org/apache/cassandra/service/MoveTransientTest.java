@@ -74,6 +74,7 @@ public class MoveTransientTest
     @BeforeClass
     public static void setUpClass() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         address01 = InetAddressAndPort.getByName("127.0.0.1");
         address02 = InetAddressAndPort.getByName("127.0.0.2");
         address03 = InetAddressAndPort.getByName("127.0.0.3");
@@ -129,6 +130,7 @@ public class MoveTransientTest
         DatabaseDescriptor.daemonInitialization();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
     final Token oneToken = new RandomPartitioner.BigIntegerToken("1");
     final Token twoToken = new RandomPartitioner.BigIntegerToken("2");
     final Token threeToken = new RandomPartitioner.BigIntegerToken("3");
@@ -179,6 +181,7 @@ public class MoveTransientTest
         Range<Token> aPrimeRange = new Range<>(oneToken, fourToken);
 
         RangesAtEndpoint updated = RangesAtEndpoint.of(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                 new Replica(address01, aPrimeRange, true),
                 new Replica(address01, range_11_1, true),
                 new Replica(address01, range_9_11, false)
@@ -209,6 +212,7 @@ public class MoveTransientTest
         Range<Token> aPrimeRange = new Range<>(elevenToken, fourteenToken);
 
         RangesAtEndpoint updated = RangesAtEndpoint.of(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             new Replica(address01, aPrimeRange, true),
             new Replica(address01, range_9_11, true),
             new Replica(address01, range_6_9, false)
@@ -239,6 +243,7 @@ public class MoveTransientTest
         Range<Token> aPrimeRange = new Range<>(oneToken, twoToken);
 
         RangesAtEndpoint updated = RangesAtEndpoint.of(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             new Replica(address01, aPrimeRange, true),
             new Replica(address01, range_11_1, true),
             new Replica(address01, range_9_11, false)
@@ -266,6 +271,7 @@ public class MoveTransientTest
         Range<Token> bPrimeRange = new Range<>(oneToken, sixToken);
 
         RangesAtEndpoint updated = RangesAtEndpoint.of(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             new Replica(address01, aPrimeRange, true),
             new Replica(address01, bPrimeRange, true),
             new Replica(address01, range_11_1, false)
@@ -293,6 +299,7 @@ public class MoveTransientTest
     @Test
     public void testResubtract()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         Token oneToken = new RandomPartitioner.BigIntegerToken("0001");
         Token tenToken = new RandomPartitioner.BigIntegerToken("0010");
         Token fiveToken = new RandomPartitioner.BigIntegerToken("0005");
@@ -329,6 +336,7 @@ public class MoveTransientTest
     private Pair<TokenMetadata, TokenMetadata> constructTMDsMoveBackwardBetween()
     {
         TokenMetadata tmd = new TokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         tmd.updateNormalToken(range_1_2.right, address01);
         tmd.updateNormalToken(range_3_6.right, address02);
         tmd.updateNormalToken(range_6_9.right, address03);
@@ -349,6 +357,7 @@ public class MoveTransientTest
     private Pair<TokenMetadata, TokenMetadata> constructTMDsMoveForwardBetween()
     {
         TokenMetadata tmd = new TokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         tmd.updateNormalToken(range_1_2.right, address01);
         tmd.updateNormalToken(range_3_6.right, address02);
         tmd.updateNormalToken(range_6_9.right, address03);
@@ -363,6 +372,7 @@ public class MoveTransientTest
     private Pair<TokenMetadata, TokenMetadata> constructTMDsMoveBackward()
     {
         TokenMetadata tmd = new TokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         tmd.updateNormalToken(range_1_2.right, address01);
         tmd.updateNormalToken(range_3_6.right, address02);
         tmd.updateNormalToken(range_6_9.right, address03);
@@ -377,6 +387,7 @@ public class MoveTransientTest
     private Pair<TokenMetadata, TokenMetadata> constructTMDsMoveForward()
     {
         TokenMetadata tmd = new TokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         tmd.updateNormalToken(range_1_2.right, address01);
         tmd.updateNormalToken(range_3_6.right, address02);
         tmd.updateNormalToken(range_6_9.right, address03);
@@ -393,8 +404,10 @@ public class MoveTransientTest
     public void testMoveForwardBetweenCalculateRangesToFetchWithPreferredEndpoints() throws Exception
     {
         EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         InetAddressAndPort cOrB = (downNodes.contains(address03) || sourceFilterDownNodes.contains(address03)) ? address02 : address03;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
 
         //Need to pull the full replica and the transient replica that is losing the range
         expectedResult.put(fullReplica(address01, sixToken, sevenToken), fullReplica(address04, sixToken, nineToken));
@@ -412,6 +425,7 @@ public class MoveTransientTest
     @Test
     public void testMoveForwardBetweenCalculateRangesToFetchWithPreferredEndpointsDownNodes() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         for (InetAddressAndPort downNode : new InetAddressAndPort[] { address04, address05 })
         {
             downNodes.clear();
@@ -425,6 +439,7 @@ public class MoveTransientTest
             {
                 ise.printStackTrace();
                 assertTrue(downNode.toString(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                            ise.getMessage().contains("Down nodes: [" + downNode + "]"));
                 threw = true;
             }
@@ -433,6 +448,7 @@ public class MoveTransientTest
 
         //Shouldn't throw because another full replica is available
         downNodes.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         downNodes.add(address03);
         testMoveForwardBetweenCalculateRangesToFetchWithPreferredEndpoints();
     }
@@ -470,8 +486,10 @@ public class MoveTransientTest
     public void testMoveBackwardBetweenCalculateRangesToFetchWithPreferredEndpoints() throws Exception
     {
         EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         //Need to pull the full replica and the transient replica that is losing the range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         expectedResult.put(fullReplica(address01, nineToken, elevenToken), fullReplica(address05, nineToken, elevenToken));
         expectedResult.put(transientReplica(address01, sixToken, nineToken), transientReplica(address05, sixToken, nineToken));
 
@@ -485,6 +503,7 @@ public class MoveTransientTest
     public void testMoveBackwardBetweenCalculateRangesToFetchWithPreferredEndpointsDownNodes() throws Exception
     {
         //Any replica can be the full replica so this will always fail on the transient range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         downNodes.add(address05);
         testMoveBackwardBetweenCalculateRangesToFetchWithPreferredEndpoints();
     }
@@ -493,6 +512,7 @@ public class MoveTransientTest
     public void testMoveBackwardBetweenCalculateRangesToFetchWithPreferredEndpointsDownNodesSourceFilter() throws Exception
     {
         //Any replica can be the full replica so this will always fail on the transient range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         sourceFilterDownNodes.add(address05);
         testMoveBackwardBetweenCalculateRangesToFetchWithPreferredEndpoints();
     }
@@ -504,6 +524,7 @@ public class MoveTransientTest
     {
         //Moving backwards should fetch nothing and fetch ranges is emptys so this doesn't test a ton
         EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         invokeCalculateRangesToFetchWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackward().right,
                                                            constructTMDsMoveBackward(),
@@ -517,6 +538,7 @@ public class MoveTransientTest
         EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
 
         InetAddressAndPort cOrBAddress = (downNodes.contains(address03) || sourceFilterDownNodes.contains(address03)) ? address02 : address03;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
 
         //Need to pull the full replica and the transient replica that is losing the range
         expectedResult.put(fullReplica(address01, threeToken, fourToken), fullReplica(cOrBAddress, threeToken, sixToken));
@@ -531,6 +553,7 @@ public class MoveTransientTest
     @Test
     public void testMoveForwardCalculateRangesToFetchWithPreferredEndpointsDownNodes() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         downNodes.add(address04);
         boolean threw = false;
         try
@@ -540,6 +563,7 @@ public class MoveTransientTest
         catch (IllegalStateException ise)
         {
             ise.printStackTrace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             assertTrue(address04.toString(),
                        ise.getMessage().contains("Down nodes: [" + address04 + "]"));
             threw = true;
@@ -564,6 +588,7 @@ public class MoveTransientTest
         catch (IllegalStateException ise)
         {
             ise.printStackTrace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             assertTrue(address04.toString(),
                        ise.getMessage().startsWith("Necessary replicas for strict consistency were removed by source filters:")
                        && ise.getMessage().contains(address04.toString()));
@@ -573,6 +598,7 @@ public class MoveTransientTest
 
         //Shouldn't throw because another full replica is available
         sourceFilterDownNodes.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         sourceFilterDownNodes.add(address03);
         testMoveForwardBetweenCalculateRangesToFetchWithPreferredEndpoints();
     }
@@ -584,11 +610,13 @@ public class MoveTransientTest
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         EndpointsByReplica result = RangeStreamer.calculateRangesToFetchWithPreferredEndpoints((address, replicas) -> replicas.sorted((a, b) -> b.endpoint().compareTo(a.endpoint())),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                                                                                                simpleStrategy(tmds.left),
                                                                                                toFetch,
                                                                                                true,
                                                                                                tmds.left,
                                                                                                tmds.right,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13990
                                                                                                "TestKeyspace",
                                                                                                sourceFilters);
         logger.info("Ranges to fetch with preferred endpoints");
@@ -627,13 +655,16 @@ public class MoveTransientTest
     {
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         //Need to pull the full replica and the transient replica that is losing the range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         expectedResult.put(address02, transientReplica(address02, nineToken, elevenToken));
         expectedResult.put(address02, fullReplica(address02, elevenToken, oneToken));
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveForwardBetween().left,
                                                             constructTMDsMoveForwardBetween(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                                             expectedResult.build());
     }
 
@@ -643,6 +674,7 @@ public class MoveTransientTest
         RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
 
         expectedResult.put(address02, fullReplica(address02, fourteenToken, oneToken));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
 
         expectedResult.put(address04, transientReplica(address04, oneToken, threeToken));
 
@@ -651,6 +683,7 @@ public class MoveTransientTest
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackwardBetween().left,
                                                             constructTMDsMoveBackwardBetween(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                                             expectedResult.build());
     }
 
@@ -658,11 +691,13 @@ public class MoveTransientTest
     public void testMoveBackwardCalculateRangesToStreamWithPreferredEndpoints() throws Exception
     {
         RangesByEndpoint.Builder expectedResult = new RangesByEndpoint.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         expectedResult.put(address03, fullReplica(address03, twoToken, threeToken));
         expectedResult.put(address04, transientReplica(address04, twoToken, threeToken));
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveBackward().left,
                                                             constructTMDsMoveBackward(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                                             expectedResult.build());
     }
 
@@ -674,6 +709,8 @@ public class MoveTransientTest
 
         invokeCalculateRangesToStreamWithPreferredEndpoints(calculateStreamAndFetchRangesMoveForward().left,
                                                             constructTMDsMoveForward(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                                                             expectedResult.build());
     }
 
@@ -682,6 +719,7 @@ public class MoveTransientTest
                                                                      RangesByEndpoint expectedResult)
     {
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         RangeRelocator relocator = new RangeRelocator();
         RangesByEndpoint result = relocator.calculateRangesToStreamWithEndpoints(toStream,
                                                                                  simpleStrategy(tmds.left),
@@ -698,6 +736,7 @@ public class MoveTransientTest
         for (Replica replica : replicas)
         {
             if (!ranges.contains(replica))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                 assertTrue(Iterables.elementsEqual(RangesAtEndpoint.of(replicas), ranges));
         }
     }

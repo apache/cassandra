@@ -81,6 +81,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void zstdParamsTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'ZstdCompressor', 'compression_level':-22}");
         assertTrue(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).getClass().equals(ZstdCompressor.class));
         assertEquals(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).getCompressionLevel(), -22);

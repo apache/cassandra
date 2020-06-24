@@ -58,6 +58,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     }
 
     public JMXEnabledThreadPoolExecutor(int corePoolSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1405
             long keepAliveTime,
             TimeUnit unit,
             BlockingQueue<Runnable> workQueue,
@@ -72,19 +73,23 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
                                         long keepAliveTime,
                                         TimeUnit unit,
                                         BlockingQueue<Runnable> workQueue,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1217
                                         NamedThreadFactory threadFactory,
                                         String jmxPath)
     {
         super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
         metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id).register();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
 
         mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + threadFactory.id;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, mbeanName);
     }
 
     public JMXEnabledThreadPoolExecutor(int corePoolSize,
                                         int maxPoolSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13594
                                         long keepAliveTime,
                                         TimeUnit unit,
                                         BlockingQueue<Runnable> workQueue,
@@ -99,8 +104,10 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     private void unregisterMBean()
     {
         MBeanWrapper.instance.unregisterMBean(mbeanName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
         // release metrics
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
         metrics.release();
     }
 
@@ -130,6 +137,8 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 
     public int getTotalBlockedTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return (int) metrics.totalBlocked.getCount();
     }
 
@@ -141,6 +150,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     @Deprecated
     public int getCoreThreads()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
         return getCorePoolSize();
     }
 
@@ -165,6 +175,8 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     @Override
     public void setMaximumPoolSize(int newMaximumPoolSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         if (newMaximumPoolSize < getCorePoolSize())
             throw new IllegalArgumentException("maximum pool size cannot be less than core pool size");
         super.setMaximumPoolSize(newMaximumPoolSize);

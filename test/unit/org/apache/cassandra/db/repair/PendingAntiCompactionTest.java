@@ -95,6 +95,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     {
         public InstrumentedAcquisitionCallback(UUID parentRepairSession, RangesAtEndpoint ranges)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             super(parentRepairSession, ranges, () -> false);
         }
 
@@ -129,6 +130,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         }
         cfs.forceBlockingFlush();
         assertEquals(2, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         Token left = ByteOrderedPartitioner.instance.getToken(ByteBufferUtil.bytes((int) 6));
         Token right = ByteOrderedPartitioner.instance.getToken(ByteBufferUtil.bytes((int) 16));
@@ -143,6 +145,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             pac = new PendingAntiCompaction(sessionID, tables, atEndpoint(ranges, NO_RANGES), executor, () -> false);
             pac.run().get();
         }
@@ -151,6 +154,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             executor.shutdown();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertEquals(3, cfs.getLiveSSTables().size());
         int pendingRepair = 0;
         for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -175,12 +179,14 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         }
 
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, ranges, UUIDGen.getTimeUUID(), 0, 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
 
         logger.info("SSTables: {}", sstables);
         logger.info("Expected: {}", expected);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         assertNotNull(result);
         logger.info("Originals: {}", result.txn.originals());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertEquals(3, result.txn.originals().size());
         for (SSTableReader sstable : expected)
         {
@@ -199,6 +205,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         makeSSTables(2);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertEquals(2, sstables.size());
         SSTableReader repaired = sstables.get(0);
         SSTableReader unrepaired = sstables.get(1);
@@ -213,6 +220,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         assertNotNull(result);
 
         logger.info("Originals: {}", result.txn.originals());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertEquals(1, result.txn.originals().size());
         assertTrue(result.txn.originals().contains(unrepaired));
         result.abort(); // release sstable refs
@@ -225,18 +233,22 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         makeSSTables(2);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertEquals(2, sstables.size());
         SSTableReader repaired = sstables.get(0);
         SSTableReader unrepaired = sstables.get(1);
         assertTrue(repaired.intersects(FULL_RANGE));
         assertTrue(unrepaired.intersects(FULL_RANGE));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14763
         UUID sessionId = prepareSession();
         LocalSessionAccessor.finalizeUnsafe(sessionId);
         repaired.descriptor.getMetadataSerializer().mutateRepairMetadata(repaired.descriptor, 0, sessionId, false);
         repaired.reloadSSTableMetadata();
         assertTrue(repaired.isPendingRepair());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         assertNotNull(result);
@@ -254,6 +266,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         makeSSTables(2);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertEquals(2, sstables.size());
         SSTableReader repaired = sstables.get(0);
         SSTableReader unrepaired = sstables.get(1);
@@ -265,6 +278,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         repaired.reloadSSTableMetadata();
         assertTrue(repaired.isPendingRepair());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         assertNull(result);
@@ -276,7 +290,9 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         cfs.disableAutoCompaction();
 
         assertEquals(0, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         assertNotNull(result);
@@ -298,6 +314,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         assertNotNull(result);
 
         InstrumentedAcquisitionCallback cb = new InstrumentedAcquisitionCallback(UUIDGen.getTimeUUID(), atEndpoint(FULL_RANGE, NO_RANGES));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertTrue(cb.submittedCompactions.isEmpty());
         cb.apply(Lists.newArrayList(result));
 
@@ -316,10 +333,12 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         assertNotNull(result);
         assertEquals(Transactional.AbstractTransactional.State.IN_PROGRESS, result.txn.state());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         InstrumentedAcquisitionCallback cb = new InstrumentedAcquisitionCallback(UUIDGen.getTimeUUID(), atEndpoint(FULL_RANGE, Collections.emptyList()));
         assertTrue(cb.submittedCompactions.isEmpty());
@@ -339,6 +358,8 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         assertNotNull(result);
@@ -347,6 +368,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         PendingAntiCompaction.AcquireResult fakeResult = new PendingAntiCompaction.AcquireResult(cfs2, null, null);
 
         InstrumentedAcquisitionCallback cb = new InstrumentedAcquisitionCallback(UUIDGen.getTimeUUID(), atEndpoint(FULL_RANGE, NO_RANGES));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         assertTrue(cb.submittedCompactions.isEmpty());
         cb.apply(Lists.newArrayList(result, fakeResult));
 
@@ -359,6 +381,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void singleAnticompaction() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13688
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -373,6 +396,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                                                                  true,
                                                                  PreviewKind.NONE);
         CompactionManager.instance.performAnticompaction(result.cfs, atEndpoint(FULL_RANGE, NO_RANGES), result.refs, result.txn, sessionID, () -> false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
 
     }
 
@@ -382,10 +406,12 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         cfs.disableAutoCompaction();
         makeSSTables(1);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         UUID sessionID = UUIDGen.getTimeUUID();
         ActiveRepairService.instance.registerParentRepairSession(sessionID,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                  InetAddressAndPort.getByName("127.0.0.1"),
                                                                  Lists.newArrayList(cfs),
                                                                  FULL_RANGE,
@@ -408,10 +434,12 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void antiCompactionException()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14936
         cfs.disableAutoCompaction();
         makeSSTables(2);
         UUID prsid = UUID.randomUUID();
         ListeningExecutorService es = MoreExecutors.listeningDecorator(MoreExecutors.newDirectExecutorService());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs), atEndpoint(FULL_RANGE, NO_RANGES), es, () -> false) {
             @Override
             protected AcquisitionCallback getAcquisitionCallback(UUID prsId, RangesAtEndpoint tokenRanges)
@@ -437,6 +465,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         try
         {
             fut.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             fail("Should throw exception");
         }
         catch(Throwable t)
@@ -458,11 +487,13 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         {
             try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
                  CompactionController controller = new CompactionController(cfs, sstables, 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                  CompactionIterator ci = CompactionManager.getAntiCompactionIterator(scanners, controller, 0, UUID.randomUUID(), CompactionManager.instance.active, () -> false))
             {
                 // `ci` is our imaginary ongoing anticompaction which makes no progress until after 30s
                 // now we try to start a new AC, which will try to cancel all ongoing compactions
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 CompactionManager.instance.active.beginCompaction(ci);
                 PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs), atEndpoint(FULL_RANGE, NO_RANGES), 0, 0, es, () -> false);
                 ListenableFuture fut = pac.run();
@@ -490,6 +521,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
 
     private List<CompactionInfo.Holder> getCompactionsFor(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         List<CompactionInfo.Holder> compactions = new ArrayList<>();
         for (CompactionInfo.Holder holder : CompactionManager.instance.active.getCompactions())
         {
@@ -517,7 +549,9 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                 // `ci` is our imaginary ongoing anticompaction which makes no progress until after 5s
                 // now we try to start a new AC, which will try to cancel all ongoing compactions
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 CompactionManager.instance.active.beginCompaction(ci);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                 PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs), atEndpoint(FULL_RANGE, NO_RANGES), es, () -> false);
                 ListenableFuture fut = pac.run();
                 try
@@ -531,6 +565,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                 }
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                     assertTrue(ci.hasNext());
                     ci.next();
                     fail("CompactionIterator should be abortable");
@@ -552,7 +587,9 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                     public void onFailure(Throwable throwable)
                     {
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                 }, MoreExecutors.directExecutor());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 assertTrue(cdl.await(1, TimeUnit.MINUTES));
             }
         }
@@ -565,6 +602,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testSSTablePredicateOngoingAntiCompaction()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         ColumnFamilyStore cfs = MockSchema.newCFS();
         cfs.disableAutoCompaction();
         List<SSTableReader> sstables = new ArrayList<>();
@@ -637,6 +675,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testRetries() throws InterruptedException, ExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         ColumnFamilyStore cfs = MockSchema.newCFS();
         cfs.addSSTable(MockSchema.sstable(1, true, cfs));
         CountDownLatch cdl = new CountDownLatch(5);
@@ -722,6 +761,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testWith2i() throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
         cfs2.disableAutoCompaction();
         makeSSTables(2, cfs2, 100);
         ColumnFamilyStore idx = cfs2.indexManager.getAllIndexColumnFamilyStores().iterator().next();
@@ -735,6 +775,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             // mark the sstables pending, with a 2i compaction going, which should be untouched;
             try (LifecycleTransaction txn = idx.getTracker().tryModify(idx.getLiveSSTables(), OperationType.COMPACTION))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                 PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs2), atEndpoint(FULL_RANGE, NO_RANGES), es, () -> false);
                 pac.run().get();
             }

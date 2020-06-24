@@ -36,6 +36,7 @@ public abstract class GroupedOptions implements Serializable
 
     public boolean accept(String param)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         for (Option option : options())
         {
             if (option.accept(param))
@@ -117,6 +118,7 @@ public abstract class GroupedOptions implements Serializable
 
     public String getOptionAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         StringBuilder sb = new StringBuilder();
         for (Option option : options())
         {

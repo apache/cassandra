@@ -54,6 +54,7 @@ public abstract class AbstractCommitLogService
     // signal that writers can wait on to be notified of a completed sync
     protected final WaitQueue syncComplete = new WaitQueue();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
     final CommitLog commitLog;
     private final String name;
 
@@ -83,6 +84,7 @@ public abstract class AbstractCommitLogService
      *
      * Subclasses may be notified when a sync finishes by using the syncComplete WaitQueue.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14108
     AbstractCommitLogService(final CommitLog commitLog, final String name, long syncIntervalMillis)
     {
         this (commitLog, name, syncIntervalMillis, false);
@@ -126,6 +128,7 @@ public abstract class AbstractCommitLogService
     }
 
     // Separated into individual method to ensure relevant objects are constructed before this is started.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
     void start()
     {
         if (syncIntervalNanos < 1)
@@ -167,6 +170,7 @@ public abstract class AbstractCommitLogService
             try
             {
                 // sync and signal
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 long pollStarted = clock.now();
                 boolean flushToDisk = lastSyncedAt + syncIntervalNanos <= pollStarted || shutdownRequested || syncRequested;
                 if (flushToDisk)
@@ -184,6 +188,7 @@ public abstract class AbstractCommitLogService
                     commitLog.sync(false);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 long now = clock.now();
                 if (flushToDisk)
                     maybeLogFlushLag(pollStarted, now);
@@ -213,6 +218,7 @@ public abstract class AbstractCommitLogService
         @VisibleForTesting
         boolean maybeLogFlushLag(long pollStarted, long now)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14451
             long flushDuration = now - pollStarted;
             totalSyncDuration += flushDuration;
 
@@ -274,7 +280,9 @@ public abstract class AbstractCommitLogService
      */
     void requestExtraSync()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
         syncRequested = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         LockSupport.unpark(thread);
     }
 
@@ -318,11 +326,13 @@ public abstract class AbstractCommitLogService
 
     public long getCompletedTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9339
         return written.get();
     }
 
     public long getPendingTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8862
         return pending.get();
     }
 }

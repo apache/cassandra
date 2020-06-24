@@ -73,7 +73,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     @Override
     public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         for (Index index : indexRegistry.listIndexes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             if (isSupportedBy(index))
                 return true;
 
@@ -151,6 +153,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
@@ -181,6 +184,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             return index.supportsExpression(columnDef, Operator.EQ);
         }
     }
@@ -209,21 +213,26 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         {
             builder.addEachElementToAll(getValues(options));
             checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             checkFalse(builder.containsUnset(), "Invalid unset value for column %s", columnDef.name);
             return builder;
         }
 
         @Override
         public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             throw invalidRequest("IN restrictions are not supported on indexed columns");
         }
 
         @Override
         protected final boolean isSupportedBy(Index index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             return index.supportsExpression(columnDef, Operator.IN);
         }
 
@@ -292,6 +301,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         protected List<ByteBuffer> getValues(QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             Terminal term = marker.bind(options);
             checkNotNull(term, "Invalid null value for column %s", columnDef.name);
             checkFalse(term == Constants.UNSET_VALUE, "Invalid unset value for column %s", columnDef.name);
@@ -319,6 +329,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             slice.addFunctionsTo(functions);
         }
 
@@ -350,7 +361,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
         {
             Bound b = bound.reverseIfNeeded(getFirstColumn());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
             if (!hasBound(b))
                 return builder;
 
@@ -374,6 +387,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                       columnDef.name);
 
             SingleColumnRestriction.SliceRestriction otherSlice = (SingleColumnRestriction.SliceRestriction) otherRestriction;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             checkFalse(hasBound(Bound.START) && otherSlice.hasBound(Bound.START),
                        "More than one restriction was found for the start bound on %s", columnDef.name);
@@ -395,6 +409,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             return slice.isSupportedBy(columnDef, index);
         }
 
@@ -430,6 +445,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         public ContainsRestriction(ColumnMetadata columnDef, Term mapKey, Term mapValue)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
             super(columnDef);
             entryKeys.add(mapKey);
             entryValues.add(mapValue);
@@ -463,10 +479,12 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
         {
             checkTrue(otherRestriction.isContains(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
                       "Collection column %s can only be restricted by CONTAINS, CONTAINS KEY, or map-entry equality",
                       columnDef.name);
 
             SingleColumnRestriction.ContainsRestriction newContains = new ContainsRestriction(columnDef);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             copyKeysAndValues(this, newContains);
             copyKeysAndValues((ContainsRestriction) otherRestriction, newContains);
@@ -496,6 +514,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
             if (numberOfValues() > 0)
                 supported |= index.supportsExpression(columnDef, Operator.CONTAINS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
 
             if (numberOfKeys() > 0)
                 supported |= index.supportsExpression(columnDef, Operator.CONTAINS_KEY);
@@ -524,6 +543,8 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(values, functions);
             Terms.addFunctions(keys, functions);
             Terms.addFunctions(entryKeys, functions);
@@ -579,6 +600,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         {
             to.values.addAll(from.values);
             to.keys.addAll(from.keys);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
             to.entryKeys.addAll(from.entryKeys);
             to.entryValues.addAll(from.entryValues);
         }
@@ -593,6 +615,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     {
         public IsNotNullRestriction(ColumnMetadata columnDef)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             super(columnDef);
         }
 
@@ -615,6 +638,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
@@ -654,6 +678,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         public LikeRestriction(ColumnMetadata columnDef, Operator operator, Term value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             super(columnDef);
             this.operator = operator;
             this.value = value;
@@ -662,6 +687,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             value.addFunctionsTo(functions);
         }
 
@@ -691,7 +717,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
         @Override
         public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                    IndexRegistry indexRegistry,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
                                    QueryOptions options)
         {
             Pair<Operator, ByteBuffer> operation = makeSpecific(value.bindAndGet(options));
@@ -699,6 +727,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             // there must be a suitable INDEX for LIKE_XXX expressions
             RowFilter.SimpleExpression expression = filter.add(columnDef, operation.left, operation.right);
             indexRegistry.getBestIndexFor(expression)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
                          .orElseThrow(() -> invalidRequest("%s is only supported on properly indexed columns",
                                                            expression));
         }
@@ -709,6 +738,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             // LIKE can be used with clustering columns, but as it doesn't
             // represent an actual clustering value, it can't be used in a
             // clustering filter.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
             throw new UnsupportedOperationException();
         }
 
@@ -740,6 +770,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
          */
         private static Pair<Operator, ByteBuffer> makeSpecific(ByteBuffer value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
             Operator operator;
             int beginIndex = value.position();
             int endIndex = value.limit() - 1;
@@ -769,6 +800,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
             if (endIndex == 0 || beginIndex == endIndex)
                 throw invalidRequest("LIKE value can't be empty.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
 
             ByteBuffer newValue = value.duplicate();
             newValue.position(beginIndex);

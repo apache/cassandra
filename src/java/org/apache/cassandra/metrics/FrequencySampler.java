@@ -53,6 +53,7 @@ public abstract class FrequencySampler<T> extends Sampler<T>
      */
     public synchronized void beginSampling(int capacity, int durationMillis)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (endTimeNanos == -1 || clock.now() > endTimeNanos)
         {
             summary = new StreamSummary<>(capacity);
@@ -69,6 +70,7 @@ public abstract class FrequencySampler<T> extends Sampler<T>
     public synchronized List<Sample<T>> finishSampling(int count)
     {
         List<Sample<T>> results = Collections.emptyList();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (endTimeNanos != -1)
         {
             endTimeNanos = -1;
@@ -84,6 +86,7 @@ public abstract class FrequencySampler<T> extends Sampler<T>
     {
         // samplerExecutor is single threaded but still need
         // synchronization against jmx calls to finishSampling
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (value > 0 && clock.now() <= endTimeNanos)
         {
             try
@@ -98,6 +101,7 @@ public abstract class FrequencySampler<T> extends Sampler<T>
 
     public boolean isEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return endTimeNanos != -1 && clock.now() <= endTimeNanos;
     }
 

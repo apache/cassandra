@@ -56,6 +56,7 @@ import static java.util.stream.Collectors.toMap;
  *
  * @see CqlOutputFormat
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
 class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>> implements
         org.apache.hadoop.mapred.RecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>, AutoCloseable
 {
@@ -98,7 +99,11 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
      */
     CqlRecordWriter(TaskAttemptContext context) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
         this(HadoopCompat.getConfiguration(context));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
         this.context = context;
     }
 
@@ -111,11 +116,14 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
     CqlRecordWriter(Configuration conf)
     {
         this.conf = conf;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9353
         this.queueSize = conf.getInt(CqlOutputFormat.QUEUE_SIZE, 32 * FBUtilities.getAvailableProcessors());
         batchThreshold = conf.getLong(CqlOutputFormat.BATCH_THRESHOLD, 32);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6665
         this.clients = new HashMap<>();
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10837
         try (Cluster cluster = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf))
         {
             Metadata metadata = cluster.getMetadata();
@@ -125,6 +133,10 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
             partitionKeyColumns = tableMetadata.getPartitionKey();
 
             String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12541
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12542
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12543
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12545
             if (cqlQuery.toLowerCase(Locale.ENGLISH).startsWith("insert"))
                 throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
             cql = appendKeyWhereClauses(cqlQuery);
@@ -144,6 +156,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
      */
     public void close(TaskAttemptContext context) throws IOException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         close();
     }
 
@@ -163,6 +176,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9576
                 client.close();
             }
             catch (IOException e)
@@ -193,8 +207,10 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
     public void write(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values) throws IOException
     {
         TokenRange range = ringCache.getRange(getPartitionKey(keyColumns));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
 
         // get the client for the given range, or create a new one
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9442
         final InetAddress address = ringCache.getEndpoints(range).get(0);
         RangeClient client = clients.get(address);
         if (client == null)
@@ -214,6 +230,8 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
 
         client.put(allValues);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5201
         if (progressable != null)
             progressable.progress();
         if (context != null)
@@ -223,9 +241,11 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
     private static void closeSession(Session session)
     {
         //Close the session to satisfy to avoid warnings for the resource not being closed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9800
         try
         {
             if (session != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11553
                 session.getCluster().closeAsync();
         }
         catch (Throwable t)
@@ -258,6 +278,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
          */
         public RangeClient(List<InetAddress> endpoints)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
             super("client-" + endpoints);
             this.endpoints = endpoints;
         }
@@ -290,12 +311,15 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         public void run()
         {
             Session session = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10058
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9800
             try
             {
                 outer:
                 while (run || !queue.isEmpty())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5622
                     List<ByteBuffer> bindVariables;
                     try
                     {
@@ -311,8 +335,10 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                     while (true)
                     {
                         // send the mutation to the last-used endpoint.  first time through, this will NPE harmlessly.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10058
                         if (session != null)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9576
                             try
                             {
                                 int i = 0;
@@ -349,6 +375,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                         {
                             InetAddress address = iter.next();
                             String host = address.getHostName();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10058
                             cluster = CqlConfigHelper.getOutputCluster(host, conf);
                             closeSession(session);
                             session = cluster.connect();
@@ -359,6 +386,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                             //There are too many ways for the Thread.interrupted() state to be cleared, so
                             //we can't rely on that here. Until the java driver gives us a better way of knowing
                             //that this exception came from an InterruptedException, this is the best solution.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9442
                             if (canRetryDriverConnection(e))
                             {
                                 iter.previous();
@@ -380,6 +408,8 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
             {
                 closeSession(session);
                 // close all our connections once we are done.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7459
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10837
                 closeInternal();
             }
         }
@@ -387,6 +417,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         /** get prepared statement id from cache, otherwise prepare it from Cassandra server*/
         private PreparedStatement preparedStatement(Session client)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
             PreparedStatement statement = preparedStatements.get(client);
             if (statement == null)
             {
@@ -426,6 +457,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
 
         protected void closeInternal()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10058
             if (cluster != null)
             {
                 cluster.close();
@@ -434,6 +466,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
 
         private boolean canRetryDriverConnection(Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9442
             if (e instanceof DriverException && e.getMessage().contains("Connection thread interrupted"))
                 return true;
             if (e instanceof NoHostAvailableException)
@@ -476,6 +509,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
     {
         String keyWhereClause = "";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         for (ColumnMetadata partitionKey : partitionKeyColumns)
             keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? quote(partitionKey.getName()) : (" AND " + quote(partitionKey.getName())));
         for (ColumnMetadata clusterColumn : clusterColumns)
@@ -499,6 +533,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         public NativeRingCache(Configuration conf, Metadata metadata)
         {
             this.partitioner = ConfigHelper.getOutputPartitioner(conf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10837
             this.metadata = metadata;
             String keyspace = ConfigHelper.getOutputKeyspace(conf);
             this.rangeMap = metadata.getTokenRanges()

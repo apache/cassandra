@@ -62,16 +62,20 @@ public class RepairRunner extends JMXNotificationProgressListener
         if (cmd <= 0)
         {
             // repairAsync can only return 0 for replication factor 1.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
             String message = String.format("Replication factor is 1. No repair is needed for keyspace '%s'", keyspace);
             printMessage(message);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8901
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
             while (!condition.await(NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS))
             {
                 queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
                                                       NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
             Exception error = this.error;
             if (error == null)
             {
@@ -96,6 +100,7 @@ public class RepairRunner extends JMXNotificationProgressListener
     @Override
     public void handleNotificationLost(long timestamp, String message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         if (cmd > 0)
         {
             // Check to see if the lost notification was a completion message
@@ -113,6 +118,7 @@ public class RepairRunner extends JMXNotificationProgressListener
     public void handleConnectionFailed(long timestamp, String message)
     {
         error = new IOException(String.format("[%s] JMX connection closed. You should check server log for repair status of keyspace %s"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
                                               + "(Subsequent keyspaces are not going to be repaired).",
                                               format.format(timestamp), keyspace));
         condition.signalAll();
@@ -122,14 +128,17 @@ public class RepairRunner extends JMXNotificationProgressListener
     public void progress(String tag, ProgressEvent event)
     {
         ProgressEventType type = event.getType();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         String message = event.getMessage();
         if (type == ProgressEventType.PROGRESS)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
             message = message + " (progress: " + (int) event.getProgressPercentage() + "%)";
         }
         printMessage(message);
         if (type == ProgressEventType.ERROR)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14763
             error = new RuntimeException(String.format("Repair job has failed with the error message: %s. " +
                                                        "Check the logs on the repair participants for further details",
                                                        message));
@@ -143,10 +152,12 @@ public class RepairRunner extends JMXNotificationProgressListener
 
     private void queryForCompletedRepair(String triggeringCondition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         List<String> status = ssProxy.getParentRepairStatus(cmd);
         String queriedString = "queried for parent session status and";
         if (status == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
             String message = String.format("%s %s couldn't find repair status for cmd: %s", triggeringCondition,
                                            queriedString, cmd);
             printMessage(message);
@@ -159,6 +170,7 @@ public class RepairRunner extends JMXNotificationProgressListener
             {
                 case COMPLETED:
                 case FAILED:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
                     printMessage(String.format("%s %s discovered repair %s.",
                                               triggeringCondition,
                                               queriedString, parentRepairStatus.name().toLowerCase()));
@@ -172,6 +184,7 @@ public class RepairRunner extends JMXNotificationProgressListener
                 case IN_PROGRESS:
                     break;
                 default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
                     printMessage(String.format("WARNING Encountered unexpected RepairRunnable.ParentRepairStatus: %s", parentRepairStatus));
                     printMessages(messages);
                     break;
@@ -183,6 +196,7 @@ public class RepairRunner extends JMXNotificationProgressListener
     {
         for (String message : messages)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
             printMessage(message);
         }
     }

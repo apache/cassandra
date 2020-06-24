@@ -37,6 +37,7 @@ public class CleanupMessage extends RepairMessage
 
     public CleanupMessage(UUID parentRepairSession)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         this.parentRepairSession = parentRepairSession;
     }
@@ -44,9 +45,11 @@ public class CleanupMessage extends RepairMessage
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12934
         if (!(o instanceof CleanupMessage))
             return false;
         CleanupMessage other = (CleanupMessage) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return parentRepairSession.equals(other.parentRepairSession);
     }
 
@@ -73,5 +76,6 @@ public class CleanupMessage extends RepairMessage
         {
             return UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     };
 }

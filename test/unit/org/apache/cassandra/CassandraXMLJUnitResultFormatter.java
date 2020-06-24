@@ -80,6 +80,7 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
      */
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9528
         String command = System.getProperty("sun.java.command");
         String args[] = command.split(" ");
         System.setProperty("suitename", args[1]);

@@ -99,6 +99,7 @@ public class TupleTypeTest extends CQLTester
     public void testTupleFromString() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, t frozen<tuple<int, text>>, PRIMARY KEY (k, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9559
 
         execute("INSERT INTO %s (k, c, t) VALUES (0, 0, '0:0')");
         execute("INSERT INTO %s (k, c, t) VALUES (0, 1, '0:1')");
@@ -114,6 +115,7 @@ public class TupleTypeTest extends CQLTester
             row(0, 4, tuple(null, "1"))
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         assertInvalidMessage("Invalid tuple literal: too many elements. Type frozen<tuple<int, text>> expects 2 but got 3",
                              "INSERT INTO %s(k, t) VALUES (1,'1:2:3')");
     }
@@ -125,9 +127,11 @@ public class TupleTypeTest extends CQLTester
 
         assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         assertInvalidMessage("Invalid tuple literal for t: too many elements. Type frozen<tuple<int, text, double>> expects 3 but got 4",
                              "INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13646
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, tuple<int, text, double>>>)");
         assertInvalidMessage("Invalid remaining data after end of tuple value",
                              "INSERT INTO %s (k, t) VALUES (0, ?)",
@@ -219,6 +223,7 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testTupleModification() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, value tuple<int, int>)");
         assertInvalidMessage("Invalid operation (value = value + (1, 1)) for tuple column value",
                              "UPDATE %s SET value += (1, 1) WHERE k=0;");

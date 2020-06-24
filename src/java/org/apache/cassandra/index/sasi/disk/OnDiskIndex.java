@@ -140,6 +140,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
             mode = OnDiskIndexBuilder.Mode.mode(backingFile.readUTF());
             hasMarkedPartials = backingFile.readBoolean();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
 
             indexSize = backingFile.length();
             indexFile = new MappedBuffer(new ChannelProxy(indexPath, backingFile.getChannel()));
@@ -171,6 +172,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
     public boolean hasMarkedPartials()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         return hasMarkedPartials;
     }
 
@@ -220,7 +222,9 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     public RangeIterator<Long, Token> search(Expression exp)
     {
         assert mode.supports(exp.getOp());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         if (exp.getOp() == Expression.Op.PREFIX && mode == OnDiskIndexBuilder.Mode.CONTAINS && !hasMarkedPartials)
             throw new UnsupportedOperationException("prefix queries in CONTAINS mode are not supported by this index");
 
@@ -455,6 +459,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
     private DataTerm getTerm(ByteBuffer query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         SearchResult<DataTerm> term = searchIndex(query, getDataBlock(query));
         return term.cmp == 0 ? term.result : null;
     }
@@ -617,6 +622,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
         protected PointerTerm cast(MappedBuffer data)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
             return new PointerTerm(data, termSize, hasMarkedPartials);
         }
     }
@@ -627,6 +633,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
         protected DataTerm(MappedBuffer content, OnDiskIndexBuilder.TermSize size, TokenTree perBlockIndex)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
             super(content, size, hasMarkedPartials);
             this.perBlockIndex = perBlockIndex;
         }
@@ -677,6 +684,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     {
         public PointerTerm(MappedBuffer content, OnDiskIndexBuilder.TermSize size, boolean hasMarkedPartials)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
             super(content, size, hasMarkedPartials);
         }
 
@@ -758,6 +766,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
                     // we need to step over all of the partial terms, in PREFIX mode,
                     // encountered by the query until upper-bound tells us to stop
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12073
                     if (e.getOp() == Op.PREFIX && currentTerm.isPartial())
                         continue;
 

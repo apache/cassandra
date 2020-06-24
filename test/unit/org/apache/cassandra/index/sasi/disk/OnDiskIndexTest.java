@@ -59,6 +59,7 @@ public class OnDiskIndexTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -76,6 +77,7 @@ public class OnDiskIndexTest
                 put(UTF8Type.instance.decompose("foo"),  keyBuilder(7L));
                 put(UTF8Type.instance.decompose("bar"),  keyBuilder(9L, 10L));
                 put(UTF8Type.instance.decompose("michael"), keyBuilder(11L, 12L, 1L));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
                 put(UTF8Type.instance.decompose("am"), keyBuilder(15L));
         }};
 
@@ -83,6 +85,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-string", "db");
         index.deleteOnExit();
 
@@ -113,6 +116,7 @@ public class OnDiskIndexTest
         Assert.assertEquals(convert(7), convert(onDisk.search(expressionFor("o"))));
         Assert.assertEquals(convert(1, 2, 3, 4, 6), convert(onDisk.search(expressionFor("t"))));
         Assert.assertEquals(convert(1, 2, 11, 12), convert(onDisk.search(expressionFor("m", Operator.LIKE_PREFIX))));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
 
         Assert.assertEquals(Collections.<DecoratedKey>emptySet(), convert(onDisk.search(expressionFor("hello"))));
 
@@ -139,6 +143,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-int", "db");
         index.deleteOnExit();
 
@@ -148,6 +153,7 @@ public class OnDiskIndexTest
 
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             Assert.assertEquals(convert(e.getValue()), convert(onDisk.search(expressionFor(Operator.EQ, Int32Type.instance, e.getKey()))));
         }
 
@@ -227,6 +233,7 @@ public class OnDiskIndexTest
         for (int i = 0; i < iterCheckNums.size(); i++)
             iterTest.add(iterCheckNums.get(i), keyAt((long) i), i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File iterIndex = FileUtils.createTempFile("sa-iter", ".db");
         iterIndex.deleteOnExit();
 
@@ -279,6 +286,7 @@ public class OnDiskIndexTest
                 addAll(this, UTF8Type.instance.decompose("Pavel"), keyBuilder(9L, 10L));
         }};
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-multi-suffix-match", ".db");
         index.deleteOnExit();
 
@@ -318,6 +326,7 @@ public class OnDiskIndexTest
         for (long i = 0; i < numIterations; i++)
             builder.add(LongType.instance.decompose(start + i), keyAt(i), i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-sparse", "db");
         index.deleteOnExit();
 
@@ -376,6 +385,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-except-test", "db");
         index.deleteOnExit();
 
@@ -420,6 +430,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-except-int-test", "db");
         index.deleteOnExit();
 
@@ -444,6 +455,7 @@ public class OnDiskIndexTest
         for (long i = lower; i <= upper; i++)
             builder.add(LongType.instance.decompose(i), keyAt(i), i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-except-long-ranges", "db");
         index.deleteOnExit();
 
@@ -536,6 +548,7 @@ public class OnDiskIndexTest
             builder2.add(e.getKey(), key, position);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index1 = FileUtils.createTempFile("on-disk-sa-int", "db");
         File index2 = FileUtils.createTempFile("on-disk-sa-int2", "db");
         index1.deleteOnExit();
@@ -549,6 +562,7 @@ public class OnDiskIndexTest
 
         ByteBuffer number = Int32Type.instance.decompose(5);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Assert.assertEquals(Collections.singleton(data.get(number).left), convert(onDisk1.search(expressionFor(Operator.EQ, Int32Type.instance, number))));
         Assert.assertEquals(Collections.singleton(data.get(number).left), convert(onDisk2.search(expressionFor(Operator.EQ, Int32Type.instance, number))));
 
@@ -570,6 +584,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> entry : terms.entrySet())
             addAll(builder, entry.getKey(), entry.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-try-superblocks", ".db");
         index.deleteOnExit();
 
@@ -598,6 +613,7 @@ public class OnDiskIndexTest
         for (long i = 0; i < 100000; i++)
             builder.add(LongType.instance.decompose(i), keyAt(i), i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-multi-superblock-match", ".db");
         index.deleteOnExit();
 
@@ -653,6 +669,7 @@ public class OnDiskIndexTest
             putAll(offsets, keyBuilder(100L + i));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File indexA = FileUtils.createTempFile("on-disk-sa-partition-a", ".db");
         indexA.deleteOnExit();
 
@@ -683,6 +700,7 @@ public class OnDiskIndexTest
 
         Assert.assertEquals(actual, expected);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File indexC = FileUtils.createTempFile("on-disk-sa-partition-final", ".db");
         indexC.deleteOnExit();
 
@@ -715,6 +733,7 @@ public class OnDiskIndexTest
     @Test
     public void testPrefixSearchWithCONTAINSMode() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12073
         Map<ByteBuffer, TokenTreeBuilder> data = new HashMap<ByteBuffer, TokenTreeBuilder>()
         {{
 
@@ -734,6 +753,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File index = FileUtils.createTempFile("on-disk-sa-prefix-contains-search", "db");
         index.deleteOnExit();
 
@@ -752,6 +772,7 @@ public class OnDiskIndexTest
         RangeIterator<Long, Token> tokens = onDiskIndex.search(expressionFor(start, true, end, false));
 
         // no results should be produced only if range is empty
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11205
         if (tokens == null)
         {
             Assert.assertEquals(0, end - start);
@@ -850,6 +871,7 @@ public class OnDiskIndexTest
 
     private static Expression expressionFor(AbstractType<?> validator, ByteBuffer term)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return expressionFor(Operator.LIKE_CONTAINS, validator, term);
     }
 
@@ -899,6 +921,7 @@ public class OnDiskIndexTest
 
     private static Expression expressionFor(String term)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         return expressionFor(term, Operator.LIKE_CONTAINS);
     }
 

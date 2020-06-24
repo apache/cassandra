@@ -116,6 +116,7 @@ public class AbstractCommitLogServiceTest
         long syncTimeMillis = AbstractCommitLogService.DEFAULT_MARKER_INTERVAL_MILLIS * 2;
         FreeRunningClock clock = new FreeRunningClock();
         FakeCommitLogService commitLogService = new FakeCommitLogService(syncTimeMillis);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14451
         SyncRunnable syncRunnable = commitLogService.new SyncRunnable(clock);
         FakeCommitLog commitLog = (FakeCommitLog) commitLogService.commitLog;
 
@@ -167,6 +168,7 @@ public class AbstractCommitLogServiceTest
     @Test
     public void maybeLogFlushLag_MustLog()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14451
         long syncTimeMillis = 10;
         SyncRunnable syncRunnable = new FakeCommitLogService(syncTimeMillis).new SyncRunnable(new FreeRunningClock());
         long pollStarted = 1;

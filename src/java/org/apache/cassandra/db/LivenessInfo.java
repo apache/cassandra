@@ -54,6 +54,7 @@ public class LivenessInfo
 
     protected LivenessInfo(long timestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         this.timestamp = timestamp;
     }
 
@@ -64,6 +65,7 @@ public class LivenessInfo
 
     public static LivenessInfo expiring(long timestamp, int ttl, int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
         assert ttl != EXPIRED_LIVENESS_TTL;
         return new ExpiringLivenessInfo(timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl));
     }
@@ -71,6 +73,7 @@ public class LivenessInfo
     public static LivenessInfo create(long timestamp, int ttl, int nowInSec)
     {
         return ttl == NO_TTL
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
              ? create(timestamp, nowInSec)
              : expiring(timestamp, ttl, nowInSec);
     }
@@ -79,6 +82,7 @@ public class LivenessInfo
     // Use when you know that's what you want.
     public static LivenessInfo withExpirationTime(long timestamp, int ttl, int localExpirationTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
         if (ttl == EXPIRED_LIVENESS_TTL)
             return new ExpiredLivenessInfo(timestamp, ttl, localExpirationTime);
         return ttl == NO_TTL ? new LivenessInfo(timestamp) : new ExpiringLivenessInfo(timestamp, ttl, localExpirationTime);
@@ -154,6 +158,7 @@ public class LivenessInfo
      */
     public void digest(Digest digest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         digest.updateWithLong(timestamp());
     }
 
@@ -200,7 +205,9 @@ public class LivenessInfo
     public boolean supersedes(LivenessInfo other)
     {
         if (timestamp != other.timestamp)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return timestamp > other.timestamp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
         if (isExpired() ^ other.isExpired())
             return isExpired();
         if (isExpiring() == other.isExpiring())
@@ -223,6 +230,7 @@ public class LivenessInfo
      */
     public LivenessInfo withUpdatedTimestamp(long newTimestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return new LivenessInfo(newTimestamp);
     }
 
@@ -265,6 +273,7 @@ public class LivenessInfo
     {
         private ExpiredLivenessInfo(long timestamp, int ttl, int localExpirationTime)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
             super(timestamp, ttl, localExpirationTime);
             assert ttl == EXPIRED_LIVENESS_TTL;
             assert timestamp != NO_TIMESTAMP;
@@ -330,6 +339,7 @@ public class LivenessInfo
         @Override
         public void digest(Digest digest)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             super.digest(digest);
             digest.updateWithInt(localExpirationTime)
                   .updateWithInt(ttl);

@@ -86,6 +86,7 @@ public class DiskOptimizationStrategyTest
     @Test
     public void testRoundUpForCaching()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13897
         assertEquals(4096, DiskOptimizationStrategy.roundForCaching(-1, true));
         assertEquals(4096, DiskOptimizationStrategy.roundForCaching(0, true));
         assertEquals(4096, DiskOptimizationStrategy.roundForCaching(1, true));

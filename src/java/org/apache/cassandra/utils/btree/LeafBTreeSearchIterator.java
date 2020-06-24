@@ -45,6 +45,7 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
         this.comparator = comparator;
         this.lowerBound = lowerBound;
         this.upperBound = upperBound;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         rewind();
     }
 
@@ -80,6 +81,7 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
 
     private void updateHasNext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         hasNext = nextPos >= lowerBound && nextPos <= upperBound;
     }
 
@@ -114,6 +116,7 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
             nextPos = (forwards ? -1 : -2) - find;
             hasCurrent = false;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         updateHasNext();
         return result;
     }

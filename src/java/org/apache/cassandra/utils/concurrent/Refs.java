@@ -44,6 +44,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
 
     public Refs()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
         this.references = new HashMap<>();
     }
 
@@ -110,6 +111,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
 
     public void relaseAllExcept(Collection<T> keep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         Collection<T> release = new ArrayList<>(references.keySet());
         release.retainAll(keep);
         release(release);
@@ -120,6 +122,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      */
     public void release(Collection<T> release)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         List<Ref<T>> refs = new ArrayList<>();
         List<T> notPresent = null;
         for (T obj : release)
@@ -164,6 +167,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      */
     public boolean tryRef(T t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         Ref<T> ref = t.tryRef();
         if (ref == null)
             return false;
@@ -188,6 +192,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      */
     public Refs<T> addAll(Refs<T> add)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         List<Ref<T>> overlap = new ArrayList<>();
         for (Map.Entry<T, Ref<T>> e : add.references.entrySet())
         {
@@ -206,6 +211,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      */
     public static <T extends RefCounted<T>> Refs<T> tryRef(Iterable<T> reference)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         HashMap<T, Ref<T>> refs = new HashMap<>();
         for (T rc : reference)
         {
@@ -230,6 +236,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
 
     public static void release(Iterable<? extends Ref<?>> refs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         maybeFail(release(refs, null));
     }
     public static Throwable release(Iterable<? extends Ref<?>> refs, Throwable accumulate)
@@ -242,6 +249,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
             }
             catch (Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
                 accumulate = merge(accumulate, t);
             }
         }
@@ -250,6 +258,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
 
     public static <T extends SelfRefCounted<T>> Iterable<Ref<T>> selfRefs(Iterable<T> refs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8832
         return Iterables.transform(refs, new Function<T, Ref<T>>()
         {
             @Nullable

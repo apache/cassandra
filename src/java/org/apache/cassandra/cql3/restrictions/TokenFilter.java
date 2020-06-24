@@ -64,11 +64,13 @@ final class TokenFilter implements PartitionKeyRestrictions
 
     public boolean hasIN()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         return isOnToken() ? false : restrictions.hasIN();
     }
 
     public boolean hasContains()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
         return isOnToken() ? false : restrictions.hasContains();
     }
 
@@ -80,6 +82,7 @@ final class TokenFilter implements PartitionKeyRestrictions
     @Override
     public Set<Restriction> getRestrictions(ColumnMetadata columnDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         Set<Restriction> set = new HashSet<>();
         set.addAll(restrictions.getRestrictions(columnDef));
         set.addAll(tokenRestriction.getRestrictions(columnDef));
@@ -98,6 +101,7 @@ final class TokenFilter implements PartitionKeyRestrictions
     {
         this.restrictions = restrictions;
         this.tokenRestriction = tokenRestriction;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         this.partitioner = tokenRestriction.metadata.partitioner;
     }
 
@@ -113,6 +117,7 @@ final class TokenFilter implements PartitionKeyRestrictions
         if (restriction.isOnToken())
             return new TokenFilter(restrictions, (TokenRestriction) tokenRestriction.mergeWith(restriction));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         return new TokenFilter(restrictions.mergeWith(restriction), tokenRestriction);
     }
 
@@ -144,6 +149,7 @@ final class TokenFilter implements PartitionKeyRestrictions
      */
     private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         RangeSet<Token> rangeSet = tokenRestriction.hasSlice() ? toRangeSet(tokenRestriction, options)
                                                                : toRangeSet(tokenRestriction.values(options));
 
@@ -274,6 +280,7 @@ final class TokenFilter implements PartitionKeyRestrictions
     @Override
     public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return restrictions.hasSupportingIndex(indexRegistry);
     }
 

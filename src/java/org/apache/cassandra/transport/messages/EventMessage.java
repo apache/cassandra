@@ -29,6 +29,7 @@ public class EventMessage extends Message.Response
     {
         public EventMessage decode(ByteBuf body, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             return new EventMessage(Event.deserialize(body, version));
         }
 

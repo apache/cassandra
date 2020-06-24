@@ -55,7 +55,9 @@ public class SelectionColumnMappingTest extends CQLTester
     public static void setUpClass()     // overrides CQLTester.setUpClass()
     {
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         prepareServer();
     }
 
@@ -103,6 +105,7 @@ public class SelectionColumnMappingTest extends CQLTester
         testMixedColumnTypes();
         testMultipleUnaliasedSelectionOfSameColumn();
         testUserDefinedAggregate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         testListLitteral();
         testEmptyListLitteral();
         testSetLitteral();
@@ -124,6 +127,7 @@ public class SelectionColumnMappingTest extends CQLTester
         // we don't use verify like with the other tests because this query will produce no results
         SelectStatement statement = getSelect("SELECT token(a,b) FROM %s");
         verifyColumnMapping(expected, statement);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
     }
 
@@ -418,6 +422,7 @@ public class SelectionColumnMappingTest extends CQLTester
 
     private void testListLitteral() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         ColumnSpecification listSpec = columnSpecification("[k, v1]", ListType.getInstance(Int32Type.instance, false));
         SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
                                                                 .addMapping(listSpec, asList(columnDefinition("k"),
@@ -530,6 +535,7 @@ public class SelectionColumnMappingTest extends CQLTester
 
     private void testUserDefinedAggregate() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9771
         String sFunc = parseFunctionName(createFunction(KEYSPACE, "int",
                                                         " CREATE FUNCTION %s (a int, b int)" +
                                                         " RETURNS NULL ON NULL INPUT" +
@@ -581,6 +587,7 @@ public class SelectionColumnMappingTest extends CQLTester
     private void checkExecution(SelectStatement statement, List<ColumnSpecification> expectedResultColumns)
     throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         UntypedResultSet rs = UntypedResultSet.create(statement.executeLocally(QueryState.forInternalCalls(),
                                                                                QueryOptions.DEFAULT).result);
 
@@ -590,6 +597,7 @@ public class SelectionColumnMappingTest extends CQLTester
     private SelectStatement getSelect(String query) throws RequestValidationException
     {
         CQLStatement statement = QueryProcessor.getStatement(String.format(query, KEYSPACE + "." + tableName),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                              ClientState.forInternalCalls());
         assertTrue(statement instanceof SelectStatement);
         return (SelectStatement)statement;

@@ -61,6 +61,7 @@ public class JsonTest extends CQLTester
     @Test
     public void testSelectJsonWithPagingWithFrozenTuple() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13592
         final UUID uuid = UUID.fromString("2dd2cd62-6af3-4cf6-96fc-91b9ab62eedc");
         final Object partitionKey = tuple(uuid, 2);
 
@@ -242,12 +243,14 @@ public class JsonTest extends CQLTester
                 "mapval map<ascii, int>," +
                 "frozenmapval frozen<map<ascii, int>>," +
                 "tupleval frozen<tuple<int, ascii, uuid>>," +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                 "udtval frozen<" + typeName + ">," +
                 "durationval duration)");
 
         // fromJson() can only be used when the receiver type is known
         assertInvalidMessage("fromJson() cannot be used in the selection clause", "SELECT fromJson(asciival) FROM %s", 0, 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
         String func1 = createFunction(KEYSPACE, "int", "CREATE FUNCTION %s (a int) CALLED ON NULL INPUT RETURNS text LANGUAGE java AS $$ return a.toString(); $$");
         createFunctionOverload(func1, "int", "CREATE FUNCTION %s (a text) CALLED ON NULL INPUT RETURNS text LANGUAGE java AS $$ return new String(a); $$");
 
@@ -261,6 +264,8 @@ public class JsonTest extends CQLTester
         // handle nulls
         execute("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, null);
         assertRows(execute("SELECT k, asciival FROM %s WHERE k = ?", 0), row(0, null));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13891
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13891
 
         execute("INSERT INTO %s (k, frozenmapval) VALUES (?, fromJson(?))", 0, null);
         assertRows(execute("SELECT k, frozenmapval FROM %s WHERE k = ?", 0), row(0, null));
@@ -439,6 +444,7 @@ public class JsonTest extends CQLTester
                 "INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "true");
 
         // ================ smallint ================
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
         execute("INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "32767");
         assertRows(execute("SELECT k, smallintval FROM %s WHERE k = ?", 0), row(0, (short) 32767));
 
@@ -677,6 +683,7 @@ public class JsonTest extends CQLTester
         );
 
         // ================ duration ================
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         execute("INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"53us\"");
         assertRows(execute("SELECT k, durationval FROM %s WHERE k = ?", 0), row(0, Duration.newInstance(0, 0, 53000L)));
 
@@ -725,6 +732,8 @@ public class JsonTest extends CQLTester
                 "floatval float, " +
                 "inetval inet, " +
                 "intval int, " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
                 "smallintval smallint, " +
                 "textval text, " +
                 "timeval time, " +
@@ -741,6 +750,7 @@ public class JsonTest extends CQLTester
                 "mapval map<ascii, int>, " +
                 "frozenmapval frozen<map<ascii, int>>, " +
                 "tupleval frozen<tuple<int, ascii, uuid>>," +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                 "udtval frozen<" + typeName + ">," +
                 "durationval duration)");
 
@@ -826,6 +836,7 @@ public class JsonTest extends CQLTester
         assertRows(execute("SELECT k, toJson(intval) FROM %s WHERE k = ?", 0), row(0, "-123123"));
 
         // ================ smallint ================
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
         execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) 32767);
         assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "32767"));
 
@@ -862,10 +873,12 @@ public class JsonTest extends CQLTester
         execute("INSERT INTO %s (k, timeval) VALUES (?, ?)", 0, 123L);
         assertRows(execute("SELECT k, toJson(timeval) FROM %s WHERE k = ?", 0), row(0, "\"00:00:00.000000123\""));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13592
         execute("INSERT INTO %s (k, timeval) VALUES (?, fromJson(?))", 0, "\"07:35:07.000111222\"");
         assertRows(execute("SELECT k, toJson(timeval) FROM %s WHERE k = ?", 0), row(0, "\"07:35:07.000111222\""));
 
         // ================ timestamp ================
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11137
         SimpleDateFormat sdf = new SimpleDateFormat("y-M-d");
         sdf.setTimeZone(TimeZone.getTimeZone("UDT"));
         execute("INSERT INTO %s (k, timestampval) VALUES (?, ?)", 0, sdf.parse("2014-01-01"));
@@ -947,6 +960,7 @@ public class JsonTest extends CQLTester
         // ================ duration ================
         execute("INSERT INTO %s (k, durationval) VALUES (?, 12µs)", 0);
         assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"12us\""));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15075
 
         execute("INSERT INTO %s (k, durationval) VALUES (?, P1Y1M2DT10H5M)", 0);
         assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"1y1mo2d10h5m\""));
@@ -956,6 +970,7 @@ public class JsonTest extends CQLTester
     public void testJsonWithGroupBy() throws Throwable
     {
         // tests SELECT JSON statements
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
         execute("INSERT INTO %s (k, c, v) VALUES (0, 0, 0)");
         execute("INSERT INTO %s (k, c, v) VALUES (0, 1, 1)");
@@ -1076,6 +1091,7 @@ public class JsonTest extends CQLTester
     @Test
     public void testInsertJsonSyntaxDefaultUnset() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11424
         createTable("CREATE TABLE %s (k int primary key, v1 int, v2 int)");
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"v1\": 0, \"v2\": 0}");
 
@@ -1189,12 +1205,14 @@ public class JsonTest extends CQLTester
         // JSON doesn't allow non-string keys, so we accept string representations of any type as map keys and
         // return maps with string keys when necessary.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         String typeName = createType("CREATE TYPE %s (a int)");
         createTable("CREATE TABLE %s (" +
                 "k int PRIMARY KEY, " +
                 "intmap map<int, boolean>, " +
                 "bigintmap map<bigint, boolean>, " +
                 "varintmap map<varint, boolean>, " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
                 "smallintmap map<smallint, boolean>, " +
                 "tinyintmap map<tinyint, boolean>, " +
                 "booleanmap map<boolean, boolean>, " +
@@ -1222,6 +1240,7 @@ public class JsonTest extends CQLTester
         assertRows(execute("SELECT JSON k, varintmap FROM %s"), row("{\"k\": 0, \"varintmap\": {\"0\": true, \"1\": false}}"));
 
         // smallint keys
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"smallintmap\": {\"0\": true, \"1\": false}}");
         assertRows(execute("SELECT JSON k, smallintmap FROM %s"), row("{\"k\": 0, \"smallintmap\": {\"0\": true, \"1\": false}}"));
 
@@ -1321,6 +1340,7 @@ public class JsonTest extends CQLTester
     {
         int numThreads = 10;
         final int numRows = 5000;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11711
 
         createTable("CREATE TABLE %s (" +
                 "k text PRIMARY KEY, " +
@@ -1364,12 +1384,14 @@ public class JsonTest extends CQLTester
             future.get(30, TimeUnit.SECONDS);
 
         executor.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
         Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
     }
 
     @Test
     public void emptyStringJsonSerializationTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14245
         createTable("create table %s(id INT, name TEXT, PRIMARY KEY(id));");
         execute("insert into %s(id, name) VALUES (0, 'Foo');");
         execute("insert into %s(id, name) VALUES (2, '');");
@@ -1424,6 +1446,7 @@ public class JsonTest extends CQLTester
      public void testInsertAndSelectJsonSyntaxWithEmptyAndNullValues() throws Throwable
      {
          createTable("create table %s(id INT, name TEXT, name_asc ASCII, bytes BLOB, PRIMARY KEY(id));");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15435
 
          // Test with empty values
 
@@ -1453,6 +1476,7 @@ public class JsonTest extends CQLTester
     @Test
     public void testJsonWithNaNAndInfinity() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14377
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, f1 float, f2 float, f3 float, d1 double, d2 double, d3 double)");
         execute("INSERT INTO %s (pk, f1, f2, f3, d1, d2, d3) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 1, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
@@ -1464,6 +1488,7 @@ public class JsonTest extends CQLTester
     @Test
     public void testDurationJsonRoundtrip() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15075
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, d duration)");
         execute("INSERT INTO %s (pk, d) VALUES (1, 6h40m)");
         UntypedResultSet res = execute("SELECT JSON * FROM %s WHERE pk = 1");

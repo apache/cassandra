@@ -37,6 +37,7 @@ public class StemmingFilters
 
         public String process(String input) throws Exception
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12078
             if (input == null || stemmer == null)
                 return input;
             stemmer.setCurrent(input);

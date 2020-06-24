@@ -59,12 +59,14 @@ public class SchemaLoader
 
         // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
         // some tests now expect us to start gossip for them.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7327
         startGossiper();
     }
 
     @After
     public void leakDetect() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
         System.gc();
         System.gc();
         System.gc();
@@ -73,13 +75,16 @@ public class SchemaLoader
 
     public static void prepareServer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10682
        CQLTester.prepareServer();
     }
 
     public static void startGossiper()
     {
         // skip shadow round and endpoint collision check in tests
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         System.setProperty("cassandra.allow_unsafe_join", "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         if (!Gossiper.instance.isEnabled())
             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
     }
@@ -87,6 +92,7 @@ public class SchemaLoader
     public static void schemaDefinition(String testName) throws ConfigurationException
     {
         List<KeyspaceMetadata> schema = new ArrayList<KeyspaceMetadata>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
 
         // A whole bucket of shorthand
         String ks1 = testName + "Keyspace1";
@@ -95,6 +101,7 @@ public class SchemaLoader
         String ks4 = testName + "Keyspace4";
         String ks5 = testName + "Keyspace5";
         String ks6 = testName + "Keyspace6";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         String ks7 = testName + "Keyspace7";
         String ks_kcs = testName + "KeyCacheSpace";
         String ks_rcs = testName + "RowCacheSpace";
@@ -102,28 +109,34 @@ public class SchemaLoader
         String ks_nocommit = testName + "NoCommitlogSpace";
         String ks_prsi = testName + "PerRowSecondaryIndex";
         String ks_cql = testName + "cql_keyspace";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         String ks_cql_replicated = testName + "cql_keyspace_replicated";
         String ks_with_transient = testName + "ks_with_transient";
 
         AbstractType bytes = BytesType.instance;
 
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5514
         AbstractType<?> compositeMaxMin = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, IntegerType.instance}));
         Map<Byte, AbstractType<?>> aliases = new HashMap<Byte, AbstractType<?>>();
         aliases.put((byte)'b', BytesType.instance);
         aliases.put((byte)'t', TimeUUIDType.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
         aliases.put((byte)'B', ReversedType.getInstance(BytesType.instance));
         aliases.put((byte)'T', ReversedType.getInstance(TimeUUIDType.instance));
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
 
         // Make it easy to test compaction
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4781
         Map<String, String> compactionOptions = new HashMap<String, String>();
         compactionOptions.put("tombstone_compaction_interval", "1");
         Map<String, String> leveledOptions = new HashMap<String, String>();
         leveledOptions.put("sstable_size_in_mb", "1");
         leveledOptions.put("fanout_size", "5");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
 
         // Keyspace 1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         schema.add(KeyspaceMetadata.create(ks1,
                 KeyspaceParams.simple(1),
                 Tables.of(
@@ -156,6 +169,7 @@ public class SchemaLoader
         )));
 
         // Keyspace 2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         schema.add(KeyspaceMetadata.create(ks2,
                 KeyspaceParams.simple(1),
                 Tables.of(
@@ -169,6 +183,7 @@ public class SchemaLoader
                 compositeIndexCFMD(ks2, "Indexed3", true).gcGraceSeconds(0).build())));
 
         // Keyspace 3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         schema.add(KeyspaceMetadata.create(ks3,
                 KeyspaceParams.simple(5),
                 Tables.of(
@@ -186,6 +201,7 @@ public class SchemaLoader
                 superCFMD(ks4, "Super5", TimeUUIDType.instance, BytesType.instance).build())));
 
         // Keyspace 5
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         schema.add(KeyspaceMetadata.create(ks5,
                 KeyspaceParams.simple(2),
                 Tables.of(standardCFMD(ks5, "Standard1").build())));
@@ -196,6 +212,7 @@ public class SchemaLoader
                 Tables.of(keysIndexCFMD(ks6, "Indexed1", true).build())));
 
         // Keyspace 7
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         schema.add(KeyspaceMetadata.create(ks7,
                 KeyspaceParams.simple(1),
                 Tables.of(customIndexCFMD(ks7, "Indexed1").build())));
@@ -209,6 +226,7 @@ public class SchemaLoader
                 standardCFMD(ks_kcs, "Standard3").build())));
 
         // RowCacheSpace
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         schema.add(KeyspaceMetadata.create(ks_rcs,
                 KeyspaceParams.simple(1),
                 Tables.of(
@@ -220,6 +238,7 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
                 standardCFMD(ks_nocommit, "Standard1").build())));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         String simpleTable = "CREATE TABLE table1 ("
                              + "k int PRIMARY KEY,"
                              + "v1 text,"
@@ -238,7 +257,9 @@ public class SchemaLoader
                                    + "PRIMARY KEY (k, c))", ks_cql)
                             .build()
         )));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         schema.add(KeyspaceMetadata.create(ks_cql_replicated, KeyspaceParams.simple(3),
                                            Tables.of(CreateTableStatement.parse(simpleTable, ks_cql_replicated).build())));
 
@@ -255,6 +276,7 @@ public class SchemaLoader
 
         // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
         // Schema.instance.load(schemaDefinition());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         for (KeyspaceMetadata ksm : schema)
             MigrationManager.announceNewKeyspace(ksm, false);
 
@@ -283,11 +305,14 @@ public class SchemaLoader
 
     public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()), true);
     }
 
     public static void setupAuth(IRoleManager roleManager, IAuthenticator authenticator, IAuthorizer authorizer, INetworkAuthorizer networkAuthorizer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         DatabaseDescriptor.setRoleManager(roleManager);
         DatabaseDescriptor.setAuthenticator(authenticator);
         DatabaseDescriptor.setAuthorizer(authorizer);
@@ -304,6 +329,7 @@ public class SchemaLoader
     {
         return new ColumnMetadata(ksName,
                                   cfName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                   ColumnIdentifier.getInterned(IntegerType.instance.fromString("42"), IntegerType.instance),
                                   UTF8Type.instance,
                                   ColumnMetadata.NO_POSITION,
@@ -314,6 +340,7 @@ public class SchemaLoader
     {
         return new ColumnMetadata(ksName,
                                   cfName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                   ColumnIdentifier.getInterned("fortytwo", true),
                                   UTF8Type.instance,
                                   ColumnMetadata.NO_POSITION,
@@ -331,6 +358,7 @@ public class SchemaLoader
 
         final Map<String, String> indexOptions = Collections.singletonMap(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StubIndex.class.getName());
         builder.indexes(Indexes.of(IndexMetadata.fromIndexTargets(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10124
         Collections.singletonList(new IndexTarget(indexedColumn.name,
                                                                                                             IndexTarget.Type.VALUES)),
                                                                   "indexe1",
@@ -342,6 +370,7 @@ public class SchemaLoader
 
     private static void useCompression(List<KeyspaceMetadata> schema)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         for (KeyspaceMetadata ksm : schema)
             for (TableMetadata cfm : ksm.tablesAndViews())
                 MigrationManager.announceTableUpdate(cfm.unbuild().compression(CompressionParams.snappy()).build(), true);
@@ -420,6 +449,7 @@ public class SchemaLoader
                             .addPartitionKeyColumn("key", AsciiType.instance)
                             .addClusteringColumn("cols", comp)
                             .addRegularColumn("val", AsciiType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                             .compression(getCompressionParameters());
     }
 
@@ -452,6 +482,8 @@ public class SchemaLoader
                          .addClusteringColumn("c1", AsciiType.instance)
                          .addRegularColumn("birthdate", LongType.instance)
                          .addRegularColumn("notbirthdate", LongType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
                          .addStaticColumn("static", LongType.instance)
                          .compression(getCompressionParameters());
 
@@ -566,6 +598,8 @@ public class SchemaLoader
     {
         return TableMetadata.builder(ksName, cfName)
                             .addPartitionKeyColumn("key", BytesType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                             .compression(getCompressionParameters());
     }
 
@@ -637,6 +671,7 @@ public class SchemaLoader
                     {{
                         put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
                         put(IndexTarget.TARGET_OPTION_NAME, "comment_suffix_split");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                         put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
                         put("analyzed", "false");
                     }}))
@@ -667,6 +702,7 @@ public class SchemaLoader
 
 public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfName)
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11397
     return clusteringSASICFMD(ksName, cfName, "location", "age", "height", "score");
 }
 
@@ -689,6 +725,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
                             .addClusteringColumn("age", Int32Type.instance)
                             .addRegularColumn("height", Int32Type.instance)
                             .addRegularColumn("score", DoubleType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12378
                             .addStaticColumn("nickname", UTF8Type.instance)
                             .indexes(indexes.build());
     }
@@ -786,6 +823,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
         mkdirs();
         cleanup();
         mkdirs();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
         CommitLog.instance.restartUnsafe();
     }
 
@@ -800,6 +838,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
 
             // Leave the folder around as Windows will complain about directory deletion w/handles open to children files
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
             String[] children = dir.list();
             for (String child : children)
                 FileUtils.deleteRecursive(new File(dir, child));
@@ -813,6 +852,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
             File dir = new File(dirName);
             if (!dir.exists())
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
             String[] children = dir.list();
             for (String child : children)
                 FileUtils.deleteRecursive(new File(dir, child));
@@ -821,6 +861,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     public static void mkdirs()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         DatabaseDescriptor.createAllDirectories();
     }
 
@@ -831,6 +872,8 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             RowUpdateBuilder builder = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), ByteBufferUtil.bytes("key"+i));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
             if (cfm.clusteringColumns() != null && !cfm.clusteringColumns().isEmpty())
                 builder.clustering(ByteBufferUtil.bytes("col"+ i)).add("val", ByteBufferUtil.bytes("val" + i));
             else

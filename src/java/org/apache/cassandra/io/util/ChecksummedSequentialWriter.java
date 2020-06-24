@@ -24,6 +24,7 @@ import java.util.Optional;
 public class ChecksummedSequentialWriter extends SequentialWriter
 {
     private static final SequentialWriterOption CRC_WRITER_OPTION = SequentialWriterOption.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
                                                                                           .bufferSize(8 * 1024)
                                                                                           .build();
 
@@ -47,6 +48,7 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         ByteBuffer toAppend = buffer.duplicate();
         toAppend.position(0);
         toAppend.limit(buffer.position());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
         crcMetadata.appendDirect(toAppend, false);
     }
 
@@ -55,6 +57,7 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         @Override
         protected Throwable doCommit(Throwable accumulate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
             return super.doCommit(crcWriter.commit(accumulate));
         }
 
@@ -68,6 +71,7 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         protected void doPrepare()
         {
             syncInternal();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             digestFile.ifPresent(crcMetadata::writeFullChecksum);
             crcWriter.prepareToCommit();
         }

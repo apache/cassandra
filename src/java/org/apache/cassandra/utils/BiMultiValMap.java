@@ -141,6 +141,7 @@ public class BiMultiValMap<K, V> implements Map<K, V>
 
     public Collection<V> valueSet()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7478
         return reverseMap.keySet();
     }
 }

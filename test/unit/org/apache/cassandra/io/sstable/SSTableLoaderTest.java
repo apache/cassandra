@@ -70,7 +70,9 @@ public class SSTableLoaderTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
         SchemaLoader.createKeyspace(KEYSPACE2,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                 KeyspaceParams.simple(1),
                 SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1),
                 SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD2));
@@ -87,6 +89,7 @@ public class SSTableLoaderTest
     @After
     public void cleanup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10210
         try {
             FileUtils.deleteRecursive(tmpdir);
         } catch (FSWriteError e) {
@@ -137,6 +140,9 @@ public class SSTableLoaderTest
             writer.addRow("key1", "col1", "100");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
 
@@ -166,6 +172,8 @@ public class SSTableLoaderTest
         //make sure we have no tables...
         assertTrue(dataDir.listFiles().length == 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
         String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
 
@@ -178,17 +186,21 @@ public class SSTableLoaderTest
 
         int NB_PARTITIONS = 5000; // Enough to write >1MB and get at least one completed sstable before we've closed the writer
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
         for (int i = 0; i < NB_PARTITIONS; i++)
         {
             for (int j = 0; j < 100; j++)
                 writer.addRow(String.format("key%d", i), String.format("col%d", j), "100");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2);
         cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
 
         //make sure we have some tables...
         assertTrue(dataDir.listFiles().length > 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
 
         final CountDownLatch latch = new CountDownLatch(2);
         //writer is still open so loader should not load anything
@@ -196,17 +208,22 @@ public class SSTableLoaderTest
         loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
 
         List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
 
         assertTrue(partitions.size() > 0 && partitions.size() < NB_PARTITIONS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
 
         // now we complete the write and the second loader should load the last sstable as well
         writer.close();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
         loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
 
         partitions = Util.getAll(Util.cmd(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2)).build());
         assertEquals(NB_PARTITIONS, partitions.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
@@ -216,6 +233,7 @@ public class SSTableLoaderTest
     @Test
     public void testLoadingSSTableToDifferentKeyspace() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
         File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + KEYSPACE1 + File.separator + CF_STANDARD1);
         assert dataDir.mkdirs();
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);

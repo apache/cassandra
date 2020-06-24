@@ -28,6 +28,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class Rebuild extends NodeToolCmd
 {
     @Arguments(usage = "<src-dc-name>",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
                description = "Name of DC from which to select sources for streaming. By default, pick any DC")
     private String sourceDataCenterName = null;
 
@@ -42,6 +43,7 @@ public class Rebuild extends NodeToolCmd
     private String tokens = null;
 
     @Option(title = "specific_sources",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9875
             name = {"-s", "--sources"},
             description = "Use -s to specify hosts that this node should stream from when -ts is used. Multiple hosts should be separated using commas (e.g. 127.0.0.1,127.0.0.2,...)")
     private String specificSources = null;
@@ -55,6 +57,7 @@ public class Rebuild extends NodeToolCmd
             throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9875
         probe.rebuild(sourceDataCenterName, keyspace, tokens, specificSources);
     }
 }

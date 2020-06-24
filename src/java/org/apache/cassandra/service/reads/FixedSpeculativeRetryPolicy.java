@@ -33,6 +33,7 @@ public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 
     private final int speculateAtMilliseconds;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
     FixedSpeculativeRetryPolicy(int speculateAtMilliseconds)
     {
         this.speculateAtMilliseconds = speculateAtMilliseconds;
@@ -74,6 +75,7 @@ public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     static FixedSpeculativeRetryPolicy fromString(String str)
     {
         Matcher matcher = PATTERN.matcher(str);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
 
         if (!matcher.matches())
             throw new IllegalArgumentException();

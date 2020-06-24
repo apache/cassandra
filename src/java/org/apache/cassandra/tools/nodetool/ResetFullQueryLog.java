@@ -28,6 +28,7 @@ public class ResetFullQueryLog extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         probe.resetFullQueryLogger();
     }
 }

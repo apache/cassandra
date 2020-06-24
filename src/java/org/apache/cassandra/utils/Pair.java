@@ -67,6 +67,7 @@ public class Pair<T1, T2>
 
     public static <X, Y> Pair<X, Y> create(X x, Y y)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-678
         return new Pair<X, Y>(x, y);
     }
 }

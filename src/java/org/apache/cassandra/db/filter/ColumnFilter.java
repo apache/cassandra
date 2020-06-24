@@ -72,6 +72,7 @@ public class ColumnFilter
     // True if _fetched_ includes all regular columns (and any static in _queried_), in which case metadata must not be
     // null. If false, then _fetched_ == _queried_ and we only store _queried_.
     final boolean fetchAllRegulars;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13650
 
     final RegularAndStaticColumns fetched;
     final RegularAndStaticColumns queried; // can be null if fetchAllRegulars, to represent a wildcard query (all
@@ -91,6 +92,7 @@ public class ColumnFilter
         {
             RegularAndStaticColumns all = metadata.regularAndStaticColumns();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13650
             this.fetched = (all.statics.isEmpty() || queried == null)
                            ? all
                            : new RegularAndStaticColumns(queried.statics, all.regulars);
@@ -146,6 +148,8 @@ public class ColumnFilter
      */
     public static ColumnFilter selection(TableMetadata metadata, RegularAndStaticColumns queried)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
         return new ColumnFilter(true, metadata, queried, null);
     }
 
@@ -156,6 +160,7 @@ public class ColumnFilter
      */
     public RegularAndStaticColumns fetchedColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
         return fetched;
     }
 
@@ -166,6 +171,7 @@ public class ColumnFilter
      */
     public RegularAndStaticColumns queriedColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13650
         return queried == null ? fetched : queried;
     }
 
@@ -242,6 +248,7 @@ public class ColumnFilter
             return true;
 
         for (ColumnSubselection subSel : s)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             if (subSel.compareInclusionOf(path) == 0)
                 return true;
 
@@ -278,6 +285,7 @@ public class ColumnFilter
      */
     public Iterator<Cell> filterComplexCells(ColumnMetadata column, Iterator<Cell> cells)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         Tester tester = newTester(column);
         if (tester == null)
             return cells;
@@ -380,6 +388,7 @@ public class ColumnFilter
 
         public Builder add(ColumnMetadata c)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             if (c.isComplex() && c.type.isMultiCell())
             {
                 if (fullySelectedComplexColumns == null)
@@ -441,9 +450,11 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
                 for (ColumnSubselection subSelection : subSelections)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                     if (fullySelectedComplexColumns == null || !fullySelectedComplexColumns.contains(subSelection.column()))
                         s.put(subSelection.column().name, subSelection);
                 }
@@ -456,6 +467,7 @@ public class ColumnFilter
     @Override
     public boolean equals(Object other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
         if (other == this)
             return true;
 
@@ -480,6 +492,7 @@ public class ColumnFilter
             return "";
 
         Iterator<ColumnMetadata> defs = queried.selectOrderIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         if (!defs.hasNext())
             return "<none>";
 
@@ -555,6 +568,7 @@ public class ColumnFilter
 
             if (version >= MessagingService.VERSION_3014 && selection.fetchAllRegulars)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
                 Columns.serializer.serialize(selection.fetched.statics, out);
                 Columns.serializer.serialize(selection.fetched.regulars, out);
             }
@@ -567,6 +581,7 @@ public class ColumnFilter
 
             if (selection.subSelections != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                 out.writeUnsignedVInt(selection.subSelections.size());
                 for (ColumnSubselection subSel : selection.subSelections.values())
                     ColumnSubselection.serializer.serialize(subSel, out, version);
@@ -583,6 +598,7 @@ public class ColumnFilter
             RegularAndStaticColumns fetched = null;
             RegularAndStaticColumns queried = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
             if (isFetchAll)
             {
                 if (version >= MessagingService.VERSION_3014)
@@ -607,6 +623,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
             if (hasSubSelections)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
                 int size = (int)in.readUnsignedVInt();
                 for (int i = 0; i < size; i++)
@@ -636,6 +653,7 @@ public class ColumnFilter
 
             if (version >= MessagingService.VERSION_3014 && selection.fetchAllRegulars)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
                 size += Columns.serializer.serializedSize(selection.fetched.statics);
                 size += Columns.serializer.serializedSize(selection.fetched.regulars);
             }
@@ -649,6 +667,7 @@ public class ColumnFilter
             if (selection.subSelections != null)
             {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                 size += TypeSizes.sizeofUnsignedVInt(selection.subSelections.size());
                 for (ColumnSubselection subSel : selection.subSelections.values())
                     size += ColumnSubselection.serializer.serializedSize(subSel, version);

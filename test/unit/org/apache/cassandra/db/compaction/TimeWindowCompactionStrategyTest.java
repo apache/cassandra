@@ -63,6 +63,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         System.setProperty(TimeWindowCompactionStrategyOptions.UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_PROPERTY, "true");
 
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -193,6 +194,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             buckets.put(bounds.left, sstrs.get(i));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
         TimeWindowCompactionStrategy.NewestBucket newBucket = newestBucket(buckets, 4, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left );
         assertTrue("incoming bucket should not be accepted when it has below the min threshold SSTables", newBucket.sstables.isEmpty());
         assertEquals("there should be no estimated remaining tasks when bucket is below min threshold SSTables", 0, newBucket.estimatedRemainingTasks);
@@ -237,6 +239,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         newBucket = newestBucket(buckets, 4, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left);
         assertEquals("new bucket should be trimmed to max threshold of 32", newBucket.sstables.size(),  32);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
 
         // one per bucket because they are all eligible and one more for the sstables that were trimmed
         assertEquals("there should be one estimated remaining task per eligible bucket", buckets.keySet().size() + 1, newBucket.estimatedRemainingTasks);

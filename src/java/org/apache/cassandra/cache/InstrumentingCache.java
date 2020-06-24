@@ -34,6 +34,7 @@ public class InstrumentingCache<K, V>
     public InstrumentingCache(String type, ICache<K, V> map)
     {
         this.map = map;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
         this.type = type;
         this.metrics = new CacheMetrics(type, map);
     }
@@ -58,6 +59,7 @@ public class InstrumentingCache<K, V>
         V v = map.get(key);
         if (v != null)
             metrics.hits.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14628
         else
             metrics.misses.mark();
         return v;
@@ -65,6 +67,7 @@ public class InstrumentingCache<K, V>
 
     public V getInternal(K key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-770
         return map.get(key);
     }
 
@@ -75,11 +78,14 @@ public class InstrumentingCache<K, V>
 
     public long getCapacity()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-975
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return map.capacity();
     }
 
     public void setCapacity(long capacity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         map.setCapacity(capacity);
     }
 
@@ -96,11 +102,13 @@ public class InstrumentingCache<K, V>
     public void clear()
     {
         map.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
         metrics = new CacheMetrics(type, map);
     }
 
     public Iterator<K> keyIterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         return map.keyIterator();
     }
 
@@ -111,11 +119,13 @@ public class InstrumentingCache<K, V>
 
     public boolean containsKey(K key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3143
         return map.containsKey(key);
     }
 
     public CacheMetrics getMetrics()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
         return metrics;
     }
 }

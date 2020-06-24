@@ -41,6 +41,7 @@ public class FieldIdentifier
      */
     public static FieldIdentifier forUnquoted(String text)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         return new FieldIdentifier(convert(text == null ? null : text.toLowerCase(Locale.US)));
     }
 

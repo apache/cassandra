@@ -39,6 +39,7 @@ public class DynamicEndpointSnitchTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -47,6 +48,7 @@ public class DynamicEndpointSnitchTest
         for (int round = 0; round < rounds; round++)
         {
             for (int i = 0; i < hosts.size(); i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 dsnitch.receiveTiming(hosts.get(i), scores[i], MILLISECONDS);
         }
         Thread.sleep(150);
@@ -66,9 +68,11 @@ public class DynamicEndpointSnitchTest
     public void testSnitch() throws InterruptedException, IOException, ConfigurationException
     {
         // do this because SS needs to be initialized before DES can work properly.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
         StorageService.instance.unsafeInitialize();
         SimpleSnitch ss = new SimpleSnitch();
         DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort host1 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort host2 = InetAddressAndPort.getByName("127.0.0.3");
@@ -80,6 +84,7 @@ public class DynamicEndpointSnitchTest
         setScores(dsnitch, 1, hosts, 10, 10, 10);
         EndpointsForRange order = full(host1, host2, host3);
         Util.assertRCEquals(order, dsnitch.sortedByProximity(self, full(host1, host2, host3)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
 
         // make host1 a little worse
         setScores(dsnitch, 1, hosts, 20, 10, 10);

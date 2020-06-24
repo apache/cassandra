@@ -96,6 +96,7 @@ public class CassandraStreamManager implements TableStreamManager
                 Predicate<SSTableReader> predicate;
                 if (previewKind.isPreview())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
                     predicate = previewKind.predicate();
                 }
                 else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
@@ -127,6 +128,7 @@ public class CassandraStreamManager implements TableStreamManager
             }).refs);
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());
             //Create outgoing file streams for ranges possibly skipping repaired ranges in sstables
@@ -142,6 +144,7 @@ public class CassandraStreamManager implements TableStreamManager
                     ref.release();
                     continue;
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                 streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, ranges,
                                                       sstable.estimatedKeysForRanges(ranges)));
             }

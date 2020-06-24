@@ -63,6 +63,7 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = new AuditLogOptions();
         options.enabled = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         DatabaseDescriptor.setAuditLoggingOptions(options);
         requireNetwork();
@@ -78,6 +79,7 @@ public class AuditLoggerTest extends CQLTester
     @After
     public void afterTestMethod()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         disableAuditLogOptions();
     }
 
@@ -91,6 +93,7 @@ public class AuditLoggerTest extends CQLTester
         String includedUsers = options.included_users;
         String excludedUsers = options.excluded_users;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         StorageService.instance.enableAuditLog(loggerName, null, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
 
@@ -153,6 +156,7 @@ public class AuditLoggerTest extends CQLTester
         String cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
         ResultSet rs = executeAndAssertNoAuditLog(cql, 1);
         assertEquals(1, rs.all().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertEquals(1, QueryEvents.instance.listenerCount());
         assertEquals(1, AuthEvents.instance.listenerCount());
         disableAuditLogOptions();
@@ -165,6 +169,8 @@ public class AuditLoggerTest extends CQLTester
 
         options = new AuditLogOptions();
         options.included_keyspaces = KEYSPACE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
 
@@ -183,8 +189,12 @@ public class AuditLoggerTest extends CQLTester
     public void testAuditLogExceptions()
     {
         AuditLogOptions options = new AuditLogOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         options.excluded_keyspaces += ',' + KEYSPACE;
         enableAuditLogOptions(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         Assert.assertTrue(AuditLogManager.instance.isEnabled());
     }
 
@@ -206,6 +216,7 @@ public class AuditLoggerTest extends CQLTester
         Session session = sessionNet();
         ResultSet rs = session.execute(cql);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertEquals(0, ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
         assertEquals(1, rs.all().size());
 
@@ -289,6 +300,7 @@ public class AuditLoggerTest extends CQLTester
 
         String cqlInsert = "INSERT INTO " + KEYSPACE + "." + currentTable() + " (id, v1, v2) VALUES (?, ?, ?)";
         PreparedStatement prep = session.prepare(cqlInsert);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cqlInsert, AuditLogEntryType.PREPARE_STATEMENT, logEntry, false);
 
@@ -297,6 +309,7 @@ public class AuditLoggerTest extends CQLTester
 
         String cqlUpdate = "UPDATE " + KEYSPACE + "." + currentTable() + " SET v1 = ? WHERE id = ?";
         prep = session.prepare(cqlUpdate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cqlUpdate, AuditLogEntryType.PREPARE_STATEMENT, logEntry, false);
 
@@ -314,6 +327,7 @@ public class AuditLoggerTest extends CQLTester
         assertEquals(5, ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
         logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14901
         assertEquals(AuditLogEntryType.BATCH, logEntry.getType());
         assertTrue(logEntry.getOperation().contains("BatchId"));
         assertNotEquals(0, logEntry.getTimestamp());
@@ -347,6 +361,7 @@ public class AuditLoggerTest extends CQLTester
 
         String cqlInsert1 = "INSERT INTO " + KEYSPACE + "." + table1 + " (id, v1, v2) VALUES (?, ?, ?)";
         PreparedStatement prep = session.prepare(cqlInsert1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cqlInsert1, AuditLogEntryType.PREPARE_STATEMENT, logEntry, false);
 
@@ -357,6 +372,7 @@ public class AuditLoggerTest extends CQLTester
 
         String cqlInsert2 = "INSERT INTO " + KEYSPACE + "." + table2 + " (id, v1, v2) VALUES (?, ?, ?)";
         prep = session.prepare(cqlInsert2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cqlInsert2, AuditLogEntryType.PREPARE_STATEMENT, logEntry, false);
 
@@ -370,6 +386,7 @@ public class AuditLoggerTest extends CQLTester
 
         String cqlInsert3 = "INSERT INTO " + ks2 + "." + table3 + " (id, v1, v2) VALUES (?, ?, ?)";
         prep = session.prepare(cqlInsert3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cqlInsert3, AuditLogEntryType.PREPARE_STATEMENT, logEntry, false, ks2);
 
@@ -576,6 +593,7 @@ public class AuditLoggerTest extends CQLTester
             Session session = sessionNet();
 
             PreparedStatement pstmt = session.prepare(cql);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
             assertLogEntry(cql, AuditLogEntryType.PREPARE_STATEMENT, logEntry, false);
 
@@ -588,6 +606,7 @@ public class AuditLoggerTest extends CQLTester
             // nop
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(logEntry, null);
         logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
@@ -611,8 +630,12 @@ public class AuditLoggerTest extends CQLTester
         {
             // nop
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(logEntry, cql);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertEquals(0, ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
     }
 
@@ -621,6 +644,7 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = new AuditLogOptions();
         options.included_categories = "QUERY,DML,PREPARE";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         options.excluded_keyspaces = "system_schema,system_virtual_schema";
         enableAuditLogOptions(options);
 
@@ -628,6 +652,7 @@ public class AuditLoggerTest extends CQLTester
         String cql = "SELECT * FROM system.local limit 2";
         ResultSet rs = session.execute(cql);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertEquals (1,((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
         AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cql, "local",AuditLogEntryType.SELECT,logEntry,false, "system");
@@ -639,6 +664,7 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = new AuditLogOptions();
         options.included_categories = "QUERY,DML,PREPARE";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         options.excluded_keyspaces = "system,system_schema,system_virtual_schema";
         enableAuditLogOptions(options);
 
@@ -646,6 +672,7 @@ public class AuditLoggerTest extends CQLTester
         String cql = "SELECT * FROM system.local limit 2";
         ResultSet rs = session.execute(cql);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertEquals (0,((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
     }
 
@@ -678,6 +705,7 @@ public class AuditLoggerTest extends CQLTester
         disableAuditLogOptions();
         AuditLogOptions options = new AuditLogOptions();
         DatabaseDescriptor.setAuditLoggingOptions(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         StorageService.instance.enableAuditLog(null, null, options.included_keyspaces, options.excluded_keyspaces, options.included_categories, options.excluded_categories, options.included_users, options.excluded_users);
         try
         {
@@ -706,6 +734,7 @@ public class AuditLoggerTest extends CQLTester
         {
             assertEquals(1, QueryEvents.instance.listenerCount());
             assertEquals(0, AuthEvents.instance.listenerCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
             StorageService.instance.enableAuditLog(null, null, options.included_keyspaces, options.excluded_keyspaces, options.included_categories, options.excluded_categories, options.included_users, options.excluded_users);
             fail("Conflicting directories - should throw exception");
         }
@@ -732,6 +761,7 @@ public class AuditLoggerTest extends CQLTester
 
         ResultSet rs = session.execute(cql);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry logEntry1 = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cql, type, logEntry1, isTableNull, keyspace);
 
@@ -751,6 +781,7 @@ public class AuditLoggerTest extends CQLTester
         PreparedStatement pstmt = session.prepare(cql);
         ResultSet rs = session.execute(pstmt.bind(bindValues));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogEntry logEntry1 = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(cql, AuditLogEntryType.PREPARE_STATEMENT, logEntry1, isTableNull);
 
@@ -768,6 +799,7 @@ public class AuditLoggerTest extends CQLTester
         PreparedStatement pstmt = session.prepare(cql);
         ResultSet rs = session.execute(pstmt.bind(bindValues));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertEquals(0, ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
         return rs;
     }
@@ -779,6 +811,7 @@ public class AuditLoggerTest extends CQLTester
         PreparedStatement pstmt = session.prepare(cql);
         ResultSet rs = session.execute(pstmt.bind(bindValues));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertThat(AuditLogManager.instance.getLogger(),instanceOf(NoOpAuditLogger.class));
         return rs;
     }

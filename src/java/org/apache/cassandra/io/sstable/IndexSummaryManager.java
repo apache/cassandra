@@ -75,6 +75,8 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     static
     {
         instance = new IndexSummaryManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
 
@@ -147,6 +149,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     public Map<String, Integer> getIndexIntervals()
     {
         List<SSTableReader> sstables = getAllSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         Map<String, Integer> intervals = new HashMap<>(sstables.size());
         for (SSTableReader sstable : sstables)
             intervals.put(sstable.getFilename(), (int) Math.round(sstable.getEffectiveIndexInterval()));
@@ -186,6 +189,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         for (Keyspace ks : Keyspace.all())
         {
             for (ColumnFamilyStore cfStore: ks.getColumnFamilyStores())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 result.addAll(cfStore.getLiveSSTables());
         }
 
@@ -213,6 +217,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                 do
                 {
                     View view = cfStore.getTracker().getView();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
                     allSSTables = ImmutableSet.copyOf(view.select(SSTableSet.CANONICAL));
                     nonCompacting = ImmutableSet.copyOf(view.getUncompacting(allSSTables));
                 }
@@ -228,6 +233,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
 
     public void redistributeSummaries() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         if (CompactionManager.instance.isGlobalCompactionPaused())
             return;
         Pair<Long, Map<TableId, LifecycleTransaction>> redistributionTransactionInfo = getRestributionTransactions();
@@ -239,6 +245,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                                                                  nonRedistributingOffHeapSize,
                                                                  this.memoryPoolBytes));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15045
         catch (Exception e)
         {
             if (!(e instanceof CompactionInterruptedException))
@@ -269,12 +276,15 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     @VisibleForTesting
     public static List<SSTableReader> redistributeSummaries(IndexSummaryRedistribution redistribution) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12218
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12808
         return CompactionManager.instance.runIndexSummaryRedistribution(redistribution);
     }
 
     @VisibleForTesting
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

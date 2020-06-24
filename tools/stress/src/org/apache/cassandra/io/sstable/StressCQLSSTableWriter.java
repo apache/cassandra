@@ -104,6 +104,7 @@ public class StressCQLSSTableWriter implements Closeable
     {
         DatabaseDescriptor.clientInitialization(false);
         // Partitioner is not set in client mode.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12677
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
@@ -245,6 +246,7 @@ public class StressCQLSSTableWriter implements Closeable
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
         SortedSet<Clustering> clusterings = insert.createClustering(options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         long now = System.currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
@@ -317,6 +319,7 @@ public class StressCQLSSTableWriter implements Closeable
         if (value == null || value == UNSET_VALUE)
             return (ByteBuffer) value;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
         return codec.serialize(value, ProtocolVersion.CURRENT);
     }
     /**
@@ -415,6 +418,7 @@ public class StressCQLSSTableWriter implements Closeable
 
         public Builder withType(String typeDefinition) throws SyntaxException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             typeStatements.add(parseStatement(typeDefinition, CreateTypeStatement.Raw.class, "CREATE TYPE"));
             return this;
         }
@@ -435,6 +439,7 @@ public class StressCQLSSTableWriter implements Closeable
          */
         public Builder forTable(String schema)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             this.schemaStatement = parseStatement(schema, CreateTableStatement.Raw.class, "CREATE TABLE");
             return this;
         }
@@ -552,6 +557,7 @@ public class StressCQLSSTableWriter implements Closeable
                 if (partitioner == null)
                     partitioner = cfs.getPartitioner();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 UpdateStatement preparedInsert = prepareInsert();
                 AbstractSSTableSimpleWriter writer = sorted
                                                      ? new SSTableSimpleWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.updatedColumns())
@@ -579,6 +585,7 @@ public class StressCQLSSTableWriter implements Closeable
 
         public static ColumnFamilyStore createOfflineTable(String schema, List<File> directoryList)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return createOfflineTable(parseStatement(schema, CreateTableStatement.Raw.class, "CREATE TABLE"), Collections.EMPTY_LIST, directoryList);
         }
 
@@ -597,6 +604,7 @@ public class StressCQLSSTableWriter implements Closeable
 
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             TableMetadata tableMetadata = ksm.tables.getNullable(schemaStatement.table());
             if (tableMetadata != null)
                 return Schema.instance.getColumnFamilyStoreInstance(tableMetadata.id);
@@ -634,6 +642,7 @@ public class StressCQLSSTableWriter implements Closeable
          */
         private UpdateStatement prepareInsert()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             ClientState state = ClientState.forInternalCalls();
             CQLStatement cqlStatement = insertStatement.prepare(state);
             UpdateStatement insert = (UpdateStatement) cqlStatement;

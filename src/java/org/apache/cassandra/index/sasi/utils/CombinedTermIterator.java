@@ -82,6 +82,7 @@ public class CombinedTermIterator extends TermIterator
         else
         {
             CombinedTerm term = union.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
             return Pair.create(new IndexedTerm(term.getTerm(), term.isPartial()), term.getTokenTreeBuilder());
         }
 

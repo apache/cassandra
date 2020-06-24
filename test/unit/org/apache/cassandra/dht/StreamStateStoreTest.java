@@ -42,6 +42,7 @@ public class StreamStateStoreTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -54,7 +55,9 @@ public class StreamStateStoreTest
         Token.TokenFactory factory = p.getTokenFactory();
         Range<Token> range = new Range<>(factory.fromString("0"), factory.fromString("100"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, local, new DefaultConnectionFactory(), false, 0, null, PreviewKind.NONE);
         session.addStreamRequest("keyspace1", RangesAtEndpoint.toDummyList(Collections.singleton(range)), RangesAtEndpoint.toDummyList(Collections.emptyList()), Collections.singleton("cf"));
 
@@ -76,6 +79,7 @@ public class StreamStateStoreTest
 
         // add different range within the same keyspace
         Range<Token> range2 = new Range<>(factory.fromString("100"), factory.fromString("200"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         session = new StreamSession(StreamOperation.BOOTSTRAP, local, new DefaultConnectionFactory(), false, 0, null, PreviewKind.NONE);
         session.addStreamRequest("keyspace1", RangesAtEndpoint.toDummyList(Collections.singleton(range2)), RangesAtEndpoint.toDummyList(Collections.emptyList()), Collections.singleton("cf"));
         session.state(StreamSession.State.COMPLETE);

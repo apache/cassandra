@@ -45,6 +45,7 @@ public class SSTableUtils
 
     public SSTableUtils(String ksname, String cfname)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         KEYSPACENAME = ksname;
         CFNAME = cfname;
     }
@@ -58,6 +59,7 @@ public class SSTableUtils
     public static ColumnFamily createCF(String ksname, String cfname, long mfda, int ldt, Cell... cols)
     {
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(ksname, cfname);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3708
         cf.delete(new DeletionInfo(mfda, ldt));
         for (Cell col : cols)
             cf.addColumn(col);
@@ -72,6 +74,7 @@ public class SSTableUtils
 
     public static File tempSSTableFile(String keyspaceName, String cfname, int generation) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tempdir = FileUtils.createTempFile(keyspaceName, cfname);
         if(!tempdir.delete() || !tempdir.mkdir())
             throw new IOException("Temporary directory creation failed.");
@@ -79,6 +82,7 @@ public class SSTableUtils
         File cfDir = new File(tempdir, keyspaceName + File.separator + cfname);
         cfDir.mkdirs();
         cfDir.deleteOnExit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         File datafile = new File(new Descriptor(cfDir, keyspaceName, cfname, generation, SSTableFormat.Type.BIG).filenameFor(Component.DATA));
         if (!datafile.createNewFile())
             throw new IOException("unable to create file " + datafile);
@@ -88,11 +92,13 @@ public class SSTableUtils
 
     public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
         try (ISSTableScanner slhs = lhs.getScanner();
              ISSTableScanner srhs = rhs.getScanner())
         {
             while (slhs.hasNext())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 UnfilteredRowIterator ilhs = slhs.next();
                 assert srhs.hasNext() : "LHS contained more rows than RHS";
                 UnfilteredRowIterator irhs = srhs.next();
@@ -218,6 +224,7 @@ public class SSTableUtils
             File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
             TableMetadata metadata = Schema.instance.getTableMetadata(ksname, cfname);
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
             SerializationHeader header = appender.header();
             SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFilename(datafile.getAbsolutePath()), expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, 0, header);
             while (appender.append(writer)) { /* pass */ }

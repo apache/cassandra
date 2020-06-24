@@ -72,6 +72,7 @@ public class StreamRequestTest
                 StreamRequest decoded = StreamRequest.serializer.deserialize(in, version);
 
                 Assert.assertEquals(orig.keyspace, decoded.keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
                 Util.assertRCEquals(orig.full, decoded.full);
                 Util.assertRCEquals(orig.transientReplicas, decoded.transientReplicas);
                 Assert.assertEquals(orig.columnFamilies, decoded.columnFamilies);

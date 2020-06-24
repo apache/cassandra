@@ -32,6 +32,7 @@ public interface IResource
      * @return printable name of the resource.
      */
     String getName();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
 
     /**
      * Gets next resource in the hierarchy. Call hasParent first to make sure there is one.
@@ -64,5 +65,6 @@ public interface IResource
      *
      * @return the permissions that may be granted on the specific resource
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     Set<Permission> applicablePermissions();
 }

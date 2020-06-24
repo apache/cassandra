@@ -399,11 +399,13 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
 
         public boolean deletes(Cell cell)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
             return time.deletes(cell);
         }
 
         public void digest(Digest digest)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             time.digest(digest);
             digest.updateWithBoolean(isShadowable);
         }
@@ -668,6 +670,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             clustering = row.clustering();
             rows[i] = row;
             ++rowsToMerge;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             lastRowSet = i;
         }
 
@@ -722,6 +725,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
             return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
                  ? null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
                  : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.<ColumnData>noOp()));
         }
 
@@ -777,6 +781,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 if (column == null)
                     return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
                 return ColumnMetadataVersionComparator.INSTANCE.compare(column, dataColumn) < 0;
             }
 
@@ -786,6 +791,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 if (column.isSimple())
                 {
                     Cell merged = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
                     for (int i=0, isize=versions.size(); i<isize; i++)
                     {
                         Cell cell = (Cell) versions.get(i);
@@ -799,6 +805,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                     complexBuilder.newColumn(column);
                     complexCells.clear();
                     DeletionTime complexDeletion = DeletionTime.LIVE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
                     for (int i=0, isize=versions.size(); i<isize; i++)
                     {
                         ColumnData data = versions.get(i);
@@ -818,6 +825,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                         cellReducer.setActiveDeletion(activeDeletion);
                     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10001
                     Iterator<Cell> cells = MergeIterator.get(complexCells, Cell.comparator, cellReducer);
                     while (cells.hasNext())
                     {

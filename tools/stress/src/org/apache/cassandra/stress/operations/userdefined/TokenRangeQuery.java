@@ -230,6 +230,7 @@ public class TokenRangeQuery extends Operation
 
         if (tokenRangeIterator.exhausted() && currentState.get() == null)
             return 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
 
         int numLeft = workManager.takePermits(1);
 

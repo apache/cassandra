@@ -49,7 +49,9 @@ public class TombstonesTest extends CQLTester
     @BeforeClass
     public static void setUp() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
         DatabaseDescriptor.setTombstoneFailureThreshold(FAILURE_THRESHOLD);
         DatabaseDescriptor.setTombstoneWarnThreshold(WARN_THRESHOLD);
     }
@@ -89,6 +91,7 @@ public class TombstonesTest extends CQLTester
     @Test
     public void testBeyondThresholdSelect() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
         String tableName = createTable("CREATE TABLE %s (a text, b text, c text, PRIMARY KEY (a, b));");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
         long oldFailures = cfs.metric.tombstoneFailures.getCount();
@@ -105,7 +108,9 @@ public class TombstonesTest extends CQLTester
         }
         catch (Throwable e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9432
             String error = "Expected exception instanceof TombstoneOverwhelmingException instead got "
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
                            + System.lineSeparator()
                            + Throwables.getStackTraceAsString(e);
             assertTrue(error, e instanceof TombstoneOverwhelmingException);
@@ -144,6 +149,7 @@ public class TombstonesTest extends CQLTester
     @Test
     public void testLiveShadowedCellsSelect() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
         String tableName = createTable("CREATE TABLE %s (a text, b text, c text, PRIMARY KEY (a, b));");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
         long oldFailures = cfs.metric.tombstoneFailures.getCount();
@@ -170,6 +176,7 @@ public class TombstonesTest extends CQLTester
     @Test
     public void testExpiredTombstones() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
         String tableName = createTable("CREATE TABLE %s (a text, b text, c text, PRIMARY KEY (a, b)) WITH gc_grace_seconds = 1;");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
         long oldFailures = cfs.metric.tombstoneFailures.getCount();
@@ -188,6 +195,7 @@ public class TombstonesTest extends CQLTester
         {
             assertTrue(e instanceof TombstoneOverwhelmingException);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
             assertEquals(++oldFailures, cfs.metric.tombstoneFailures.getCount());
             assertEquals(oldWarnings, cfs.metric.tombstoneWarnings.getCount());
         }
@@ -199,6 +207,9 @@ public class TombstonesTest extends CQLTester
         try
         {
             execute("SELECT * FROM %s WHERE a = 'key';");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
             assertEquals(oldFailures, cfs.metric.tombstoneFailures.getCount());
             assertEquals(oldWarnings, cfs.metric.tombstoneWarnings.getCount());
         }

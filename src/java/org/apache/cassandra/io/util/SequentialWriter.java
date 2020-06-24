@@ -96,6 +96,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
         protected Throwable doAbort(Throwable accumulate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
             return accumulate;
         }
     }
@@ -107,6 +108,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         {
             if (file.exists())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
                 return FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
             }
             else
@@ -118,6 +120,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
                 }
                 catch (Throwable t)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
                     try { channel.close(); }
                     catch (Throwable t2) { t.addSuppressed(t2); }
                 }
@@ -137,6 +140,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public SequentialWriter(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
        this(file, SequentialWriterOption.DEFAULT);
     }
 
@@ -148,6 +152,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public SequentialWriter(File file, SequentialWriterOption option)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         this(file, option, true);
     }
 
@@ -170,6 +175,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     public void skipBytes(int numBytes) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         flush();
         fchannel.position(fchannel.position() + numBytes);
         bufferOffset = fchannel.position();
@@ -185,8 +191,10 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     protected void syncDataOnlyInternal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             SyncUtil.force(fchannel, false);
         }
         catch (IOException e)
@@ -202,6 +210,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     protected void syncInternal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
         doFlush(0);
         syncDataOnlyInternal();
     }
@@ -211,8 +220,10 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     {
         flushData();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         if (option.trickleFsync())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
             bytesSinceTrickleFsync += buffer.position();
             if (bytesSinceTrickleFsync >= option.trickleFsyncByteInterval())
             {
@@ -227,6 +238,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     public void setPostFlushListener(Runnable runPostFlush)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8747
         assert this.runPostFlush == null;
         this.runPostFlush = runPostFlush;
     }
@@ -239,6 +251,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
             buffer.flip();
             channel.write(buffer);
             lastFlushOffset += buffer.position();
@@ -247,17 +260,20 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         {
             throw new FSWriteError(e, getPath());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8747
         if (runPostFlush != null)
             runPostFlush.run();
     }
 
     public boolean hasPosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10314
         return true;
     }
 
     public long position()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         return current();
     }
 
@@ -272,18 +288,22 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public long getOnDiskFilePointer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
         return position();
     }
 
     public long getEstimatedOnDiskBytesWritten()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         return getOnDiskFilePointer();
     }
 
     public long length()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             return Math.max(current(), fchannel.size());
         }
         catch (IOException e)
@@ -299,6 +319,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     protected void resetBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         bufferOffset = current();
         buffer.clear();
     }
@@ -338,8 +359,10 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         // truncate file to given position
         truncate(truncateTarget);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             fchannel.position(truncateTarget);
         }
         catch (IOException e)
@@ -347,20 +370,26 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             throw new FSReadError(e, getPath());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         bufferOffset = truncateTarget;
         resetBuffer();
     }
 
     public long getLastFlushOffset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         return lastFlushOffset;
     }
 
     public void truncate(long toSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             fchannel.truncate(toSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             lastFlushOffset = toSize;
         }
         catch (IOException e)
@@ -371,6 +400,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     public boolean isOpen()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         return channel.isOpen();
     }
 
@@ -392,6 +422,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     @Override
     public final void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         if (option.finishOnClose())
             txnProxy.finish();
         else
@@ -400,6 +431,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     public int writeDirectlyToChannel(ByteBuffer buf) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (strictFlushing)
             throw new UnsupportedOperationException();
         // Don't allow writes to the underlying channel while data is buffered

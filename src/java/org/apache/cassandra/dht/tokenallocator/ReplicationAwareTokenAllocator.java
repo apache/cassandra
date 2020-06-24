@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Token;
  * ownership needs to be evenly distributed. At the moment only nodes as a whole are treated as units, but that
  * will change with the introduction of token ranges per disk.
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
 class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
 {
     final Multimap<Unit, Token> unitToTokens;
@@ -135,6 +136,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         ImmutableList<Token> newTokens = ImmutableList.copyOf(unitToTokens.get(newUnit));
         TokenAllocatorDiagnostics.unitedAdded(this, numTokens, unitToTokens, sortedTokens, newTokens, newUnit);
         return newTokens;
@@ -148,6 +150,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
      */
 
     @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
     Collection<Token> generateSplits(Unit newUnit, int numTokens)
     {
         Collection<Token> tokens = super.generateSplits(newUnit, numTokens);
@@ -181,6 +184,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             curr = curr.next;
         } while (curr != first);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         TokenAllocatorDiagnostics.tokenInfosCreated(this, unitToTokens, first);
         return first;
     }
@@ -532,6 +536,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
     {
         Collection<Token> tokens = unitToTokens.removeAll(n);
         sortedTokens.keySet().removeAll(tokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         TokenAllocatorDiagnostics.unitRemoved(this, n, unitToTokens, sortedTokens);
     }
 

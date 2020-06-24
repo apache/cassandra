@@ -38,9 +38,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final Row staticRow;
 
     public SSTableIdentityIterator(SSTableReader sstable, DecoratedKey key, DeletionTime partitionLevelDeletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
             String filename, SSTableSimpleIterator iterator) throws IOException
     {
         super();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9478
         this.sstable = sstable;
         this.key = key;
         this.partitionLevelDeletion = partitionLevelDeletion;
@@ -55,8 +57,10 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         try
         {
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
             if (!partitionLevelDeletion.validate())
                 UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), file, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getPath(), iterator);
@@ -76,6 +80,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             dfile.seek(indexEntry.position);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
                     ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
@@ -121,6 +126,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public boolean hasNext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         try
         {
             return iterator.hasNext();
@@ -153,12 +159,15 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         catch (IndexOutOfBoundsException e)
         {
             sstable.markSuspect();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             throw new CorruptSSTableException(e, filename);
         }
         catch (IOError e)
         {
             if (e.getCause() instanceof IOException)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9478
                 sstable.markSuspect();
                 throw new CorruptSSTableException((Exception)e.getCause(), filename);
             }
@@ -171,6 +180,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     protected Unfiltered doCompute()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         Unfiltered unfiltered = iterator.next();
         UnfilteredValidation.maybeValidateUnfiltered(unfiltered, metadata(), key, sstable);
         return unfiltered;
@@ -190,6 +200,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         // We could return sstable.header.stats(), but this may not be as accurate than the actual sstable stats (see
         // SerializationHeader.make() for details) so we use the latter instead.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         return sstable.stats();
     }
 

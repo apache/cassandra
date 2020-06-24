@@ -35,6 +35,7 @@ public class GossipDigestTest
     @Test
     public void test() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("127.0.0.1");
         int generation = 0;
         int maxVersion = 123;
@@ -48,6 +49,7 @@ public class GossipDigestTest
         DataOutputBuffer output = new DataOutputBuffer();
         GossipDigest.serializer.serialize(expected, output, MessagingService.current_version);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
         DataInputPlus input = new DataInputBuffer(output.getData());
         GossipDigest actual = GossipDigest.serializer.deserialize(input, MessagingService.current_version);
         assertEquals(0, expected.compareTo(actual));

@@ -52,8 +52,10 @@ public class TokenAllocation
                                                    final InetAddressAndPort endpoint,
                                                    int numTokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12715
         TokenMetadata tokenMetadataCopy = tokenMetadata.cloneOnlyTokenMap();
         StrategyAdapter strategy = getStrategy(tokenMetadataCopy, rs, endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         Collection<Token> tokens = create(tokenMetadata, strategy).addUnit(endpoint, numTokens);
         tokens = adjustForCrossDatacenterClashes(tokenMetadata, strategy, tokens);
 
@@ -74,7 +76,9 @@ public class TokenAllocation
     }
 
     public static Collection<Token> allocateTokens(final TokenMetadata tokenMetadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
                                                    final int replicas,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                    final InetAddressAndPort endpoint,
                                                    int numTokens)
     {
@@ -96,6 +100,7 @@ public class TokenAllocation
         {
             while (tokenMetadata.getEndpoint(t) != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 InetAddressAndPort other = tokenMetadata.getEndpoint(t);
                 if (strategy.inAllocationRing(other))
                     throw new ConfigurationException(String.format("Allocated token %s already assigned to node %s. Is another node also allocating tokens?", t, other));
@@ -109,6 +114,7 @@ public class TokenAllocation
     // return the ratio of ownership for each endpoint
     public static Map<InetAddressAndPort, Double> evaluateReplicatedOwnership(TokenMetadata tokenMetadata, AbstractReplicationStrategy rs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, Double> ownership = Maps.newHashMap();
         List<Token> sortedTokens = tokenMetadata.sortedTokens();
         Iterator<Token> it = sortedTokens.iterator();
@@ -141,6 +147,7 @@ public class TokenAllocation
     }
 
     public static SummaryStatistics replicatedOwnershipStats(TokenMetadata tokenMetadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                              AbstractReplicationStrategy rs, InetAddressAndPort endpoint)
     {
         SummaryStatistics stat = new SummaryStatistics();
@@ -156,12 +163,14 @@ public class TokenAllocation
 
     static TokenAllocator<InetAddressAndPort> create(TokenMetadata tokenMetadata, StrategyAdapter strategy)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         NavigableMap<Token, InetAddressAndPort> sortedTokens = new TreeMap<>();
         for (Map.Entry<Token, InetAddressAndPort> en : tokenMetadata.getNormalAndBootstrappingTokenToEndpointMap().entrySet())
         {
             if (strategy.inAllocationRing(en.getValue()))
                 sortedTokens.put(en.getKey(), en.getValue());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         return TokenAllocatorFactory.createTokenAllocator(sortedTokens, strategy, tokenMetadata.partitioner);
     }
 
@@ -212,6 +221,7 @@ public class TokenAllocation
     {
         final String dc = snitch.getDatacenter(endpoint);
         final int replicas = rs.getReplicationFactor(dc).allReplicas;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         return getStrategy(tokenMetadata, replicas, snitch, endpoint);
     }
 
@@ -255,6 +265,7 @@ public class TokenAllocation
                 ? topology.getDatacenterRacks().get(dc).asMap().size()
                 : 1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
         if (racks > replicas)
         {
             return new StrategyAdapter()
@@ -278,6 +289,7 @@ public class TokenAllocation
                 }
             };
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
         else if (racks == replicas)
         {
             // When the number of racks is the same as the replication factor, everything must replicate exactly once

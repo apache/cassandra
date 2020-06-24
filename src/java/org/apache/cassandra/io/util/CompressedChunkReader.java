@@ -51,6 +51,8 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
     boolean shouldCheckCrc()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
         return metadata.parameters.shouldCheckCrc();
     }
 
@@ -123,6 +125,8 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 int length = shouldCheckCrc ? chunk.length + Integer.BYTES // compressed length + checksum length
                                             : chunk.length;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
                 if (chunk.length < maxCompressedLength)
                 {
                     ByteBuffer compressed = compressedHolder.get();
@@ -218,6 +222,10 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
                     if (shouldCheckCrc())
                     {
                         int checksum = (int) ChecksumType.CRC32.of(compressedChunk);
@@ -229,6 +237,8 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                         compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
                     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
                     if (chunk.length < maxCompressedLength)
                         metadata.compressor().uncompress(compressedChunk, uncompressed);
                     else

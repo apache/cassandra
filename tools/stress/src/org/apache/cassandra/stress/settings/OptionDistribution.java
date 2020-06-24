@@ -44,6 +44,7 @@ public class OptionDistribution extends Option
     {
         public DistributionFactory apply(String s)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
             return get(s);
         }
     };
@@ -51,6 +52,7 @@ public class OptionDistribution extends Option
     private static final Pattern FULL = Pattern.compile("(~?)([A-Z]+)\\((.+)\\)", Pattern.CASE_INSENSITIVE);
     private static final Pattern ARGS = Pattern.compile("[^,]+");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
     final String prefix;
     private String spec;
     private final String defaultSpec;
@@ -59,6 +61,7 @@ public class OptionDistribution extends Option
 
     public OptionDistribution(String prefix, String defaultSpec, String description)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         this(prefix, defaultSpec, description, defaultSpec == null);
     }
 
@@ -66,6 +69,7 @@ public class OptionDistribution extends Option
     {
         this.prefix = prefix;
         this.defaultSpec = defaultSpec;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         this.description = description;
         this.required = required;
     }
@@ -99,6 +103,7 @@ public class OptionDistribution extends Option
 
     public DistributionFactory get()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return spec != null ? get(spec) : defaultSpec != null ? get(defaultSpec) : null;
     }
 
@@ -110,6 +115,7 @@ public class OptionDistribution extends Option
 
     public String longDisplay()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         return shortDisplay() + ": " + description;
     }
 
@@ -119,11 +125,13 @@ public class OptionDistribution extends Option
         return Arrays.asList(
                 GroupedOptions.formatMultiLine("EXP(min..max)", "An exponential distribution over the range [min..max]"),
                 GroupedOptions.formatMultiLine("EXTREME(min..max,shape)", "An extreme value (Weibull) distribution over the range [min..max]"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
                 GroupedOptions.formatMultiLine("QEXTREME(min..max,shape,quantas)", "An extreme value, split into quantas, within which the chance of selection is uniform"),
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,stdvrng)", "A gaussian/normal distribution, where mean=(min+max)/2, and stdev is (mean-min)/stdvrng"),
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,mean,stdev)", "A gaussian/normal distribution, with explicitly defined mean and stdev"),
                 GroupedOptions.formatMultiLine("UNIFORM(min..max)", "A uniform distribution over the range [min, max]"),
                 GroupedOptions.formatMultiLine("FIXED(val)", "A fixed distribution, always returning the same value"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12490
                 GroupedOptions.formatMultiLine("SEQ(min..max)", "A fixed sequence, returning values in the range min to max sequentially (starting based on seed), wrapping if necessary."),
                 "Preceding the name with ~ will invert the distribution, e.g. ~exp(1..10) will yield 10 most, instead of least, often",
                 "Aliases: extr, qextr, gauss, normal, norm, weibull"
@@ -132,11 +140,13 @@ public class OptionDistribution extends Option
 
     boolean setByUser()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         return spec != null;
     }
 
     boolean present()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         return setByUser() || defaultSpec != null;
     }
 
@@ -148,6 +158,7 @@ public class OptionDistribution extends Option
 
     public String getOptionAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         return prefix + (spec == null ? defaultSpec : spec);
     }
 
@@ -157,6 +168,7 @@ public class OptionDistribution extends Option
         final Map<String, Impl> lookup = new HashMap<>();
         lookup.put("exp", new ExponentialImpl());
         lookup.put("extr", new ExtremeImpl());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         lookup.put("qextr", new QuantizedExtremeImpl());
         lookup.put("extreme", lookup.get("extr"));
         lookup.put("qextreme", lookup.get("qextr"));
@@ -167,6 +179,7 @@ public class OptionDistribution extends Option
         lookup.put("norm", lookup.get("gaussian"));
         lookup.put("uniform", new UniformImpl());
         lookup.put("fixed", new FixedImpl());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12490
         lookup.put("seq", new SequenceImpl());
         LOOKUP = lookup;
     }
@@ -276,6 +289,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new ExtremeFactory(min, max, shape, scale);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for extreme (Weibull) distribution: " + params);
@@ -288,6 +302,7 @@ public class OptionDistribution extends Option
         @Override
         public DistributionFactory getFactory(List<String> params)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
             if (params.size() != 3)
                 throw new IllegalArgumentException("Invalid parameter list for quantized extreme (Weibull) distribution: " + params);
             try
@@ -304,6 +319,7 @@ public class OptionDistribution extends Option
                 if (min == max)
                     return new FixedFactory(min);
                 return new QuantizedExtremeFactory(min, max, shape, scale, quantas);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for quantized extreme (Weibull) distribution: " + params);
@@ -327,6 +343,9 @@ public class OptionDistribution extends Option
                 if (min == max)
                     return new FixedFactory(min);
                 return new UniformFactory(min, max);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
@@ -341,6 +360,7 @@ public class OptionDistribution extends Option
         public DistributionFactory getFactory(List<String> params)
         {
             if (params.size() != 1)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12490
                 throw new IllegalArgumentException("Invalid parameter list for fixed distribution: " + params);
             try
             {
@@ -368,6 +388,7 @@ public class OptionDistribution extends Option
                 String[] bounds = params.get(0).split("\\.\\.+");
                 min = parseLong(bounds[0]);
                 max = parseLong(bounds[1]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for sequence distribution: " + params);
@@ -449,6 +470,7 @@ public class OptionDistribution extends Option
 
     private static final class QuantizedExtremeFactory extends ExtremeFactory
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         final int quantas;
         private QuantizedExtremeFactory(long min, long max, double shape, double scale, int quantas)
         {
@@ -527,6 +549,7 @@ public class OptionDistribution extends Option
 
     private static final class SequenceFactory implements DistributionFactory
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12490
         final long start;
         final long end;
 

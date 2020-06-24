@@ -40,6 +40,7 @@ public final class UsingMapEntry extends JavaUDF
 
     protected Object executeAggregateImpl(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
         throw new UnsupportedOperationException();
     }
 

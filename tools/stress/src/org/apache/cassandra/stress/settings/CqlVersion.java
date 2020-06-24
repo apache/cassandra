@@ -24,6 +24,7 @@ package org.apache.cassandra.stress.settings;
 public enum CqlVersion
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
     NOCQL(null),
     CQL3("3.0.0");
 

@@ -37,6 +37,7 @@ public class UTF8Type extends AbstractType<String>
     public static final UTF8Type instance = new UTF8Type();
 
     UTF8Type() {super(ComparisonType.BYTE_ORDER);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public ByteBuffer fromString(String source)
     {
@@ -47,6 +48,7 @@ public class UTF8Type extends AbstractType<String>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(fromString((String) parsed));
@@ -63,6 +65,7 @@ public class UTF8Type extends AbstractType<String>
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
             return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.UTF_8)) + '"';
         }
         catch (CharacterCodingException exc)
@@ -76,6 +79,7 @@ public class UTF8Type extends AbstractType<String>
     {
         // Anything that is ascii is also utf8, and they both use bytes
         // comparison
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3657
         return this == previous || previous == AsciiType.instance;
     }
 

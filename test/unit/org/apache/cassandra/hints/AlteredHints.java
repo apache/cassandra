@@ -108,6 +108,7 @@ public abstract class AlteredHints
             Assert.assertTrue(looksLegit(reader.getInput()));
             List<Hint> deserialized = new ArrayList<>(hintNum);
             List<InputPosition> pagePositions = new ArrayList<>(hintNum);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
 
             for (HintsReader.Page page: reader)
             {
@@ -129,6 +130,7 @@ public abstract class AlteredHints
 
             // explicitely seek to each page by iterating collected page positions and check if hints still match as expected
             int hintOffset = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
             for (InputPosition pos : pagePositions)
             {
                 reader.seek(pos);

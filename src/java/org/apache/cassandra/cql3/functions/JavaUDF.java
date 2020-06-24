@@ -41,6 +41,7 @@ public abstract class JavaUDF
     {
         this.returnCodec = returnCodec;
         this.argCodecs = argCodecs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
         this.udfContext = udfContext;
     }
 

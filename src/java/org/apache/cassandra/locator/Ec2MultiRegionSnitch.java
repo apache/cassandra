@@ -52,9 +52,11 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
         localPrivateAddress = awsApiCall(PRIVATE_IP_QUERY_URL);
         // use the Public IP to broadcast Address to other nodes.
         DatabaseDescriptor.setBroadcastAddress(localPublicAddress);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11356
         if (DatabaseDescriptor.getBroadcastRpcAddress() == null)
         {
             logger.info("broadcast_rpc_address unset, broadcasting public IP as rpc_address: {}", localPublicAddress);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5899
             DatabaseDescriptor.setBroadcastRpcAddress(localPublicAddress);
         }
     }
@@ -63,6 +65,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
     public void gossiperStarting()
     {
         super.gossiperStarting();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort address;
         try
         {
@@ -74,6 +77,8 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
         }
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT, StorageService.instance.valueFactory.internalAddressAndPort(address));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(localPrivateAddress));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5681
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5681
         Gossiper.instance.register(new ReconnectableSnitchHelper(this, ec2region, true));
     }
 }

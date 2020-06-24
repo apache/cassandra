@@ -49,6 +49,7 @@ public class StandaloneSSTableUtil
         try
         {
             // load keyspace descriptions.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             Util.initDatabaseDescriptor();
             Schema.instance.loadFromDisk(false);
 
@@ -85,6 +86,7 @@ public class StandaloneSSTableUtil
     private static void listFiles(Options options, TableMetadata metadata, OutputHandler handler) throws IOException
     {
         Directories directories = new Directories(metadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13928
 
         for (File dir : directories.getCFDirectories())
         {

@@ -105,11 +105,14 @@ public abstract class AbstractCommitLogSegmentManager
         {
             public void runMayThrow() throws Exception
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
                 while (!shutdown)
                 {
                     try
                     {
                         assert availableSegment == null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14370
                         logger.trace("No segments in reserve; creating a fresh one");
                         availableSegment = createSegment();
                         if (shutdown)
@@ -133,6 +136,7 @@ public abstract class AbstractCommitLogSegmentManager
                     }
                     catch (Throwable t)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                         JVMStabilityInspector.inspectThrowable(t);
                         if (!CommitLog.handleCommitError("Failed managing commit log segments", t))
                             return;
@@ -144,12 +148,16 @@ public abstract class AbstractCommitLogSegmentManager
                         // shutting down-- nothing more can or needs to be done in that case.
                     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13652
                     WaitQueue.waitOnCondition(managerThreadWaitCondition, managerThreadWaitQueue);
                 }
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         shutdown = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         managerThread = NamedThreadFactory.createThread(runnable, "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
 
@@ -159,6 +167,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     private boolean atSegmentBufferLimit()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return CommitLogSegment.usesBufferPool(commitLog) && bufferPool.atLimit();
     }
 
@@ -178,6 +187,7 @@ public abstract class AbstractCommitLogSegmentManager
                 if (flushingSize + unused >= 0)
                     break;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
             flushDataFrom(segmentsToRecycle, false);
         }
     }
@@ -209,6 +219,7 @@ public abstract class AbstractCommitLogSegmentManager
      * WARNING: Assumes segment management thread always succeeds in allocating a new segment or kills the JVM.
      */
     @DontInline
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
     void advanceAllocatingFrom(CommitLogSegment old)
     {
         while (true)
@@ -271,6 +282,7 @@ public abstract class AbstractCommitLogSegmentManager
     void forceRecycleAll(Iterable<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
         advanceAllocatingFrom(last);
 
@@ -280,6 +292,7 @@ public abstract class AbstractCommitLogSegmentManager
         // make sure the writes have materialized inside of the memtables by waiting for all outstanding writes
         // to complete
         Keyspace.writeOrder.awaitNewBarrier();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
         Future<?> future = flushDataFrom(segmentsToRecycle, true);
@@ -297,10 +310,12 @@ public abstract class AbstractCommitLogSegmentManager
             for (CommitLogSegment segment : activeSegments)
             {
                 if (segment.isUnused())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
                     archiveAndDiscard(segment);
             }
 
             CommitLogSegment first;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7437
             if ((first = activeSegments.peek()) != null && first.id <= last.id)
                 logger.error("Failed to force-recycle all segments; at least one segment is still in use with dirty CFs.");
         }
@@ -316,9 +331,11 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * @param segment segment that is no longer in use
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
     void archiveAndDiscard(final CommitLogSegment segment)
     {
         boolean archiveSuccess = commitLog.archiver.maybeWaitForArchiving(segment.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10377
         if (!activeSegments.remove(segment))
             return; // already discarded
         // if archiving (command) was not successful then leave the file alone. don't delete or recycle.
@@ -331,9 +348,11 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * @param file segment file that is no longer in use.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
     void handleReplayedSegment(final File file)
     {
         // (don't decrease managed size, since this was never a "live" segment)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("(Unopened) segment {} is no longer needed and will be deleted now", file);
         FileUtils.deleteWithConfirm(file);
     }
@@ -342,6 +361,7 @@ public abstract class AbstractCommitLogSegmentManager
      * Adjust the tracked on-disk size. Called by individual segments to reflect writes, allocations and discards.
      * @param addedSize
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
     void addSize(long addedSize)
     {
         size.addAndGet(addedSize);
@@ -359,6 +379,7 @@ public abstract class AbstractCommitLogSegmentManager
     {
         long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
         long currentSize = size.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Total active commitlog segment space used is {} out of {}", currentSize, total);
         return total - currentSize;
     }
@@ -373,6 +394,7 @@ public abstract class AbstractCommitLogSegmentManager
         if (segments.isEmpty())
             return Futures.immediateFuture(null);
         final CommitLogPosition maxCommitLogPosition = segments.get(segments.size() - 1).getCurrentCommitLogPosition();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
         final Map<TableId, ListenableFuture<?>> flushes = new LinkedHashMap<>();
@@ -409,7 +431,10 @@ public abstract class AbstractCommitLogSegmentManager
     public void stopUnsafe(boolean deleteSegments)
     {
         logger.debug("CLSM closing and clearing existing commit log segments...");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
         shutdown();
         try
         {
@@ -420,12 +445,14 @@ public abstract class AbstractCommitLogSegmentManager
             throw new RuntimeException(e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         for (CommitLogSegment segment : activeSegments)
             closeAndDeleteSegmentUnsafe(segment, deleteSegments);
         activeSegments.clear();
 
         size.set(0L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("CLSM done with closing and clearing existing commit log segments.");
     }
 
@@ -447,6 +474,7 @@ public abstract class AbstractCommitLogSegmentManager
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             discard(segment, delete);
         }
         catch (AssertionError ignored)
@@ -460,12 +488,14 @@ public abstract class AbstractCommitLogSegmentManager
      */
     public void shutdown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         assert !shutdown;
         shutdown = true;
 
         // Release the management thread and delete prepared segment.
         // Do not block as another thread may claim the segment (this can happen during unit test initialization).
         discardAvailableSegment();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         wakeManager();
     }
 
@@ -495,6 +525,7 @@ public abstract class AbstractCommitLogSegmentManager
         for (CommitLogSegment segment : activeSegments)
             segment.close();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         bufferPool.shutdown();
     }
 
@@ -512,6 +543,7 @@ public abstract class AbstractCommitLogSegmentManager
      */
     CommitLogPosition getCurrentPosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         return allocatingFrom.getCurrentCommitLogPosition();
     }
 
@@ -540,8 +572,10 @@ public abstract class AbstractCommitLogSegmentManager
         return bufferPool;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
     void wakeManager()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13652
         managerThreadWaitQueue.signalAll();
     }
 

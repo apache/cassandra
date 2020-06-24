@@ -32,6 +32,7 @@ public final class Resources
      */
     public static List<? extends IResource> chain(IResource resource)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4874
         List<IResource> chain = new ArrayList<IResource>();
         while (true)
         {
@@ -52,12 +53,15 @@ public final class Resources
      */
     public static IResource fromName(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         if (name.startsWith(RoleResource.root().getName()))
             return RoleResource.fromName(name);
         else if (name.startsWith(DataResource.root().getName()))
             return DataResource.fromName(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
         else if (name.startsWith(FunctionResource.root().getName()))
             return FunctionResource.fromName(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
         else if (name.startsWith(JMXResource.root().getName()))
             return JMXResource.fromName(name);
         else
@@ -77,6 +81,7 @@ public final class Resources
         {
             buff.append("/");
             if (component instanceof byte[])
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3299
                 buff.append(Hex.bytesToHex((byte[])component));
             else
                 buff.append(component);

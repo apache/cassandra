@@ -114,6 +114,7 @@ class TreeCursor<K> extends NodeCursor<K>
         {
             // we moved out of the tree; return out-of-bounds
             this.cur = root();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10301
             return false;
         }
 
@@ -124,11 +125,13 @@ class TreeCursor<K> extends NodeCursor<K>
 
             int cmp;
             if (key == test) cmp = 0; // check object identity first, since we utilise that in some places and it's very cheap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             else cmp = comparator.compare(test, key); // order of provision matters for asymmetric comparators
             if (forwards ? cmp >= 0 : cmp <= 0)
             {
                 // we've either matched, or excluded the value from being present
                 this.cur = cur;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10301
                 return cmp == 0;
             }
         }
@@ -150,6 +153,7 @@ class TreeCursor<K> extends NodeCursor<K>
             if (cmpbound == 0) // it was an exact match, so terminate here
             {
                 this.cur = cur;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10301
                 return true;
             }
         }
@@ -167,6 +171,7 @@ class TreeCursor<K> extends NodeCursor<K>
 
         this.cur = cur;
         assert !cur.inChild;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10301
         return match;
     }
 
@@ -219,6 +224,7 @@ class TreeCursor<K> extends NodeCursor<K>
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
         NodeCursor<K> cur = root();
         assert cur.nodeOffset == 0;
         while (true)

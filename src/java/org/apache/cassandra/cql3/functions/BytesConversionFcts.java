@@ -36,6 +36,7 @@ public abstract class BytesConversionFcts
     public static Collection<Function> all()
     {
         Collection<Function> functions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
         // because text and varchar ends up being synonymous, our automatic makeToBlobFunction doesn't work
         // for varchar, so we special case it below. We also skip blob for obvious reasons.
@@ -59,6 +60,7 @@ public abstract class BytesConversionFcts
     public static Function makeToBlobFunction(AbstractType<?> fromType)
     {
         String name = fromType.asCQL3Type() + "asblob";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4914
         return new NativeScalarFunction(name, BytesType.instance, fromType)
         {
             public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
@@ -70,7 +72,9 @@ public abstract class BytesConversionFcts
 
     public static Function makeFromBlobFunction(final AbstractType<?> toType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7707
         final String name = "blobas" + toType.asCQL3Type();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4914
         return new NativeScalarFunction(name, toType, BytesType.instance)
         {
             public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException

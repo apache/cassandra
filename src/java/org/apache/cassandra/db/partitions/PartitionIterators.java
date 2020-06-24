@@ -38,6 +38,7 @@ public abstract class PartitionIterators
         // want a RowIterator out of this method, so we return an empty one.
         RowIterator toReturn = iter.hasNext()
                              ? iter.next()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                              : EmptyIterators.row(query.metadata(),
                                                   query.partitionKey(),
                                                   query.clusteringIndexFilter().isReversed());
@@ -75,6 +76,7 @@ public abstract class PartitionIterators
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14812
         return MorePartitions.extend(EmptyIterators.partition(), new Extend());
     }
 
@@ -104,6 +106,7 @@ public abstract class PartitionIterators
     @SuppressWarnings("resource") // The created resources are returned right away
     public static PartitionIterator loggingIterator(PartitionIterator iterator, final String id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class Logger extends Transformation<RowIterator>
         {
             public RowIterator applyToPartition(RowIterator partition)

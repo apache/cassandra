@@ -36,6 +36,7 @@ import org.apache.cassandra.metrics.ChunkCacheMetrics;
 import org.apache.cassandra.utils.memory.BufferPool;
 
 public class ChunkCache
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
 {
     public static final int RESERVED_POOL_SPACE_IN_MB = 32;
@@ -136,6 +137,7 @@ public class ChunkCache
 
     private ChunkCache()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14628
         metrics = new ChunkCacheMetrics(this);
         cache = Caffeine.newBuilder()
                         .maximumWeight(cacheSize)
@@ -149,6 +151,7 @@ public class ChunkCache
     @Override
     public Buffer load(Key key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11993
         ByteBuffer buffer = BufferPool.get(key.file.chunkSize(), key.file.preferredBufferType());
         assert buffer != null;
         key.file.readChunk(key.position, buffer);
@@ -215,6 +218,7 @@ public class ChunkCache
         {
             source = file;
             int chunkSize = file.chunkSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13897
             assert Integer.bitCount(chunkSize) == 1 : String.format("%d must be a power of two", chunkSize);
             alignmentMask = -chunkSize;
         }

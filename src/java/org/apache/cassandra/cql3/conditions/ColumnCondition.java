@@ -634,6 +634,7 @@ public abstract class ColumnCondition
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
             return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
         }
     }
@@ -687,6 +688,7 @@ public abstract class ColumnCondition
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
             return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
         }
     }
@@ -846,18 +848,21 @@ public abstract class ColumnCondition
                 checkFalse(type.isCollection(), "Slice conditions are not supported on collections containing durations");
                 checkFalse(type.isTuple(), "Slice conditions are not supported on tuples containing durations");
                 checkFalse(type.isUDT(), "Slice conditions are not supported on UDTs containing durations");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
                 throw invalidRequest("Slice conditions ( %s ) are not supported on durations", operator);
             }
         }
 
         public Term.Raw getValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
             return value;
         }
 
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
             return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
         }
     }

@@ -62,6 +62,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         super(name, argTypes, returnType);
         this.stateFunction = stateFunc;
         this.finalFunction = finalFunc;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this.stateType = stateFunc.returnType();
         this.stateTypeCodec = UDHelper.codecFor(UDHelper.driverType(stateType));
         this.returnTypeCodec = UDHelper.codecFor(UDHelper.driverType(returnType));
@@ -80,10 +81,12 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         List<AbstractType<?>> stateTypes = new ArrayList<>(argTypes.size() + 1);
         stateTypes.add(stateType);
         stateTypes.addAll(argTypes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
         List<AbstractType<?>> finalTypes = Collections.singletonList(stateType);
         return new UDAggregate(name,
                                argTypes,
                                returnType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                findFunction(name, functions, stateFunc, stateTypes),
                                null == finalFunc ? null : findFunction(name, functions, finalFunc, finalTypes),
                                initcond);
@@ -105,6 +108,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return any(argTypes(), t -> t.referencesUserType(name))
             || returnType.referencesUserType(name)
             || (null != stateType && stateType.referencesUserType(name))
@@ -129,6 +133,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     public void addFunctionsTo(List<Function> functions)
     {
         functions.add(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
 
         stateFunction.addFunctionsTo(functions);
 
@@ -148,6 +153,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
 
     public ScalarFunction stateFunction()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8261
         return stateFunction;
     }
 
@@ -180,6 +186,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
             {
                 maybeInit(protocolVersion);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9723
                 long startTime = System.nanoTime();
                 stateFunctionCount++;
                 if (stateFunction instanceof UDFunction)
@@ -238,6 +245,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
             return false;
 
         UDAggregate that = (UDAggregate) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return equalsWithoutTypesAndFunctions(that)
             && argTypes.equals(that.argTypes)
             && returnType.equals(that.returnType)
@@ -320,6 +328,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9750
         return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), stateFunction, finalFunction, stateType, initcond);
     }
 }

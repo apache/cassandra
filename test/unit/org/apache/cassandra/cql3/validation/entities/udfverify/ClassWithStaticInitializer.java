@@ -33,11 +33,13 @@ public final class ClassWithStaticInitializer extends JavaUDF
 {
     public ClassWithStaticInitializer(TypeCodec<Object> returnDataType, TypeCodec<Object>[] argDataTypes, UDFContext udfContext)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
         super(returnDataType, argDataTypes, udfContext);
     }
 
     protected Object executeAggregateImpl(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
         throw new UnsupportedOperationException();
     }
 

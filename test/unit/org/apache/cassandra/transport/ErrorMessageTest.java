@@ -50,6 +50,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     public static void setUpFixtures() throws UnknownHostException
     {
         failureReasonMap1 = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         failureReasonMap1.put(InetAddressAndPort.getByName("127.0.0.1"), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
         failureReasonMap1.put(InetAddressAndPort.getByName("127.0.0.2"), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
         failureReasonMap1.put(InetAddressAndPort.getByName("127.0.0.3"), RequestFailureReason.UNKNOWN);
@@ -67,6 +68,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         boolean dataPresent = false;
         ReadFailureException rfe = new ReadFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, dataPresent, failureReasonMap1);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(rfe), ProtocolVersion.V5);
         ReadFailureException deserializedRfe = (ReadFailureException) deserialized.error;
 
@@ -85,6 +87,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         WriteType writeType = WriteType.SIMPLE;
         WriteFailureException wfe = new WriteFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, writeType, failureReasonMap2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(wfe), ProtocolVersion.V5);
         WriteFailureException deserializedWfe = (WriteFailureException) deserialized.error;
 
@@ -100,6 +103,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     {
         int contentions = 1;
         int receivedBlockFor = 3;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
         CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, receivedBlockFor, receivedBlockFor, contentions);
 
@@ -181,6 +185,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     @Test
     public void testRequestFailureExceptionMakesCopy() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, RequestFailureReason> modifiableFailureReasons = new HashMap<>(failureReasonMap1);
         ReadFailureException rfe = new ReadFailureException(ConsistencyLevel.ALL, 3, 3, false, modifiableFailureReasons);
         WriteFailureException wfe = new WriteFailureException(ConsistencyLevel.ALL, 3, 3, WriteType.SIMPLE, modifiableFailureReasons);
@@ -193,6 +198,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
 
     protected Message.Codec<ErrorMessage> getCodec()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         return ErrorMessage.codec;
     }
 }

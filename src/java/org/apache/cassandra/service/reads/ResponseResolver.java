@@ -41,6 +41,8 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     public ResponseResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         this.command = command;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         this.replicaPlan = replicaPlan;
         this.responses = new Accumulator<>(replicaPlan.get().candidates().size());
         this.queryStartNanoTime = queryStartNanoTime;
@@ -55,6 +57,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public void preprocess(Message<ReadResponse> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         if (replicaPlan().lookup(message.from()).isTransient() &&
             message.payload.isDigestResponse())
             throw new IllegalArgumentException("Digest response received from transient replica");
@@ -65,6 +68,8 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
         }
         catch (IllegalStateException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             logger.error("Encountered error while trying to preprocess the message {}, in command {}, replica plan: {}",
                          message, command, replicaPlan);
             throw e;

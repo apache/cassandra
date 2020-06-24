@@ -75,6 +75,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
     private static RepairSessionResult createResult(CoordinatorSession coordinator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
         return new RepairSessionResult(coordinator.sessionID, "ks", coordinator.ranges, null, false);
     }
 
@@ -100,6 +101,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
             {
                 sentMessages.put(destination, new ArrayList<>());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             sentMessages.get(destination).add(message.payload);
         }
 
@@ -124,6 +126,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
             {
                 onFinalizeCommit.run();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
             super.finalizeCommit();
         }
 
@@ -190,6 +193,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
         coordinator.fail();
         Assert.assertEquals(FAILED, coordinator.getState());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             assertMessageSent(coordinator, participant, new FailSession(coordinator.sessionID));
@@ -278,6 +282,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         Assert.assertTrue(coordinator.finalizeCommitCalled);
 
         Assert.assertEquals(ConsistentSession.State.FINALIZED, coordinator.getState());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             RepairMessage expected = new FinalizeCommit(coordinator.sessionID);
@@ -366,7 +371,11 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
         ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             PrepareConsistentRequest expected = new PrepareConsistentRequest(coordinator.sessionID, COORDINATOR, new HashSet<>(PARTICIPANTS));
@@ -380,6 +389,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
         coordinator.handlePrepareResponse(PARTICIPANT1, true);
         Assert.assertEquals(ConsistentSession.State.PREPARING, coordinator.getState());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         Assert.assertEquals(PREPARED, coordinator.getParticipantState(PARTICIPANT1));
         Assert.assertFalse(sessionResult.isDone());
 
@@ -433,7 +443,11 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
         ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
 
@@ -467,6 +481,8 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         repairFuture.set(results);
 
         // propose messages should have been sent once all repair sessions completed successfully
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             RepairMessage expected = new FinalizePropose(coordinator.sessionID);
@@ -493,6 +509,9 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         Assert.assertEquals(ConsistentSession.State.FAILED, coordinator.getState());
 
         // failure messages should have been sent to all participants
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             RepairMessage expected = new FailSession(coordinator.sessionID);

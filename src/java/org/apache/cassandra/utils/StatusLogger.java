@@ -42,6 +42,7 @@ public class StatusLogger
     {
         // avoid logging more than once at the same time. throw away any attempts to log concurrently, as it would be
         // confusing and noisy for operators - and don't bother logging again, immediately as it'll just be the same data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12182
         if (busyMonitor.tryLock())
         {
             try
@@ -63,6 +64,7 @@ public class StatusLogger
     {
         // everything from o.a.c.concurrent
         logger.info(String.format("%-28s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
 
         for (ThreadPoolMetrics tpool : CassandraMetricsRegistry.Metrics.allThreadPoolMetrics())
         {
@@ -79,6 +81,7 @@ public class StatusLogger
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", CompactionManager.instance.getActiveCompactions(), CompactionManager.instance.getPendingTasks()));
         int pendingLargeMessages = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8789
         for (int n : MessagingService.instance().getLargeMessagePendingTasks().values())
         {
             pendingLargeMessages += n;
@@ -92,12 +95,14 @@ public class StatusLogger
                                   "MessagingService", "n/a", pendingLargeMessages + "/" + pendingSmallMessages));
 
         // Global key/row cache information
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
         AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = CacheService.instance.rowCache;
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5348
         logger.info(String.format("%-25s%10s%25s%25s",
                                   "Cache Type", "Size", "Capacity", "KeysToSave"));
         logger.info(String.format("%-25s%10s%25s%25s",
@@ -113,11 +118,14 @@ public class StatusLogger
                                   rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave));
 
         // per-CF stats
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
         logger.info(String.format("%-25s%20s", "Table", "Memtable ops,data"));
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             logger.info(String.format("%-25s%20s",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                                       cfs.keyspace.getName() + "." + cfs.name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                                       cfs.metric.memtableColumnsCount.getValue() + "," + cfs.metric.memtableLiveDataSize.getValue()));
         }
     }

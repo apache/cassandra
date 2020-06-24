@@ -105,10 +105,13 @@ public class CompactionsTest
 
         // Disable tombstone histogram rounding for tests
         System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.denseCFMD(KEYSPACE1, CF_DENSE1)
                                                 .compaction(CompactionParams.stcs(compactionOptions)),
@@ -132,6 +135,7 @@ public class CompactionsTest
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 10; j++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 new RowUpdateBuilder(cfm, timestamp, j > 0 ? ttl : 0, key.getKey())
                     .clustering(Integer.toString(j))
                     .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
@@ -155,8 +159,10 @@ public class CompactionsTest
         store.disableAutoCompaction();
 
         long timestamp = populate(KEYSPACE1, CF_DENSE1, 0, 9, 3); //ttl=3s
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         store.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         long originalSize = store.getLiveSSTables().iterator().next().uncompressedLength();
 
@@ -166,12 +172,14 @@ public class CompactionsTest
         // enable compaction, submit background and wait for it to complete
         store.enableAutoCompaction();
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9662
         do
         {
             TimeUnit.SECONDS.sleep(1);
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
 
         // and sstable with ttl should be compacted
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         long size = store.getLiveSSTables().iterator().next().uncompressedLength();
         assertTrue("should be less than " + originalSize + ", but was " + size, size < originalSize);
@@ -192,6 +200,7 @@ public class CompactionsTest
         ByteBuffer scName = ByteBufferUtil.bytes("TestSuperColumn");
 
         // a subcolumn
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13698
         new RowUpdateBuilder(table, FBUtilities.timestampMicros(), key.getKey())
             .clustering(ByteBufferUtil.bytes("cols"))
             .add("val", "val1")
@@ -202,8 +211,10 @@ public class CompactionsTest
         RowUpdateBuilder.deleteRow(table, FBUtilities.timestampMicros(), key.getKey(), ByteBufferUtil.bytes("cols")).applyUnsafe();
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
         CompactionManager.instance.performMaximal(cfs, false);
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // check that the shadowed column is gone
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
@@ -226,8 +237,11 @@ public class CompactionsTest
         compactionOptions.put("unchecked_tombstone_compaction", "false");
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
         store.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3437
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
 
         MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build(), true);
 
@@ -235,6 +249,7 @@ public class CompactionsTest
         store.disableAutoCompaction();
 
         //Populate sstable1 with with keys [0..9]
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         populate(KEYSPACE1, CF_STANDARD1, 0, 9, 3); //ttl=3s
         store.forceBlockingFlush();
 
@@ -243,6 +258,7 @@ public class CompactionsTest
         store.forceBlockingFlush();
 
         assertEquals(2, store.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         Iterator<SSTableReader> it = store.getLiveSSTables().iterator();
         long originalSize1 = it.next().uncompressedLength();
@@ -252,8 +268,10 @@ public class CompactionsTest
         TimeUnit.SECONDS.sleep(5);
 
         // enable compaction, submit background and wait for it to complete
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4781
         store.enableAutoCompaction();
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9662
         do
         {
             TimeUnit.SECONDS.sleep(1);
@@ -261,11 +279,14 @@ public class CompactionsTest
 
         // even though both sstables were candidate for tombstone compaction
         // it was not executed because they have an overlapping token range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(2, store.getLiveSSTables().size());
         it = store.getLiveSSTables().iterator();
         long newSize1 = it.next().uncompressedLength();
         long newSize2 = it.next().uncompressedLength();
         assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                       originalSize1, newSize1);
         assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
                       originalSize2, newSize2);
@@ -276,12 +297,14 @@ public class CompactionsTest
 
         //submit background task again and wait for it to complete
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9662
         do
         {
             TimeUnit.SECONDS.sleep(1);
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
 
         //we still have 2 sstables, since they were not compacted against each other
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(2, store.getLiveSSTables().size());
         it = store.getLiveSSTables().iterator();
         newSize1 = it.next().uncompressedLength();
@@ -296,6 +319,7 @@ public class CompactionsTest
     public static void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
     {
         long maxTimestampObserved = Long.MIN_VALUE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             maxTimestampObserved = Math.max(sstable.getMaxTimestamp(), maxTimestampObserved);
         assertEquals(maxTimestampExpected, maxTimestampObserved);
@@ -314,6 +338,7 @@ public class CompactionsTest
     @Test
     public void testUserDefinedCompaction() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final String cfname = "Standard3"; // use clean(no sstable) CF
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
@@ -325,6 +350,7 @@ public class CompactionsTest
         final int ROWS_PER_SSTABLE = 10;
         for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
             DecoratedKey key = Util.dk(String.valueOf(i));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13698
             new RowUpdateBuilder(table, FBUtilities.timestampMicros(), key.getKey())
             .clustering(ByteBufferUtil.bytes("cols"))
             .add("val", "val1")
@@ -332,13 +358,16 @@ public class CompactionsTest
         }
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         assertEquals(1, sstables.size());
         SSTableReader sstable = sstables.iterator().next();
 
         int prevGeneration = sstable.descriptor.generation;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6962
         String file = new File(sstable.descriptor.filenameFor(Component.DATA)).getAbsolutePath();
         // submit user defined compaction on flushed sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5139
         CompactionManager.instance.forceUserDefinedCompaction(file);
         // wait until user defined compaction finishes
         do
@@ -346,12 +375,14 @@ public class CompactionsTest
             Thread.sleep(100);
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
         // CF should have only one sstable with generation number advanced
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
         assertEquals( prevGeneration + 1, sstables.iterator().next().descriptor.generation);
     }
 
     public static void writeSSTableWithRangeTombstoneMaskingOneColumn(ColumnFamilyStore cfs, TableMetadata table, int[] dks) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13698
         for (int dk : dks)
         {
             RowUpdateBuilder deletedRowUpdateBuilder = new RowUpdateBuilder(table, 1, Util.dk(Integer.toString(dk)));
@@ -371,6 +402,7 @@ public class CompactionsTest
     @Test
     public void testRangeTombstones()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard2");
         cfs.clearUnsafe();
@@ -394,8 +426,11 @@ public class CompactionsTest
         int[] dkays = {0, 1, 2, 3};
         writeSSTableWithRangeTombstoneMaskingOneColumn(cfs, table, dkays);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> toCompact = cfs.getLiveSSTables();
         assert toCompact.size() == 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2498
 
         Util.compact(cfs, toCompact);
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -423,6 +458,7 @@ public class CompactionsTest
                 }
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             StatsMetadata stats = sstable.getSSTableMetadata();
@@ -446,6 +482,7 @@ public class CompactionsTest
 
         // Add test row
         DecoratedKey key = Util.dk(k);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13698
         RowUpdateBuilder rowUpdateBuilder = new RowUpdateBuilder(table, 0, key);
         rowUpdateBuilder.clustering("c").add("val", "a");
         rowUpdateBuilder.build().applyUnsafe();
@@ -453,6 +490,7 @@ public class CompactionsTest
         cfs.forceBlockingFlush();
 
         Collection<SSTableReader> sstablesBefore = cfs.getLiveSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertTrue(!partition.isEmpty());
@@ -470,6 +508,7 @@ public class CompactionsTest
 
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> sstablesAfter = cfs.getLiveSSTables();
         Collection<SSTableReader> toCompact = new ArrayList<SSTableReader>();
         for (SSTableReader sstable : sstablesAfter)
@@ -478,6 +517,7 @@ public class CompactionsTest
 
         Util.compact(cfs, toCompact);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13698
         SSTableReader newSSTable = null;
         for (SSTableReader reader : cfs.getLiveSSTables())
         {
@@ -509,6 +549,7 @@ public class CompactionsTest
 
     private static Collection<Range<Token>> makeRanges(int ... keys)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5722
         Collection<Range<Token>> ranges = new ArrayList<Range<Token>>(keys.length / 2);
         for (int i = 0; i < keys.length; i += 2)
             ranges.add(rangeFor(keys[i], keys[i + 1]));
@@ -518,14 +559,24 @@ public class CompactionsTest
     private static void insertRowWithKey(int key)
     {
         long timestamp = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         DecoratedKey dk = Util.dk(String.format("%03d", key));
         new RowUpdateBuilder(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata(), timestamp, dk.getKey())
                 .add("val", "val")
                 .build()
                 .applyUnsafe();
         /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         Mutation rm = new Mutation(KEYSPACE1, decoratedKey.getKey());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         rm.add("CF_STANDARD1", Util.cellname("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
         rm.applyUnsafe();
         */
     }
@@ -535,6 +586,7 @@ public class CompactionsTest
     public void testNeedsCleanup()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("CF_STANDARD1");
         store.clearUnsafe();
 
@@ -552,6 +604,7 @@ public class CompactionsTest
         }
         store.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
@@ -621,6 +674,7 @@ public class CompactionsTest
     @Test
     public void testConcurrencySettings()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
         CompactionManager.instance.setConcurrentCompactors(2);
         assertEquals(2, CompactionManager.instance.getCoreCompactorThreads());
         CompactionManager.instance.setConcurrentCompactors(3);

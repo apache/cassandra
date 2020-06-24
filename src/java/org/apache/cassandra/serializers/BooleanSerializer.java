@@ -30,8 +30,10 @@ public class BooleanSerializer implements TypeSerializer<Boolean>
 
     public Boolean deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12700
         if (bytes == null || bytes.remaining() == 0)
             return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
 
         byte value = bytes.get(bytes.position());
         return value != 0;

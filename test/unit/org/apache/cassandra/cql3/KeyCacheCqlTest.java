@@ -77,6 +77,7 @@ public class KeyCacheCqlTest extends CQLTester
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -94,6 +95,7 @@ public class KeyCacheCqlTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
         CachingParams.DEFAULT = CachingParams.CACHE_NOTHING;
         CQLTester.setUpClass();
     }
@@ -121,6 +123,7 @@ public class KeyCacheCqlTest extends CQLTester
     @Override
     protected String createIndex(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
         return createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
     }
 
@@ -162,6 +165,7 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         StorageService.instance.forceKeyspaceFlush(KEYSPACE_PER_TEST);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
 
         for (int pkInt = 0; pkInt < 20; pkInt++)
         {
@@ -302,6 +306,7 @@ public class KeyCacheCqlTest extends CQLTester
 
         dropTable("DROP TABLE %s");
         Schema.instance.updateVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10359
 
         //Test loading for a dropped 2i/table
         CacheService.instance.keyCache.clear();
@@ -331,6 +336,8 @@ public class KeyCacheCqlTest extends CQLTester
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
                                    + "PRIMARY KEY ((part_key_a, part_key_b),clust_key_a,clust_key_b,clust_key_c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
         String indexName = createIndex("CREATE INDEX ON %s (col_int)");
         insertData(table, indexName, true);
         clearCache();
@@ -543,6 +550,7 @@ public class KeyCacheCqlTest extends CQLTester
 
             if (i % 10 == 9)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12801
                 Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).forceFlush().get();
                 if (index != null)
                     triggerBlockingFlush(Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).indexManager.getIndexByName(index));
@@ -580,6 +588,7 @@ public class KeyCacheCqlTest extends CQLTester
 
     private static void triggerBlockingFlush(Index index) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         assert index != null;
         Callable<?> flushTask = index.getBlockingFlushTask();
         if (flushTask != null)

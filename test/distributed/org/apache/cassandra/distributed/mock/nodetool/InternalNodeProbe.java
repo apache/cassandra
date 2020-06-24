@@ -56,6 +56,7 @@ public class InternalNodeProbe extends NodeProbe
 
     public InternalNodeProbe(boolean withNotifications)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         this.withNotifications = withNotifications;
         connect();
     }
@@ -66,6 +67,7 @@ public class InternalNodeProbe extends NodeProbe
         mbeanServerConn = null;
         jmxc = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         if (withNotifications)
         {
             ssProxy = StorageService.instance;

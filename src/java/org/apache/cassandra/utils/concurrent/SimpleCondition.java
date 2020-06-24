@@ -50,6 +50,7 @@ public class SimpleCondition implements Condition
     {
         long start = System.nanoTime();
         long until = start + unit.toNanos(time);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return awaitUntil(until);
     }
 
@@ -65,6 +66,7 @@ public class SimpleCondition implements Condition
             s.cancel();
             return true;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return s.awaitUntil(deadlineNanos) || isSignaled();
     }
 

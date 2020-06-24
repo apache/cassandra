@@ -141,6 +141,7 @@ public interface Index
     public enum LoadType
     {
         READ, WRITE, ALL, NOOP;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
 
         public boolean supportsWrites()
         {
@@ -163,6 +164,7 @@ public interface Index
      */
     interface IndexBuildingSupport
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10681
         SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables);
     }
 
@@ -175,6 +177,7 @@ public interface Index
         @SuppressWarnings("resource")
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             return new CollatedViewIndexBuilder(cfs, indexes, new ReducingKeyIterator(sstables), sstables);
         }
     }
@@ -207,6 +210,7 @@ public interface Index
     /**
      * Same as {@code getBuildTaskSupport} but can be overloaded with a specific 'recover' logic different than the index building one
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
     default IndexBuildingSupport getRecoveryTaskSupport()
     {
         return getBuildTaskSupport();
@@ -294,6 +298,7 @@ public interface Index
      * @param hadBootstrap If the node had bootstrap before joining.
      * @return task to be executed by the index manager before joining the ring.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
     default public Callable<?> getPreJoinTask(boolean hadBootstrap)
     {
         return null;
@@ -319,6 +324,7 @@ public interface Index
      *
      * @return SSTable flush observer.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
     default SSTableFlushObserver getFlushObserver(Descriptor descriptor, OperationType opType)
     {
         return null;
@@ -423,6 +429,7 @@ public interface Index
     public Indexer indexerFor(DecoratedKey key,
                               RegularAndStaticColumns columns,
                               int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                               WriteContext ctx,
                               IndexTransaction.Type transactionType);
 
@@ -541,6 +548,7 @@ public interface Index
      * @throws InvalidRequestException if the details of the command fail to meet the
      *         index's validation rules
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11043
     default void validate(ReadCommand command) throws InvalidRequestException
     {
     }

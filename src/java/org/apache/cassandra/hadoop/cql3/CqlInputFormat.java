@@ -88,6 +88,9 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
     public RecordReader<Long, Row> getRecordReader(InputSplit split, JobConf jobConf, final Reporter reporter)
             throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7229
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7229
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10067
         TaskAttemptContext tac = HadoopCompat.newMapContext(
                 jobConf,
                 TaskAttemptID.forName(jobConf.get(MAPRED_TASK_ID)),
@@ -147,6 +150,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             // tokens: [0, 10, 20]
             // job range: [0, 10) - able to get estimate
             // job range: [5, 15) - unable to get estimate
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             Pair<String, String> jobKeyRange = ConfigHelper.getInputKeyRange(conf);
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
@@ -352,6 +356,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
 
         Row row = resultSet.one();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10600
         long meanPartitionSize = 0;
         long partitionCount = 0;
         int splitCount = 0;
@@ -399,6 +404,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             String query = String.format("SELECT mean_partition_size, partitions_count " +
                                          "FROM %s.%s " +
                                          "WHERE keyspace_name = ? AND table_name = ? AND range_start = ? AND range_end = ?",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                          SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                          SystemKeyspace.LEGACY_SIZE_ESTIMATES);
 
@@ -410,6 +416,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
     private static Map<TokenRange, Long> splitTokenRange(TokenRange tokenRange, int splitCount, long partitionCount)
     {
         List<TokenRange> splitRanges = tokenRange.splitEvenly(splitCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         Map<TokenRange, Long> rangesWithLength = Maps.newHashMapWithExpectedSize(splitRanges.size());
         for (TokenRange range : splitRanges)
             rangesWithLength.put(range, partitionCount);

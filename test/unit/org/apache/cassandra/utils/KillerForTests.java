@@ -31,6 +31,7 @@ public class KillerForTests extends JVMStabilityInspector.Killer
 
     public KillerForTests()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         expected = true;
     }
 
@@ -45,6 +46,7 @@ public class KillerForTests extends JVMStabilityInspector.Killer
         if (!expected)
             Assert.fail("Saw JVM Kill but did not expect it.");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8515
         this.killed = true;
         this.quiet = quiet;
     }
@@ -56,6 +58,7 @@ public class KillerForTests extends JVMStabilityInspector.Killer
 
     public boolean wasKilledQuietly()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8515
         return quiet;
     }
 

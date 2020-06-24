@@ -29,9 +29,11 @@ import org.apache.cassandra.db.marshal.SetType;
 public class Sets<T> extends Generator<Set<T>>
 {
     final Generator<T> valueType;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10807
 
     public Sets(String name, Generator<T> valueType, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         super(SetType.getInstance(valueType.type, true), config, name, Set.class);
         this.valueType = valueType;
     }
@@ -45,6 +47,7 @@ public class Sets<T> extends Generator<Set<T>>
     @Override
     public Set<T> generate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10807
         final Set<T> set = new HashSet<T>();
         int size = (int) sizeDistribution.next();
         for (int i = 0 ; i < size ; i++)

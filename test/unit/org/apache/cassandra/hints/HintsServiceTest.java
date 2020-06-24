@@ -82,6 +82,7 @@ public class HintsServiceTest
     @Before
     public void reinstanciateService() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
 
@@ -131,6 +132,7 @@ public class HintsServiceTest
                 HintsService.instance.resumeDispatch();
             }
         }, MoreExecutors.directExecutor());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
 
         Futures.allAsList(
                 noMessagesWhilePaused,
@@ -186,6 +188,7 @@ public class HintsServiceTest
     {
         // create spy for hint messages, but only create responses for noOfResponses hints
         Message<NoPayload> message = Message.internalResponse(HINT_RSP, NoPayload.noPayload);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         MockMessagingSpy spy;
         if (noOfResponses != -1)

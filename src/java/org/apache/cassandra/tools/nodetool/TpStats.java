@@ -33,6 +33,7 @@ import org.apache.cassandra.tools.nodetool.stats.*;
 public class TpStats extends NodeToolCmd
 {
     @Option(title = "format",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12035
             name = {"-F", "--format"},
             description = "Output format (json, yaml)")
     private String outputFormat = "";

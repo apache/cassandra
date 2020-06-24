@@ -109,7 +109,9 @@ public class OverflowTest extends CQLTester
                     + "comment = 'My comment' "
                     + "AND gc_grace_seconds = 4 "
                     + "AND bloom_filter_fp_chance = 0.01 "
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
                     + "AND compaction = { 'class' : 'LeveledCompactionStrategy', 'sstable_size_in_mb' : 10, 'fanout_size' : 5 } "
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                     + "AND compression = { 'enabled': false } "
                     + "AND caching = { 'keys': 'ALL', 'rows_per_partition': 'ALL' }");
 
@@ -118,6 +120,7 @@ public class OverflowTest extends CQLTester
                 + "AND gc_grace_seconds = 100 "
                 + "AND bloom_filter_fp_chance = 0.1 "
                 + "AND compaction = { 'class': 'SizeTieredCompactionStrategy', 'min_sstable_size' : 42 } "
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                 + "AND compression = { 'class' : 'SnappyCompressor' } "
                 + "AND caching = { 'rows_per_partition': 'ALL' }");
     }

@@ -84,6 +84,7 @@ public class CounterId implements Comparable<CounterId>
 
     public static CounterId generate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         return new CounterId(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()));
     }
 
@@ -103,6 +104,7 @@ public class CounterId implements Comparable<CounterId>
 
     public int compareTo(CounterId o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4647
         return ByteBufferUtil.compareSubArrays(id, id.position(), o.id, o.id.position(), CounterId.LENGTH);
     }
 
@@ -120,6 +122,7 @@ public class CounterId implements Comparable<CounterId>
         if (o == null || getClass() != o.getClass())
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4647
         CounterId otherId = (CounterId)o;
         return id.equals(otherId.id);
     }
@@ -136,6 +139,7 @@ public class CounterId implements Comparable<CounterId>
 
         LocalCounterIdHolder()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7366
             current = new AtomicReference<>(wrap(ByteBufferUtil.bytes(SystemKeyspace.getLocalHostId())));
         }
 

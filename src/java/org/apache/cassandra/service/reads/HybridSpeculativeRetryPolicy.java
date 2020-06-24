@@ -30,6 +30,7 @@ import org.apache.cassandra.schema.TableParams;
 public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 {
     private static final Pattern PATTERN =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
         Pattern.compile("^(?<fun>MIN|MAX)\\((?<val1>[0-9.]+[a-z]+)\\s*,\\s*(?<val2>[0-9.]+[a-z]+)\\)$",
                         Pattern.CASE_INSENSITIVE);
 
@@ -59,6 +60,7 @@ public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     @Override
     public long calculateThreshold(Snapshot latency, long existingValue)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14696
         if (latency.size() <= 0)
             return existingValue;
         return function.call(percentilePolicy.calculateThreshold(latency, existingValue), fixedPolicy.calculateThreshold(latency, existingValue));
@@ -96,6 +98,7 @@ public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     static HybridSpeculativeRetryPolicy fromString(String str)
     {
         Matcher matcher = PATTERN.matcher(str);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
 
         if (!matcher.matches())
             throw new IllegalArgumentException();

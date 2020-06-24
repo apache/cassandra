@@ -64,6 +64,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
     private DiagnosticEventService()
     {
         MBeanWrapper.instance.registerMBean(this,"org.apache.cassandra.diag:type=DiagnosticEventService");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
         // register broadcasters for JMX events
         DiagnosticEventPersistence.start();
@@ -111,6 +112,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
      */
     public synchronized <E extends DiagnosticEvent> void subscribe(Class<E> event, Consumer<E> consumer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14435
         logger.debug("Adding subscriber: {}", consumer);
         subscribersByClass = ImmutableSetMultimap.<Class<? extends DiagnosticEvent>, Consumer<DiagnosticEvent>>builder()
                               .putAll(subscribersByClass)
@@ -163,6 +165,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
      */
     public synchronized <E extends DiagnosticEvent> void unsubscribe(Consumer<E> consumer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14435
         unsubscribe(null, consumer);
     }
 
@@ -186,6 +189,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
                 subscriber = ((TypedConsumerWrapper)subscriber).wrapped;
 
             // other consumers or other events
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14435
             if (subscriber != consumer || (event != null && !entry.getKey().equals(event)))
             {
                 byClassBuilder = byClassBuilder.put(entry);
@@ -206,6 +210,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
                 Consumer<DiagnosticEvent> subscriber = e.getValue();
                 if (subscriber instanceof TypedConsumerWrapper)
                     subscriber = ((TypedConsumerWrapper) subscriber).wrapped;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14435
                 return subscriber != consumer || (event != null && !byClassEntry.getKey().equals(event));
             }).forEach(byTypeBuilder::put);
 
@@ -285,6 +290,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     public boolean isDiagnosticsEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14435
         return DatabaseDescriptor.diagnosticEventsEnabled();
     }
 

@@ -49,6 +49,7 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     @Override
     public long calculateThreshold(Snapshot latency, long existingValue)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14696
         if (latency.size() <= 0)
             return existingValue;
         return (long) latency.getValue(percentile / 100);
@@ -78,6 +79,7 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14352
         return String.format("%sp", FORMATTER.format(percentile));
     }
 

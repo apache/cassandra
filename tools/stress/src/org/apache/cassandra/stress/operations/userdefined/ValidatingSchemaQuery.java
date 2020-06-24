@@ -50,6 +50,7 @@ public class ValidatingSchemaQuery extends PartitionOperation
 
     private ValidatingSchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, ValidatingStatement[] statements, ConsistencyLevel cl, int clusteringComponents)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
         super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), settings.insert.rowPopulationRatio.get(), 1));
         this.statements = statements;
         this.cl = cl;
@@ -61,6 +62,7 @@ public class ValidatingSchemaQuery extends PartitionOperation
 
         for (ValidatingStatement statement : statements)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13925
             if (cl.isSerialConsistency())
                 statement.statement.setSerialConsistencyLevel(JavaDriverClient.from(cl));
             else
@@ -206,6 +208,7 @@ public class ValidatingSchemaQuery extends PartitionOperation
         {
             StringBuilder cc = new StringBuilder();
             StringBuilder arg = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             cc.append('('); arg.append('(');
             for (int d = 0 ; d <= depth ; d++)
             {
@@ -259,6 +262,7 @@ public class ValidatingSchemaQuery extends PartitionOperation
     {
         JavaDriverClient jclient = settings.getJavaDriverClient();
         PreparedStatement statement = jclient.prepare(cql);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new ValidatingStatement(statement, incLb, incUb);
     }
 }

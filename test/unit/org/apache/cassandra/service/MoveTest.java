@@ -104,13 +104,18 @@ public class MoveTest
     @BeforeClass
     public static void setup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.schemaDefinition("MoveTest");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
         addNetworkTopologyKeyspace(Network_11_KeyspaceName, 1, 1);
         addNetworkTopologyKeyspace(Network_22_KeyspaceName, 2, 2);
         addNetworkTopologyKeyspace(Network_33_KeyspaceName, 3, 3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15551
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
     }
 
@@ -127,6 +132,7 @@ public class MoveTest
         // so we have to wait for the GossipStage thread to evict stale endpoints
         // from membership before moving on, otherwise it may break other tests as
         // things change in the background
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15551
         final int endpointCount = Gossiper.instance.getEndpointCount() - 1;
         final CountDownLatch latch = new CountDownLatch(endpointCount);
         Consumer onEndpointEvicted = event -> latch.countDown();
@@ -134,6 +140,7 @@ public class MoveTest
                                                     GossiperEvent.GossiperEventType.EVICTED_FROM_MEMBERSHIP,
                                                     onEndpointEvicted);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7390
         PendingRangeCalculatorService.instance.blockUntilFinished();
         StorageService.instance.getTokenMetadata().clearUnsafe();
 
@@ -151,6 +158,7 @@ public class MoveTest
     private static void addNetworkTopologyKeyspace(String keyspaceName, Integer... replicas) throws Exception
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {
             //Odd IPs are in DC1 and Even are in DC2. Endpoints upto .14 will have unique racks and
@@ -178,6 +186,7 @@ public class MoveTest
             {
                 String str = endpoint.toString();
                 int index = str.lastIndexOf(".");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 return Integer.parseInt(str.substring(index + 1).trim().split(":")[0]);
             }
         });
@@ -262,6 +271,8 @@ public class MoveTest
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
         ArrayList<Token> endpointTokens = new ArrayList<>();
         ArrayList<Token> keyTokens = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
 
@@ -409,6 +420,10 @@ public class MoveTest
     @Test
     public void testMoveWithPendingRangesForSimpleStrategyFourNode() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 4;
 
@@ -417,6 +432,8 @@ public class MoveTest
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
         ArrayList<Token> endpointTokens = new ArrayList<>();
         ArrayList<Token> keyTokens = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
 
@@ -563,6 +580,7 @@ public class MoveTest
     private void assertPendingRanges(TokenMetadata tmd, Map<Range<Token>, EndpointsForRange> pendingRanges, String keyspaceName) throws ConfigurationException
     {
         boolean keyspaceFound = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String nonSystemKeyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             if(!keyspaceName.equals(nonSystemKeyspaceName))
@@ -577,6 +595,7 @@ public class MoveTest
     private void assertMaps(Map<Range<Token>, EndpointsForRange> expected, PendingRangeMaps actual)
     {
         int sizeOfActual = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         Iterator<Map.Entry<Range<Token>, EndpointsForRange.Builder>> iterator = actual.iterator();
         while(iterator.hasNext())
         {
@@ -597,6 +616,7 @@ public class MoveTest
     public void newTestWriteEndpointsDuringMove() throws Exception
     {
         StorageService ss = StorageService.instance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
         final int RING_SIZE = 10;
         final int MOVING_NODE = 3; // index of the moving node
 
@@ -605,12 +625,14 @@ public class MoveTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         Map<Token, List<InetAddressAndPort>> expectedEndpoints = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4564
         for (Token token : keyTokens)
         {
             List<InetAddressAndPort> endpoints = new ArrayList<>();
@@ -624,6 +646,7 @@ public class MoveTest
 
         // node LEAVING_NODE should move to this token
         Token newToken = positionToken(MOVING_NODE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
 
         // Third node leaves
         ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.moving(newToken));
@@ -632,9 +655,11 @@ public class MoveTest
         assertTrue(tmd.isMoving(hosts.get(MOVING_NODE)));
 
         AbstractReplicationStrategy strategy;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             strategy = getStrategy(keyspaceName, tmd);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
             if(strategy instanceof NetworkTopologyStrategy)
                 continue;
             int numMoved = 0;
@@ -658,10 +683,12 @@ public class MoveTest
                 	numMoved++;
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7390
             assertEquals("mismatched number of moved token", 1, numMoved);
         }
 
         // moving endpoint back to the normal state
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
     }
 
@@ -679,14 +706,18 @@ public class MoveTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring or 10 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
         final int[] MOVING = new int[] {6, 8, 9};
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
 
         Map<Integer, Token> newTokens = new HashMap<Integer, Token>();
 
@@ -704,13 +735,16 @@ public class MoveTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddressAndPort boot1 = InetAddressAndPort.getByName("127.0.1.1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.initializeNodeUnsafe(boot1, UUID.randomUUID(), 1);
         Gossiper.instance.injectApplicationState(boot1, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(5))));
         ss.onChange(boot1,
                     ApplicationState.STATUS,
                     valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(5))));
         PendingRangeCalculatorService.instance.blockUntilFinished();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7390
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort boot2 = InetAddressAndPort.getByName("127.0.1.2");
         Gossiper.instance.initializeNodeUnsafe(boot2, UUID.randomUUID(), 1);
         Gossiper.instance.injectApplicationState(boot2, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(7))));
@@ -723,6 +757,7 @@ public class MoveTest
         Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
         for (int i = 1; i <= 4; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
             keyspaceStrategyMap.put("MoveTestKeyspace" + i, getStrategy("MoveTestKeyspace" + i, tmd));
         }
 
@@ -816,6 +851,7 @@ public class MoveTest
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddressAndPort>> expectedEndpoints = new HashMap<>();
         expectedEndpoints.put(Simple_RF1_KeyspaceName, HashMultimap.<Token, InetAddressAndPort>create());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
@@ -826,6 +862,7 @@ public class MoveTest
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2"));
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9"));
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         expectedEndpoints.put(KEYSPACE2, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
@@ -837,6 +874,7 @@ public class MoveTest
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         expectedEndpoints.put(KEYSPACE3, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1"));
@@ -848,7 +886,9 @@ public class MoveTest
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.1.2"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         expectedEndpoints.put(Simple_RF3_KeyspaceName, HashMultimap.<Token, InetAddressAndPort>create());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
         expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4"));
         expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5"));
         expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6"));
@@ -948,6 +988,7 @@ public class MoveTest
         {
             ss.onChange(hosts.get(movingIndex),
                         ApplicationState.STATUS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
                         valueFactory.normal(Collections.singleton(newTokens.get(movingIndex))));
         }
     }
@@ -955,15 +996,27 @@ public class MoveTest
     @Test
     public void testStateJumpToNormal() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1499
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring or 6 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
@@ -979,22 +1032,27 @@ public class MoveTest
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(newToken)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         assertTrue(tmd.getSizeOfMovingEndpoints() == 0);
         assertEquals(newToken, tmd.getToken(hosts.get(2)));
 
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(newToken)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         assertTrue(tmd.getSizeOfMovingEndpoints() == 0);
         assertEquals(newToken, tmd.getToken(hosts.get(2)));
     }
 
     private static Collection<InetAddressAndPort> makeAddrs(String... hosts) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         ArrayList<InetAddressAndPort> addrs = new ArrayList<>(hosts.length);
         for (String host : hosts)
             addrs.add(InetAddressAndPort.getByName(host));
@@ -1014,6 +1072,7 @@ public class MoveTest
         KeyspaceMetadata ksmd = Schema.instance.getKeyspaceMetadata(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 keyspaceName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                 ksmd.params.replication.klass,
                 tmd,
                 new SimpleSnitch(),
@@ -1022,11 +1081,13 @@ public class MoveTest
 
     private Token positionToken(int position)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4564
         return new BigIntegerToken(String.valueOf(10 * position + 7));
     }
 
     private static int collectionSize(Collection<?> collection)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
         if (collection.isEmpty())
             return 0;
 
@@ -1048,6 +1109,7 @@ public class MoveTest
             throw new RuntimeException("generateRanges argument count should be even");
 
         Set<Range<Token>> ranges = new HashSet<Range<Token>>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
 
         for (int i = 0; i < rangePairs.length; i+=2)
         {

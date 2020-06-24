@@ -56,6 +56,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
 
     public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, UUID pendingRepair, boolean isTransient, SSTableFormat.Type format, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
         DiskBoundaries db = cfs.getDiskBoundaries();
         directories = db.directories;
         this.sstableLevel = sstableLevel;
@@ -72,8 +73,10 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         {
             Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
             if (localDir == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 throw new IOException(String.format("Insufficient disk space to store %s",
                                                     FBUtilities.prettyPrintMemory(totalSize)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(localDir), format);
             currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, sstableLevel, header, lifecycleNewTracker);
         }

@@ -47,6 +47,8 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  *  atomicity in some situations
  */
 public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         extends AbstractReadRepair<E, P>
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockingReadRepair.class);
@@ -64,6 +66,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     }
 
     @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
     Meter getRepairMeter()
     {
         return ReadRepairMetrics.repairedBlocking;
@@ -74,6 +77,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     {
         for (BlockingPartitionRepair repair: repairs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
             repair.maybeSendAdditionalWrites(cfs.additionalWriteLatencyNanos, TimeUnit.NANOSECONDS);
         }
     }
@@ -81,9 +85,11 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     @Override
     public void awaitWrites()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         BlockingPartitionRepair timedOut = null;
         for (BlockingPartitionRepair repair : repairs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
             if (!repair.awaitRepairsUntil(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) + queryStartNanoTime, NANOSECONDS))
             {
                 timedOut = repair;

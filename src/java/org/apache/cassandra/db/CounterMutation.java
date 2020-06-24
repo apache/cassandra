@@ -76,11 +76,13 @@ public class CounterMutation implements IMutation
 
     public Collection<PartitionUpdate> getPartitionUpdates()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return mutation.getPartitionUpdates();
     }
 
     public void validateSize(int version, int overhead)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         long totalSize = serializedSize(version) + overhead;
         if(totalSize > MAX_MUTATION_SIZE)
         {
@@ -119,6 +121,7 @@ public class CounterMutation implements IMutation
      */
     public Mutation applyCounterMutation() throws WriteTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
@@ -129,6 +132,7 @@ public class CounterMutation implements IMutation
             grabCounterLocks(keyspace, locks);
             for (PartitionUpdate upd : getPartitionUpdates())
                 resultBuilder.add(processModifications(upd));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
             Mutation result = resultBuilder.build();
             result.apply();
@@ -143,6 +147,7 @@ public class CounterMutation implements IMutation
 
     public void apply()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
         applyCounterMutation();
     }
 
@@ -150,8 +155,10 @@ public class CounterMutation implements IMutation
     {
         long startTime = System.nanoTime();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7359
         for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long timeout = getTimeout(NANOSECONDS) - (System.nanoTime() - startTime);
             try
             {
@@ -173,6 +180,7 @@ public class CounterMutation implements IMutation
      */
     private Iterable<Object> getCounterLockKeys()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return Iterables.concat(Iterables.transform(getPartitionUpdates(), new Function<PartitionUpdate, Iterable<Object>>()
         {
             public Iterable<Object> apply(final PartitionUpdate update)
@@ -220,6 +228,7 @@ public class CounterMutation implements IMutation
 
     private void updateWithCurrentValue(PartitionUpdate.CounterMark mark, ClockAndCount currentValue, ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9811
         long clock = Math.max(FBUtilities.timestampMicros(), currentValue.clock + 1L);
         long count = currentValue.count + CounterContext.instance().total(mark.value());
 
@@ -252,7 +261,9 @@ public class CounterMutation implements IMutation
         BTreeSet.Builder<Clustering> names = BTreeSet.builder(cfs.metadata().comparator);
         for (PartitionUpdate.CounterMark mark : marks)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12219
             if (mark.clustering() != Clustering.STATIC_CLUSTERING)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 names.add(mark.clustering());
             if (mark.path() == null)
                 builder.add(mark.column());
@@ -261,6 +272,7 @@ public class CounterMutation implements IMutation
         }
 
         int nowInSec = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names.build(), false);
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, key(), builder.build(), filter);
         PeekingIterator<PartitionUpdate.CounterMark> markIter = Iterators.peekingIterator(marks.iterator());
@@ -317,6 +329,7 @@ public class CounterMutation implements IMutation
 
     public long getTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getCounterWriteRpcTimeout(unit);
     }
 
@@ -326,6 +339,7 @@ public class CounterMutation implements IMutation
 
     public int serializedSize(int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         switch (version)
         {
             case VERSION_30:
@@ -373,7 +387,9 @@ public class CounterMutation implements IMutation
 
         public long serializedSize(CounterMutation cm, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             return cm.mutation.serializedSize(version)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                  + TypeSizes.sizeof(cm.consistency.name());
         }
     }

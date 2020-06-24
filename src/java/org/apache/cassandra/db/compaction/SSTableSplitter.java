@@ -33,11 +33,13 @@ public class SSTableSplitter
 
     public SSTableSplitter(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         this.task = new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
     }
 
     public void split()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         task.execute(ActiveCompactionsTracker.NOOP);
     }
 
@@ -47,6 +49,7 @@ public class SSTableSplitter
 
         public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             super(cfs, transaction, CompactionManager.NO_GC, false);
             this.sstableSizeInMB = sstableSizeInMB;
 
@@ -57,6 +60,7 @@ public class SSTableSplitter
         @Override
         protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
             return new SplitController(cfs);
         }
 
@@ -66,6 +70,7 @@ public class SSTableSplitter
                                                               LifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, sstableSizeInMB * 1024L * 1024L, 0, false);
         }
 

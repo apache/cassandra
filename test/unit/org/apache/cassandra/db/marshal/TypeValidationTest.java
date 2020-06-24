@@ -40,6 +40,7 @@ public class TypeValidationTest
     @Test(expected = MarshalException.class)
     public void testInvalidTimeUUID()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2067
         UUID uuid = UUID.randomUUID();
         TimeUUIDType.instance.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
     }
@@ -53,6 +54,8 @@ public class TypeValidationTest
     @Test
     public void testLong()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3031
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         LongType.instance.validate(Util.getBytes(5L));
         LongType.instance.validate(Util.getBytes(5555555555555555555L));
     }

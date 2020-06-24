@@ -26,6 +26,7 @@ import io.netty.util.concurrent.FastThreadLocal;
 
 public enum ChecksumType
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14716
     ADLER32
     {
 
@@ -42,6 +43,7 @@ public enum ChecksumType
         }
 
     },
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
     CRC32
     {
 
@@ -66,12 +68,14 @@ public enum ChecksumType
     {
         protected Checksum initialValue() throws Exception
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
             return newInstance();
         }
     };
 
     public long of(ByteBuffer buf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         Checksum checksum = instances.get();
         checksum.reset();
         update(checksum, buf);

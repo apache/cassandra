@@ -46,6 +46,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public enum ClusteringOrder
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         ASC, DESC, NONE
     }
 
@@ -62,9 +63,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         // NOTE: if adding a new type, must modify comparisonOrder
         PARTITION_KEY,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         CLUSTERING,
         REGULAR,
         STATIC;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         public boolean isPrimaryKeyKind()
         {
@@ -98,6 +101,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     private static long comparisonOrder(Kind kind, boolean isComplex, long position, ColumnIdentifier name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10316
         assert position >= 0 && position < 1 << 12;
         return   (((long) kind.ordinal()) << 61)
                | (isComplex ? 1L << 60 : 0)
@@ -165,11 +169,13 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
                                                                       // so make sure we don't sneak it for something else since it'd breaks equals()
         this.kind = kind;
         this.position = position;
         this.cellPathComparator = makeCellPathComparator(kind, type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
@@ -219,11 +225,13 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public boolean isPartitionKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         return kind == Kind.PARTITION_KEY;
     }
 
     public boolean isClusteringColumn()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         return kind == Kind.CLUSTERING;
     }
 
@@ -239,6 +247,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ClusteringOrder clusteringOrder()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         if (!isClusteringColumn())
             return ClusteringOrder.NONE;
 
@@ -247,6 +256,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public int position()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
         return position;
     }
 
@@ -261,6 +271,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         ColumnMetadata cd = (ColumnMetadata) o;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return equalsWithoutType(cd) && type.equals(cd.type);
     }
 
@@ -294,6 +305,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         int result = hash;
         if (result == 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11428
             result = 31 + (ksName == null ? 0 : ksName.hashCode());
             result = 31 * result + (cfName == null ? 0 : cfName.hashCode());
             result = 31 * result + (name == null ? 0 : name.hashCode());
@@ -308,6 +320,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         return name.toString();
     }
 
@@ -317,6 +330,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           .add("name", name)
                           .add("type", type)
                           .add("kind", kind)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
                           .add("position", position)
                           .toString();
     }
@@ -329,6 +343,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     @Override
     public boolean selectColumns(Predicate<ColumnMetadata> predicate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return predicate.test(this);
     }
 
@@ -356,7 +371,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         if (comparisonOrder != other.comparisonOrder)
             return Long.compare(comparisonOrder, other.comparisonOrder);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10316
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9706
         return this.name.compareTo(other.name);
     }
 
@@ -367,6 +384,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public Comparator<Object> asymmetricCellPathComparator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         return asymmetricCellPathComparator;
     }
 
@@ -382,6 +400,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public boolean isSimple()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return !isComplex();
     }
 
@@ -393,6 +412,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public void validateCell(Cell cell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12916
         if (cell.isTombstone())
         {
             if (cell.value().hasRemaining())
@@ -464,6 +484,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      */
     public boolean isCounterColumn()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14261
         if (type instanceof CollectionType) // Possible with, for example, supercolumns
             return ((CollectionType) type).valueComparator().isCounter();
         return type.isCounter();
@@ -555,6 +576,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                     return ColumnIdentifier.getInterned(text, true);
 
                 AbstractType<?> columnNameType = table.staticCompactOrSuperTableColumnNameType();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                 if (columnNameType instanceof UTF8Type)
                     return ColumnIdentifier.getInterned(text, true);
 

@@ -90,6 +90,7 @@ public class VIntCodingTest
     public void testByteBufWithNegativeNumber() throws IOException
     {
         int i = -1231238694;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             VIntCoding.writeUnsignedVInt(i, out);

@@ -44,6 +44,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
 {
     public AsymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort to, InetAddressAndPort from, List<Range<Token>> differences, PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         super(desc, to, from, differences, previewKind);
     }
 
@@ -53,6 +54,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
         AsymmetricSyncRequest request = new AsymmetricSyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.fetchingNode, request.fetchFrom);
         Tracing.traceRepair(message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         MessagingService.instance().send(Message.out(ASYMMETRIC_SYNC_REQ, request), request.fetchingNode);
     }
 
@@ -64,6 +66,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
         }
     }
@@ -71,6 +74,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         return "AsymmetricRemoteSyncTask{" +
                "rangesToSync=" + rangesToSync +
                ", nodePair=" + nodePair +

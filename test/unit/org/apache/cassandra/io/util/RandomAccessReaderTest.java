@@ -56,11 +56,13 @@ public class RandomAccessReaderTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     private static final class Parameters
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         final long fileLength;
         final int bufferSize;
 
@@ -79,6 +81,7 @@ public class RandomAccessReaderTest
             this.expected = "The quick brown fox jumps over the lazy dog".getBytes(FileUtils.CHARSET);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         Parameters mmappedRegions(boolean mmappedRegions)
         {
             this.mmappedRegions = mmappedRegions;
@@ -142,6 +145,7 @@ public class RandomAccessReaderTest
         Parameters params = new Parameters(SIZE, 1 << 20); // 1MB
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (ChannelProxy channel = new ChannelProxy("abc", new FakeFileChannel(SIZE));
              FileHandle.Builder builder = new FileHandle.Builder(channel)
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize);
@@ -267,9 +271,11 @@ public class RandomAccessReaderTest
 
     private static File writeFile(Parameters params) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File f = FileUtils.createTempFile("testReadFully", "1");
         f.deleteOnExit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try(SequentialWriter writer = new SequentialWriter(f))
         {
             long numWritten = 0;
@@ -290,6 +296,7 @@ public class RandomAccessReaderTest
     private static void testReadFully(Parameters params) throws IOException
     {
         final File f = writeFile(params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath())
                                                      .bufferType(params.bufferType).bufferSize(params.bufferSize))
         {
@@ -320,6 +327,7 @@ public class RandomAccessReaderTest
     @Test
     public void testReadBytes() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("testReadBytes", "1");
         final String expected = "The quick brown fox jumps over the lazy dog";
 
@@ -331,6 +339,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
@@ -349,10 +358,13 @@ public class RandomAccessReaderTest
     @Test
     public void testReset() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("testMark", "1");
         final String expected = "The quick brown fox jumps over the lazy dog";
         final int numIterations = 10;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try(SequentialWriter writer = new SequentialWriter(f))
         {
             for (int i = 0; i < numIterations; i++)
@@ -362,6 +374,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
@@ -370,10 +383,12 @@ public class RandomAccessReaderTest
 
             ByteBuffer b = ByteBufferUtil.read(reader, expected.length());
             assertEquals(expected, new String(b.array(), StandardCharsets.UTF_8));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
 
             assertFalse(reader.isEOF());
             assertEquals((numIterations - 1) * expected.length(), reader.bytesRemaining());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
             DataPosition mark = reader.mark();
             assertEquals(0, reader.bytesPastMark());
             assertEquals(0, reader.bytesPastMark(mark));
@@ -381,6 +396,7 @@ public class RandomAccessReaderTest
             for (int i = 0; i < (numIterations - 1); i++)
             {
                 b = ByteBufferUtil.read(reader, expected.length());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
                 assertEquals(expected, new String(b.array(), StandardCharsets.UTF_8));
             }
             assertTrue(reader.isEOF());
@@ -394,6 +410,7 @@ public class RandomAccessReaderTest
             for (int i = 0; i < (numIterations - 1); i++)
             {
                 b = ByteBufferUtil.read(reader, expected.length());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
                 assertEquals(expected, new String(b.array(), StandardCharsets.UTF_8));
             }
 
@@ -404,6 +421,8 @@ public class RandomAccessReaderTest
             for (int i = 0; i < (numIterations - 1); i++)
             {
                 b = ByteBufferUtil.read(reader, expected.length());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
                 assertEquals(expected, new String(b.array(), StandardCharsets.UTF_8));
             }
 
@@ -425,6 +444,7 @@ public class RandomAccessReaderTest
 
     private static void testSeek(int numThreads) throws IOException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File f = FileUtils.createTempFile("testMark", "1");
         final byte[] expected = new byte[1 << 16];
 
@@ -434,6 +454,7 @@ public class RandomAccessReaderTest
         Random r = new Random(seed);
         r.nextBytes(expected);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try(SequentialWriter writer = new SequentialWriter(f))
         {
             writer.write(expected);
@@ -442,6 +463,7 @@ public class RandomAccessReaderTest
 
         assert f.exists();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(f.getPath()))
         {
             final Runnable worker = () ->
@@ -495,6 +517,7 @@ public class RandomAccessReaderTest
                     executor.submit(worker);
 
                 executor.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
                 Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
             }
         }

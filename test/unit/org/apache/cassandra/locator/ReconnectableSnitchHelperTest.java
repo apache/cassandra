@@ -50,6 +50,7 @@ public class ReconnectableSnitchHelperTest
     public void failedAuthentication() throws Exception
     {
         DatabaseDescriptor.setInternodeAuthenticator(MessagingServiceTest.ALLOW_NOTHING_AUTHENTICATOR);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.250");
         //Should tolerate null returns by MS for the connection
         ReconnectableSnitchHelper.reconnect(address, address, null, null);

@@ -38,6 +38,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
             new AbstractBoundsSerializer<Token>(Token.serializer);
     public static final IPartitionerDependentSerializer<AbstractBounds<PartitionPosition>> rowPositionSerializer =
             new AbstractBoundsSerializer<PartitionPosition>(PartitionPosition.serializer);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
     private enum Type
     {
@@ -50,6 +51,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     public AbstractBounds(T left, T right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         assert left.getPartitioner() == right.getPartitioner();
         this.left = left;
         this.right = right;
@@ -84,6 +86,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
      */
     public static <T extends RingPosition<T>> boolean strictlyWrapsAround(T left, T right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9462
         return !(left.compareTo(right) <= 0 || right.isMinimum());
     }
 
@@ -106,6 +109,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
     /** return true if @param range intersects any of the given @param ranges */
     public boolean intersects(Iterable<Range<T>> ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4079
         for (Range<T> range2 : ranges)
         {
             if (range2.intersects(this))
@@ -120,6 +124,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     public String getString(AbstractType<?> keyValidator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4905
         return getOpeningString() + format(left, keyValidator) + ", " + format(right, keyValidator) + getClosingString();
     }
 
@@ -127,6 +132,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
     {
         if (value instanceof DecoratedKey)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             return keyValidator.getString(((DecoratedKey)value).getKey());
         }
         else
@@ -150,11 +156,13 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
         private static final int END_INCLUSIVE_FLAG   = 0x04;
 
         IPartitionerDependentSerializer<T> serializer;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
 
         // Use for pre-3.0 protocol
         private static int kindInt(AbstractBounds<?> ab)
         {
             int kind = ab instanceof Range ? Type.RANGE.ordinal() : Type.BOUNDS.ordinal();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3617
             if (!(ab.left instanceof Token))
                 kind = -(kind + 1);
             return kind;
@@ -164,6 +172,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
         private static int kindFlags(AbstractBounds<?> ab)
         {
             int flags = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9775
             if (ab.left instanceof Token)
                 flags |= IS_TOKEN_FLAG;
             if (ab.isStartInclusive())
@@ -175,6 +184,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
         public AbstractBoundsSerializer(IPartitionerDependentSerializer<T> serializer)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
             this.serializer = serializer;
         }
 
@@ -187,6 +197,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
             // !WARNING! While we don't support the pre-3.0 messaging protocol, we serialize the token range in the
             // system table (see SystemKeypsace.rangeToBytes) using the old/pre-3.0 format and until we deal with that
             // problem, we have to preserve this code.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9775
             if (version < MessagingService.VERSION_30)
                 out.writeInt(kindInt(range));
             else
@@ -242,6 +253,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     public static <T extends RingPosition<T>> AbstractBounds<T> bounds(Boundary<T> min, Boundary<T> max)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8946
         return bounds(min.boundary, min.inclusive, max.boundary, max.inclusive);
     }
     public static <T extends RingPosition<T>> AbstractBounds<T> bounds(T min, boolean inclusiveMin, T max, boolean inclusiveMax)

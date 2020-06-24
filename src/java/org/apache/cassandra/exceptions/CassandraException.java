@@ -23,6 +23,7 @@ public abstract class CassandraException extends RuntimeException implements Tra
 
     protected CassandraException(ExceptionCode code, String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(msg);
         this.code = code;
     }

@@ -21,11 +21,13 @@ public class ByteOrderedPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         partitioner = ByteOrderedPartitioner.instance;
     }
 
     protected boolean shouldStopRecursion(Token left, Token right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12858
         return false;
     }
 }

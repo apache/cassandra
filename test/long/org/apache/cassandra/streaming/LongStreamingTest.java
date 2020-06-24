@@ -52,6 +52,7 @@ public class LongStreamingTest
     public static void setup() throws Exception
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
@@ -65,6 +66,7 @@ public class LongStreamingTest
     @Test
     public void testSstableCompressionStreaming() throws InterruptedException, ExecutionException, IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         testStream(true);
     }
 
@@ -107,6 +109,8 @@ public class LongStreamingTest
         writer.close();
         System.err.println(String.format("Writer finished after %d seconds....", TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         File[] dataFiles = dataDir.listFiles((dir, name) -> name.endsWith("-Data.db"));
         long dataSize = 0l;
         for (File file : dataFiles)
@@ -115,6 +119,8 @@ public class LongStreamingTest
             dataSize += file.length();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
             private String ks;
@@ -142,6 +148,8 @@ public class LongStreamingTest
 
 
         //Stream again
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
             private String ks;
@@ -177,6 +185,7 @@ public class LongStreamingTest
                                          millis / 1000d,
                                          (dataSize * 2 / (1 << 20) / (millis / 1000d)) * 8));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + KS + '.'  + TABLE + " limit 100;");
         assertEquals(100, rs.size());
     }

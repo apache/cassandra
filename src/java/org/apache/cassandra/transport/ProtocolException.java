@@ -35,16 +35,19 @@ public class ProtocolException extends RuntimeException implements TransportExce
     public ProtocolException(String msg, ProtocolVersion forcedProtocolVersion)
     {
         super(msg);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         this.forcedProtocolVersion = forcedProtocolVersion;
     }
 
     public ExceptionCode code()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         return ExceptionCode.PROTOCOL_ERROR;
     }
 
     public ProtocolVersion getForcedProtocolVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return forcedProtocolVersion;
     }
 }

@@ -65,9 +65,13 @@ public class SecondaryIndexTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, WITH_COMPOSITE_INDEX, true, true).gcGraceSeconds(0),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, COMPOSITE_INDEX_TO_BE_ADDED, false).gcGraceSeconds(0),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15259
                                     SchemaLoader.compositeMultipleIndexCFMD(KEYSPACE1, WITH_MULTIPLE_COMPOSITE_INDEX).gcGraceSeconds(0),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE1, WITH_KEYS_INDEX, true).gcGraceSeconds(0));
     }
@@ -77,6 +81,7 @@ public class SecondaryIndexTest
     {
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_COMPOSITE_INDEX).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(COMPOSITE_INDEX_TO_BE_ADDED).truncateBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15259
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_MULTIPLE_COMPOSITE_INDEX).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_KEYS_INDEX).truncateBlocking();
     }
@@ -120,7 +125,10 @@ public class SecondaryIndexTest
                                       .filterOn("birthdate", Operator.EQ, 1L)
                                       .build();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         Index.Searcher searcher = rc.getIndex(cfs).searcherFor(rc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         try (ReadExecutionController executionController = rc.executionController();
              UnfilteredPartitionIterator pi = searcher.search(executionController))
         {
@@ -208,6 +216,7 @@ public class SecondaryIndexTest
         // verify that it's not being indexed under any other value either
         ReadCommand rc = Util.cmd(cfs).build();
         assertNull(rc.getIndex(cfs));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
 
         // resurrect w/ a newer timestamp
         new RowUpdateBuilder(cfs.metadata(), 2, "k1").clustering("c").add("birthdate", 1L).build().apply();;
@@ -226,6 +235,7 @@ public class SecondaryIndexTest
         RowUpdateBuilder.deleteRow(cfs.metadata(), 3, "k1", "c").applyUnsafe();
         rc = Util.cmd(cfs).build();
         assertNull(rc.getIndex(cfs));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
 
         // make sure obsolete mutations don't generate an index entry
         // todo - checking the # of index searchers for the command is probably not the best thing to test here
@@ -327,6 +337,8 @@ public class SecondaryIndexTest
     @Test
     public void testDeleteOfInconsistentValuesFromCompositeIndex() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         runDeleteOfInconsistentValuesFromCompositeIndexTest(false);
     }
 
@@ -361,6 +373,8 @@ public class SecondaryIndexTest
 
         // now apply another update, but force the index update to be skipped
         builder = new RowUpdateBuilder(cfs.metadata(), 0, "k1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         if (!isStatic)
             builder = builder.clustering("c");
         builder.add(colName, 20l);
@@ -377,12 +391,16 @@ public class SecondaryIndexTest
         // make sure the value was expunged from the index when it was discovered to be inconsistent
         // TODO: Figure out why this is re-inserting
         builder = new RowUpdateBuilder(cfs.metadata(), 2, "k1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         if (!isStatic)
             builder = builder.clustering("c");
         builder.add(colName, 10L);
         keyspace.apply(builder.build(), true, false);
         assertIndexedNone(cfs, col, 20l);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11013
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11013
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
         assertIndexCfsIsEmpty(indexCfs);
     }
@@ -469,6 +487,7 @@ public class SecondaryIndexTest
 
         String indexName = "birthdate_index";
         ColumnMetadata old = cfs.metadata().getColumn(ByteBufferUtil.bytes("birthdate"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10124
         IndexMetadata indexDef =
             IndexMetadata.fromIndexTargets(
             Collections.singletonList(new IndexTarget(old.name, IndexTarget.Type.VALUES)),
@@ -506,6 +525,7 @@ public class SecondaryIndexTest
         assertFalse(cfs.getBuiltIndexes().contains(indexName));
 
         // rebuild & re-query
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
         Future future = cfs.indexManager.addIndex(indexDef, false);
         future.get();
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
@@ -521,6 +541,7 @@ public class SecondaryIndexTest
         for (int i = 0; i < 10; i++)
             new RowUpdateBuilder(cfs.metadata(), 0, "k" + i).noRowMarker().add("birthdate", 1l).build().applyUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
         cfs.forceBlockingFlush();
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
@@ -530,6 +551,7 @@ public class SecondaryIndexTest
     public void testSelectivityWithMultipleIndexes()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_MULTIPLE_COMPOSITE_INDEX);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15259
 
         // creates rows such that birthday_index has 1 partition (key = 1L) with 4 rows -- mean row count = 4, and notbirthdate_index has 2 partitions with 2 rows each -- mean row count = 2
         new RowUpdateBuilder(cfs.metadata(), 0, "k1").clustering("c").add("birthdate", 1L).add("notbirthdate", 2L).build().applyUnsafe();
@@ -562,6 +584,7 @@ public class SecondaryIndexTest
         ColumnMetadata cdef = cfs.metadata().getColumn(col);
 
         ReadCommand rc = Util.cmd(cfs).filterOn(cdef.name.toString(), Operator.EQ, ((AbstractType) cdef.cellValueType()).decompose(val)).build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         Index.Searcher searcher = rc.getIndex(cfs).searcherFor(rc);
         if (count != 0)
             assertNotNull(searcher);
@@ -576,6 +599,7 @@ public class SecondaryIndexTest
 
     private void assertIndexCfsIsEmpty(ColumnFamilyStore indexCfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11013
         PartitionRangeReadCommand command = (PartitionRangeReadCommand)Util.cmd(indexCfs).build();
         try (ReadExecutionController controller = command.executionController();
              PartitionIterator iter = UnfilteredPartitionIterators.filter(Util.executeLocally(command, indexCfs, controller),

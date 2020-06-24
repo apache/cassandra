@@ -99,6 +99,7 @@ public class ScrubTest
     {
         loadSchema();
         createKeyspace(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                        KeyspaceParams.simple(1),
                        standardCFMD(KEYSPACE, CF),
                        standardCFMD(KEYSPACE, CF2),
@@ -122,6 +123,7 @@ public class ScrubTest
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         CompactionManager.instance.performScrub(cfs, false, true, false, 2);
 
@@ -144,8 +146,10 @@ public class ScrubTest
         fillCounterCF(cfs, numPartitions);
 
         assertOrderedAll(cfs, numPartitions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
@@ -186,7 +190,9 @@ public class ScrubTest
             assertEquals(numPartitions-1, scrubResult.goodRows);
         }
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertOrderedAll(cfs, scrubResult.goodRows);
     }
 
@@ -204,11 +210,14 @@ public class ScrubTest
         fillCounterCF(cfs, 2);
 
         assertOrderedAll(cfs, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // overwrite one row with garbage
         overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
 
         // with skipCorrupted == false, the scrub is expected to fail
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
@@ -228,8 +237,10 @@ public class ScrubTest
             scrubber.close();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
         // verify that we can read all of the rows, and there is now one less row
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertOrderedAll(cfs, 1);
     }
 
@@ -247,13 +258,16 @@ public class ScrubTest
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 4);
         assertOrderedAll(cfs, 4);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         overrideWithGarbage(sstable, 0, 2);
 
         CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         // check data is still there
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertOrderedAll(cfs, 4);
     }
 
@@ -261,6 +275,7 @@ public class ScrubTest
     public void testScrubCorruptedCounterRowNoEarlyOpen() throws IOException, WriteTimeoutException
     {
         boolean oldDisabledVal = SSTableRewriter.disableEarlyOpeningForTests;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9104
         try
         {
             SSTableRewriter.disableEarlyOpeningForTests = true;
@@ -301,11 +316,17 @@ public class ScrubTest
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 10);
         assertOrderedAll(cfs, 10);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
 
         CompactionManager.instance.performScrub(cfs, false, true, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
 
         // check data is still there
         assertOrderedAll(cfs, 10);
@@ -317,8 +338,10 @@ public class ScrubTest
         // This test assumes ByteOrderPartitioner to create out-of-order SSTable
         IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
         DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         // Create out-of-order SSTable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").getParentFile();
         // create ks/cf directory
         File tempDataDir = new File(tempDir, String.join(File.separator, KEYSPACE, CF3));
@@ -327,12 +350,14 @@ public class ScrubTest
         {
             CompactionManager.instance.disableAutoCompaction();
             Keyspace keyspace = Keyspace.open(KEYSPACE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
             String columnFamily = CF3;
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnFamily);
             cfs.clearUnsafe();
 
             List<String> keys = Arrays.asList("t", "a", "b", "z", "c", "y", "d");
             Descriptor desc = cfs.newSSTableDescriptor(tempDataDir);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
             try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), cfs.metadata, txn)))
@@ -354,6 +379,7 @@ public class ScrubTest
                 SSTableReader.open(desc, cfs.metadata);
                 fail("SSTR validation should have caught the out-of-order rows");
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13620
             catch (CorruptSSTableException ise)
             { /* this is expected */ }
 
@@ -377,6 +403,7 @@ public class ScrubTest
             {
                 scrubber.scrub();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             LifecycleTransaction.waitForDeletions();
             cfs.loadNewSSTables();
             assertOrderedAll(cfs, 7);
@@ -385,6 +412,7 @@ public class ScrubTest
         {
             FileUtils.deleteRecursive(tempDataDir);
             // reset partitioner
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
         }
     }
@@ -393,12 +421,14 @@ public class ScrubTest
     {
         boolean compression = Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false"));
         long startPosition, endPosition;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9140
 
         if (compression)
         { // overwrite with garbage the compression chunks from key1 to key2
             CompressionMetadata compData = CompressionMetadata.create(sstable.getFilename());
 
             CompressionMetadata.Chunk chunk1 = compData.chunkFor(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.getPartitioner()), SSTableReader.Operator.EQ).position);
             CompressionMetadata.Chunk chunk2 = compData.chunkFor(
                     sstable.getPosition(PartitionPosition.ForKey.get(key2, sstable.getPartitioner()), SSTableReader.Operator.EQ).position);
@@ -410,6 +440,7 @@ public class ScrubTest
         }
         else
         { // overwrite with garbage from key1 to key2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.getPartitioner()), SSTableReader.Operator.EQ).position;
             long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(key2, sstable.getPartitioner()), SSTableReader.Operator.EQ).position;
             startPosition = Math.min(row0Start, row1Start);
@@ -425,12 +456,14 @@ public class ScrubTest
         file.seek(startPosition);
         file.writeBytes(StringUtils.repeat('z', (int) (endPosition - startPosition)));
         file.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(sstable.getFilename());
     }
 
     private static void assertOrderedAll(ColumnFamilyStore cfs, int expectedSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertOrdered(Util.cmd(cfs).build(), expectedSize);
     }
 
@@ -471,6 +504,7 @@ public class ScrubTest
             UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), String.valueOf(i));
             if (composite)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 builder.newRow("c" + i)
                        .add(COL_INDEX, values[i])
                        .add(COL_NON_INDEX, values[i + 1]);
@@ -504,6 +538,7 @@ public class ScrubTest
     public void testScrubColumnValidation() throws InterruptedException, RequestExecutionException, ExecutionException
     {
         QueryProcessor.process(String.format("CREATE TABLE \"%s\".test_compact_static_columns (a bigint, b timeuuid, c boolean static, d text, PRIMARY KEY (a, b))", KEYSPACE), ConsistencyLevel.ONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("test_compact_static_columns");
@@ -511,6 +546,9 @@ public class ScrubTest
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_static_columns (a, b, c, d) VALUES (123, c3db07e8-b602-11e3-bc6b-e0b9a54a6d93, true, 'foobar')", KEYSPACE));
         cfs.forceBlockingFlush();
         CompactionManager.instance.performScrub(cfs, false, true, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
 
         QueryProcessor.process("CREATE TABLE \"Keyspace1\".test_scrub_validation (a text primary key, b int)", ConsistencyLevel.ONE);
         ColumnFamilyStore cfs2 = keyspace.getColumnFamilyStore("test_scrub_validation");
@@ -518,6 +556,7 @@ public class ScrubTest
         new Mutation(UpdateBuilder.create(cfs2.metadata(), "key").newRow().add("b", LongType.instance.decompose(1L)).build()).apply();
         cfs2.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11179
         CompactionManager.instance.performScrub(cfs2, false, false, 2);
     }
 
@@ -527,6 +566,7 @@ public class ScrubTest
     {
         //If the partitioner preserves the order then SecondaryIndex uses BytesType comparator,
         // otherwise it uses LocalByPartitionerType
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         testScrubIndex(CF_INDEX1_BYTEORDERED, COL_INDEX, false, true);
     }
 
@@ -586,8 +626,10 @@ public class ScrubTest
         // check index
 
         assertOrdered(Util.cmd(cfs).filterOn(colName, Operator.EQ, 1L).build(), numRows / 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         // scrub index
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         Set<ColumnFamilyStore> indexCfss = cfs.indexManager.getAllIndexColumnFamilyStores();
         assertTrue(indexCfss.size() == 1);
         for(ColumnFamilyStore indexCfs : indexCfss)
@@ -597,6 +639,7 @@ public class ScrubTest
                 boolean failure = !scrubs[i];
                 if (failure)
                 { //make sure the next scrub fails
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     overrideWithGarbage(indexCfs.getLiveSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L));
                 }
                 CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, false, true, false,0);
@@ -609,6 +652,7 @@ public class ScrubTest
 
 
         // check index is still working
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertOrdered(Util.cmd(cfs).filterOn(colName, Operator.EQ, 1L).build(), numRows / 2);
     }
 
@@ -677,6 +721,7 @@ public class ScrubTest
         }
 
         cfs.loadNewSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
 
         cfs.scrub(true, true, false, false, false, 1);
 

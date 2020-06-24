@@ -79,6 +79,7 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
         // Return the original UnfilteredRowIterator
         if (!origin.hasNext())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
             if (throttledItr != null)
                 return endOfData();
             return throttledItr = origin;
@@ -227,6 +228,7 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
      */
     public static CloseableIterator<UnfilteredRowIterator> throttle(UnfilteredPartitionIterator partitionIterator, int maxBatchSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
         if (maxBatchSize == 0) // opt out
             return partitionIterator;
 

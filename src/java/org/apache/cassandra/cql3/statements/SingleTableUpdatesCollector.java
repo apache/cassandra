@@ -88,6 +88,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
         for (PartitionUpdate.Builder builder : puBuilders.values())
         {
             IMutation mutation;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
             if (metadata.isVirtual())
                 mutation = new VirtualMutation(builder.build());

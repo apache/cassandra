@@ -55,12 +55,15 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
         Config config = super.loadConfig();
 
         String sep = File.pathSeparator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
         config.native_transport_port += offset;
         config.storage_port += offset;
         config.ssl_storage_port += offset;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14546
 
         //Rewrite the seed ports string
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         String[] hosts = config.seed_provider.parameters.get("seeds").split(",", -1);
         String rewrittenSeeds = Joiner.on(", ").join(Arrays.stream(hosts).map(host -> {
             StringBuilder sb = new StringBuilder();

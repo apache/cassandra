@@ -46,6 +46,7 @@ public class ParameterizedClass
     @Override
     public boolean equals(Object that)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         return that instanceof ParameterizedClass && equals((ParameterizedClass) that);
     }
 

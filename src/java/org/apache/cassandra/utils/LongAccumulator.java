@@ -20,5 +20,6 @@ package org.apache.cassandra.utils;
 
 public interface LongAccumulator<T>
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
     long apply(T obj, long v);
 }

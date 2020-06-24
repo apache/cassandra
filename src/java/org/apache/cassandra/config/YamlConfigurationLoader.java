@@ -77,6 +77,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             {
                 String required = "file:" + File.separator + File.separator;
                 if (!configUrl.startsWith(required))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                     throw new ConfigurationException(String.format(
                         "Expecting URI in variable: [cassandra.config]. Found[%s]. Please prefix the file with [%s%s] for local " +
                         "files and [%s<server>%s] for remote files. If you are executing this from an external tool, it needs " +
@@ -87,6 +88,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
 
         logger.info("Configuration location: {}", url);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9853
 
         return url;
     }
@@ -96,6 +98,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     @Override
     public Config loadConfig() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         if (storageConfigURL == null)
             storageConfigURL = getStorageConfigURL();
         return loadConfig(storageConfigURL);
@@ -106,6 +109,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         try
         {
             logger.debug("Loading settings from {}", url);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6456
             byte[] configBytes;
             try (InputStream is = url.openStream())
             {
@@ -117,9 +121,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
             Constructor constructor = new CustomConstructor(Config.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10649
             PropertiesChecker propertiesChecker = new PropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5606
             Yaml yaml = new Yaml(constructor);
             Config result = loadConfig(yaml, configBytes);
             propertiesChecker.check();
@@ -134,10 +141,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     static class CustomConstructor extends Constructor
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
         CustomConstructor(Class<?> theRoot)
         {
             super(theRoot);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
             addTypeDescription(seedDesc);
@@ -170,6 +179,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private Config loadConfig(Yaml yaml, byte[] configBytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10649
         Config config = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
         // If the configuration file is empty yaml will return null. In this case we should use the default
         // configuration to avoid hitting a NPE at a later stage.
@@ -188,6 +198,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         public PropertiesChecker()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5958
             setSkipMissingProperties(true);
         }
 
@@ -195,6 +206,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         public Property getProperty(Class<? extends Object> type, String name) throws IntrospectionException
         {
             final Property result = super.getProperty(type, name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10649
 
             if (result instanceof MissingProperty)
             {
@@ -234,6 +246,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new ConfigurationException("Invalid yaml. Those properties " + nullProperties + " are not valid", false);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8839
             if (!missingProperties.isEmpty())
             {
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml", false);

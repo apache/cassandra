@@ -91,6 +91,7 @@ class MonitoringTask
         this.slowOperationsQueue = new OperationsQueue(maxOperations);
 
         this.approxLastLogTimeNanos = approxTime.now();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         logger.info("Scheduling monitoring task with report interval of {} ms, max operations {}", reportIntervalMillis, maxOperations);
         this.reportingTask = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> logOperations(approxTime.now()),
@@ -106,6 +107,7 @@ class MonitoringTask
 
     static void addFailedOperation(Monitorable operation, long nowNanos)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         instance.failedOperationsQueue.offer(new FailedOperation(operation, nowNanos));
     }
 
@@ -135,6 +137,7 @@ class MonitoringTask
     @VisibleForTesting
     private void logOperations(long approxCurrentTimeNanos)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         logSlowOperations(approxCurrentTimeNanos);
         logFailedOperations(approxCurrentTimeNanos);
 
@@ -168,6 +171,7 @@ class MonitoringTask
         AggregatedOperations slowOperations = slowOperationsQueue.popOperations();
         if (!slowOperations.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long approxElapsedNanos = approxCurrentTimeNanos - approxLastLogTimeNanos;
             noSpamLogger.info("Some operations were slow, details available at debug level (debug.log)");
 
@@ -317,6 +321,7 @@ class MonitoringTask
 
         /** The total time spent by this operation */
         long totalTimeNanos;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         /** The maximum time spent by this operation */
         long maxTime;
@@ -328,6 +333,7 @@ class MonitoringTask
          * this is set lazily as it takes time to build the query CQL */
         private String name;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Operation(Monitorable operation, long failedAtNanos)
         {
             this.operation = operation;
@@ -347,6 +353,7 @@ class MonitoringTask
         void add(Operation operation)
         {
             numTimesReported++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             totalTimeNanos += operation.totalTimeNanos;
             maxTime = Math.max(maxTime, operation.maxTime);
             minTime = Math.min(minTime, operation.minTime);
@@ -360,6 +367,7 @@ class MonitoringTask
      */
     private final static class FailedOperation extends Operation
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         FailedOperation(Monitorable operation, long failedAtNanos)
         {
             super(operation, failedAtNanos);
@@ -370,8 +378,10 @@ class MonitoringTask
             if (numTimesReported == 1)
                 return String.format("<%s>, total time %d msec, timeout %d %s",
                                      name(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                      NANOSECONDS.toMillis(totalTimeNanos),
                                      NANOSECONDS.toMillis(operation.timeoutNanos()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12791
                                      operation.isCrossNode() ? "msec/cross-node" : "msec");
             else
                 return String.format("<%s> timed out %d times, avg/min/max %d/%d/%d msec, timeout %d %s",
@@ -381,6 +391,7 @@ class MonitoringTask
                                      NANOSECONDS.toMillis(minTime),
                                      NANOSECONDS.toMillis(maxTime),
                                      NANOSECONDS.toMillis(operation.timeoutNanos()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12791
                                      operation.isCrossNode() ? "msec/cross-node" : "msec");
         }
     }
@@ -400,8 +411,10 @@ class MonitoringTask
             if (numTimesReported == 1)
                 return String.format("<%s>, time %d msec - slow timeout %d %s",
                                      name(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                      NANOSECONDS.toMillis(totalTimeNanos),
                                      NANOSECONDS.toMillis(operation.slowTimeoutNanos()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12791
                                      operation.isCrossNode() ? "msec/cross-node" : "msec");
             else
                 return String.format("<%s>, was slow %d times: avg/min/max %d/%d/%d msec - slow timeout %d %s",
@@ -411,6 +424,7 @@ class MonitoringTask
                                      NANOSECONDS.toMillis(minTime),
                                      NANOSECONDS.toMillis(maxTime),
                                      NANOSECONDS.toMillis(operation.slowTimeoutNanos()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12791
                                      operation.isCrossNode() ? "msec/cross-node" : "msec");
         }
     }

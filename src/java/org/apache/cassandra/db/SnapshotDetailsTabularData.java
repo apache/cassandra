@@ -73,6 +73,7 @@ public class SnapshotDetailsTabularData
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             final String totalSize = FileUtils.stringifyFileSize(snapshotDetail.getValue().sizeOnDiskBytes);
             final String liveSize =  FileUtils.stringifyFileSize(snapshotDetail.getValue().dataSizeBytes);
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,

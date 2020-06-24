@@ -27,6 +27,7 @@ public interface WorkManager
 
     // signal all consumers to terminate
     void stop();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
 
     static final class FixedWorkManager implements WorkManager
     {

@@ -28,6 +28,7 @@ public abstract class SecondaryIndexBuilder extends CompactionInfo.Holder
 
     public boolean isGlobal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         return false;
     }
 }

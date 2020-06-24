@@ -44,6 +44,7 @@ public class SliceTest
         types.add(Int32Type.instance);
         ClusteringComparator cc = new ClusteringComparator(types);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
         ClusteringPrefix.Kind sk = INCL_START_BOUND;
         ClusteringPrefix.Kind ek = INCL_END_BOUND;
 
@@ -275,6 +276,7 @@ public class SliceTest
         types.add(Int32Type.instance);
         ClusteringComparator cc = new ClusteringComparator(types);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
         ClusteringPrefix.Kind sk = INCL_START_BOUND;
         ClusteringPrefix.Kind ek = INCL_END_BOUND;
 
@@ -327,6 +329,7 @@ public class SliceTest
     @Test
     public void testIsEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
         List<AbstractType<?>> types = new ArrayList<>();
         types.add(Int32Type.instance);
         types.add(Int32Type.instance);
@@ -351,6 +354,7 @@ public class SliceTest
         {
             values[i] = ByteBufferUtil.bytes(components[i]);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return ClusteringBound.create(kind, values);
     }
 
@@ -364,6 +368,7 @@ public class SliceTest
 
     private static Slice s(int start, int finish)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
         return Slice.make(makeBound(INCL_START_BOUND, start),
                           makeBound(INCL_END_BOUND, finish));
     }

@@ -50,6 +50,8 @@ public class LongBloomFilterTest
     public void testBigRandom()
     {
         int size = 10 * 1000 * 1000;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement);
         double fp = testFalsePositives(bf,
                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
@@ -64,6 +66,7 @@ public class LongBloomFilterTest
     public void testConstrained()
     {
         int size = 10 * 1000 * 1000;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         try (IFilter bf = getFilter(size, 0.01))
         {
             double fp = testFalsePositives(bf,
@@ -77,6 +80,7 @@ public class LongBloomFilterTest
     {
         for (long bits : staticBits)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
             try (IFilter bf = getFilter(elements, targetFp))
             {
                 SequentialHashGenerator gen = new SequentialHashGenerator(staticBitCount, bits);
@@ -118,6 +122,7 @@ public class LongBloomFilterTest
     {
         System.out.println("Bloom filter false posiitive");
         long[] staticBits = staticBits(4, 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         testConstrained(0.01d, 10 << 20, 0, staticBits);
         testConstrained(0.01d, 1 << 20, 6, staticBits);
         testConstrained(0.01d, 10 << 20, 6, staticBits);
@@ -160,6 +165,7 @@ public class LongBloomFilterTest
     public void timeit()
     {
         int size = 300 * FilterTestHelper.ELEMENTS;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement);
         double sumfp = 0;
         for (int i = 0; i < 10; i++)
@@ -170,6 +176,7 @@ public class LongBloomFilterTest
 
             bf.clear();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         logger.info("Bloom filter mean false positive: {}", sumfp / 10);
     }
 }

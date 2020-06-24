@@ -449,6 +449,7 @@ public class MappedBufferTest
     @Test
     public void testOpenWithoutPageBits() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tmp = FileUtils.createTempFile("mapped-buffer", "tmp");
         tmp.deleteOnExit();
 
@@ -490,6 +491,7 @@ public class MappedBufferTest
 
     private MappedBuffer createTestFile(long numCount, int typeSize, int numPageBits, int padding) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File testFile = FileUtils.createTempFile("mapped-buffer-test", "db");
         testFile.deleteOnExit();
 

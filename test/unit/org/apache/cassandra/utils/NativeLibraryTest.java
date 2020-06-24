@@ -31,7 +31,9 @@ public class NativeLibraryTest
     public void testSkipCache()
     {
         File file = FileUtils.createDeletableTempFile("testSkipCache", "1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14153
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         NativeLibrary.trySkipCache(file.getPath(), 0, 0);
     }
 
@@ -39,6 +41,7 @@ public class NativeLibraryTest
     public void getPid()
     {
         long pid = NativeLibrary.getProcessID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13233
         Assert.assertTrue(pid > 0);
     }
 }

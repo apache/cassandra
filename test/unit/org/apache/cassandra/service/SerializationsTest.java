@@ -66,10 +66,13 @@ public class SerializationsTest extends AbstractSerializationsTester
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
         RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         DESC = new RepairJobDesc(RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
     }
 
@@ -81,8 +84,10 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private <T extends RepairMessage> void testRepairMessageWrite(String fileName, IVersionedSerializer<T> serializer, T... messages) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         try (DataOutputStreamPlus out = getOutput(fileName))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             for (T message : messages)
             {
                 testSerializedSize(message, serializer);
@@ -94,6 +99,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testValidationRequestWrite() throws IOException
     {
         ValidationRequest message = new ValidationRequest(DESC, 1234);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         testRepairMessageWrite("service.ValidationRequest.bin", ValidationRequest.serializer, message);
     }
 
@@ -103,8 +109,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testValidationRequestWrite();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         try (DataInputStreamPlus in = getInput("service.ValidationRequest.bin"))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             ValidationRequest message = ValidationRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
             assert message.nowInSec == 1234;
@@ -114,21 +122,27 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testValidationCompleteWrite() throws IOException
     {
         IPartitioner p = RandomPartitioner.instance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         MerkleTrees mt = new MerkleTrees(p);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
 
         // empty validation
         mt.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
         ValidationResponse c0 = new ValidationResponse(DESC, mt);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
         // validation with a tree
         mt = new MerkleTrees(p);
         mt.addMerkleTree(Integer.MAX_VALUE, FULL_RANGE);
         for (int i = 0; i < 10; i++)
             mt.split(p.getRandomToken());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
         ValidationResponse c1 = new ValidationResponse(DESC, mt);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
         // validation failed
         ValidationResponse c3 = new ValidationResponse(DESC);
@@ -142,9 +156,11 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testValidationCompleteWrite();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         try (DataInputStreamPlus in = getInput("service.ValidationComplete.bin"))
         {
             // empty validation
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             ValidationResponse message = ValidationResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 
@@ -169,11 +185,14 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSyncRequestWrite() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", PORT);
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         testRepairMessageWrite("service.SyncRequest.bin", SyncRequest.serializer, message);
     }
 
@@ -183,12 +202,15 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testSyncRequestWrite();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", PORT);
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         try (DataInputStreamPlus in = getInput("service.SyncRequest.bin"))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             SyncRequest message = SyncRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
             assert local.equals(message.initiator);
@@ -200,6 +222,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSyncCompleteWrite() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
         // sync success
@@ -208,6 +231,7 @@ public class SerializationsTest extends AbstractSerializationsTester
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 5, 100)),
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 500, 10))
         ));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
         // sync fail
         SyncResponse fail = new SyncResponse(DESC, src, dest, false, Collections.emptyList());
@@ -221,13 +245,17 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testSyncCompleteWrite();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
         SyncNodePair nodes = new SyncNodePair(src, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         try (DataInputStreamPlus in = getInput("service.SyncComplete.bin"))
         {
             // success
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             SyncResponse message = SyncResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 

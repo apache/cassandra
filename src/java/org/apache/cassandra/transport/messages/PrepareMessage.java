@@ -39,6 +39,8 @@ public class PrepareMessage extends Message.Request
         public PrepareMessage decode(ByteBuf body, ProtocolVersion version)
         {
             String query = CBUtil.readLongString(body);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
             String keyspace = null;
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5)) {
                 // If flags grows, we may want to consider creating a PrepareOptions class with an internal codec
@@ -62,6 +64,7 @@ public class PrepareMessage extends Message.Request
                     dest.writeInt(0x0);
                 else {
                     dest.writeInt(0x1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     CBUtil.writeAsciiString(msg.keyspace, dest);
                 }
             }
@@ -78,6 +81,7 @@ public class PrepareMessage extends Message.Request
                 // If we have a keyspace, we'd write it out. Otherwise, we'd write nothing.
                 size += msg.keyspace == null
                     ? 0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     : CBUtil.sizeOfAsciiString(msg.keyspace);
             }
             return size;
@@ -107,8 +111,10 @@ public class PrepareMessage extends Message.Request
         {
             if (traceRequest)
                 Tracing.instance.begin("Preparing CQL3 query", state.getClientAddress(), ImmutableMap.of("query", query));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
 
             ClientState clientState = state.getClientState().cloneWithKeyspaceIfSet(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();
             long queryTime = System.currentTimeMillis();
             ResultMessage.Prepared response = queryHandler.prepare(query, clientState, getCustomPayload());
@@ -118,6 +124,7 @@ public class PrepareMessage extends Message.Request
         catch (Exception e)
         {
             QueryEvents.instance.notifyPrepareFailure(null, query, state, e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }

@@ -63,6 +63,7 @@ public class Frame
 
     public void retain()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7245
         body.retain();
     }
 
@@ -73,6 +74,7 @@ public class Frame
 
     public static Frame create(Message.Type type, int streamId, ProtocolVersion version, EnumSet<Header.Flag> flags, ByteBuf body)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         Header header = new Header(version, flags, streamId, type, body.readableBytes());
         return new Frame(header, body);
     }
@@ -106,6 +108,7 @@ public class Frame
             TRACING,
             CUSTOM_PAYLOAD,
             WARNING,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             USE_BETA,
             CHECKSUMMED;
 
@@ -114,6 +117,7 @@ public class Frame
             public static EnumSet<Flag> deserialize(int flags)
             {
                 EnumSet<Flag> set = EnumSet.noneOf(Flag.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7440
                 for (int n = 0; n < ALL_VALUES.length; n++)
                 {
                     if ((flags & (1 << n)) != 0)
@@ -134,6 +138,7 @@ public class Frame
 
     public Frame with(ByteBuf newBody)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5778
         return new Frame(header, newBody);
     }
 
@@ -154,6 +159,7 @@ public class Frame
         }
 
         @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
         Frame decodeFrame(ByteBuf buffer)
         throws Exception
         {
@@ -163,6 +169,7 @@ public class Frame
                 // If we have discarded everything, throw the exception
                 if (bytesToDiscard <= 0)
                     fail();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
                 return null;
             }
 
@@ -178,14 +185,17 @@ public class Frame
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int versionNum = firstByte & PROTOCOL_VERSION_MASK;
             ProtocolVersion version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)
                 return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
 
             int flags = buffer.getByte(idx++);
             EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isBeta() && !decodedFlags.contains(Header.Flag.USE_BETA))
                 throw new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
                                             version);
@@ -194,6 +204,7 @@ public class Frame
             idx += 2;
 
             // This throws a protocol exceptions if the opcode is unknown
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8848
             Message.Type type;
             try
             {
@@ -207,6 +218,7 @@ public class Frame
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
             long frameLength = bodyLength + Header.LENGTH;
             if (frameLength > MAX_FRAME_LENGTH)
             {
@@ -217,16 +229,19 @@ public class Frame
                 bytesToDiscard = discard(buffer, frameLength);
                 if (bytesToDiscard <= 0)
                     fail();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
                 return null;
             }
 
             if (buffer.readableBytes() < frameLength)
                 return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15704
             ClientRequestSizeMetrics.totalBytesRead.inc(frameLength);
             ClientRequestSizeMetrics.bytesRecievedPerFrame.update(frameLength);
 
             // extract body
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7245
             ByteBuf body = buffer.slice(idx, (int) bodyLength);
             body.retain();
 
@@ -238,11 +253,13 @@ public class Frame
 
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> results)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
         throws Exception
         {
             Frame frame = decodeFrame(buffer);
             if (frame == null) return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11969
             Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
             Connection connection = attrConn.get();
             if (connection == null)
@@ -255,6 +272,7 @@ public class Frame
             {
                 throw ErrorMessage.wrap(
                         new ProtocolException(String.format(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                                 "Invalid message version. Got %s but previous messages on this connection had version %s",
                                 frame.header.version, connection.getVersion())),
                         frame.header.streamId);
@@ -288,8 +306,10 @@ public class Frame
         throws IOException
         {
             ByteBuf header = CBUtil.allocator.buffer(Header.LENGTH);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
 
             Message.Type type = frame.header.type;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             header.writeByte(type.direction.addToVersion(frame.header.version.asInt()));
             header.writeByte(Header.Flag.serialize(frame.header.flags));
 
@@ -299,14 +319,17 @@ public class Frame
                 header.writeShort(frame.header.streamId);
             else
                 header.writeByte(frame.header.streamId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4473
 
             header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
 
             int messageSize = header.readableBytes() + frame.body.readableBytes();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15704
             ClientRequestSizeMetrics.totalBytesWritten.inc(messageSize);
             ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(messageSize);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7695
             results.add(header);
             results.add(frame.body);
         }
@@ -320,6 +343,7 @@ public class Frame
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             if ((!frame.header.flags.contains(Header.Flag.COMPRESSED) && !frame.header.flags.contains(Header.Flag.CHECKSUMMED)) || connection == null)
             {
                 results.add(frame);
@@ -330,6 +354,7 @@ public class Frame
             if (transformer == null)
             {
                 results.add(frame);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
                 return;
             }
 

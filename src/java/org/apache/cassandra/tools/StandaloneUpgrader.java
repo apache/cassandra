@@ -49,6 +49,7 @@ public class StandaloneUpgrader
     {
         Options options = Options.parseArgs(args);
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         try
         {
@@ -56,14 +57,17 @@ public class StandaloneUpgrader
             Schema.instance.loadFromDisk(false);
 
             if (Schema.instance.getTableMetadataRef(options.keyspace, options.cf) == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspace,
                                                                  options.cf));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             Keyspace keyspace = Keyspace.openWithoutSSTables(options.keyspace);
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(options.cf);
 
             OutputHandler handler = new OutputHandler.SystemOutput(false, options.debug);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW);
             if (options.snapshot != null)
                 lister.onlyBackups(true).snapshots(options.snapshot);
@@ -71,6 +75,7 @@ public class StandaloneUpgrader
                 lister.includeBackups(false);
 
             Collection<SSTableReader> readers = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
 
             // Upgrade sstables
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
@@ -82,8 +87,10 @@ public class StandaloneUpgrader
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                     if (sstable.descriptor.version.equals(SSTableFormat.Type.current().info.getLatestVersion()))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12899
                         sstable.selfRef().release();
                         continue;
                     }
@@ -91,6 +98,7 @@ public class StandaloneUpgrader
                 }
                 catch (Exception e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                     JVMStabilityInspector.inspectThrowable(e);
                     System.err.println(String.format("Error Loading %s: %s", entry.getKey(), e.getMessage()));
                     if (options.debug)
@@ -103,6 +111,7 @@ public class StandaloneUpgrader
 
             for (SSTableReader sstable : readers)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UPGRADE_SSTABLES, sstable))
                 {
                     Upgrader upgrader = new Upgrader(cfs, txn, handler);
@@ -121,7 +130,9 @@ public class StandaloneUpgrader
                     sstable.selfRef().ensureReleased();
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8623
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             LifecycleTransaction.waitForDeletions();
             System.exit(0);
         }
@@ -182,6 +193,7 @@ public class StandaloneUpgrader
 
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.keepSource = cmd.hasOption(KEEP_SOURCE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8606
 
                 return opts;
             }
@@ -204,6 +216,7 @@ public class StandaloneUpgrader
             CmdLineOptions options = new CmdLineOptions();
             options.addOption(null, DEBUG_OPTION,          "display stack traces");
             options.addOption("h",  HELP_OPTION,           "display this help message");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8606
             options.addOption("k",  KEEP_SOURCE,           "do not delete the source sstables");
             return options;
         }

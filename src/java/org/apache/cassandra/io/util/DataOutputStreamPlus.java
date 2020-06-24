@@ -39,6 +39,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
 
     protected DataOutputStreamPlus()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         this.channel = newDefaultChannel();
     }
 
@@ -56,6 +57,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
     protected static byte[] retrieveTemporaryBuffer(int minSize)
     {
         byte[] bytes = tempBuffer.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         if (bytes.length < Math.min(minSize, MAX_BUFFER_SIZE))
         {
             // increase in powers of 2, to avoid wasted repeat allocations
@@ -120,6 +122,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
                     int toWriteThisTime = Math.min(buf.length, toWrite - totalWritten);
 
                     ByteBufferUtil.copyBytes(src, src.position() + totalWritten, buf, 0, toWriteThisTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
                     DataOutputStreamPlus.this.write(buf, 0, toWriteThisTime);
 

@@ -89,6 +89,7 @@ public class PagingState
      */
     public static PagingState deserialize(ByteBuffer bytes, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15176
         if (bytes == null)
             return null;
 
@@ -211,6 +212,7 @@ public class PagingState
         writeWithShortLength(null == rowMark ? EMPTY_BYTE_BUFFER : rowMark.mark, out);
         out.writeInt(remaining);
         if (withRemainingInPartition)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             out.writeInt(remainingInPartition);
         return out.buffer(false);
     }
@@ -307,6 +309,7 @@ public class PagingState
     public String toString()
     {
         return String.format("PagingState(key=%s, cellname=%s, remaining=%d, remainingInPartition=%d",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15176
                              partitionKey != null ? bytesToHex(partitionKey) : null,
                              rowMark,
                              remaining,
@@ -350,6 +353,8 @@ public class PagingState
         public static RowMark create(TableMetadata metadata, Row row, ProtocolVersion protocolVersion)
         {
             ByteBuffer mark;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 // We need to be backward compatible with 2.1/2.2 nodes paging states. Which means we have to send
@@ -383,7 +388,9 @@ public class PagingState
             if (mark == null)
                 return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             return protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                  ? decodeClustering(metadata, mark)
                  : Clustering.serializer.deserialize(mark, MessagingService.VERSION_30, makeClusteringTypes(metadata));
         }
@@ -480,6 +487,7 @@ public class PagingState
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15176
             return mark == null ? "null" : bytesToHex(mark);
         }
     }

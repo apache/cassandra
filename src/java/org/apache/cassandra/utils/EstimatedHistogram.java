@@ -51,6 +51,7 @@ public class EstimatedHistogram
 
     public EstimatedHistogram()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1413
         this(90);
     }
 
@@ -62,6 +63,8 @@ public class EstimatedHistogram
     public EstimatedHistogram(int bucketCount, boolean considerZeroes)
     {
         bucketOffsets = newOffsets(bucketCount, considerZeroes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         buckets = new AtomicLongArray(bucketOffsets.length + 1);
     }
 
@@ -72,6 +75,8 @@ public class EstimatedHistogram
      */
     public EstimatedHistogram(long[] bucketData)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11297
         assert bucketData != null && bucketData.length > 0 : "Bucket data must be an array of size more than 0";
         bucketOffsets = newOffsets(bucketData.length - 1, false);
         buckets = new AtomicLongArray(bucketData);
@@ -79,6 +84,7 @@ public class EstimatedHistogram
 
     public EstimatedHistogram(long[] offsets, long[] bucketData)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1430
         assert bucketData.length == offsets.length +1;
         bucketOffsets = offsets;
         buckets = new AtomicLongArray(bucketData);
@@ -120,6 +126,7 @@ public class EstimatedHistogram
             // inexact match, take the first bucket higher than n
             index = -index - 1;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11483
         return index;
     }
 
@@ -144,6 +151,8 @@ public class EstimatedHistogram
     /**
      * @return the count in the given bucket
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
     long get(int bucket)
     {
         return buckets.get(bucket);
@@ -155,6 +164,7 @@ public class EstimatedHistogram
      */
     public long[] getBuckets(boolean reset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6682
         final int len = buckets.length();
         long[] rv = new long[len];
 
@@ -205,11 +215,13 @@ public class EstimatedHistogram
      */
     public long percentile(double percentile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4022
         assert percentile >= 0 && percentile <= 1.0;
         int lastBucket = buckets.length() - 1;
         if (buckets.get(lastBucket) > 0)
             throw new IllegalStateException("Unable to compute when histogram overflowed");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8883
         long pcount = (long) Math.ceil(count() * percentile);
         if (pcount == 0)
             return 0;
@@ -240,6 +252,8 @@ public class EstimatedHistogram
     public double rawMean()
     {
         int lastBucket = buckets.length() - 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (buckets.get(lastBucket) > 0)
             throw new IllegalStateException("Unable to compute ceiling for max when histogram overflowed");
 
@@ -247,6 +261,7 @@ public class EstimatedHistogram
         long sum = 0;
         for (int i = 0; i < lastBucket; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6682
             long bCount = buckets.get(i);
             elements += bCount;
             sum += bCount * bucketOffsets[i];
@@ -260,6 +275,7 @@ public class EstimatedHistogram
      */
     public long count()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2988
        long sum = 0L;
        for (int i = 0; i < buckets.length(); i++)
            sum += buckets.get(i);
@@ -271,6 +287,8 @@ public class EstimatedHistogram
      */
     public long getLargestBucketOffset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11297
         return bucketOffsets[bucketOffsets.length - 1];
     }
 
@@ -291,6 +309,7 @@ public class EstimatedHistogram
     {
         // only print overflow if there is any
         int nameCount;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2698
         if (buckets.get(buckets.length() - 1) == 0)
             nameCount = buckets.length() - 1;
         else
@@ -348,6 +367,7 @@ public class EstimatedHistogram
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3053
         if (this == o)
             return true;
 
@@ -362,6 +382,7 @@ public class EstimatedHistogram
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3658
         return Objects.hashCode(getBucketOffsets(), getBuckets(false));
     }
 
@@ -398,7 +419,10 @@ public class EstimatedHistogram
             int size = 0;
 
             long[] offsets = eh.getBucketOffsets();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             long[] buckets = eh.getBuckets(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             size += TypeSizes.sizeof(buckets.length);
             for (int i = 0; i < buckets.length; i++)
             {

@@ -33,6 +33,7 @@ public class IndexMetadataTest {
     @Test
     public void testIsNameValidPositive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         assertTrue(IndexMetadata.isNameValid("abcdefghijklmnopqrstuvwxyz"));
         assertTrue(IndexMetadata.isNameValid("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assertTrue(IndexMetadata.isNameValid("_01234567890"));
@@ -51,6 +52,7 @@ public class IndexMetadataTest {
     @Test
     public void testGetDefaultIndexName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Assert.assertEquals("aB4__idx", IndexMetadata.generateDefaultIndexName("a B-4@!_+"));
         Assert.assertEquals("34_Ddd_F6_idx", IndexMetadata.generateDefaultIndexName("34_()Ddd", new ColumnIdentifier("#F%6*", true)));
     }

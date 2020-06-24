@@ -26,5 +26,6 @@ public interface MetricNameFactory
      * @param metricName part of qualified name.
      * @return new String with given metric name.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
     CassandraMetricsRegistry.MetricName createMetricName(String metricName);
 }

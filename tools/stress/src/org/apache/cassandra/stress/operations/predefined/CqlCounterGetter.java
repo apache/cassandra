@@ -36,12 +36,14 @@ public class CqlCounterGetter extends CqlOperation<Integer>
 
     public CqlCounterGetter(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         super(Command.COUNTER_READ, timer, generator, seedManager, settings);
     }
 
     @Override
     protected List<Object> getQueryParameters(byte[] key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 

@@ -34,6 +34,7 @@ public class ByteType extends NumberType<Byte>
 
     ByteType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     } // singleton
 
@@ -64,6 +65,7 @@ public class ByteType extends NumberType<Byte>
 
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12371
         if (parsed instanceof String || parsed instanceof Number)
             return new Constants.Value(fromString(String.valueOf(parsed)));
 
@@ -92,6 +94,7 @@ public class ByteType extends NumberType<Byte>
     @Override
     public byte toByte(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return ByteBufferUtil.toByte(value);
     }
 

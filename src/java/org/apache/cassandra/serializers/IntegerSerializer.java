@@ -29,6 +29,7 @@ public class IntegerSerializer implements TypeSerializer<BigInteger>
 
     public BigInteger deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return bytes.hasRemaining() ? new BigInteger(ByteBufferUtil.getArray(bytes)) : null;
     }
 
@@ -44,6 +45,7 @@ public class IntegerSerializer implements TypeSerializer<BigInteger>
 
     public String toString(BigInteger value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return value == null ? "" : value.toString(10);
     }
 

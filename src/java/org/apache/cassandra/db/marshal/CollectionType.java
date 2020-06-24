@@ -48,6 +48,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public enum Kind
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         MAP
         {
             public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
@@ -77,6 +78,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     protected CollectionType(ComparisonType comparisonType, Kind kind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(comparisonType);
         this.kind = kind;
     }
@@ -91,6 +93,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         return kind.makeCollectionReceiver(collection, isKey);
     }
 
@@ -119,7 +122,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
     @Override
     public void validateCellValue(ByteBuffer cellValue) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         if (isMultiCell())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10073
             valueComparator().validateCellValue(cellValue);
         else
             super.validateCellValue(cellValue);
@@ -131,6 +136,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
      */
     public boolean isMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8147
         return kind == Kind.MAP;
     }
 
@@ -148,6 +154,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public ByteBuffer serializeForNativeProtocol(Iterator<Cell> cells, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
         int size = collectionSize(values);
@@ -207,6 +214,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return new CQL3Type.Collection(this);
     }
 
@@ -215,6 +223,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     {
         if (this == o)
             return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
 
         if (!(o instanceof CollectionType))
             return false;
@@ -224,6 +233,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         if (kind != other.kind)
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         if (isMultiCell() != other.isMultiCell())
             return false;
 
@@ -240,6 +250,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     {
         public void serialize(CellPath path, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             ByteBufferUtil.writeWithVIntLength(path.get(0), out);
         }
 

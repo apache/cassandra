@@ -48,6 +48,7 @@ public class JKSKeyProvider implements KeyProvider
     {
         this.options = options;
         logger.info("initializing keystore from file {}", options.get(PROP_KEYSTORE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         try (InputStream inputStream = Files.newInputStream(Paths.get(options.get(PROP_KEYSTORE))))
         {
             store = KeyStore.getInstance(options.get(PROP_KEYSTORE_TYPE));

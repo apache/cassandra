@@ -46,6 +46,7 @@ import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 public class StandaloneScrubber
 {
     public static final String REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION = "Rewrites rows with overflowed expiration date affected by CASSANDRA-14092 with " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
                                                                             "the maximum supported expiration date of 2038-01-19T03:14:06+00:00. " +
                                                                             "The rows are rewritten with the original timestamp incremented by one millisecond " +
                                                                             "to override/supersede any potential tombstone that may have been generated " +
@@ -65,6 +66,7 @@ public class StandaloneScrubber
     {
         Options options = Options.parseArgs(args);
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         try
         {
@@ -95,8 +97,10 @@ public class StandaloneScrubber
             String snapshotName = "pre-scrub-" + System.currentTimeMillis();
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
             List<Pair<Descriptor, Set<Component>>> listResult = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
 
             // create snapshot
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
@@ -174,6 +178,7 @@ public class StandaloneScrubber
             }
 
             List<SSTableReader> sstables = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
 
             // Open sstables
             for (Pair<Descriptor, Set<Component>> pair : listResult)
@@ -190,6 +195,7 @@ public class StandaloneScrubber
                 }
                 catch (Exception e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                     JVMStabilityInspector.inspectThrowable(e);
                     System.err.println(String.format("Error Loading %s: %s", descriptor, e.getMessage()));
                     if (options.debug)
@@ -226,8 +232,11 @@ public class StandaloneScrubber
             }
 
             // Check (and repair) manifests
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
             checkManifest(cfs.getCompactionStrategyManager(), cfs, sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8623
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             LifecycleTransaction.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
         }
@@ -242,6 +251,7 @@ public class StandaloneScrubber
 
     private static void checkManifest(CompactionStrategyManager strategyManager, ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         if (strategyManager.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
             int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
@@ -259,6 +269,7 @@ public class StandaloneScrubber
             List<SSTableReader> repaired = Lists.newArrayList(Iterables.filter(sstables, repairedPredicate));
             List<SSTableReader> unRepaired = Lists.newArrayList(Iterables.filter(sstables, Predicates.not(repairedPredicate)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
             LeveledManifest repairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), repaired);
             for (int i = 1; i < repairedManifest.getLevelCount(); i++)
             {
@@ -285,6 +296,7 @@ public class StandaloneScrubber
         public boolean reinserOverflowedTTL;
         public HeaderFixMode headerFixMode = HeaderFixMode.VALIDATE;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         enum HeaderFixMode
         {
             VALIDATE_ONLY,
@@ -306,6 +318,7 @@ public class StandaloneScrubber
 
         private Options(String keyspaceName, String cfName)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             this.keyspaceName = keyspaceName;
             this.cfName = cfName;
         }
@@ -333,6 +346,7 @@ public class StandaloneScrubber
                     System.exit(1);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                 String keyspaceName = args[0];
                 String cfName = args[1];
 
@@ -341,9 +355,12 @@ public class StandaloneScrubber
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.manifestCheckOnly = cmd.hasOption(MANIFEST_CHECK_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5930
                 opts.skipCorrupted = cmd.hasOption(SKIP_CORRUPTED_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9406
                 opts.noValidate = cmd.hasOption(NO_VALIDATE_OPTION);
                 opts.reinserOverflowedTTL = cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
                 if (cmd.hasOption(HEADERFIX_OPTION))
                 {
                     try
@@ -379,8 +396,11 @@ public class StandaloneScrubber
             options.addOption("v",  VERBOSE_OPTION,        "verbose output");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             options.addOption("m",  MANIFEST_CHECK_OPTION, "only check and repair the leveled manifest, without actually scrubbing the sstables");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5930
             options.addOption("s",  SKIP_CORRUPTED_OPTION, "skip corrupt rows in counter tables");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9406
             options.addOption("n",  NO_VALIDATE_OPTION,    "do not validate columns using column validator");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
             options.addOption("e",  HEADERFIX_OPTION,      true, "Option whether and how to perform a " +
                                                                  "check of the sstable serialization-headers and fix known, " +
                                                                  "fixable issues.\n" +
@@ -397,6 +417,7 @@ public class StandaloneScrubber
                                                                  "fix and do not continue with scrub if the serialization-header " +
                                                                  "check encountered errors.\n" +
                                                                  "- off: don't perform the serialization-header checks.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
             options.addOption("r", REINSERT_OVERFLOWED_TTL_OPTION, REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION);
             return options;
         }
@@ -406,9 +427,11 @@ public class StandaloneScrubber
             String usage = String.format("%s [options] <keyspace> <column_family>", TOOL_NAME);
             StringBuilder header = new StringBuilder();
             header.append("--\n");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
             header.append("Scrub the sstable for the provided table." );
             header.append("\n--\n");
             header.append("Options are:");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
             new HelpFormatter().printHelp(120, usage, header.toString(), options, "");
         }
     }

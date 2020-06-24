@@ -38,6 +38,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     {
         ListSerializer<T> t = instances.get(elements);
         if (t == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13271
             t = instances.computeIfAbsent(elements, k -> new ListSerializer<>(k) );
         return t;
     }
@@ -49,6 +50,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
 
     public List<ByteBuffer> serializeValues(List<T> values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         List<ByteBuffer> buffers = new ArrayList<>(values.size());
         for (T value : values)
             buffers.add(elements.serialize(value));
@@ -62,6 +64,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
 
     public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7208
         try
         {
             ByteBuffer input = bytes.duplicate();
@@ -100,6 +103,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 if (databb != null)
                 {
                     elements.validate(databb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
                     l.add(elements.deserialize(databb));
                 }
                 else
@@ -108,6 +112,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7833
             if (input.hasRemaining())
                 throw new MarshalException("Unexpected extraneous bytes after list value");
 
@@ -127,6 +132,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
      */
     public ByteBuffer getElement(ByteBuffer serializedList, int index)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         try
         {
             ByteBuffer input = serializedList.duplicate();
@@ -139,6 +145,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 int length = input.getInt();
                 input.position(input.position() + length);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             return readValue(input, ProtocolVersion.V3);
         }
         catch (BufferUnderflowException e)
@@ -151,6 +158,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     {
         StringBuilder sb = new StringBuilder();
         boolean isFirst = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         sb.append('[');
         for (T element : value)
         {
@@ -173,11 +181,13 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
     {
         // We don't allow selecting an element of a list so we don't need this.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         throw new UnsupportedOperationException();
     }
 
     @Override
     public ByteBuffer getSliceFromSerialized(ByteBuffer collection,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
                                              ByteBuffer from,
                                              ByteBuffer to,
                                              AbstractType<?> comparator,

@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class ViewFilteringTest extends CQLTester
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();
 
@@ -46,6 +47,8 @@ public class ViewFilteringTest extends CQLTester
     public static void startup()
     {
         requireNetwork();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10368
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13798
         System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
     }
 
@@ -78,7 +81,10 @@ public class ViewFilteringTest extends CQLTester
 
     private void updateView(String query, Object... params) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10368
         executeNet(protocolVersion, query, params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
                  && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {
@@ -580,6 +586,7 @@ public class ViewFilteringTest extends CQLTester
     @Test
     public void testPartitionKeyFilteringUnrestrictedPart() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
         for (int i = 0; i < mvPrimaryKeys.size(); i++)
         {
@@ -1842,11 +1849,13 @@ public class ViewFilteringTest extends CQLTester
     public void testMVCreationWithNonPrimaryRestrictions() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10368
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
         try {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL AND d = 1 PRIMARY KEY (a, b, c)");
             dropView("mv_test");
         } catch(Exception e) {

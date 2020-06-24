@@ -36,6 +36,7 @@ public class UpdateBuilder
 
     private UpdateBuilder(PartitionUpdate.SimpleBuilder updateBuilder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         this.updateBuilder = updateBuilder;
     }
 
@@ -67,6 +68,7 @@ public class UpdateBuilder
 
     public PartitionUpdate build()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         return updateBuilder.build();
     }
 

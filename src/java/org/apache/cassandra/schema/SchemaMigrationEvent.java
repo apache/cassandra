@@ -85,6 +85,7 @@ final class SchemaMigrationEvent extends DiagnosticEvent
 
         if (endpoint == null) return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (MessagingService.instance().versions.knows(endpoint))
             endpointMessagingVersion = MessagingService.instance().versions.getRaw(endpoint);
 

@@ -38,6 +38,7 @@ public class PrepareConsistentResponse extends RepairMessage
 
     public PrepareConsistentResponse(UUID parentSession, InetAddressAndPort participant, boolean success)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         assert parentSession != null;
         assert participant != null;
@@ -71,6 +72,7 @@ public class PrepareConsistentResponse extends RepairMessage
         public void serialize(PrepareConsistentResponse response, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(response.parentSession, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(response.participant, out, version);
             out.writeBoolean(response.success);
         }

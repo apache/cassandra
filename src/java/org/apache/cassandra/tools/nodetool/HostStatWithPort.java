@@ -26,6 +26,7 @@ public class HostStatWithPort extends HostStat
 
     public HostStatWithPort(String token, InetAddressAndPort endpoint, boolean resolveIp, Float owns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15305
         super(token, endpoint.address, resolveIp, owns);
         this.endpointWithPort = endpoint;
     }

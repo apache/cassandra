@@ -111,6 +111,7 @@ public class Validator implements Runnable
     public void prepare(ColumnFamilyStore cfs, MerkleTrees tree)
     {
         this.trees = tree;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
 
         if (!tree.partitioner().preservesOrder() || evenTreeDistribution)
         {
@@ -119,9 +120,11 @@ public class Validator implements Runnable
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10917
             List<DecoratedKey> keys = new ArrayList<>();
             Random random = new Random();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
             for (Range<Token> range : tree.ranges())
             {
                 for (DecoratedKey sample : cfs.keySamples(range))
@@ -142,14 +145,17 @@ public class Validator implements Runnable
                     while (true)
                     {
                         DecoratedKey dk = keys.get(random.nextInt(numKeys));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                         if (!tree.split(dk.getToken()))
                             break;
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10917
                     keys.clear();
                 }
             }
         }
         logger.debug("Prepared AEService trees of size {} for {}", trees.size(), desc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = tree.rangeIterator();
     }
 
@@ -161,6 +167,7 @@ public class Validator implements Runnable
      */
     public void add(UnfilteredRowIterator partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         assert Range.isInRanges(partition.partitionKey().getToken(), desc.ranges) : partition.partitionKey().getToken() + " is not contained in " + desc.ranges;
         assert lastKey == null || lastKey.compareTo(partition.partitionKey()) < 0
                : "partition " + partition.partitionKey() + " received out of order wrt " + lastKey;
@@ -173,12 +180,14 @@ public class Validator implements Runnable
         if (!findCorrectRange(lastKey.getToken()))
         {
             // add the empty hash, and move to the next range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             ranges = trees.rangeIterator();
             findCorrectRange(lastKey.getToken());
         }
 
         assert range.contains(lastKey.getToken()) : "Token not in MerkleTree: " + lastKey.getToken();
         // case 3 must be true: mix in the hashed row
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         RowHash rowHash = rowHash(partition);
         if (rowHash != null)
         {
@@ -188,6 +197,7 @@ public class Validator implements Runnable
 
     public boolean findCorrectRange(Token t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         while (!range.contains(t) && ranges.hasNext())
         {
             range = ranges.next();
@@ -200,7 +210,10 @@ public class Validator implements Runnable
     {
         validated++;
         // MerkleTree uses XOR internally, so we want lots of output bits here
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest digest = Digest.forValidator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9554
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         UnfilteredRowIterators.digest(partition, digest, MessagingService.current_version);
         // only return new hash for merkle tree in case digest was updated - see CASSANDRA-8979
         return digest.inputBytes() > 0
@@ -214,16 +227,20 @@ public class Validator implements Runnable
     public void complete()
     {
         assert ranges != null : "Validator was not prepared()";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
         if (logger.isDebugEnabled())
         {
             // log distribution of rows in tree
             logger.debug("Validated {} partitions for {}.  Partitions per leaf are:", validated, desc.sessionId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
             trees.logRowCountPerLeaf(logger);
             logger.debug("Validated {} partitions for {}.  Partition sizes are:", validated, desc.sessionId);
             trees.logRowSizePerLeaf(logger);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         Stage.ANTI_ENTROPY.execute(this);
     }
 
@@ -235,6 +252,7 @@ public class Validator implements Runnable
     public void fail()
     {
         logger.error("Failed creating a merkle tree for {}, {} (see log for details)", desc, initiator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         respond(new ValidationResponse(desc));
     }
 
@@ -243,8 +261,10 @@ public class Validator implements Runnable
      */
     public void run()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         if (initiatorIsRemote())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             logger.info("{} Sending completed merkle tree to {} for {}.{}", previewKind.logPrefix(desc.sessionId), initiator, desc.keyspace, desc.columnFamily);
             Tracing.traceRepair("Sending completed merkle tree to {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
         }
@@ -254,6 +274,7 @@ public class Validator implements Runnable
             Tracing.traceRepair("Local completed merkle tree for {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
 
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         respond(new ValidationResponse(desc, trees));
     }
 
@@ -266,6 +287,7 @@ public class Validator implements Runnable
     {
         if (initiatorIsRemote())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             MessagingService.instance().send(Message.out(VALIDATION_RSP, response), initiator);
             return;
         }
@@ -276,8 +298,11 @@ public class Validator implements Runnable
          * directly, since this method will only be called from {@code Stage.ENTI_ENTROPY}, but we do instead
          * execute a {@code Runnable} on the stage - in case that assumption ever changes by accident.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         Stage.ANTI_ENTROPY.execute(() ->
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             ValidationResponse movedResponse = response;
             try
             {
@@ -287,6 +312,7 @@ public class Validator implements Runnable
             {
                 logger.error("Failed to move local merkle tree for {} off heap", desc, e);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             ActiveRepairService.instance.handleMessage(Message.out(VALIDATION_RSP, movedResponse));
         });
     }

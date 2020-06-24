@@ -37,6 +37,7 @@ public class QualifiedName
 
     public QualifiedName(String keyspace, String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this.keyspace = keyspace;
         this.name = name;
     }
@@ -49,6 +50,7 @@ public class QualifiedName
      */
     public final void setKeyspace(String ks, boolean keepCase)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         keyspace = toInternalName(ks, keepCase);
     }
 
@@ -58,6 +60,7 @@ public class QualifiedName
      */
     public final boolean hasKeyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return keyspace != null;
     }
 

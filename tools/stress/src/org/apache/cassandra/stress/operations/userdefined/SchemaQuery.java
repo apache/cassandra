@@ -42,7 +42,9 @@ public class SchemaQuery extends SchemaStatement
 
     public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
         super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), settings.insert.rowPopulationRatio.get(), argSelect == SchemaStatement.ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
               statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), cl);
         this.argSelect = argSelect;
         randomBuffer = new Object[argumentIndex.length][argumentIndex.length];
@@ -59,6 +61,7 @@ public class SchemaQuery extends SchemaStatement
 
         public boolean run() throws Exception
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             ResultSet rs = client.getSession().execute(bindArgs());
             rowCount = rs.all().size();
             partitionCount = Math.min(1, rowCount);
@@ -69,6 +72,7 @@ public class SchemaQuery extends SchemaStatement
     private int fillRandom()
     {
         int c = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         PartitionIterator iterator = partitions.get(0);
         while (iterator.hasNext())
         {

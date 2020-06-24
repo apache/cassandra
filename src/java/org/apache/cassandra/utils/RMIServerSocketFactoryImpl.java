@@ -34,12 +34,14 @@ public class RMIServerSocketFactoryImpl implements RMIServerSocketFactory
 
     public RMIServerSocketFactoryImpl(InetAddress bindAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
         this.bindAddress = bindAddress;
     }
 
     public ServerSocket createServerSocket(final int pPort) throws IOException
     {
         ServerSocket socket = ServerSocketFactory.getDefault().createServerSocket(pPort, 0, bindAddress);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12331
         try
         {
             socket.setReuseAddress(true);

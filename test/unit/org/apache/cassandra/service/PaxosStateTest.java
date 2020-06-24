@@ -60,6 +60,7 @@ public class PaxosStateTest
     public void testCommittingAfterTruncation() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String key = "key" + System.nanoTime();
         ByteBuffer value = ByteBufferUtil.bytes(0);
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);

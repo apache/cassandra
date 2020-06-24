@@ -42,6 +42,7 @@ public class BufferedRandomAccessFileTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -55,10 +56,12 @@ public class BufferedRandomAccessFileTest
         w.write(data);
         assertEquals(data.length, w.length());
         assertEquals(data.length, w.position());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
 
         w.sync();
 
         // reading small amount of data from file, this is handled by initial buffer
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath()))
         {
             try (FileHandle fh = builder.complete();
@@ -78,6 +81,7 @@ public class BufferedRandomAccessFileTest
             for (int i = 0; i < bigData.length; i++)
                 bigData[i] = 'd';
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
             long initialPosition = w.position();
             w.write(bigData); // writing data
             assertEquals(w.position(), initialPosition + bigData.length);
@@ -143,6 +147,7 @@ public class BufferedRandomAccessFileTest
     @Test
     public void testReadAndWriteOnCapacity() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tmpFile = FileUtils.createTempFile("readtest", "bin");
         try (SequentialWriter w = new SequentialWriter(tmpFile))
         {
@@ -150,6 +155,7 @@ public class BufferedRandomAccessFileTest
             byte[] in = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE);
             w.write(in);
     
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
                  FileHandle fh = builder.complete();
                  RandomAccessReader r = fh.createReader())
@@ -170,6 +176,7 @@ public class BufferedRandomAccessFileTest
     @Test
     public void testLength() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tmpFile = FileUtils.createTempFile("lengthtest", "bin");
         try (SequentialWriter w = new SequentialWriter(tmpFile))
         {
@@ -190,9 +197,11 @@ public class BufferedRandomAccessFileTest
             w.write(biggerThenBuffer);
             assertEquals(biggerThenBuffer.length + lessThenBuffer.length, w.length());
     
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             w.finish();
     
             // will use cachedlength
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
                  FileHandle fh = builder.complete();
                  RandomAccessReader r = fh.createReader())
@@ -217,6 +226,7 @@ public class BufferedRandomAccessFileTest
         w.write(data);
         w.sync();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader r = fh.createReader())
@@ -248,6 +258,7 @@ public class BufferedRandomAccessFileTest
         w.write(data);
         w.finish();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader file = fh.createReader())
@@ -280,6 +291,7 @@ public class BufferedRandomAccessFileTest
         w.write(generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2));
         w.finish();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader file = fh.createReader())
@@ -310,12 +322,14 @@ public class BufferedRandomAccessFileTest
         final SequentialWriter w = createTempFile("brafGetFilePointer");
 
         assertEquals(w.position(), 0); // initial position should be 0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
 
         w.write(generateByteArray(20));
         assertEquals(w.position(), 20); // position 20 after writing 20 bytes
 
         w.sync();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader r = fh.createReader())
@@ -340,6 +354,7 @@ public class BufferedRandomAccessFileTest
     {
         SequentialWriter file = createTempFile("brafGetPath");
         assert file.getPath().contains("brafGetPath");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         file.finish();
     }
 
@@ -354,6 +369,7 @@ public class BufferedRandomAccessFileTest
             for (final int offset : Arrays.asList(0, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                 try (FileHandle.Builder builder = new FileHandle.Builder(file1.getPath()).bufferSize(bufferSize);
                      FileHandle fh = builder.complete();
                      RandomAccessReader file = fh.createReader())
@@ -366,6 +382,7 @@ public class BufferedRandomAccessFileTest
             for (final int n : Arrays.asList(1, 2, 4, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                 try (FileHandle.Builder builder = new FileHandle.Builder(file1.getPath()).bufferSize(bufferSize);
                      FileHandle fh = builder.complete();
                      RandomAccessReader file = fh.createReader())
@@ -382,6 +399,7 @@ public class BufferedRandomAccessFileTest
     @Test
     public void testNotEOF() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
         try (final RandomAccessReader reader = RandomAccessReader.open(writeTemporaryFile(new byte[1])))
         {
             assertEquals(1, reader.read(new byte[2]));
@@ -399,6 +417,7 @@ public class BufferedRandomAccessFileTest
 
         w.sync();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader r = fh.createReader())
@@ -423,10 +442,12 @@ public class BufferedRandomAccessFileTest
     @Test
     public void testBytesPastMark() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tmpFile = FileUtils.createTempFile("overflowtest", "bin");
         tmpFile.deleteOnExit();
 
         // Create the BRAF by filename instead of by file.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader r = fh.createReader())
@@ -434,6 +455,7 @@ public class BufferedRandomAccessFileTest
             assert tmpFile.getPath().equals(r.getPath());
 
             // Create a mark and move the rw there.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
             final DataPosition mark = r.mark();
             r.reset(mark);
 
@@ -451,6 +473,7 @@ public class BufferedRandomAccessFileTest
 
         w.write(data);
         w.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
 
         final RandomAccessReader r = RandomAccessReader.open(new File(w.getPath()));
 
@@ -480,13 +503,23 @@ public class BufferedRandomAccessFileTest
         w.write(new byte[30]);
 
         w.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
              FileHandle fh = builder.complete();
              RandomAccessReader file = fh.createReader())
         {
             file.seek(10);
             DataPosition mark = file.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
 
             file.seek(file.length());
             assertTrue(file.isEOF());
@@ -517,6 +550,7 @@ public class BufferedRandomAccessFileTest
             w.write(new byte[30]);
             w.flush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
                  FileHandle fh = builder.complete();
                  RandomAccessReader r = fh.createReader())
@@ -544,6 +578,7 @@ public class BufferedRandomAccessFileTest
 
         // read-only copy of the file, with fixed file length
         final RandomAccessReader copy = RandomAccessReader.open(new File(file.getPath()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2921
 
         copy.seek(copy.length());
         assertTrue(copy.bytesRemaining() == 0 && copy.isEOF());
@@ -581,6 +616,7 @@ public class BufferedRandomAccessFileTest
 
         assertEquals(new String(content), "cccccccccc");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         file.finish();
         copy.close();
     }
@@ -588,7 +624,9 @@ public class BufferedRandomAccessFileTest
     @Test (expected=IllegalArgumentException.class)
     public void testSetNegativeLength() throws IOException, IllegalArgumentException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tmpFile = FileUtils.createTempFile("set_negative_length", "bin");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter file = new SequentialWriter(tmpFile))
         {
             file.truncate(-8L);
@@ -597,18 +635,22 @@ public class BufferedRandomAccessFileTest
 
     private SequentialWriter createTempFile(String name) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File tempFile = FileUtils.createTempFile(name, null);
         tempFile.deleteOnExit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         return new SequentialWriter(tempFile);
     }
 
     private File writeTemporaryFile(byte[] data) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("BRAFTestFile", null);
         f.deleteOnExit();
         FileOutputStream fout = new FileOutputStream(f);
         fout.write(data);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9403
         SyncUtil.sync(fout);
         fout.close();
         return f;

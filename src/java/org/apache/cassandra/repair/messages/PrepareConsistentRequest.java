@@ -42,6 +42,7 @@ public class PrepareConsistentRequest extends RepairMessage
 
     public PrepareConsistentRequest(UUID parentSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> participants)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         assert parentSession != null;
         assert coordinator != null;
@@ -85,6 +86,7 @@ public class PrepareConsistentRequest extends RepairMessage
         public void serialize(PrepareConsistentRequest request, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(request.parentSession, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(request.coordinator, out, version);
             out.writeInt(request.participants.size());
             for (InetAddressAndPort peer : request.participants)
@@ -110,6 +112,7 @@ public class PrepareConsistentRequest extends RepairMessage
         public long serializedSize(PrepareConsistentRequest request, int version)
         {
             long size = UUIDSerializer.serializer.serializedSize(request.parentSession, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(request.coordinator, version);
             size += TypeSizes.sizeof(request.participants.size());
             for (InetAddressAndPort peer : request.participants)

@@ -86,7 +86,9 @@ public class DatabaseDescriptor
     static
     {
         // This static block covers most usages
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         FBUtilities.preventIllegalAccessWarnings();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         System.setProperty("io.netty.transport.estimateSizeOnSubmit", "false");
     }
 
@@ -160,23 +162,28 @@ public class DatabaseDescriptor
 
     public static void daemonInitialization() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         daemonInitialization(DatabaseDescriptor::loadConfig);
     }
 
     public static void daemonInitialization(Supplier<Config> config) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         if (toolInitialized)
             throw new AssertionError("toolInitialization() already called");
         if (clientInitialized)
             throw new AssertionError("clientInitialization() already called");
 
         // Some unit tests require this :(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         if (daemonInitialized)
             return;
         daemonInitialized = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         setConfig(config.get());
         applyAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         AuthConfig.applyAuth();
     }
 
@@ -185,6 +192,7 @@ public class DatabaseDescriptor
      */
     public static void toolInitialization()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         toolInitialization(true);
     }
 
@@ -230,6 +238,7 @@ public class DatabaseDescriptor
      */
     public static void clientInitialization()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         clientInitialization(true);
     }
 
@@ -266,6 +275,7 @@ public class DatabaseDescriptor
 
     public static boolean isClientInitialized()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         return clientInitialized;
     }
 
@@ -281,6 +291,7 @@ public class DatabaseDescriptor
 
     public static boolean isDaemonInitialized()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         return daemonInitialized;
     }
 
@@ -292,18 +303,25 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static Config loadConfig() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
         if (Config.getOverrideLoadConfig() != null)
             return Config.getOverrideLoadConfig().get();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
                                    ? new YamlConfigurationLoader()
                                    : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
         Config config = loader.loadConfig();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
 
         if (!hasLoggedConfig)
         {
             hasLoggedConfig = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
             Config.log(config);
         }
 
@@ -324,6 +342,7 @@ public class DatabaseDescriptor
             /*
              * Try to return the first address of the preferred type, otherwise return the first address
              */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8839
             InetAddress retval = null;
             while (addrs.hasMoreElements())
             {
@@ -349,6 +368,7 @@ public class DatabaseDescriptor
     {
         //InetAddressAndPort cares that applySimpleConfig runs first
         applySimpleConfig();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         applyPartitioner();
 
@@ -362,6 +382,7 @@ public class DatabaseDescriptor
 
         applyEncryptionContext();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14222
         applySslContextHotReload();
     }
 
@@ -370,6 +391,7 @@ public class DatabaseDescriptor
         //Doing this first before all other things in case other pieces of config want to construct
         //InetAddressAndPort and get the right defaults
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         if (conf.commitlog_sync == null)
         {
@@ -378,6 +400,7 @@ public class DatabaseDescriptor
 
         if (conf.commitlog_sync == Config.CommitLogSync.batch)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
             if (conf.commitlog_sync_period_in_ms != 0)
             {
                 throw new ConfigurationException("Batch sync specified, but commitlog_sync_period_in_ms found. Only specify commitlog_sync_batch_window_in_ms when using batch sync", false);
@@ -398,6 +421,7 @@ public class DatabaseDescriptor
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
             if (conf.commitlog_sync_period_in_ms <= 0)
             {
                 throw new ConfigurationException("Missing value for commitlog_sync_period_in_ms: positive integer expected", false);
@@ -428,12 +452,14 @@ public class DatabaseDescriptor
             logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8907
         if (conf.gc_warn_threshold_in_ms < 0)
         {
             throw new ConfigurationException("gc_warn_threshold_in_ms must be a positive integer");
         }
 
         /* phi convict threshold for FailureDetector */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1053
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
         {
             throw new ConfigurationException("phi_convict_threshold must be between 5 and 16, but was " + conf.phi_convict_threshold, false);
@@ -456,13 +482,16 @@ public class DatabaseDescriptor
         if (conf.concurrent_replicates != null)
             logger.warn("concurrent_replicates has been deprecated and should be removed from cassandra.yaml");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5661
         if (conf.file_cache_size_in_mb == null)
             conf.file_cache_size_in_mb = Math.min(512, (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
 
         // round down for SSDs and round up for spinning disks
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13897
         if (conf.file_cache_round_up == null)
             conf.file_cache_round_up = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.spinning;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
         if (conf.memtable_offheap_space_in_mb == null)
             conf.memtable_offheap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
         if (conf.memtable_offheap_space_in_mb < 0)
@@ -501,6 +530,7 @@ public class DatabaseDescriptor
 
         checkForLowestAcceptedTimeouts(conf);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         checkValidForByteConversion(conf.native_transport_max_frame_size_in_mb,
                                     "native_transport_max_frame_size_in_mb", ByteUnit.MEBI_BYTES);
 
@@ -524,6 +554,7 @@ public class DatabaseDescriptor
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
         if (conf.commitlog_directory == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
             conf.commitlog_directory = storagedirFor("commitlog");
         }
 
@@ -532,6 +563,7 @@ public class DatabaseDescriptor
             conf.hints_directory = storagedirFor("hints");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         if (conf.native_transport_max_concurrent_requests_in_bytes <= 0)
         {
             conf.native_transport_max_concurrent_requests_in_bytes = Runtime.getRuntime().maxMemory() / 10;
@@ -544,6 +576,7 @@ public class DatabaseDescriptor
 
         if (conf.commitlog_total_space_in_mb == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15688
             final int preferredSizeInMB = 8192;
             try
             {
@@ -564,6 +597,7 @@ public class DatabaseDescriptor
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         if (conf.cdc_enabled)
         {
             // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
@@ -575,6 +609,7 @@ public class DatabaseDescriptor
                 conf.cdc_raw_directory = storagedirFor("cdc_raw");
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
             if (conf.cdc_total_space_in_mb == 0)
             {
                 final int preferredSizeInMB = 4096;
@@ -608,14 +643,18 @@ public class DatabaseDescriptor
             conf.data_file_directories = new String[]{ storagedir("data_file_directories") + File.separator + "data" };
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10199
         long dataFreeBytes = 0;
         /* data file and commit log directories. they get created later, when they're needed. */
         for (String datadir : conf.data_file_directories)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
             if (datadir == null)
                 throw new ConfigurationException("data_file_directories must not contain empty entry", false);
             if (datadir.equals(conf.commitlog_directory))
                 throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             if (datadir.equals(conf.hints_directory))
                 throw new ConfigurationException("hints_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.saved_caches_directory))
@@ -623,6 +662,7 @@ public class DatabaseDescriptor
 
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13067
                 dataFreeBytes = saturatedSum(dataFreeBytes, guessFileStore(datadir).getUnallocatedSpace());
             }
             catch (IOException e)
@@ -633,6 +673,7 @@ public class DatabaseDescriptor
             }
         }
         if (dataFreeBytes < 64 * ONE_GB) // 64 GB
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             logger.warn("Only {} free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
                         FBUtilities.prettyPrintMemory(dataFreeBytes));
 
@@ -643,11 +684,14 @@ public class DatabaseDescriptor
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         if (conf.memtable_flush_writers == 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12228
             conf.memtable_flush_writers = conf.data_file_directories.length == 1 ? 2 : 1;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
         if (conf.memtable_flush_writers < 1)
             throw new ConfigurationException("memtable_flush_writers must be at least 1, but was " + conf.memtable_flush_writers, false);
 
@@ -669,6 +713,7 @@ public class DatabaseDescriptor
 
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7139
 
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
@@ -676,9 +721,11 @@ public class DatabaseDescriptor
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         if (conf.num_tokens > MAX_NUM_TOKENS)
             throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS), false);
 
@@ -701,7 +748,11 @@ public class DatabaseDescriptor
         try
         {
             // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4087
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4087
             keyCacheSizeInMB = (conf.key_cache_size_in_mb == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4306
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024)), 100)
                                : conf.key_cache_size_in_mb;
 
@@ -711,6 +762,7 @@ public class DatabaseDescriptor
         catch (NumberFormatException e)
         {
             throw new ConfigurationException("key_cache_size_in_mb option was set incorrectly to '"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                              + conf.key_cache_size_in_mb + "', supported values are <integer> >= 0.", false);
         }
 
@@ -727,10 +779,12 @@ public class DatabaseDescriptor
         catch (NumberFormatException e)
         {
             throw new ConfigurationException("counter_cache_size_in_mb option was set incorrectly to '"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                              + conf.counter_cache_size_in_mb + "', supported values are <integer> >= 0.", false);
         }
 
         // if set to empty/"auto" then use 5% of Heap size
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         indexSummaryCapacityInMB = (conf.index_summary_capacity_in_mb == null)
                                    ? Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024))
                                    : conf.index_summary_capacity_in_mb;
@@ -739,6 +793,8 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
                                              + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.", false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         if (conf.user_defined_function_fail_timeout < 0)
             throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
         if (conf.user_defined_function_warn_timeout < 0)
@@ -747,6 +803,8 @@ public class DatabaseDescriptor
         if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
             throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
         if (conf.commitlog_segment_size_in_mb <= 0)
             throw new ConfigurationException("commitlog_segment_size_in_mb must be positive, but was "
                     + conf.commitlog_segment_size_in_mb, false);
@@ -754,6 +812,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("commitlog_segment_size_in_mb must be smaller than 2048, but was "
                     + conf.commitlog_segment_size_in_mb, false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         if (conf.max_mutation_size_in_kb == null)
             conf.max_mutation_size_in_kb = conf.commitlog_segment_size_in_mb * 1024 / 2;
         else if (conf.commitlog_segment_size_in_mb * 1024 < 2 * conf.max_mutation_size_in_kb)
@@ -761,6 +820,7 @@ public class DatabaseDescriptor
 
         // native transport encryption options
         if (conf.native_transport_port_ssl != null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
             && conf.native_transport_port_ssl != conf.native_transport_port
             && !conf.client_encryption_options.isEnabled())
         {
@@ -769,10 +829,13 @@ public class DatabaseDescriptor
 
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
         else if (conf.max_value_size_in_mb >= 2048)
             throw new ConfigurationException("max_value_size_in_mb must be smaller than 2048, but was "
                     + conf.max_value_size_in_mb, false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         switch (conf.disk_optimization_strategy)
         {
             case ssd:
@@ -783,6 +846,7 @@ public class DatabaseDescriptor
                 break;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
         try
         {
             ParameterizedClass strategy = conf.back_pressure_strategy != null ? conf.back_pressure_strategy : RateBasedBackPressure.withDefaultParams();
@@ -804,12 +868,14 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Error configuring back-pressure strategy: " + conf.back_pressure_strategy, ex);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13090
         if (conf.otc_coalescing_enough_coalesced_messages > 128)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be smaller than 128", false);
 
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
         if (maxMessageSize != null)
         {
@@ -832,6 +898,7 @@ public class DatabaseDescriptor
                          conf.internode_application_send_queue_reserve_endpoint_capacity_in_bytes);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
     }
 
@@ -858,6 +925,7 @@ public class DatabaseDescriptor
 
     private static String storagedirFor(String type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return storagedir(type + "_directory") + File.separator + type;
     }
 
@@ -871,6 +939,7 @@ public class DatabaseDescriptor
 
     static int calculateDefaultSpaceInMB(String type, String path, String setting, int preferredSizeInMB, long totalSpaceInBytes, long totalSpaceNumerator, long totalSpaceDenominator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15688
         final long totalSizeInMB = totalSpaceInBytes / ONE_MB;
         final int minSizeInMB = Ints.saturatedCast(totalSpaceNumerator * totalSizeInMB / totalSpaceDenominator);
 
@@ -893,6 +962,7 @@ public class DatabaseDescriptor
 
     public static void applyAddressConfig(Config config) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8839
         listenAddress = null;
         rpcAddress = null;
         broadcastAddress = null;
@@ -960,6 +1030,7 @@ public class DatabaseDescriptor
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             rpcAddress = FBUtilities.getJustLocalAddress();
         }
 
@@ -995,10 +1066,14 @@ public class DatabaseDescriptor
 
     public static void applySslContextHotReload()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14222
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         catch(IOException e)
         {
             throw new ConfigurationException("Failed to initialize SSL hot reloading", e);
@@ -1012,6 +1087,7 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("seeds configuration is missing; a minimum of one seed is required.", false);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3740
         try
         {
             Class<?> seedProviderClass = Class.forName(conf.seed_provider.class_name);
@@ -1020,6 +1096,7 @@ public class DatabaseDescriptor
         // there are about 5 checked exceptions that could be thrown here.
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11312
             throw new ConfigurationException(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.", true);
         }
         if (seedProvider.getSeeds().size() == 0)
@@ -1079,6 +1156,7 @@ public class DatabaseDescriptor
 
     public static void applyInitialTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10120
         if (conf.initial_token != null)
         {
             Collection<String> tokens = tokensFromString(conf.initial_token);
@@ -1098,9 +1176,12 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Missing endpoint_snitch directive", false);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1491
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         localDC = snitch.getLocalDatacenter();
         localComparator = (replica1, replica2) -> {
             boolean local1 = localDC.equals(snitch.getDatacenter(replica1));
@@ -1116,6 +1197,7 @@ public class DatabaseDescriptor
     // definitely not safe for tools + clients - implicitly instantiates schema
     public static void applyPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15591
         applyPartitioner(conf);
     }
 
@@ -1149,6 +1231,7 @@ public class DatabaseDescriptor
      */
     private static long saturatedSum(long left, long right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13067
         assert left >= 0 && right >= 0;
         long sum = left + right;
         return sum < 0 ? Long.MAX_VALUE : sum;
@@ -1156,11 +1239,13 @@ public class DatabaseDescriptor
 
     private static FileStore guessFileStore(String dir) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10199
         Path path = Paths.get(dir);
         while (true)
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13067
                 return FileUtils.getFileStore(path);
             }
             catch (IOException e)
@@ -1168,6 +1253,7 @@ public class DatabaseDescriptor
                 if (e instanceof NoSuchFileException)
                 {
                     path = path.getParent();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15688
                     if (path == null)
                     {
                         throw new ConfigurationException("Unable to find filesystem for '" + dir + "'.");
@@ -1186,21 +1272,25 @@ public class DatabaseDescriptor
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
         return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
     }
 
     public static IAuthenticator getAuthenticator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-547
         return authenticator;
     }
 
     public static void setAuthenticator(IAuthenticator authenticator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.authenticator = authenticator;
     }
 
     public static IAuthorizer getAuthorizer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4874
         return authorizer;
     }
 
@@ -1211,6 +1301,7 @@ public class DatabaseDescriptor
 
     public static INetworkAuthorizer getNetworkAuthorizer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         return networkAuthorizer;
     }
 
@@ -1221,6 +1312,7 @@ public class DatabaseDescriptor
 
     public static IRoleManager getRoleManager()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return roleManager;
     }
 
@@ -1231,11 +1323,14 @@ public class DatabaseDescriptor
 
     public static int getPermissionsValidity()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4295
         return conf.permissions_validity_in_ms;
     }
 
     public static void setPermissionsValidity(int timeout)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8722
         conf.permissions_validity_in_ms = timeout;
     }
 
@@ -1248,6 +1343,8 @@ public class DatabaseDescriptor
 
     public static void setPermissionsUpdateInterval(int updateInterval)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8722
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7715
         conf.permissions_update_interval_in_ms = updateInterval;
     }
 
@@ -1263,16 +1360,19 @@ public class DatabaseDescriptor
 
     public static int getRolesValidity()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return conf.roles_validity_in_ms;
     }
 
     public static void setRolesValidity(int validity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8967
         conf.roles_validity_in_ms = validity;
     }
 
     public static int getRolesUpdateInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8849
         return conf.roles_update_interval_in_ms == -1
              ? conf.roles_validity_in_ms
              : conf.roles_update_interval_in_ms;
@@ -1280,11 +1380,13 @@ public class DatabaseDescriptor
 
     public static void setRolesUpdateInterval(int interval)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8967
         conf.roles_update_interval_in_ms = interval;
     }
 
     public static int getRolesCacheMaxEntries()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7715
         return conf.roles_cache_max_entries;
     }
 
@@ -1332,6 +1434,7 @@ public class DatabaseDescriptor
 
     public static void setMaxValueSize(int maxValueSizeInBytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
         conf.max_value_size_in_mb = maxValueSizeInBytes / 1024 / 1024;
     }
 
@@ -1352,6 +1455,7 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory must be specified", false);
             FileUtils.createDirectory(conf.commitlog_directory);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             if (conf.hints_directory == null)
                 throw new ConfigurationException("hints_directory must be specified", false);
             FileUtils.createDirectory(conf.hints_directory);
@@ -1360,6 +1464,7 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("saved_caches_directory must be specified", false);
             FileUtils.createDirectory(conf.saved_caches_directory);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             if (conf.cdc_enabled)
             {
                 if (conf.cdc_raw_directory == null)
@@ -1369,6 +1474,7 @@ public class DatabaseDescriptor
         }
         catch (ConfigurationException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7997
             throw new IllegalArgumentException("Bad configuration; unable to start server: "+e.getMessage());
         }
         catch (FSWriteError e)
@@ -1384,12 +1490,14 @@ public class DatabaseDescriptor
 
     public static String getPartitionerName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4282
         return paritionerName;
     }
 
     /* For tests ONLY, don't use otherwise or all hell will break loose. Tests should restore value at the end. */
     public static IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner old = partitioner;
         partitioner = newPartitioner;
         return old;
@@ -1401,11 +1509,14 @@ public class DatabaseDescriptor
     }
     public static void setEndpointSnitch(IEndpointSnitch eps)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         snitch = eps;
     }
 
     public static int getColumnIndexSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return (int) ByteUnit.KIBI_BYTES.toBytes(conf.column_index_size_in_kb);
     }
 
@@ -1428,6 +1539,7 @@ public class DatabaseDescriptor
 
     public static int getColumnIndexCacheSizeInKB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         return conf.column_index_cache_size_in_kb;
     }
 
@@ -1444,16 +1556,19 @@ public class DatabaseDescriptor
 
     public static int getBatchSizeWarnThresholdInKB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13699
         return conf.batch_size_warn_threshold_in_kb;
     }
 
     public static long getBatchSizeFailThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return ByteUnit.KIBI_BYTES.toBytes(conf.batch_size_fail_threshold_in_kb);
     }
 
     public static int getBatchSizeFailThresholdInKB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8011
         return conf.batch_size_fail_threshold_in_kb;
     }
 
@@ -1464,7 +1579,9 @@ public class DatabaseDescriptor
 
     public static void setBatchSizeWarnThresholdInKB(int threshold)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         checkValidForByteConversion(threshold, "batch_size_warn_threshold_in_kb", ByteUnit.KIBI_BYTES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8930
         conf.batch_size_warn_threshold_in_kb = threshold;
     }
 
@@ -1475,6 +1592,7 @@ public class DatabaseDescriptor
 
     public static Collection<String> getInitialTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "initial_token", conf.initial_token));
     }
 
@@ -1485,6 +1603,7 @@ public class DatabaseDescriptor
 
     public static Integer getAllocateTokensForLocalRf()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         return conf.allocate_tokens_for_local_replication_factor;
     }
 
@@ -1492,6 +1611,7 @@ public class DatabaseDescriptor
     {
         List<String> tokens = new ArrayList<String>();
         if (tokenString != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
             for (String token : StringUtils.split(tokenString, ','))
                 tokens.add(token.trim());
         return tokens;
@@ -1504,9 +1624,11 @@ public class DatabaseDescriptor
 
     public static InetAddressAndPort getReplaceAddress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         try
         {
             if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null));
             else if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null) != null)
                 return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null));
@@ -1514,17 +1636,21 @@ public class DatabaseDescriptor
         }
         catch (UnknownHostException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11210
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11210
             throw new RuntimeException("Replacement host name could not be resolved or scope_id was specified for a global IPv6 address", e);
         }
     }
 
     public static Collection<String> getReplaceTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_token", null));
     }
 
     public static UUID getReplaceNode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5337
         try
         {
             return UUID.fromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_node", null));
@@ -1551,6 +1677,7 @@ public class DatabaseDescriptor
 
     public static long nativeTransportIdleTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11097
         return conf.native_transport_idle_timeout_in_ms;
     }
 
@@ -1561,6 +1688,7 @@ public class DatabaseDescriptor
 
     public static long getRpcTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.request_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1571,6 +1699,7 @@ public class DatabaseDescriptor
 
     public static long getReadRpcTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.read_request_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1581,6 +1710,7 @@ public class DatabaseDescriptor
 
     public static long getRangeRpcTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.range_request_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1591,6 +1721,7 @@ public class DatabaseDescriptor
 
     public static long getWriteRpcTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.write_request_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1601,6 +1732,7 @@ public class DatabaseDescriptor
 
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.counter_write_request_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1611,6 +1743,7 @@ public class DatabaseDescriptor
 
     public static long getCasContentionTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.cas_contention_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1621,6 +1754,7 @@ public class DatabaseDescriptor
 
     public static long getTruncateRpcTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return unit.convert(conf.truncate_request_timeout_in_ms, MILLISECONDS);
     }
 
@@ -1631,11 +1765,13 @@ public class DatabaseDescriptor
 
     public static boolean hasCrossNodeTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4812
         return conf.cross_node_timeout;
     }
 
     public static void setCrossNodeTimeout(boolean crossNodeTimeout)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         conf.cross_node_timeout = crossNodeTimeout;
     }
 
@@ -1664,11 +1800,13 @@ public class DatabaseDescriptor
 
     public static double getPhiConvictThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1053
         return conf.phi_convict_threshold;
     }
 
     public static void setPhiConvictThreshold(double phiConvictThreshold)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
         conf.phi_convict_threshold = phiConvictThreshold;
     }
 
@@ -1679,6 +1817,8 @@ public class DatabaseDescriptor
 
     public static void setConcurrentReaders(int concurrent_reads)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         if (concurrent_reads < 0)
         {
             throw new IllegalArgumentException("Concurrent reads must be non-negative");
@@ -1730,21 +1870,25 @@ public class DatabaseDescriptor
 
     public static int getFlushWriters()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1099
             return conf.memtable_flush_writers;
     }
 
     public static int getConcurrentCompactors()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2558
         return conf.concurrent_compactors;
     }
 
     public static void setConcurrentCompactors(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
         conf.concurrent_compactors = value;
     }
 
     public static int getCompactionThroughputMbPerSec()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2156
         return conf.compaction_throughput_mb_per_sec;
     }
 
@@ -1757,6 +1901,7 @@ public class DatabaseDescriptor
 
     public static int getConcurrentValidations()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13521
         return conf.concurrent_validations;
     }
 
@@ -1768,6 +1913,7 @@ public class DatabaseDescriptor
 
     public static int getConcurrentViewBuilders()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         return conf.concurrent_materialized_view_builders;
     }
 
@@ -1778,21 +1924,25 @@ public class DatabaseDescriptor
 
     public static long getMinFreeSpacePerDriveInBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return ByteUnit.MEBI_BYTES.toBytes(conf.min_free_space_per_drive_in_mb);
     }
 
     public static boolean getDisableSTCSInL0()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return disableSTCSInL0;
     }
 
     public static void setDisableSTCSInL0(boolean disabled)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15445
         disableSTCSInL0 = disabled;
     }
 
     public static int getStreamThroughputOutboundMegabitsPerSec()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3080
         return conf.stream_throughput_outbound_megabits_per_sec;
     }
 
@@ -1803,6 +1953,8 @@ public class DatabaseDescriptor
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6596
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6596
         return conf.inter_dc_stream_throughput_outbound_megabits_per_sec;
     }
 
@@ -1824,11 +1976,13 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setCommitLogLocation(String value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         conf.commitlog_directory = value;
     }
 
     public static ParameterizedClass getCommitLogCompression()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         return conf.commitlog_compression;
     }
 
@@ -1859,16 +2013,19 @@ public class DatabaseDescriptor
 
     public static void setCommitLogMaxCompressionBuffersPerPool(int buffers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         conf.commitlog_max_compression_buffers_in_pool = buffers;
     }
 
     public static int getMaxMutationSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return (int) ByteUnit.KIBI_BYTES.toBytes(conf.max_mutation_size_in_kb);
     }
 
     public static int getTombstoneWarnThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6117
         return conf.tombstone_warn_threshold;
     }
 
@@ -1892,11 +2049,13 @@ public class DatabaseDescriptor
      */
     public static int getCommitLogSegmentSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return (int) ByteUnit.MEBI_BYTES.toBytes(conf.commitlog_segment_size_in_mb);
     }
 
     public static void setCommitLogSegmentSize(int sizeMegabytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         conf.commitlog_segment_size_in_mb = sizeMegabytes;
     }
 
@@ -1907,11 +2066,13 @@ public class DatabaseDescriptor
 
     public static Set<InetAddressAndPort> getSeeds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return ImmutableSet.<InetAddressAndPort>builder().addAll(seedProvider.getSeeds()).build();
     }
 
     public static SeedProvider getSeedProvider()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
         return seedProvider;
     }
 
@@ -1927,6 +2088,7 @@ public class DatabaseDescriptor
 
     public static void setListenAddress(InetAddress newlistenAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         listenAddress = newlistenAddress;
     }
 
@@ -1937,27 +2099,33 @@ public class DatabaseDescriptor
 
     public static boolean shouldListenOnBroadcastAddress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9748
         return conf.listen_on_broadcast_address;
     }
 
     public static void setShouldListenOnBroadcastAddress(boolean shouldListenOnBroadcastAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         conf.listen_on_broadcast_address = shouldListenOnBroadcastAddress;
     }
 
     public static void setListenOnBroadcastAddress(boolean listen_on_broadcast_address)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
         conf.listen_on_broadcast_address = listen_on_broadcast_address;
     }
 
     public static IInternodeAuthenticator getInternodeAuthenticator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5401
         return internodeAuthenticator;
     }
 
     public static void setInternodeAuthenticator(IInternodeAuthenticator internodeAuthenticator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13324
         Preconditions.checkNotNull(internodeAuthenticator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.internodeAuthenticator = internodeAuthenticator;
     }
 
@@ -1979,6 +2147,7 @@ public class DatabaseDescriptor
 
     public static void setBroadcastRpcAddress(InetAddress broadcastRPCAddr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5899
         broadcastRpcAddress = broadcastRPCAddr;
     }
 
@@ -2002,6 +2171,7 @@ public class DatabaseDescriptor
 
     public static int getInternodeSocketSendBufferSizeInBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return conf.internode_socket_send_buffer_size_in_bytes;
     }
 
@@ -2062,6 +2232,7 @@ public class DatabaseDescriptor
 
     public static int getInternodeMaxMessageSizeInBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return conf.internode_max_message_size_in_bytes;
     }
 
@@ -2082,12 +2253,14 @@ public class DatabaseDescriptor
      */
     public static int getNativeTransportPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "native_transport_port", Integer.toString(conf.native_transport_port)));
     }
 
     @VisibleForTesting
     public static void setNativeTransportPort(int port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
         conf.native_transport_port = port;
     }
 
@@ -2109,16 +2282,20 @@ public class DatabaseDescriptor
 
     public static void setNativeTransportMaxThreads(int max_threads)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         conf.native_transport_max_threads = max_threads;
     }
 
     public static int getNativeTransportMaxFrameSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return (int) ByteUnit.MEBI_BYTES.toBytes(conf.native_transport_max_frame_size_in_mb);
     }
 
     public static long getNativeTransportMaxConcurrentConnections()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8086
         return conf.native_transport_max_concurrent_connections;
     }
 
@@ -2139,11 +2316,15 @@ public class DatabaseDescriptor
 
     public static boolean useNativeTransportLegacyFlusher()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13651
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14855
         return conf.native_transport_flush_in_batches_legacy;
     }
 
     public static boolean getNativeTransportAllowOlderProtocols()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14659
         return conf.native_transport_allow_older_protocols;
     }
 
@@ -2154,11 +2335,13 @@ public class DatabaseDescriptor
 
     public static int getNativeTransportFrameBlockSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return (int) ByteUnit.KIBI_BYTES.toBytes(conf.native_transport_frame_block_size_in_kb);
     }
 
     public static double getCommitLogSyncGroupWindow()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         return conf.commitlog_sync_group_window_in_ms;
     }
 
@@ -2169,6 +2352,7 @@ public class DatabaseDescriptor
 
     public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;
     }
 
@@ -2194,6 +2378,7 @@ public class DatabaseDescriptor
 
     public static long getPeriodicCommitLogSyncBlock()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14580
         Integer blockMillis = conf.periodic_commitlog_sync_lag_block_in_ms;
         return blockMillis == null
                ? (long)(getCommitLogSyncPeriod() * 1.5)
@@ -2202,6 +2387,7 @@ public class DatabaseDescriptor
 
     public static void setCommitLogSyncPeriod(int periodMillis)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         conf.commitlog_sync_period_in_ms = periodMillis;
     }
 
@@ -2212,6 +2398,7 @@ public class DatabaseDescriptor
 
     public static void setCommitLogSync(CommitLogSync sync)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         conf.commitlog_sync = sync;
     }
 
@@ -2241,16 +2428,20 @@ public class DatabaseDescriptor
 
     public static void setDiskFailurePolicy(Config.DiskFailurePolicy policy)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4847
         conf.disk_failure_policy = policy;
     }
 
     public static Config.DiskFailurePolicy getDiskFailurePolicy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2118
         return conf.disk_failure_policy;
     }
 
     public static void setCommitFailurePolicy(Config.CommitFailurePolicy policy)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6364
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7429
         conf.commit_failure_policy = policy;
     }
 
@@ -2272,21 +2463,26 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setAutoSnapshot(boolean autoSnapshot)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7511
         conf.auto_snapshot = autoSnapshot;
     }
     @VisibleForTesting
     public static boolean getAutoSnapshot()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return conf.auto_snapshot;
     }
 
     public static boolean isAutoBootstrap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return Boolean.parseBoolean(System.getProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", Boolean.toString(conf.auto_bootstrap)));
     }
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
         conf.hinted_handoff_enabled = hintedHandoffEnabled;
     }
 
@@ -2317,11 +2513,14 @@ public class DatabaseDescriptor
 
     public static int getMaxHintWindow()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1459
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return conf.max_hint_window_in_ms;
     }
 
     public static File getHintsDirectory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         return new File(conf.hints_directory);
     }
 
@@ -2334,6 +2533,7 @@ public class DatabaseDescriptor
 
     public static int getDynamicUpdateInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1519
         return conf.dynamic_snitch_update_interval_in_ms;
     }
     public static void setDynamicUpdateInterval(int dynamicUpdateInterval)
@@ -2378,21 +2578,26 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         conf.client_encryption_options = update.apply(conf.client_encryption_options);
     }
 
     public static int getHintedHandoffThrottleInKB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4189
         return conf.hinted_handoff_throttle_in_kb;
     }
 
     public static void setHintedHandoffThrottleInKB(int throttleInKB)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7635
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
         conf.hinted_handoff_throttle_in_kb = throttleInKB;
     }
 
     public static int getBatchlogReplayThrottleInKB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6550
         return conf.batchlog_replay_throttle_in_kb;
     }
 
@@ -2408,11 +2613,13 @@ public class DatabaseDescriptor
 
     public static int getHintsFlushPeriodInMS()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         return conf.hints_flush_period_in_ms;
     }
 
     public static long getMaxHintsFileSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         return  ByteUnit.MEBI_BYTES.toBytes(conf.max_hints_file_size_in_mb);
     }
 
@@ -2428,28 +2635,35 @@ public class DatabaseDescriptor
 
     public static boolean isIncrementalBackupsEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1872
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return conf.incremental_backups;
     }
 
     public static void setIncrementalBackupsEnabled(boolean value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3561
         conf.incremental_backups = value;
     }
 
     public static int getFileCacheSizeInMB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11710
         if (conf.file_cache_size_in_mb == null)
         {
             // In client mode the value is not set.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
             assert DatabaseDescriptor.isClientInitialized();
             return 0;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5661
         return conf.file_cache_size_in_mb;
     }
 
     public static boolean getFileCacheRoundUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13897
         if (conf.file_cache_round_up == null)
         {
             // In client mode the value is not set.
@@ -2462,6 +2676,7 @@ public class DatabaseDescriptor
 
     public static DiskOptimizationStrategy getDiskOptimizationStrategy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         return diskOptimizationStrategy;
     }
 
@@ -2472,11 +2687,13 @@ public class DatabaseDescriptor
 
     public static long getTotalCommitlogSpaceInMB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2427
         return conf.commitlog_total_space_in_mb;
     }
 
     public static boolean shouldMigrateKeycacheOnCompaction()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         return conf.key_cache_migrate_during_compaction;
     }
 
@@ -2487,6 +2704,7 @@ public class DatabaseDescriptor
 
     public static int getSSTablePreemptiveOpenIntervalInMB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         return FBUtilities.isWindows ? -1 : conf.sstable_preemptive_open_interval_in_mb;
     }
     public static void setSSTablePreemptiveOpenIntervalInMB(int mb)
@@ -2496,6 +2714,7 @@ public class DatabaseDescriptor
 
     public static boolean getTrickleFsync()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3950
         return conf.trickle_fsync;
     }
 
@@ -2506,21 +2725,26 @@ public class DatabaseDescriptor
 
     public static long getKeyCacheSizeInMB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4087
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4087
         return keyCacheSizeInMB;
     }
 
     public static long getIndexSummaryCapacityInMB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         return indexSummaryCapacityInMB;
     }
 
     public static int getKeyCacheSavePeriod()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3143
         return conf.key_cache_save_period;
     }
 
     public static void setKeyCacheSavePeriod(int keyCacheSavePeriod)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
         conf.key_cache_save_period = keyCacheSavePeriod;
     }
 
@@ -2531,11 +2755,13 @@ public class DatabaseDescriptor
 
     public static void setKeyCacheKeysToSave(int keyCacheKeysToSave)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5980
         conf.key_cache_keys_to_save = keyCacheKeysToSave;
     }
 
     public static String getRowCacheClassName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         return conf.row_cache_class_name;
     }
 
@@ -2557,6 +2783,7 @@ public class DatabaseDescriptor
 
     public static void setRowCacheSavePeriod(int rowCacheSavePeriod)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
         conf.row_cache_save_period = rowCacheSavePeriod;
     }
 
@@ -2572,6 +2799,8 @@ public class DatabaseDescriptor
 
     public static void setRowCacheKeysToSave(int rowCacheKeysToSave)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5980
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         conf.row_cache_keys_to_save = rowCacheKeysToSave;
     }
 
@@ -2602,11 +2831,13 @@ public class DatabaseDescriptor
 
     public static int getStreamingConnectionsPerHost()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4663
         return conf.streaming_connections_per_host;
     }
 
     public static boolean streamEntireSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         return conf.stream_entire_sstables;
     }
 
@@ -2617,26 +2848,31 @@ public class DatabaseDescriptor
 
     public static Comparator<Replica> getLocalComparator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
         return localComparator;
     }
 
     public static Config.InternodeCompression internodeCompression()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3127
         return conf.internode_compression;
     }
 
     public static void setInternodeCompression(Config.InternodeCompression compression)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
         conf.internode_compression = compression;
     }
 
     public static boolean getInterDCTcpNoDelay()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5148
         return conf.inter_dc_tcp_nodelay;
     }
 
     public static long getMemtableHeapSpaceInMb()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         return conf.memtable_heap_space_in_mb;
     }
 
@@ -2690,12 +2926,14 @@ public class DatabaseDescriptor
 
     public static int getIndexSummaryResizeIntervalInMinutes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         return conf.index_summary_resize_interval_in_minutes;
     }
 
     public static boolean hasLargeAddressSpace()
     {
         // currently we just check if it's a 64bit arch, but any we only really care if the address space is large
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6628
         String datamodel = System.getProperty("sun.arch.data.model");
         if (datamodel != null)
         {
@@ -2711,6 +2949,7 @@ public class DatabaseDescriptor
 
     public static int getTracetypeRepairTTL()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         return conf.tracetype_repair_ttl;
     }
 
@@ -2721,21 +2960,26 @@ public class DatabaseDescriptor
 
     public static int getWindowsTimerInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9634
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         return conf.windows_timer_interval;
     }
 
     public static long getPreparedStatementsCacheSizeMB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11555
         return preparedStatementsCacheSizeInMB;
     }
 
     public static boolean enableUserDefinedFunctions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9404
         return conf.enable_user_defined_functions;
     }
 
     public static boolean enableScriptedUserDefinedFunctions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9889
         return conf.enable_scripted_user_defined_functions;
     }
 
@@ -2761,11 +3005,13 @@ public class DatabaseDescriptor
 
     public static boolean getEnableMaterializedViews()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13959
         return conf.enable_materialized_views;
     }
 
     public static void setEnableMaterializedViews(boolean enableMaterializedViews)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14866
         conf.enable_materialized_views = enableMaterializedViews;
     }
 
@@ -2811,27 +3057,33 @@ public class DatabaseDescriptor
 
     public static long getGCLogThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11715
         return conf.gc_log_threshold_in_ms;
     }
 
     public static EncryptionContext getEncryptionContext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9945
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9945
         return encryptionContext;
     }
 
     public static long getGCWarnThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8907
         return conf.gc_warn_threshold_in_ms;
     }
 
     public static boolean isCDCEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return conf.cdc_enabled;
     }
 
     @VisibleForTesting
     public static void setCDCEnabled(boolean cdc_enabled)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14141
         conf.cdc_enabled = cdc_enabled;
     }
 
@@ -2864,6 +3116,7 @@ public class DatabaseDescriptor
 
     public static int searchConcurrencyFactor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         return searchConcurrencyFactor;
     }
 
@@ -2874,6 +3127,7 @@ public class DatabaseDescriptor
 
     public static void setBackPressureEnabled(boolean backPressureEnabled)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
         conf.back_pressure_enabled = backPressureEnabled;
     }
 
@@ -2884,6 +3138,7 @@ public class DatabaseDescriptor
 
     public static boolean diagnosticEventsEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         return conf.diagnostic_events_enabled;
     }
 
@@ -2905,6 +3160,7 @@ public class DatabaseDescriptor
 
     public static ConsistencyLevel getIdealConsistencyLevel()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         return conf.ideal_consistency_level;
     }
 
@@ -2915,6 +3171,7 @@ public class DatabaseDescriptor
 
     public static int getRepairCommandPoolSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13594
         return conf.repair_command_pool_size;
     }
 
@@ -2925,6 +3182,7 @@ public class DatabaseDescriptor
 
     public static FullQueryLoggerOptions getFullQueryLogOptions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14373
         return  conf.full_query_logging_options;
     }
 
@@ -2940,6 +3198,7 @@ public class DatabaseDescriptor
 
     public static boolean automaticSSTableUpgrade()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
         return conf.automatic_sstable_upgrade;
     }
 
@@ -2983,6 +3242,7 @@ public class DatabaseDescriptor
 
     public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         return conf.corrupted_tombstone_strategy;
     }
 
@@ -3043,11 +3303,13 @@ public class DatabaseDescriptor
 
     public static boolean strictRuntimeChecks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         return strictRuntimeChecks;
     }
 
     public static boolean useOffheapMerkleTrees()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return conf.use_offheap_merkle_trees;
     }
 
@@ -3071,6 +3333,7 @@ public class DatabaseDescriptor
      * Class that primarily tracks overflow thresholds during conversions
      */
     private enum ByteUnit {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         KIBI_BYTES(2048 * 1024, 1024),
         MEBI_BYTES(2048, 1024 * 1024);
 
@@ -3112,6 +3375,7 @@ public class DatabaseDescriptor
     public static int getValidationPreviewPurgeHeadStartInSec()
     {
         int seconds = conf.validation_preview_purge_head_start_in_sec;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15655
         return Math.max(seconds, 0);
     }
 
@@ -3137,6 +3401,7 @@ public class DatabaseDescriptor
 
     public static int getInitialRangeTombstoneListAllocationSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15763
         return conf.initial_range_tombstone_list_allocation_size;
     }
 

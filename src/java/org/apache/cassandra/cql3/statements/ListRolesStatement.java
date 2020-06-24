@@ -47,9 +47,11 @@ public class ListRolesStatement extends AuthorizationStatement
 
     private static final MapType optionsType = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false);
     private static final List<ColumnSpecification> metadata =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8761
         ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("login", true), BooleanType.instance),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("options", true), optionsType),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("datacenters", true), UTF8Type.instance));
 
@@ -63,6 +65,7 @@ public class ListRolesStatement extends AuthorizationStatement
 
     public ListRolesStatement(RoleName grantee, boolean recursive)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         this.grantee = grantee.hasName() ? RoleResource.role(grantee.getName()) : null;
         this.recursive = recursive;
     }
@@ -83,6 +86,7 @@ public class ListRolesStatement extends AuthorizationStatement
     {
         // If the executing user has DESCRIBE permission on the root roles resource, let them list any and all roles
         boolean hasRootLevelSelect = DatabaseDescriptor.getAuthorizer()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                                        .authorize(state.getUser(), RoleResource.root())
                                                        .contains(Permission.DESCRIBE);
         if (hasRootLevelSelect)
@@ -94,6 +98,7 @@ public class ListRolesStatement extends AuthorizationStatement
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
             RoleResource currentUser = RoleResource.role(state.getUser().getName());
             if (grantee == null)
                 return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(currentUser, recursive));
@@ -121,12 +126,14 @@ public class ListRolesStatement extends AuthorizationStatement
         ResultSet result = new ResultSet(resultMetadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         INetworkAuthorizer networkAuthorizer = DatabaseDescriptor.getNetworkAuthorizer();
         for (RoleResource role : sortedRoles)
         {
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.canLogin(role)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8761
             result.addColumnValue(optionsType.decompose(roleManager.getCustomOptions(role)));
             result.addColumnValue(UTF8Type.instance.decompose(networkAuthorizer.authorize(role).toString()));
         }
@@ -136,6 +143,7 @@ public class ListRolesStatement extends AuthorizationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 

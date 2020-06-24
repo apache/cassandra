@@ -49,6 +49,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
 
     public static SSTableSimpleIterator create(TableMetadata metadata, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, DeletionTime partitionDeletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return new CurrentFormatIterator(metadata, in, header, helper);
     }
 
@@ -69,6 +70,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
         {
             super(metadata, in, helper);
             this.header = header;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
             this.builder = BTreeRow.sortedBuilder();
         }
 
@@ -97,6 +99,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
 
         private CurrentFormatTombstoneIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, DeserializationHelper helper)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
             super(metadata, in, helper);
             this.header = header;
         }

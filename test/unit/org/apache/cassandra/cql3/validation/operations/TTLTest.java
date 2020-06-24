@@ -39,6 +39,7 @@ public class TTLTest extends CQLTester
     @Before
     public void before()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         corruptTombstoneStrategy = DatabaseDescriptor.getCorruptedTombstoneStrategy();
     }
 
@@ -51,6 +52,7 @@ public class TTLTest extends CQLTester
     @Test
     public void testTTLPerRequestLimit() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
         createTable("CREATE TABLE %s (k int PRIMARY KEY, i int)");
         // insert with low TTL should not be denied
         execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TTL ?", 10);
@@ -184,6 +186,7 @@ public class TTLTest extends CQLTester
     public void testRecoverOverflowedExpirationWithScrub() throws Throwable
     {
         // this tests writes corrupt tombstones on purpose, disable the strategy:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.disabled);
         baseTestRecoverOverflowedExpiration(false, false);
         baseTestRecoverOverflowedExpiration(true, false);

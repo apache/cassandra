@@ -58,6 +58,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
     {
         // WARNING: the ordering of that enum matters because we use ordinal() in the serialization
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         EXCL_END_BOUND              (0, -1),
         INCL_START_BOUND            (0, -1),
         EXCL_END_INCL_START_BOUNDARY(0, -1),
@@ -123,6 +124,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
                 case EXCL_START_BOUND:
                 case EXCL_END_BOUND:
                     return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 default:
                     return false;
             }
@@ -135,6 +137,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
                 case INCL_END_EXCL_START_BOUNDARY:
                 case EXCL_END_INCL_START_BOUNDARY:
                     return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 default:
                     return false;
             }
@@ -170,6 +173,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
 
         public boolean isOpen(boolean reversed)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return isBoundary() || (reversed ? isEnd() : isStart());
         }
 
@@ -284,6 +288,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBoundOrBoundary.serializer.serialize((ClusteringBoundOrBoundary)clustering, out, version, types);
             }
         }
@@ -296,6 +301,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             if (kind == Kind.CLUSTERING)
                 Clustering.serializer.skip(in, version, types);
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBoundOrBoundary.serializer.skipValues(in, kind, version, types);
         }
 
@@ -307,6 +313,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             if (kind == Kind.CLUSTERING)
                 return Clustering.serializer.deserialize(in, version, types);
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 return ClusteringBoundOrBoundary.serializer.deserializeValues(in, kind, version, types);
         }
 
@@ -317,6 +324,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             if (clustering.kind() == Kind.CLUSTERING)
                 return 1 + Clustering.serializer.serializedSize((Clustering)clustering, version, types);
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 return ClusteringBoundOrBoundary.serializer.serializedSize((ClusteringBoundOrBoundary)clustering, version, types);
         }
 
@@ -325,6 +333,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             int offset = 0;
             int clusteringSize = clustering.size();
             // serialize in batches of 32, to avoid garbage when deserializing headers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
             while (offset < clusteringSize)
             {
                 // we micro-batch the headers, so that we can incur fewer method calls,
@@ -343,6 +352,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         long valuesWithoutSizeSerializedSize(ClusteringPrefix clustering, int version, List<AbstractType<?>> types)
         {
             long result = 0;
@@ -379,6 +389,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
                 {
                     values[offset] = isNull(header, offset)
                                 ? null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
                                 : (isEmpty(header, offset) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : types.get(offset).readValue(in, DatabaseDescriptor.getMaxValueSize()));
                     offset++;
                 }
@@ -485,12 +496,14 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             // between elements if 1) we haven't returned the previous element (if we have, nextValues will be null) and 2)
             // nextValues is of the proper size. Note that the 2nd condition may not hold for range tombstone bounds, but all
             // rows have a fixed size clustering, so we'll still save in the common case.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             if (nextValues == null || nextValues.length != nextSize)
                 this.nextValues = new ByteBuffer[nextSize];
         }
 
         public int compareNextTo(ClusteringBoundOrBoundary bound) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             if (bound == ClusteringBound.TOP)
                 return -1;
 
@@ -498,6 +511,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             {
                 if (!hasComponent(i))
                     return nextKind.comparedToClustering;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
                 int cmp = comparator.compareComponent(i, nextValues[i], bound.get(i));
                 if (cmp != 0)
@@ -506,8 +520,11 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
 
             if (bound.size() == nextSize)
                 return Kind.compare(nextKind, bound.kind());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
 
             // We know that we'll have exited already if nextSize < bound.size
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return -bound.kind().comparedToClustering;
         }
 
@@ -527,12 +544,14 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             if (deserializedSize == nextSize)
                 return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
             if ((deserializedSize % 32) == 0)
                 nextHeader = in.readUnsignedVInt();
 
             int i = deserializedSize++;
             nextValues[i] = Serializer.isNull(nextHeader, i)
                           ? null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
                           : (Serializer.isEmpty(nextHeader, i) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : serializationHeader.clusteringTypes().get(i).readValue(in, DatabaseDescriptor.getMaxValueSize()));
             return true;
         }
@@ -547,6 +566,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
         {
             assert !nextIsRow;
             deserializeAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             ClusteringBoundOrBoundary bound = ClusteringBoundOrBoundary.create(nextKind, nextValues);
             nextValues = null;
             return bound;
@@ -565,6 +585,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
         {
             for (int i = deserializedSize; i < nextSize; i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
                 if ((i % 32) == 0)
                     nextHeader = in.readUnsignedVInt();
                 if (!Serializer.isNull(nextHeader, i) && !Serializer.isEmpty(nextHeader, i))

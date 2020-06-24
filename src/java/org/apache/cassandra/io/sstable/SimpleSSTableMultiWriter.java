@@ -45,6 +45,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public boolean append(UnfilteredRowIterator partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
         RowIndexEntry<?> indexEntry = writer.append(partition);
         return indexEntry != null;
     }

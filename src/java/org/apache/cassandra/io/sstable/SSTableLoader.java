@@ -56,6 +56,7 @@ public class SSTableLoader implements StreamEventHandler
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
         this(directory, client, outputHandler, 1, null);
     }
 
@@ -85,6 +86,7 @@ public class SSTableLoader implements StreamEventHandler
                                               return false;
                                           }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                                           Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(file);
                                           Descriptor desc = p == null ? null : p.left;
                                           if (p == null || !p.right.equals(Component.DATA))
@@ -99,10 +101,12 @@ public class SSTableLoader implements StreamEventHandler
                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
                                           if (metadata == null)
                                           {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
                                               outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
                                               return false;
                                           }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7585
                                           Set<Component> components = new HashSet<>();
                                           components.add(Component.DATA);
                                           components.add(Component.PRIMARY_INDEX);
@@ -110,6 +114,7 @@ public class SSTableLoader implements StreamEventHandler
                                               components.add(Component.SUMMARY);
                                           if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
                                               components.add(Component.COMPRESSION_INFO);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4957
                                           if (new File(desc.filenameFor(Component.STATS)).exists())
                                               components.add(Component.STATS);
 
@@ -118,19 +123,24 @@ public class SSTableLoader implements StreamEventHandler
                                               // To conserve memory, open SSTableReaders without bloom filters and discard
                                               // the index summary after calculating the file sections to stream and the estimated
                                               // number of keys for each endpoint. See CASSANDRA-5555 for details.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                                               SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata);
                                               sstables.add(sstable);
 
                                               // calculate the sstable sections to stream as well as the estimated number of
                                               // keys per host
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                               for (Map.Entry<InetAddressAndPort, Collection<Range<Token>>> entry : ranges.entrySet())
                                               {
                                                   InetAddressAndPort endpoint = entry.getKey();
                                                   List<Range<Token>> tokenRanges = Range.normalize(entry.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
                                                   List<SSTableReader.PartitionPositionBounds> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                                                   long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
                                                   Ref<SSTableReader> ref = sstable.ref();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                                                   OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD, ref, sstableSections, tokenRanges, estimatedKeys);
                                                   streamingDetails.put(endpoint, stream);
                                               }
@@ -152,6 +162,7 @@ public class SSTableLoader implements StreamEventHandler
 
     public StreamResultFuture stream()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return stream(Collections.<InetAddressAndPort>emptySet());
     }
 
@@ -161,6 +172,7 @@ public class SSTableLoader implements StreamEventHandler
         outputHandler.output("Established connection to initial hosts");
 
         StreamPlan plan = new StreamPlan(StreamOperation.BULK_LOAD, connectionsPerHost, false, null, PreviewKind.NONE).connectionFactory(client.getConnectionFactory());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
         Map<InetAddressAndPort, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
         openSSTables(endpointToRanges);
@@ -171,7 +183,9 @@ public class SSTableLoader implements StreamEventHandler
         }
 
         outputHandler.output(String.format("Streaming relevant part of %s to %s", names(sstables), endpointToRanges.keySet()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14003
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Map.Entry<InetAddressAndPort, Collection<Range<Token>>> entry : endpointToRanges.entrySet())
         {
             InetAddressAndPort remote = entry.getKey();
@@ -179,6 +193,7 @@ public class SSTableLoader implements StreamEventHandler
                 continue;
 
             List<OutgoingStream> streams = new LinkedList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
             // references are acquired when constructing the SSTableStreamingSections above
             for (OutgoingStream stream : streamingDetails.get(remote))
@@ -188,12 +203,14 @@ public class SSTableLoader implements StreamEventHandler
 
             plan.transferStreams(remote, streams);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6636
         plan.listeners(this, listeners);
         return plan.execute();
     }
 
     public void onSuccess(StreamState finalState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8704
         releaseReferences();
     }
     public void onFailure(Throwable t)
@@ -209,12 +226,14 @@ public class SSTableLoader implements StreamEventHandler
         for (SSTableReader sstable : sstables)
         {
             sstable.selfRef().release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             assert sstable.selfRef().globalCount() == 0 : String.format("for sstable = %s, ref count = %d", sstable, sstable.selfRef().globalCount());
         }
     }
 
     public void handleStreamEvent(StreamEvent event)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5542
         if (event.eventType == StreamEvent.Type.STREAM_COMPLETE)
         {
             StreamEvent.SessionCompleteEvent se = (StreamEvent.SessionCompleteEvent) event;
@@ -266,6 +285,7 @@ public class SSTableLoader implements StreamEventHandler
          */
         public StreamConnectionFactory getConnectionFactory()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7585
             return new DefaultConnectionFactory();
         }
 
@@ -290,6 +310,7 @@ public class SSTableLoader implements StreamEventHandler
             Collection<Range<Token>> ranges = endpointToRanges.get(endpoint);
             if (ranges == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7585
                 ranges = new HashSet<>();
                 endpointToRanges.put(endpoint, ranges);
             }

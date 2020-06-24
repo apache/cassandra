@@ -55,7 +55,9 @@ public class StreamCompressionInputStream extends RebufferingInputStream impleme
         this.dataInputPlus = dataInputPlus;
         this.protocolVersion = protocolVersion;
         this.decompressor = LZ4Factory.fastestInstance().safeDecompressor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBufAllocator allocator = dataInputPlus instanceof AsyncStreamingInputPlus
                                      ? ((AsyncStreamingInputPlus)dataInputPlus).getAllocator()
                                      : PooledByteBufAllocator.DEFAULT;

@@ -100,6 +100,7 @@ public class SecondaryIndexTest extends CQLTester
      */
     private void testCreateAndDropIndex(String indexName, boolean addKeyspaceOnDrop) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(format("Index '%s.%s' doesn't exist",
                                     KEYSPACE,
                                     removeQuotes(indexName.toLowerCase(Locale.US))),
@@ -118,6 +119,7 @@ public class SecondaryIndexTest extends CQLTester
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
         createIndex("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(format("Index %s is a duplicate of existing index %s",
                                     removeQuotes(otherIndexName.toLowerCase(Locale.US)),
                                     removeQuotes(indexName.toLowerCase(Locale.US))),
@@ -132,6 +134,7 @@ public class SecondaryIndexTest extends CQLTester
 
         if (addKeyspaceOnDrop)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             dropIndex(format("DROP INDEX %s.%s", KEYSPACE, indexName));
         }
         else
@@ -140,6 +143,7 @@ public class SecondaryIndexTest extends CQLTester
             execute(format("DROP INDEX %s", indexName));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s where b = ?", 1);
         dropIndex(format("DROP INDEX IF EXISTS %s.%s", KEYSPACE, indexName));
@@ -242,8 +246,10 @@ public class SecondaryIndexTest extends CQLTester
     {
         String tableName = createTableName();
         assertInvalidThrow(SyntaxException.class, format("CREATE TABLE %s (key varchar PRIMARY KEY, password varchar, gender varchar) WITH compression_parameters:sstable_compressor = 'DeflateCompressor'", tableName));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         assertInvalidThrow(ConfigurationException.class, format("CREATE TABLE %s (key varchar PRIMARY KEY, password varchar, gender varchar) WITH compression = { 'sstable_compressor': 'DeflateCompressor' }",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
                                                                 tableName));
     }
 
@@ -436,6 +442,7 @@ public class SecondaryIndexTest extends CQLTester
     public void testSelectOnMultiIndexOnCollectionsWithNull() throws Throwable
     {
         createTable(" CREATE TABLE %s ( k int, v int, x text, l list<int>, s set<text>, m map<text, int>, PRIMARY KEY (k, v))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13246
 
         createIndex("CREATE INDEX ON %s (x)");
         createIndex("CREATE INDEX ON %s (v)");
@@ -504,6 +511,7 @@ public class SecondaryIndexTest extends CQLTester
     public void testIndexOnKeyWithReverseClustering() throws Throwable
     {
         createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY ((k1, k2), v) ) WITH CLUSTERING ORDER BY (v DESC)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
 
         createIndex("CREATE INDEX ON %s (k2)");
 
@@ -550,6 +558,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testSyntaxVariationsForIndexOnCollectionsValue() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         createTable("CREATE TABLE %s (k int, m map<int, int>, l list<int>, s set<int>, PRIMARY KEY (k))");
         createAndDropCollectionValuesIndex("m");
         createAndDropCollectionValuesIndex("l");
@@ -560,6 +569,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         String indexName = columnName + "_idx";
         SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createIndex(format("CREATE INDEX %s on %%s(%s)", indexName, columnName));
         IndexMetadata indexDef = indexManager.getIndexByName(indexName).getIndexMetadata();
         assertEquals(format("values(%s)", columnName), indexDef.options.get(IndexTarget.TARGET_OPTION_NAME));
@@ -596,6 +606,7 @@ public class SecondaryIndexTest extends CQLTester
     private void createAndDropIndexWithQuotedColumnIdentifier(String target) throws Throwable
     {
         String indexName = "test_mixed_case_idx";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createIndex(format("CREATE INDEX %s ON %%s(%s)", indexName, target));
         SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
         IndexMetadata indexDef = indexManager.getIndexByName(indexName).getIndexMetadata();
@@ -619,6 +630,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v int,)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         execute("ALTER TABLE %s WITH CACHING = { 'keys': 'ALL', 'rows_per_partition': 'ALL' }");
         execute("INSERT INTO %s (k,v) VALUES (0,0)");
         execute("INSERT INTO %s (k,v) VALUES (1,1)");
@@ -685,6 +697,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnPartitionKeyWithStaticColumnAndNoRows() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13147
         createTable("CREATE TABLE %s (pk1 int, pk2 int, c int, s int static, v int, PRIMARY KEY((pk1, pk2), c))");
         createIndex("CREATE INDEX ON %s (pk2)");
         execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 1, 9, 1);
@@ -740,6 +753,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(a int, b frozen<map<int, blob>>, PRIMARY KEY (a))");
         createIndex("CREATE INDEX ON %s(full(b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8505
         Map<Integer, ByteBuffer> map = new HashMap<>();
         map.put(0, ByteBuffer.allocate(1024 * 65));
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", map);
@@ -755,7 +769,9 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void prepareStatementsWithLIKEClauses() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
         createTable("CREATE TABLE %s (a int, c1 text, c2 text, v1 text, v2 text, v3 int, PRIMARY KEY (a, c1, c2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createIndex(format("CREATE CUSTOM INDEX c1_idx on %%s(c1) USING '%s' WITH OPTIONS = {'mode' : 'PREFIX'}",
                            SASIIndex.class.getName()));
         createIndex(format("CREATE CUSTOM INDEX c2_idx on %%s(c2) USING '%s' WITH OPTIONS = {'mode' : 'CONTAINS'}",
@@ -786,6 +802,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("SELECT * FROM %s WHERE v1 LIKE ?", "abc");
 
         // contains mode indexes support prefix/suffix/contains/matches
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
         execute("SELECT * FROM %s WHERE c2 LIKE ?", "abc%");
         execute("SELECT * FROM %s WHERE c2 LIKE ?", "%abc");
         execute("SELECT * FROM %s WHERE c2 LIKE ?", "%abc%");
@@ -869,9 +886,11 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testMultipleIndexesOnOneColumn() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         String indexClassName = StubIndex.class.getName();
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
         // uses different options otherwise the two indexes are considered duplicates
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createIndex(format("CREATE CUSTOM INDEX c_idx_1 ON %%s(c) USING '%s' WITH OPTIONS = {'foo':'a'}", indexClassName));
         createIndex(format("CREATE CUSTOM INDEX c_idx_2 ON %%s(c) USING '%s' WITH OPTIONS = {'foo':'b'}", indexClassName));
 
@@ -916,6 +935,7 @@ public class SecondaryIndexTest extends CQLTester
         String indexClassName = StubIndex.class.getName();
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
         createIndex(format("CREATE CUSTOM INDEX c_idx ON %%s(c) USING '%s'", indexClassName));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         TableMetadata cfm = cfs.metadata();
@@ -970,7 +990,9 @@ public class SecondaryIndexTest extends CQLTester
         // * columns whose value, timestamp or ttl have been modified.
         // Any columns which are unchanged by the update are not passed to the Indexer
         // Note that for simplicity this test resets the index between each scenario
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10438
         createTable("CREATE TABLE %s (k int, c int, v1 int, v2 int, PRIMARY KEY (k,c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createIndex(format("CREATE CUSTOM INDEX test_index ON %%s() USING '%s'", StubIndex.class.getName()));
         execute("INSERT INTO %s (k, c, v1, v2) VALUES (0, 0, 0, 0) USING TIMESTAMP 0");
 
@@ -984,6 +1006,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 1 SET v1=1 WHERE k=0 AND c=0");
         assertEquals(1, index.rowsUpdated.size());
         Row oldRow = index.rowsUpdated.get(0).left;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         assertEquals(1, oldRow.columnCount());
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(0), 0);
         Row newRow = index.rowsUpdated.get(0).right;
@@ -995,6 +1018,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 2 SET v1=2, v2=2 WHERE k=0 AND c=0");
         assertEquals(1, index.rowsUpdated.size());
         oldRow = index.rowsUpdated.get(0).left;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         assertEquals(2, oldRow.columnCount());
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(1), 1);
         validateCell(oldRow.getCell(v2), v2, ByteBufferUtil.bytes(0), 0);
@@ -1008,6 +1032,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("DELETE v1 FROM %s USING TIMESTAMP 3 WHERE k=0 AND c=0");
         assertEquals(1, index.rowsUpdated.size());
         oldRow = index.rowsUpdated.get(0).left;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         assertEquals(1, oldRow.columnCount());
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
         newRow = index.rowsUpdated.get(0).right;
@@ -1023,6 +1048,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s(k, c) VALUES (0, 0) USING TIMESTAMP 4");
         assertEquals(1, index.rowsUpdated.size());
         oldRow = index.rowsUpdated.get(0).left;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         assertEquals(0, oldRow.columnCount());
         assertEquals(0, oldRow.primaryKeyLivenessInfo().timestamp());
         newRow = index.rowsUpdated.get(0).right;
@@ -1059,6 +1085,7 @@ public class SecondaryIndexTest extends CQLTester
     public void testReadOnlyIndex() throws Throwable
     {
         // On successful initialization both reads and writes go through
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         String tableName = createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
         String indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
         assertTrue(waitForIndex(keyspace(), tableName, indexName));
@@ -1137,8 +1164,10 @@ public class SecondaryIndexTest extends CQLTester
     public void droppingIndexInvalidatesPreparedStatements() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
         String indexName = createIndex("CREATE INDEX ON %s(c)");
         MD5Digest cqlId = prepareStatement("SELECT * FROM %s.%s WHERE c=?").statementId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
 
         assertNotNull(QueryProcessor.instance.getPrepared(cqlId));
 
@@ -1282,6 +1311,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testPartitionKeyWithIndex() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a, b)))");
         createIndex("CREATE INDEX ON %s (a);");
         createIndex("CREATE INDEX ON %s (b);");
@@ -1377,6 +1407,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnStaticColumnWithPartitionWithoutRows() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
         createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
         createIndex("CREATE INDEX ON %s (s)");
 
@@ -1403,6 +1434,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnRegularColumnWithPartitionWithoutRows() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13147
         createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
         createIndex("CREATE INDEX ON %s (v)");
 
@@ -1421,6 +1453,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnDurationColumn() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         createTable("CREATE TABLE %s (k int PRIMARY KEY, d duration)");
         assertInvalidMessage("Secondary indexes are not supported on duration columns",
                              "CREATE INDEX ON %s (d)");
@@ -1447,6 +1480,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnFrozenUDT() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13247
         String type = createType("CREATE TYPE %s (a int)");
         String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + type + ">)");
 
@@ -1455,6 +1489,7 @@ public class SecondaryIndexTest extends CQLTester
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, udt1);
         String indexName = createIndex("CREATE INDEX ON %s (v)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt2);
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt1);
@@ -1467,6 +1502,7 @@ public class SecondaryIndexTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE v = ?", udt1), row(1, udt1));
 
         dropIndex("DROP INDEX %s." + indexName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(format("Index '%s.%s' doesn't exist", KEYSPACE, indexName),
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -1486,6 +1522,7 @@ public class SecondaryIndexTest extends CQLTester
         assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (keys(v))");
         assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (values(v))");
         String indexName = createIndex("CREATE INDEX ON %s (full(v))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
         assertTrue(waitForIndex(keyspace(), tableName, indexName));
@@ -1517,6 +1554,7 @@ public class SecondaryIndexTest extends CQLTester
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1));
         assertInvalidMessage("Cannot create index on keys of column v with non-map type",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13385
                              "CREATE INDEX ON %s (keys(v))");
         assertInvalidMessage("full() indexes can only be created on frozen collections",
                              "CREATE INDEX ON %s (full(v))");
@@ -1534,6 +1572,8 @@ public class SecondaryIndexTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt2), row(2, set(udt2)));
 
         dropIndex("DROP INDEX %s." + indexName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(format("Index '%s.%s' doesn't exist", KEYSPACE, indexName),
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -1545,6 +1585,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         String type = createType("CREATE TYPE %s (a int)");
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ")");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Cannot create index on non-frozen UDT column v", "CREATE INDEX ON %s (v)");
         assertInvalidMessage("Cannot create keys() index on v. Non-collection columns only support simple indexes", "CREATE INDEX ON %s (keys(v))");
         assertInvalidMessage("Cannot create values() index on v. Non-collection columns only support simple indexes", "CREATE INDEX ON %s (values(v))");
@@ -1554,6 +1595,8 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnPartitionKeyInsertExpiringColumn() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13412
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13412
         createTable("CREATE TABLE %s (k1 int, k2 int, a int, b int, PRIMARY KEY ((k1, k2)))");
         createIndex("CREATE INDEX on %s(k1)");
         execute("INSERT INTO %s (k1, k2, a, b) VALUES (1, 2, 3, 4)");
@@ -1595,7 +1638,9 @@ public class SecondaryIndexTest extends CQLTester
 
     private ResultMessage.Prepared prepareStatement(String cql)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return QueryProcessor.prepare(format(cql, KEYSPACE, currentTable()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                       ClientState.forInternalCalls());
     }
 
@@ -1649,6 +1694,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         static volatile boolean failInit = false;
         final LoadType supportedLoadOnFailure;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
 
         LoadTypeConstrainedIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef, LoadType supportedLoadOnFailure)
         {

@@ -54,6 +54,7 @@ public class BatchMessage extends Message.Request
         {
             byte type = body.readByte();
             int n = body.readUnsignedShort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8553
             List<Object> queryOrIds = new ArrayList<>(n);
             List<List<ByteBuffer>> variables = new ArrayList<>(n);
             for (int i = 0; i < n; i++)
@@ -65,9 +66,11 @@ public class BatchMessage extends Message.Request
                     queryOrIds.add(MD5Digest.wrap(CBUtil.readBytes(body)));
                 else
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 variables.add(CBUtil.readValueList(body, version));
             }
             QueryOptions options = QueryOptions.codec.decode(body, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
 
             return new BatchMessage(toType(type), queryOrIds, variables, options);
         }
@@ -91,6 +94,7 @@ public class BatchMessage extends Message.Request
                 CBUtil.writeValueList(msg.values.get(i), dest);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isSmallerThan(ProtocolVersion.V3))
                 CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
@@ -109,6 +113,7 @@ public class BatchMessage extends Message.Request
 
                 size += CBUtil.sizeOfValueList(msg.values.get(i));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             size += version.isSmallerThan(ProtocolVersion.V3)
                   ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
                   : QueryOptions.codec.encodedSize(msg.options, version);
@@ -151,18 +156,21 @@ public class BatchMessage extends Message.Request
         this.batchType = type;
         this.queryOrIdList = queryOrIdList;
         this.values = values;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         this.options = options;
     }
 
     @Override
     protected boolean isTraceable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         return true;
     }
 
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         List<QueryHandler.Prepared> prepared = null;
         try
         {
@@ -174,6 +182,7 @@ public class BatchMessage extends Message.Request
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 CQLStatement statement;
                 QueryHandler.Prepared p;
                 if (query instanceof String)
@@ -199,9 +208,11 @@ public class BatchMessage extends Message.Request
 
             BatchQueryOptions batchOptions = BatchQueryOptions.withPerStatementVariables(options, values, queryOrIdList);
             List<ModificationStatement> statements = new ArrayList<>(prepared.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             List<String> queries = QueryEvents.instance.hasListeners() ? new ArrayList<>(prepared.size()) : null;
             for (int i = 0; i < prepared.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 CQLStatement statement = prepared.get(i).statement;
                 if (queries != null)
                     queries.add(prepared.get(i).rawCQLStatement);
@@ -217,7 +228,9 @@ public class BatchMessage extends Message.Request
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             long queryTime = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
             if (queries != null)
                 QueryEvents.instance.notifyBatchSuccess(batchType, statements, queries, values, options, state, queryTime, response);
@@ -226,6 +239,7 @@ public class BatchMessage extends Message.Request
         catch (Exception e)
         {
             QueryEvents.instance.notifyBatchFailure(prepared, batchType, queryOrIdList, values, options, state, e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
@@ -253,6 +267,7 @@ public class BatchMessage extends Message.Request
             if (i > 0) sb.append(", ");
             sb.append(queryOrIdList.get(i)).append(" with ").append(values.get(i).size()).append(" values");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         sb.append("] at consistency ").append(options.getConsistency());
         return sb.toString();
     }

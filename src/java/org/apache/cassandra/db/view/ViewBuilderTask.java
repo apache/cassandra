@@ -134,6 +134,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
          * face UnknownTableException upon Mutation deserialization on the nodes that haven't processed the schema change.
          */
         boolean schemaConverged = Gossiper.instance.waitForSchemaAgreement(10, TimeUnit.SECONDS, () -> this.isStopped);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14571
         if (!schemaConverged)
             logger.warn("Failed to get schema to converge before building view {}.{}", baseCfs.keyspace.getName(), view.name);
 
@@ -205,6 +206,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
         if (range.left.getPartitioner().splitter().isPresent())
         {
             long progress = prevToken == null ? 0 : Math.round(prevToken.getPartitioner().splitter().get().positionInRange(prevToken, range) * 1000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, Unit.RANGES, compactionId);
         }
 

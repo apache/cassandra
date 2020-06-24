@@ -112,6 +112,7 @@ public class CompactionLogger
 
     public CompactionLogger(ColumnFamilyStore cfs, CompactionStrategyManager csm)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12413
         csmRef = new WeakReference<>(csm);
         cfsRef = new WeakReference<>(cfs);
     }
@@ -134,6 +135,7 @@ public class CompactionLogger
 
     private ArrayNode sstableMap(Collection<SSTableReader> sstables, CompactionStrategyAndTableFunction csatf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12413
         CompactionStrategyManager csm = csmRef.get();
         ArrayNode node = json.arrayNode();
         if (csm == null)
@@ -150,6 +152,7 @@ public class CompactionLogger
     private JsonNode formatSSTables(AbstractCompactionStrategy strategy)
     {
         ArrayNode node = json.arrayNode();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12413
         CompactionStrategyManager csm = csmRef.get();
         ColumnFamilyStore cfs = cfsRef.get();
         if (csm == null || cfs == null)
@@ -170,6 +173,7 @@ public class CompactionLogger
         node.put("size", sstable.onDiskLength());
         JsonNode logResult = strategy.strategyLogger().sstable(sstable);
         if (logResult != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
             node.set("details", logResult);
         return node;
     }
@@ -177,11 +181,13 @@ public class CompactionLogger
     private JsonNode startStrategy(AbstractCompactionStrategy strategy)
     {
         ObjectNode node = json.objectNode();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12413
         CompactionStrategyManager csm = csmRef.get();
         if (csm == null)
             return node;
         node.put("strategyId", getId(strategy));
         node.put("type", strategy.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
         node.set("tables", formatSSTables(strategy));
         node.put("repaired", csm.isRepaired(strategy));
         List<String> folders = csm.getStrategyFolders(strategy);
@@ -191,6 +197,7 @@ public class CompactionLogger
             folderNode.add(folder);
         }
         node.set("folders", folderNode);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
 
         JsonNode logResult = strategy.strategyLogger().options();
         if (logResult != null)
@@ -209,12 +216,14 @@ public class CompactionLogger
     {
         ObjectNode node = json.objectNode();
         node.put("strategyId", getId(strategy));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
         node.set("table", formatSSTable(strategy, sstable));
         return node;
     }
 
     private void describeStrategy(ObjectNode node)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12413
         ColumnFamilyStore cfs = cfsRef.get();
         if (cfs == null)
             return;
@@ -228,6 +237,7 @@ public class CompactionLogger
         ObjectNode node = json.objectNode();
         node.put("type", "enable");
         describeStrategy(node);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
         node.set("strategies", compactionStrategyMap(this::startStrategy));
         return node;
     }
@@ -247,6 +257,7 @@ public class CompactionLogger
             ObjectNode node = json.objectNode();
             node.put("type", "disable");
             describeStrategy(node);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
             node.set("strategies", compactionStrategyMap(this::shutdownStrategy));
             serializer.write(node, this::startStrategies, this);
         }
@@ -259,6 +270,7 @@ public class CompactionLogger
             ObjectNode node = json.objectNode();
             node.put("type", "flush");
             describeStrategy(node);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
             node.set("tables", sstableMap(sstables, this::describeSSTable));
             serializer.write(node, this::startStrategies, this);
         }
@@ -273,6 +285,7 @@ public class CompactionLogger
             describeStrategy(node);
             node.put("start", String.valueOf(startTime));
             node.put("end", String.valueOf(endTime));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
             node.set("input", sstableMap(input, this::describeSSTable));
             node.set("output", sstableMap(output, this::describeSSTable));
             serializer.write(node, this::startStrategies, this);

@@ -48,6 +48,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         {
             execute("INSERT INTO %s (tkn, consumed) VALUES (?, FALSE)", i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
             assertRows(execute("UPDATE %s SET consumed = TRUE WHERE tkn = ? IF consumed = ?", i, false), row(true));
             assertRows(execute("UPDATE %s SET consumed = TRUE WHERE tkn = ? IF consumed = ?", i, false), row(false, true));
         }
@@ -61,12 +62,14 @@ public class InsertUpdateIfConditionTest extends CQLTester
     {
         createTable(" CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 text, v3 int)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertInvalidMessage("Invalid 'unset' value in condition",
                              "UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 = ?", unset());
 
         // Shouldn't apply
 
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 = ?", 4), row(false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 IN (?, ?)", 1, 2), row(false));
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 IN ?", list(1, 2)), row(false));
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF EXISTS"), row(false));
@@ -79,11 +82,13 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"), row(0, 2, "foo", null));
 
         // Shouldn't apply
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 = ?", 4), row(false, 2));
         assertRows(execute("SELECT * FROM %s"), row(0, 2, "foo", null));
 
         // Should apply (note: we want v2 before v1 in the statement order to exercise #5786)
         assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF v1 = ?", 2), row(true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
         assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 2 WHERE k = 0 IF v1 IN (?, ?)", 2, 3), row(true));
         assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF v1 IN ?", list(2, 3)), row(true));
         assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF v1 IN ?", list(1, null, 3)), row(true));
@@ -129,6 +134,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE k = 0"));
         assertRows(execute("DELETE FROM %s WHERE k = 0 IF v1 IN (?)", (Integer) null), row(true));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         createTable(" CREATE TABLE %s (k int, c int, v1 text, PRIMARY KEY(k, c))");
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional updates",
                              "UPDATE %s SET v1 = 'A' WHERE k = 0 AND c IN () IF EXISTS");
@@ -147,6 +153,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // non-EQ conditions
         execute("INSERT INTO %s (k, v1, v2) VALUES (0, 2, 'foo')");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertRows(execute("UPDATE %s SET v2 = 'bar' WHERE k = 0 IF v1 < ?", 3), row(true));
         assertRows(execute("UPDATE %s SET v2 = 'bar' WHERE k = 0 IF v1 <= ?", 3), row(true));
         assertRows(execute("UPDATE %s SET v2 = 'bar' WHERE k = 0 IF v1 > ?", 1), row(true));
@@ -157,6 +164,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("UPDATE %s SET v2 = 'bar' WHERE k = 0 IF v1 IN ?", list(142, 276)), row(false, 2));
         assertRows(execute("UPDATE %s SET v2 = 'bar' WHERE k = 0 IF v1 IN ()"), row(false, 2));
         assertRows(execute("UPDATE %s SET v2 = 'bar' WHERE k = 0 IF v1 IN (?, ?)", unset(), 1), row(false, 2));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
 
         assertInvalidMessage("Invalid 'unset' value in condition",
                              "UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 < ?", unset());
@@ -201,6 +210,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("DELETE v1 FROM %s WHERE k=3 IF EXISTS"), row(true));
         assertRows(execute("DELETE FROM %s WHERE k=3 IF EXISTS"), row(true));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9733
         execute("INSERT INTO %s (k, v1) VALUES (4, 2)");
         execute("UPDATE %s USING TTL 1 SET v1=2 WHERE k=4");
         Thread.sleep(1001);
@@ -214,6 +224,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
         execute("INSERT INTO %s (k, s, i, v) VALUES ('k', 's', 0, 'v')");
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(true));
         assertRows(execute("DELETE FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
         assertRows(execute("SELECT * FROM %s"), row("k", null, "s", null));
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF s = 'z'"), row(false, "s"));
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF v = 'z'"), row(false));
@@ -260,6 +272,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE k = 1 AND i = 2"));
         assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, null, 1, null));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
         createTable("CREATE TABLE %s (k int, i int, v1 int, v2 int, s int static, PRIMARY KEY (k, i))");
         execute("INSERT INTO %s (k, i, v1, v2, s) VALUES (?, ?, ?, ?, ?)",
                 1, 1, 1, 1, 1);
@@ -301,6 +315,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         execute("INSERT INTO %s(id, version) VALUES (0, 0)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertRows(execute("UPDATE %s SET v='foo', version=1 WHERE id=0 AND k='k1' IF version = ?", 0), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, "k1", 1, "foo"));
 
@@ -312,6 +327,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // Batch output is slightly different from non-batch CAS, since a full PK is included to disambiguate
         // cases when conditions span across multiple rows.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12964
         assertRows(execute("UPDATE %1$s SET version=3 WHERE id=0 IF version=1; "),
                    row(false, 2));
         // Testing batches
@@ -1005,6 +1022,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
             execute("INSERT INTO %s(k, l) VALUES (0, ['foo', 'bar', 'foobar'])");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
             assertInvalidMessage("Invalid null value for list element access",
                                  "DELETE FROM %s WHERE k=0 IF l[?] = ?", null, "foobar");
             assertInvalidMessage("Invalid negative list index -2",
@@ -1214,6 +1232,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
                                       : "map<text, text>"));
 
             execute("INSERT INTO %s (k, m) VALUES (0, {'foo' : 'bar'})");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
             assertInvalidMessage("Invalid null value for map element access",
                                  "DELETE FROM %s WHERE k=0 IF m[?] = ?", null, "foo");
             assertRows(execute("DELETE FROM %s WHERE k=0 IF m[?] = ?", "foo", "foo"), row(false, map("foo", "bar")));
@@ -1235,6 +1254,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Test
     public void testFrozenWithNullValues() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14087
         createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<list<text>>"));
         execute("INSERT INTO %s (k, m) VALUES (0, null)");
 
@@ -1363,6 +1383,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + keyspace + " WITH replication = {'class':'SimpleStrategy', 'replication_factor':1} and durable_writes = false ");
 
         assertRows(execute(format("select durable_writes from %s.%s where keyspace_name = ?",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.KEYSPACES),
                            keyspace),
@@ -1371,6 +1393,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // drop and confirm
         schemaChange("DROP KEYSPACE IF EXISTS " + keyspace);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         assertEmpty(execute(format("select * from %s.%s where keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.KEYSPACES),
                             keyspace));
     }
@@ -1391,6 +1414,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // create and confirm
         schemaChange("CREATE TABLE IF NOT EXISTS " + fullTableName + " (id text PRIMARY KEY, value1 blob) with comment = 'foo'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         assertRows(execute("select comment from system_schema.tables where keyspace_name = ? and table_name = ?", KEYSPACE, tableName),
                    row("foo"));
 
@@ -1416,6 +1440,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // try dropping when doesn't exist
         schemaChange(format("DROP INDEX IF EXISTS %s.myindex", KEYSPACE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // create and confirm
         createIndex("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");
@@ -1427,6 +1452,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // drop and confirm
         execute(format("DROP INDEX IF EXISTS %s.myindex", KEYSPACE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         Object[][] rows = getRows(execute("select index_name from system.\"IndexInfo\" where table_name = ?", tableName));
         assertEquals(0, rows.length);
@@ -1446,6 +1472,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // create and confirm
         execute("CREATE TYPE IF NOT EXISTS mytype (somefield int)");
         assertRows(execute(format("SELECT type_name from %s.%s where keyspace_name = ? and type_name = ?",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TYPES),
                            KEYSPACE,
@@ -1459,6 +1486,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // drop and confirm
         execute("DROP TYPE IF EXISTS mytype");
         assertEmpty(execute(format("SELECT type_name from %s.%s where keyspace_name = ? and type_name = ?",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                    SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                    SchemaKeyspace.TYPES),
                             KEYSPACE,
@@ -1471,6 +1499,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, s int static, d text, PRIMARY KEY (a, b))");
 
         assertInvalidMessage("Invalid 'unset' value in condition", "UPDATE %s SET s = 6 WHERE a = 6 IF s = ?", unset());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
 
         // pre-existing row
         execute("INSERT INTO %s (a, b, s, d) values (6, 6, 100, 'a')");
@@ -1521,6 +1550,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
                    row(4, 4, null));
 
         // rejected: IN doesn't contain null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertRows(execute("UPDATE %s SET s = 3 WHERE a = 3 IF s IN ?", list(10,20,30)),
                    row(false));
         assertEmpty(execute("SELECT a, s, d FROM %s WHERE a = 3"));
@@ -1559,6 +1589,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
                    row(2, 2, 200, null));
 
         // rejected: IN doesn't contain null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertRows(execute("UPDATE %s SET s = 30 WHERE a = 3 IF s IN ?", list(10,20,30)),
                    row(false, null));
         assertRows(execute("SELECT * FROM %s WHERE a = 3"),
@@ -1771,6 +1802,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         for (int i = 1; i <= 5; i++)
             execute("INSERT INTO %s (a, b, s1, s2, v) VALUES (?, ?, ?, ?, ?)", i, i, i, null, i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
         assertRows(execute("DELETE s1 FROM %s WHERE a = 1 IF s2 = ?", (Integer) null),
                    row(true));
         assertRows(execute("SELECT * FROM %s WHERE a = 1"),
@@ -1795,6 +1827,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // rejected: comparing number with NULL always returns false
         for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12980
             assertRows(execute("DELETE s1 FROM %s WHERE a = 5 IF s2 " + operator + " ?", 3),
                        row(false, null));
             assertRows(execute("SELECT * FROM %s WHERE a = 5"),
@@ -1869,6 +1902,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     public void testMultiExistConditionOnSameRowNoClustering() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 text, v2 text)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12867
 
         // Multiple inserts on the same row with not exist conditions
         assertRows(execute("BEGIN BATCH "
@@ -1969,6 +2003,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Test
     public void testInMarkerWithUDTs() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
         String typename = createType("CREATE TYPE %s (a int, b text)");
         String myType = KEYSPACE + '.' + typename;
 
@@ -2035,7 +2071,9 @@ public class InsertUpdateIfConditionTest extends CQLTester
     public void testConditionalOnDurationColumns() throws Throwable
     {
         createTable(" CREATE TABLE %s (k int PRIMARY KEY, v int, d duration)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         assertInvalidMessage("Slice conditions ( > ) are not supported on durations",
                              "UPDATE %s SET v = 3 WHERE k = 0 IF d > 1s");
         assertInvalidMessage("Slice conditions ( >= ) are not supported on durations",
@@ -2098,6 +2136,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
             assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, list(Duration.from("5s"), Duration.from("10s")), 6));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
             assertInvalidMessage("Slice conditions ( > ) are not supported on durations",
                                  "UPDATE %s SET v = 3 WHERE k = 0 IF l[0] > 1s");
             assertInvalidMessage("Slice conditions ( >= ) are not supported on durations",
@@ -2184,6 +2223,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Test
     public void testConditionalOnDurationWithinMaps() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         for (Boolean frozen : new Boolean[]{Boolean.FALSE, Boolean.TRUE})
         {
             String mapType = String.format(frozen ? "frozen<%s>" : "%s", "map<int, duration>");
@@ -2216,6 +2256,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
             assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, map(1, Duration.from("5s"), 2, Duration.from("10s")), 6));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
             assertInvalidMessage("Slice conditions ( > ) are not supported on durations",
                                  "UPDATE %s SET v = 3 WHERE k = 0 IF m[1] > 1s");
             assertInvalidMessage("Slice conditions ( >= ) are not supported on durations",
@@ -2336,6 +2377,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
             assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, userType("i", 1, "d", Duration.from("10s")), 6));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
             assertInvalidMessage("Slice conditions ( > ) are not supported on durations",
                                  "UPDATE %s SET v = 3 WHERE k = 0 IF u.d > 1s");
             assertInvalidMessage("Slice conditions ( >= ) are not supported on durations",

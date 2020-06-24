@@ -76,6 +76,8 @@ public class CollectionValueIndex extends CassandraIndex
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         Clustering clustering = indexEntry.clustering();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         Clustering indexedEntryClustering = null;
         if (getIndexedColumn().isStatic())
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;

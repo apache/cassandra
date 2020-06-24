@@ -85,6 +85,7 @@ public class PendingAntiCompaction
         @VisibleForTesting
         public void abort()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13585
             if (txn != null)
                 txn.abort();
             if (refs != null)
@@ -94,6 +95,7 @@ public class PendingAntiCompaction
 
     static class SSTableAcquisitionException extends RuntimeException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         SSTableAcquisitionException(String message)
         {
             super(message);
@@ -123,6 +125,7 @@ public class PendingAntiCompaction
             if (metadata.repairedAt != UNREPAIRED_SSTABLE)
                 return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15612
             if (!sstable.descriptor.version.hasPendingRepair())
             {
                 String message = String.format("Prepare phase failed because it encountered legacy sstables that don't " +
@@ -150,6 +153,7 @@ public class PendingAntiCompaction
             {
                 // todo: start tracking the parent repair session id that created the anticompaction to be able to give a better error messsage here:
                 String message = String.format("Prepare phase for incremental repair session %s has failed because it encountered " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
                                                "intersecting sstables (%s) belonging to another incremental repair session. This is " +
                                                "caused by starting multiple conflicting incremental repairs at the same time", prsid, ci.getSSTables());
                 throw new SSTableAcquisitionException(message);
@@ -169,6 +173,7 @@ public class PendingAntiCompaction
         @VisibleForTesting
         public AcquisitionCallable(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, UUID sessionID, int acquireRetrySeconds, int acquireSleepMillis)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
             this(cfs, sessionID, acquireRetrySeconds, acquireSleepMillis, new AntiCompactionPredicate(ranges, sessionID));
         }
 
@@ -196,6 +201,7 @@ public class PendingAntiCompaction
                 LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
                 if (txn != null)
                     return new AcquireResult(cfs, Refs.ref(sstables), txn);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
                 else
                     logger.error("Could not mark compacting for {} (sstables = {}, compacting = {})", sessionID, sstables, cfs.getTracker().getCompacting());
             }
@@ -213,6 +219,7 @@ public class PendingAntiCompaction
             logger.debug("acquiring sstables for pending anti compaction on session {}", sessionID);
             // try to modify after cancelling running compactions. This will attempt to cancel in flight compactions including the given sstables for
             // up to a minute, after which point, null will be returned
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
             long start = System.currentTimeMillis();
             long delay = TimeUnit.SECONDS.toMillis(acquireRetrySeconds);
             // Note that it is `predicate` throwing SSTableAcquisitionException if it finds a conflicting sstable
@@ -225,6 +232,7 @@ public class PendingAntiCompaction
                 {
                     // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
                     // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
                     return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false);
                 }
                 catch (SSTableAcquisitionException e)
@@ -238,6 +246,7 @@ public class PendingAntiCompaction
 
                     if (System.currentTimeMillis() - start > delay)
                         logger.warn("{} Timed out waiting to acquire sstables", sessionID, e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
 
                 }
                 catch (Throwable t)
@@ -260,6 +269,7 @@ public class PendingAntiCompaction
         {
             this.parentRepairSession = parentRepairSession;
             this.tokenRanges = tokenRanges;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             this.isCancelled = isCancelled;
         }
 
@@ -270,6 +280,7 @@ public class PendingAntiCompaction
 
         private static boolean shouldAbort(AcquireResult result)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14763
             if (result == null)
                 return true;
 
@@ -295,6 +306,7 @@ public class PendingAntiCompaction
                         result.abort();
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                 String message = String.format("Prepare phase for incremental repair session %s was unable to " +
                                                "acquire exclusive access to the neccesary sstables. " +
                                                "This is usually caused by running multiple incremental repairs on nodes that share token ranges",
@@ -330,6 +342,7 @@ public class PendingAntiCompaction
     public PendingAntiCompaction(UUID prsId,
                                  Collection<ColumnFamilyStore> tables,
                                  RangesAtEndpoint tokenRanges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                  ExecutorService executor,
                                  BooleanSupplier isCancelled)
     {
@@ -337,6 +350,7 @@ public class PendingAntiCompaction
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
     PendingAntiCompaction(UUID prsId,
                           Collection<ColumnFamilyStore> tables,
                           RangesAtEndpoint tokenRanges,
@@ -346,11 +360,13 @@ public class PendingAntiCompaction
                           BooleanSupplier isCancelled)
     {
         this.prsId = prsId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         this.tables = tables;
         this.tokenRanges = tokenRanges;
         this.executor = executor;
         this.acquireRetrySeconds = acquireRetrySeconds;
         this.acquireSleepMillis = acquireSleepMillis;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         this.isCancelled = isCancelled;
     }
 
@@ -360,6 +376,7 @@ public class PendingAntiCompaction
         for (ColumnFamilyStore cfs : tables)
         {
             cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
             ListenableFutureTask<AcquireResult> task = ListenableFutureTask.create(getAcquisitionCallable(cfs, tokenRanges.ranges(), prsId, acquireRetrySeconds, acquireSleepMillis));
             executor.submit(task);
             tasks.add(task);
@@ -372,12 +389,14 @@ public class PendingAntiCompaction
     @VisibleForTesting
     protected AcquisitionCallable getAcquisitionCallable(ColumnFamilyStore cfs, Set<Range<Token>> ranges, UUID prsId, int acquireRetrySeconds, int acquireSleepMillis)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         return new AcquisitionCallable(cfs, ranges, prsId, acquireRetrySeconds, acquireSleepMillis);
     }
 
     @VisibleForTesting
     protected AcquisitionCallback getAcquisitionCallback(UUID prsId, RangesAtEndpoint tokenRanges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         return new AcquisitionCallback(prsId, tokenRanges, isCancelled);
     }
 }

@@ -49,6 +49,7 @@ public class ReduceHelper
      */
     public static ImmutableMap<InetAddressAndPort, HostDifferences> reduce(DifferenceHolder differences, PreferedNodeFilter filter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, IncomingRepairStreamTracker> trackers = createIncomingRepairStreamTrackers(differences);
         Map<InetAddressAndPort, Integer> outgoingStreamCounts = new HashMap<>();
         ImmutableMap.Builder<InetAddressAndPort, HostDifferences> mapBuilder = ImmutableMap.builder();
@@ -72,6 +73,7 @@ public class ReduceHelper
     static Map<InetAddressAndPort, IncomingRepairStreamTracker> createIncomingRepairStreamTrackers(DifferenceHolder differences)
     {
         Map<InetAddressAndPort, IncomingRepairStreamTracker> trackers = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         for (InetAddressAndPort hostWithDifference : differences.keyHosts())
         {
@@ -93,6 +95,7 @@ public class ReduceHelper
     }
 
     private static IncomingRepairStreamTracker getTracker(DifferenceHolder differences,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                           Map<InetAddressAndPort, IncomingRepairStreamTracker> trackers,
                                                           InetAddressAndPort host)
     {
@@ -120,6 +123,7 @@ public class ReduceHelper
             // ok, found no prefered hosts, try all of them
             if (candidate == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 for (InetAddressAndPort node : toStream)
                 {
                     if (candidate == null || outgoingStreamCounts.getOrDefault(candidate, 0) > outgoingStreamCounts.getOrDefault(node, 0))

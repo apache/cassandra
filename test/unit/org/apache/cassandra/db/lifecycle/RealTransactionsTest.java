@@ -99,6 +99,8 @@ public class RealTransactionsTest extends SchemaLoader
 
         replaceSSTable(cfs, txn, true);
         LogTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         assertFiles(oldSSTable.descriptor.directory.getPath(), new HashSet<>(oldSSTable.getAllFilePaths()));
     }
@@ -111,6 +113,7 @@ public class RealTransactionsTest extends SchemaLoader
 
         SSTableReader ssTableReader = getSSTable(cfs, 100);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         String dataFolder = cfs.getLiveSSTables().iterator().next().descriptor.directory.getPath();
         assertFiles(dataFolder, new HashSet<>(ssTableReader.getAllFilePaths()));
     }
@@ -119,6 +122,7 @@ public class RealTransactionsTest extends SchemaLoader
     {
         createSSTable(cfs, numPartitions);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         return sstables.iterator().next();
@@ -128,6 +132,9 @@ public class RealTransactionsTest extends SchemaLoader
     {
         cfs.truncateBlocking();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         String schema = "CREATE TABLE \"%s\".\"%s\" (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
         String query = "INSERT INTO \"%s\".\"%s\" (key, name, val) VALUES (?, ?, ?)";
 
@@ -150,6 +157,7 @@ public class RealTransactionsTest extends SchemaLoader
         int nowInSec = FBUtilities.nowInSeconds();
         try (CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(FBUtilities.nowInSeconds())))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             try (SSTableRewriter rewriter = SSTableRewriter.constructKeepingOriginals(txn, false, 1000);
                  AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(txn.originals());
                  CompactionIterator ci = new CompactionIterator(txn.opType(), scanners.scanners, controller, nowInSec, txn.opId())
@@ -157,16 +165,19 @@ public class RealTransactionsTest extends SchemaLoader
             {
                 long lastCheckObsoletion = System.nanoTime();
                 File directory = txn.originals().iterator().next().descriptor.directory;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 Descriptor desc = cfs.newSSTableDescriptor(directory);
                 TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
                 rewriter.switchWriter(SSTableWriter.create(metadata,
                                                            desc,
                                                            0,
                                                            0,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                            null,
                                                            false,
                                                            0,
                                                            SerializationHeader.make(cfs.metadata(), txn.originals()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                                            cfs.indexManager.listIndexes(),
                                                            txn));
                 while (ci.hasNext())

@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public class CompositesSearcher extends CassandraIndexSearcher
 {
     public CompositesSearcher(ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                               RowFilter.Expression expression,
                               CassandraIndex index)
     {
@@ -48,11 +49,14 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
     private boolean isMatchingEntry(DecoratedKey partitionKey, IndexEntry entry, ReadCommand command)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         return command.selectsKey(partitionKey) && command.selectsClustering(partitionKey, entry.indexedEntryClustering);
     }
 
     private boolean isStaticColumn()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         return index.getIndexedColumn().isStatic();
     }
 
@@ -71,6 +75,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
             public TableMetadata metadata()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
                 return command.metadata();
             }
 
@@ -91,6 +96,8 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
             private boolean prepareNext()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11304
                 while (true)
                 {
                     if (next != null)
@@ -104,12 +111,15 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         nextEntry = index.decodeEntry(indexKey, indexHits.next());
                     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
                     SinglePartitionReadCommand dataCmd;
                     DecoratedKey partitionKey = index.baseCfs.decorateKey(nextEntry.indexedKey);
                     List<IndexEntry> entries = new ArrayList<>();
                     if (isStaticColumn())
                     {
                         // The index hit may not match the commad key constraint
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13277
                         if (!isMatchingEntry(partitionKey, nextEntry, command)) {
                             nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
                             continue;
@@ -153,6 +163,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                             continue;
 
                         // Query the gathered index hits. We still need to filter stale hits from the resulting query.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
                         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
                         dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
                                                                     command.nowInSec(),
@@ -170,6 +181,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs, executionController),
                                            indexKey.getKey(),
                                            entries,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                            executionController.getWriteContext(),
                                            command.nowInSec());
 
@@ -200,10 +212,12 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
     private void deleteAllEntries(final List<IndexEntry> entries, final WriteContext ctx, final int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         entries.forEach(entry ->
             index.deleteStaleEntry(entry.indexValue,
                                    entry.indexClustering,
                                    new DeletionTime(entry.timestamp, nowInSec),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                    ctx));
     }
 
@@ -229,6 +243,8 @@ public class CompositesSearcher extends CassandraIndexSearcher
             });
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         UnfilteredRowIterator iteratorToReturn = null;
         if (isStaticColumn())
         {
@@ -246,11 +262,13 @@ public class CompositesSearcher extends CassandraIndexSearcher
                                                                          dataIter.partitionLevelDeletion(),
                                                                          dataIter.isReverseOrder());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
             deleteAllEntries(staleEntries, ctx, nowInSec);
         }
         else
         {
             ClusteringComparator comparator = dataIter.metadata().comparator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 
             class Transform extends Transformation
             {
@@ -273,6 +291,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                     while (entriesIdx < entries.size())
                     {
                         IndexEntry entry = entries.get(entriesIdx++);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13666
                         Clustering indexedEntryClustering = entry.indexedEntryClustering;
                         // The entries are in clustering order. So that the requested entry should be the
                         // next entry, the one at 'entriesIdx'. However, we can have stale entries, entries
@@ -290,6 +309,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         // has some static columns and all its clustering key elements are null
                         // it means that the partition exists and contains only static data
                        if (!dataIter.metadata().hasStaticColumns() || !containsOnlyNullValues(indexedEntryClustering))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                            staleEntries.add(entry);
                     }
                     // entries correspond to the rows we've queried, so we shouldn't have a row that has no corresponding entry.
@@ -306,6 +326,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                 @Override
                 public void onPartitionClose()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                     deleteAllEntries(staleEntries, ctx, nowInSec);
                 }
             }

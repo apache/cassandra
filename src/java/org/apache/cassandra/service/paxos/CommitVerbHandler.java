@@ -33,6 +33,7 @@ public class CommitVerbHandler implements IVerbHandler<Commit>
     {
         PaxosState.commit(message.payload);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Tracing.trace("Enqueuing acknowledge to {}", message.from());
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }

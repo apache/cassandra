@@ -48,6 +48,7 @@ public class SettingsNode implements Serializable
             {
                 String node;
                 List<String> tmpNodes = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
                 try (BufferedReader in = new BufferedReader(new InputStreamReader(Files.newInputStream(Paths.get(options.file.value())))))
                 {
                     while ((node = in.readLine()) != null)
@@ -69,7 +70,9 @@ public class SettingsNode implements Serializable
             nodes = Arrays.asList(options.list.value().split(","));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7658
         isWhiteList = options.whitelist.setByUser();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11591
         datacenter = options.datacenter.value();
     }
 
@@ -82,6 +85,7 @@ public class SettingsNode implements Serializable
                 if (!isWhiteList)
                 {
                     for (Host host : settings.getJavaDriverClient().getCluster().getMetadata().getAllHosts())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                         r.add(host.getSocketAddress().getHostString() + ":" + host.getSocketAddress().getPort());
                     break;
                 }
@@ -99,6 +103,7 @@ public class SettingsNode implements Serializable
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 HostAndPort hap = HostAndPort.fromString(node);
                 r.add(InetAddress.getByName(hap.getHost()));
             }
@@ -117,6 +122,7 @@ public class SettingsNode implements Serializable
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 HostAndPort hap = HostAndPort.fromString(node).withDefaultPort(port);
                 r.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPort()));
             }
@@ -140,6 +146,7 @@ public class SettingsNode implements Serializable
 
     public static final class Options extends GroupedOptions
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11591
         final OptionSimple datacenter = new OptionSimple("datacenter=", ".*", null, "Datacenter used for DCAwareRoundRobinLoadPolicy", false);
         final OptionSimple whitelist = new OptionSimple("whitelist", "", null, "Limit communications to the provided nodes", false);
         final OptionSimple file = new OptionSimple("file=", ".*", null, "Node file (one per line)", false);
@@ -148,6 +155,8 @@ public class SettingsNode implements Serializable
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11591
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
             return Arrays.asList(datacenter, whitelist, file, list);
         }
     }
@@ -155,6 +164,7 @@ public class SettingsNode implements Serializable
     // CLI Utility Methods
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.println("  Nodes: " + nodes);
         out.println("  Is White List: " + isWhiteList);
         out.println("  Datacenter: " + datacenter);
@@ -183,6 +193,7 @@ public class SettingsNode implements Serializable
 
     public static Runnable helpPrinter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11638
         return SettingsNode::printHelp;
     }
 }

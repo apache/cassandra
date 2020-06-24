@@ -57,6 +57,7 @@ public class Status extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14392
         joiningNodes = probe.getJoiningNodes(printPort);
         leavingNodes = probe.getLeavingNodes(printPort);
         movingNodes = probe.getMovingNodes(printPort);
@@ -69,6 +70,7 @@ public class Status extends NodeToolCmd
 
         StringBuilder errors = new StringBuilder();
         TableBuilder.SharedTable sharedTable = new TableBuilder.SharedTable("  ");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15305
 
         Map<String, Float> ownerships = null;
         boolean hasEffectiveOwns = false;
@@ -158,6 +160,7 @@ public class Status extends NodeToolCmd
         else if (movingNodes.contains(endpoint)) state = "M";
         else state = "N";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14787
         String statusAndState = status.concat(state);
         load = loadMap.getOrDefault(endpoint, "?");
         strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";

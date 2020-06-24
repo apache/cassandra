@@ -79,6 +79,7 @@ public class Tracker
      */
     public Tracker(Memtable memtable, boolean loadsstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         this.cfstore = memtable != null ? memtable.cfs : null;
         this.view = new AtomicReference<>();
         this.loadsstables = loadsstables;
@@ -148,6 +149,7 @@ public class Tracker
         long add = 0;
         for (SSTableReader sstable : newSSTables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             if (logger.isTraceEnabled())
                 logger.trace("adding {} to list of files tracked for {}.{}", sstable.descriptor, cfstore.keyspace.getName(), cfstore.name);
             try
@@ -162,6 +164,7 @@ public class Tracker
         long subtract = 0;
         for (SSTableReader sstable : oldSSTables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             if (logger.isTraceEnabled())
                 logger.trace("removing {} from list of files tracked for {}.{}", sstable.descriptor, cfstore.keyspace.getName(), cfstore.name);
             try
@@ -187,6 +190,7 @@ public class Tracker
     public void addInitialSSTables(Iterable<SSTableReader> sstables)
     {
         if (!isDummy())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             setupOnline(sstables);
         apply(updateLiveSet(emptySet(), sstables));
         maybeFail(updateSizeTracking(emptySet(), sstables, null));
@@ -196,6 +200,7 @@ public class Tracker
     public void addSSTables(Iterable<SSTableReader> sstables)
     {
         addInitialSSTables(sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         maybeIncrementallyBackup(sstables);
         notifyAdded(sstables);
     }
@@ -245,7 +250,9 @@ public class Tracker
 
             // It is important that any method accepting/returning a Throwable never throws an exception, and does its best
             // to complete the instructions given to it
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
             accumulate = prepareForObsoletion(removed, txnLogs, obsoletions, accumulate);
             try
             {
@@ -307,6 +314,7 @@ public class Tracker
         // assign operations to a memtable that was retired/queued before we started)
         for (Memtable memtable : view.get().liveMemtables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             if (memtable.accepts(opGroup, commitLogPosition))
                 return memtable;
         }
@@ -326,6 +334,7 @@ public class Tracker
         Pair<View, View> result = apply(View.switchMemtable(newMemtable));
         if (truncating)
             notifyRenewed(newMemtable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         else
             notifySwitched(result.left.getCurrentMemtable());
 
@@ -348,6 +357,7 @@ public class Tracker
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         sstables.forEach(SSTableReader::setupOnline);
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstables);
@@ -358,10 +368,12 @@ public class Tracker
         fail = updateSizeTracking(emptySet(), sstables, null);
 
         notifyDiscarded(memtable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
 
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
         fail = notifyAdded(sstables, memtable, fail);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         if (!isDummy() && !cfstore.isValid())
             dropSSTables();
 
@@ -379,6 +391,7 @@ public class Tracker
 
     public Iterable<SSTableReader> getUncompacting()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         return view.get().select(SSTableSet.NONCOMPACTING);
     }
 
@@ -392,6 +405,7 @@ public class Tracker
         if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         for (SSTableReader sstable : sstables)
         {
             File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
@@ -449,6 +463,7 @@ public class Tracker
 
     public void notifySSTableMetadataChanged(SSTableReader levelChanged, StatsMetadata oldMetadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         INotification notification = new SSTableMetadataChanged(levelChanged, oldMetadata);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
@@ -464,6 +479,7 @@ public class Tracker
 
     public void notifyTruncated(long truncatedAt)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         INotification notification = new TruncationNotification(truncatedAt);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
@@ -492,6 +508,7 @@ public class Tracker
 
     public boolean isDummy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         return cfstore == null || !DatabaseDescriptor.isDaemonInitialized();
     }
 

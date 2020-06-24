@@ -109,6 +109,7 @@ public class UFPureScriptTupleCollectionTest extends CQLTester
         // we use protocol V3 here to encode the expected version because the server
         // always serializes Collections using V3 - see CollectionSerializer's
         // serialize and deserialize methods.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         TupleType tType = tupleTypeOf(ProtocolVersion.V3,
                                       DataType.cdouble(),
                                       DataType.list(DataType.cdouble()),

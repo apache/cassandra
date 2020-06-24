@@ -43,6 +43,7 @@ public class UFVerifierTest extends CQLTester
     @Test
     public void testByteCodeVerifier()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11391
         verify(GoodClass.class);
     }
 
@@ -58,6 +59,7 @@ public class UFVerifierTest extends CQLTester
     {
         assertEquals(new HashSet<>(Arrays.asList("field declared: field",
                                                  "initializer declared")),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11391
                      verify(ClassWithInitializer.class));
     }
 
@@ -66,6 +68,7 @@ public class UFVerifierTest extends CQLTester
     {
         assertEquals(new HashSet<>(Arrays.asList("field declared: field",
                                                  "initializer declared")),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11391
                      verify(ClassWithInitializer2.class));
     }
 

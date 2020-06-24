@@ -38,6 +38,7 @@ public class FinalizePromise extends RepairMessage
 
     public FinalizePromise(UUID sessionID, InetAddressAndPort participant, boolean promised)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         assert sessionID != null;
         assert participant != null;
@@ -71,6 +72,7 @@ public class FinalizePromise extends RepairMessage
         public void serialize(FinalizePromise msg, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(msg.sessionID, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(msg.participant, out, version);
             out.writeBoolean(msg.promised);
         }

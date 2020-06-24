@@ -56,6 +56,7 @@ public abstract class AbstractJmxClient implements Closeable
     {
         options.addOption("h", "host", true,  "JMX hostname or IP address (Default: localhost)");
         options.addOption("p", "port", true,  "JMX port number (Default: 7199)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5431
         options.addOption("u", "username", true,  "JMX username");
         options.addOption("pw", "password", true,  "JMX password");
         options.addOption("H", "help", false, "Print help information");
@@ -65,6 +66,7 @@ public abstract class AbstractJmxClient implements Closeable
     {
         this.host = (host != null) ? host : DEFAULT_HOST;
         this.port = (port != null) ? port : DEFAULT_JMX_PORT;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5431
         this.username = username;
         this.password = password;
         jmxConn = new JMXConnection(this.host, this.port, username, password);

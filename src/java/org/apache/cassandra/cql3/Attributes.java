@@ -51,6 +51,7 @@ public class Attributes
 
     public static Attributes none()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4450
         return new Attributes(null, null);
     }
 
@@ -62,6 +63,7 @@ public class Attributes
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         if (timestamp != null)
             timestamp.addFunctionsTo(functions);
         if (timeToLive != null)
@@ -83,10 +85,12 @@ public class Attributes
         if (timestamp == null)
             return now;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         ByteBuffer tval = timestamp.bindAndGet(options);
         if (tval == null)
             throw new InvalidRequestException("Invalid null value of timestamp");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return now;
 
@@ -113,6 +117,7 @@ public class Attributes
         ByteBuffer tval = timeToLive.bindAndGet(options);
         if (tval == null)
             return 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12216
 
         if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return metadata.params.defaultTimeToLive;
@@ -130,6 +135,7 @@ public class Attributes
         if (ttl < 0)
             throw new InvalidRequestException("A TTL must be greater or equal to 0, but was " + ttl);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         if (ttl > MAX_TTL)
             throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, MAX_TTL));
 
@@ -156,6 +162,7 @@ public class Attributes
 
         public Attributes prepare(String ksName, String cfName) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
             Term ts = timestamp == null ? null : timestamp.prepare(ksName, timestampReceiver(ksName, cfName));
             Term ttl = timeToLive == null ? null : timeToLive.prepare(ksName, timeToLiveReceiver(ksName, cfName));
             return new Attributes(ts, ttl);
@@ -175,6 +182,7 @@ public class Attributes
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

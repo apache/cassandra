@@ -65,6 +65,7 @@ public class DataTracker
      */
     public Iterable<SSTableReader> update(Collection<SSTableReader> oldSSTables, Collection<SSTableReader> newSSTables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
         final Pair<Set<SSTableIndex>, Set<SSTableReader>> built = getBuiltIndexes(newSSTables);
         final Set<SSTableIndex> newIndexes = built.left;
         final Set<SSTableReader> indexedSSTables = built.right;
@@ -94,6 +95,7 @@ public class DataTracker
 
     public void dropData(Collection<SSTableReader> sstablesToRebuild)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12374
         View currentView = view.get();
         if (currentView == null)
             return;
@@ -134,6 +136,7 @@ public class DataTracker
     private Pair<Set<SSTableIndex>, Set<SSTableReader>> getBuiltIndexes(Collection<SSTableReader> sstables)
     {
         Set<SSTableIndex> indexes = new HashSet<>(sstables.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
         Set<SSTableReader> builtSSTables = new HashSet<>(sstables.size());
         for (SSTableReader sstable : sstables)
         {
@@ -146,6 +149,7 @@ public class DataTracker
 
             // if the index file is empty, we have to ignore it to avoid re-building, but it doesn't take
             // a part in query process
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
             if (indexFile.length() == 0)
             {
                 builtSSTables.add(sstable);
@@ -169,6 +173,7 @@ public class DataTracker
                 // Try to add new index to the set, if set already has such index, we'll simply release and move on.
                 // This covers situation when sstable collection has the same sstable multiple
                 // times because we don't know what kind of collection it actually is.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
                 if (indexes.add(index))
                     builtSSTables.add(sstable);
                 else
@@ -182,6 +187,7 @@ public class DataTracker
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
         return Pair.create(indexes, builtSSTables);
     }
 }

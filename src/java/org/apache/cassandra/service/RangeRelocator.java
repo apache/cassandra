@@ -114,6 +114,7 @@ public class RangeRelocator
                                                                         TokenMetadata tmdBefore,
                                                                         TokenMetadata tmdAfter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangesByEndpoint.Builder endpointRanges = new RangesByEndpoint.Builder();
         for (Replica toStream : streamRanges)
         {
@@ -158,6 +159,7 @@ public class RangeRelocator
                 }
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return endpointRanges.build();
     }
 
@@ -185,6 +187,7 @@ public class RangeRelocator
 
                 //In the single node token move there is nothing to do and Range subtraction is broken
                 //so it's easier to just identify this case up front.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                 if (tokenMetaClone.getTopology().getDatacenterEndpoints().get(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter()).size() > 1)
                 {
                     // getting collection of the currently used ranges by this keyspace

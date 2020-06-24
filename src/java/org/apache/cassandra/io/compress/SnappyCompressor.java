@@ -37,7 +37,9 @@ public class SnappyCompressor implements ICompressor
     private static Logger logger = LoggerFactory.getLogger(SnappyCompressor.class);
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4266
         if (!isAvailable())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             logger.warn("Cannot initialize native Snappy library. Compression on new sstables will be disabled.");
     }
 
@@ -46,6 +48,8 @@ public class SnappyCompressor implements ICompressor
         // this would throw java.lang.NoClassDefFoundError if Snappy class
         // wasn't found at runtime which should be processed by calling method
         Snappy.getNativeLibraryVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3573
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
 
         // no specific options supported so far
         return instance;
@@ -53,6 +57,7 @@ public class SnappyCompressor implements ICompressor
 
     public static boolean isAvailable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4266
         try
         {
             create(Collections.<String, String>emptyMap());
@@ -60,6 +65,7 @@ public class SnappyCompressor implements ICompressor
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             return false;
         }
@@ -83,6 +89,7 @@ public class SnappyCompressor implements ICompressor
     {
         int dlimit = output.limit();
         Snappy.compress(input, output);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
 
         // Snappy doesn't match the ICompressor contract w/regards to state it leaves dest ByteBuffer's counters in
         output.position(output.limit());
@@ -96,6 +103,7 @@ public class SnappyCompressor implements ICompressor
     }
 
     public void uncompress(ByteBuffer input, ByteBuffer output)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
             throws IOException
     {
         int dlimit = output.limit();

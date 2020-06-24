@@ -53,6 +53,7 @@ public class MetadataSerializerTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -64,6 +65,7 @@ public class MetadataSerializerTest
         MetadataSerializer serializer = new MetadataSerializer();
         File statsFile = serialize(originalMetadata, serializer, BigFormat.latestVersion);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         Descriptor desc = new Descriptor(statsFile.getParentFile(), "", "", 0, SSTableFormat.Type.BIG);
         try (RandomAccessReader in = RandomAccessReader.open(statsFile))
         {
@@ -77,10 +79,13 @@ public class MetadataSerializerTest
     }
 
     public File serialize(Map<MetadataType, MetadataComponent> metadata, MetadataSerializer serializer, Version version)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             throws IOException
     {
         // Serialize to tmp file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File statsFile = FileUtils.createTempFile(Component.STATS.name, null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(statsFile)))
         {
             serializer.serialize(metadata, out, version);
@@ -90,6 +95,7 @@ public class MetadataSerializerTest
 
     public Map<MetadataType, MetadataComponent> constructMetadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         CommitLogPosition club = new CommitLogPosition(11L, 12);
         CommitLogPosition cllb = new CommitLogPosition(9L, 12);
 
@@ -105,6 +111,7 @@ public class MetadataSerializerTest
     @Test
     public void testMaReadMa() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13953
         testOldReadsNew("ma", "ma");
     }
 
@@ -117,12 +124,14 @@ public class MetadataSerializerTest
     @Test
     public void testMaReadMc() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         testOldReadsNew("ma", "mc");
     }
 
     @Test
     public void testMbReadMb() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13953
         testOldReadsNew("mb", "mb");
     }
 
@@ -153,6 +162,7 @@ public class MetadataSerializerTest
         File statsFileLb = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(newV));
         File statsFileLa = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(oldV));
         // Reading both as earlier version should yield identical results.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         SSTableFormat.Type stype = SSTableFormat.Type.current();
         Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.getParentFile(), "", "", 0, stype);
         try (RandomAccessReader inLb = RandomAccessReader.open(statsFileLb);
@@ -165,6 +175,7 @@ public class MetadataSerializerTest
             {
                 assertEquals(deserializedLa.get(type), deserializedLb.get(type));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13953
                 if (MetadataType.STATS != type)
                     assertEquals(originalMetadata.get(type), deserializedLb.get(type));
             }

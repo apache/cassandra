@@ -44,6 +44,7 @@ public class HintedHandoffMetrics
 
     /** Total number of hints which are not stored, This is not a cache. */
     private final LoadingCache<InetAddressAndPort, DifferencingCounter> notStored = Caffeine.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                                             .executor(MoreExecutors.directExecutor())
                                                                                             .build(DifferencingCounter::new);
 
@@ -82,6 +83,7 @@ public class HintedHandoffMetrics
         public DifferencingCounter(InetAddressAndPort address)
         {
             //This changes the name of the metric, people can update their monitoring when upgrading?
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             this.meter = Metrics.counter(factory.createMetricName("Hints_not_stored-" + address.toString().replace(':', '.')));
         }
 
@@ -95,6 +97,7 @@ public class HintedHandoffMetrics
 
         public long count()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
             return meter.getCount();
         }
 

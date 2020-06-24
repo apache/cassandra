@@ -45,6 +45,7 @@ public class UUIDTests
     public void verifyType1()
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID uuid = UUIDGen.getTimeUUID();
         assert uuid.version() == 1;
     }
@@ -60,8 +61,10 @@ public class UUIDTests
     @Test
     public void testDecomposeAndRaw()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID a = UUIDGen.getTimeUUID();
         byte[] decomposed = UUIDGen.decompose(a);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         UUID b = UUIDGen.getUUID(ByteBuffer.wrap(decomposed));
         assert a.equals(b);
     }
@@ -69,6 +72,7 @@ public class UUIDTests
     @Test
     public void testToFromByteBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         UUID a = UUIDGen.getTimeUUID();
         ByteBuffer bb = UUIDGen.toByteBuffer(a);
         UUID b = UUIDGen.getUUID(bb);
@@ -79,10 +83,12 @@ public class UUIDTests
     public void testTimeUUIDType()
     {
         TimeUUIDType comp = TimeUUIDType.instance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         ByteBuffer first = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         ByteBuffer second = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         assert comp.compare(first, second) < 0;
         assert comp.compare(second, first) > 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         ByteBuffer sameAsFirst = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.getUUID(first)));
         assert comp.compare(first, sameAsFirst) == 0;
     }
@@ -91,6 +97,7 @@ public class UUIDTests
     public void testUUIDTimestamp()
     {
         long now = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID uuid = UUIDGen.getTimeUUID();
         long tstamp = UUIDGen.getAdjustedTimestamp(uuid);
 
@@ -105,6 +112,7 @@ public class UUIDTests
     @Test
     public void verifyConcurrentUUIDGeneration() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11517
         long iterations = 250000;
         int threads = 4;
         ExecutorService es = Executors.newFixedThreadPool(threads);
@@ -137,6 +145,7 @@ public class UUIDTests
             }
             es.shutdown();
             Assert.assertTrue(es.awaitTermination(1, TimeUnit.MINUTES));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
 
             assert !failedOrdering.get();
             assert !failedDuplicate.get();

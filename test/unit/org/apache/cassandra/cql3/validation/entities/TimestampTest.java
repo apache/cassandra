@@ -155,6 +155,7 @@ public class TimestampTest extends CQLTester
     @Test
     public void testTimestampsOnUnsetColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13711
         createTable("CREATE TABLE %s (k int PRIMARY KEY, i int)");
         execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TIMESTAMP 1;");
         execute("INSERT INTO %s (k) VALUES (2) USING TIMESTAMP 2;");
@@ -186,6 +187,7 @@ public class TimestampTest extends CQLTester
     public void testTimestampAndTTLPrepared() throws Throwable
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13846
         createTable("CREATE TABLE %s (k int , c int, i int, PRIMARY KEY (k, c))");
         execute("INSERT INTO %s (k, c, i) VALUES (1, 1, 1) USING TIMESTAMP ? AND TTL ?;", 1L,5);
         execute("INSERT INTO %s (k, c) VALUES (1, 2) USING TIMESTAMP ? AND TTL ? ;", 1L, 5);

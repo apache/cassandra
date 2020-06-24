@@ -145,6 +145,7 @@ final class SettingsTable extends AbstractVirtualTable
 
         AuditLogOptions value = (AuditLogOptions) getValue(f);
         result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         result.row(f.getName() + "_logger").column(VALUE, value.logger.class_name);
         result.row(f.getName() + "_audit_logs_dir").column(VALUE, value.audit_logs_dir);
         result.row(f.getName() + "_included_keyspaces").column(VALUE, value.included_keyspaces);
@@ -163,6 +164,7 @@ final class SettingsTable extends AbstractVirtualTable
         result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.isEnabled()));
         result.row(f.getName() + "_algorithm").column(VALUE, value.algorithm);
         result.row(f.getName() + "_protocol").column(VALUE, value.protocol);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         result.row(f.getName() + "_cipher_suites").column(VALUE, value.cipher_suites.toString());
         result.row(f.getName() + "_client_auth").column(VALUE, Boolean.toString(value.require_client_auth));
         result.row(f.getName() + "_endpoint_verification").column(VALUE, Boolean.toString(value.require_endpoint_verification));

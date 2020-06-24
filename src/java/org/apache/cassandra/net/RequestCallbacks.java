@@ -172,6 +172,8 @@ public class RequestCallbacks implements OutboundMessageCallbacks
 
         if (info.invokeOnFailure())
             INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
 
         // FIXME: this has never belonged here, should be part of onFailure() in AbstractWriteResponseHandler
         if (info.shouldHint())

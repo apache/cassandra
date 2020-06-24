@@ -72,6 +72,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
         List<SSTableReader> previousCandidate = null;
         while (true)
         {
@@ -82,6 +83,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
             // Already tried acquiring references without success. It means there is a race with
             // the tracker but candidate SSTables were not yet replaced in the compaction strategy manager
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
             if (latestBucket.equals(previousCandidate))
             {
                 logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
@@ -156,6 +158,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         if (sstablesWithTombstones.isEmpty())
             return Collections.emptyList();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return Collections.singletonList(Collections.min(sstablesWithTombstones, SSTableReader.sizeComparator));
     }
 
@@ -166,6 +169,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         if(buckets.right > this.highestWindowSeen)
             this.highestWindowSeen = buckets.right;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
         NewestBucket mostInteresting = newestBucket(buckets.left,
                 cfs.getMinimumCompactionThreshold(),
                 cfs.getMaximumCompactionThreshold(),
@@ -193,6 +197,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     @Override
     protected Set<SSTableReader> getSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return ImmutableSet.copyOf(sstables);
     }
 
@@ -264,6 +269,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     {
         /** The sstables that should be compacted next */
         final List<SSTableReader> sstables;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
 
         /** The number of tasks estimated */
         final int estimatedRemainingTasks;
@@ -295,6 +301,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         // For any other bucket, at least 2 SSTables is enough.
         // In any case, limit to maxThreshold SSTables.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
         List<SSTableReader> sstables = Collections.emptyList();
         int estimatedRemainingTasks = 0;
 
@@ -317,6 +324,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 if (!stcsInterestingBucket.isEmpty())
                 {
                     double remaining = bucket.size() - maxThreshold;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
                     estimatedRemainingTasks +=  1 + (remaining > minThreshold ? Math.ceil(remaining / maxThreshold) : 0);
                     if (sstables.isEmpty())
                     {
@@ -345,6 +353,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14884
                 logger.trace("No compaction necessary for bucket size {} , key {}, now {}", bucket.size(), key, now);
             }
         }
@@ -363,6 +372,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
         // Trim the largest sstables off the end to meet the maxThreshold
         Collections.sort(ssTableReaders, SSTableReader.sizeComparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
 
         return ImmutableList.copyOf(Iterables.limit(ssTableReaders, maxThreshold));
     }

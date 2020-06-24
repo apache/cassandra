@@ -122,6 +122,7 @@ public class StreamingTombstoneHistogramBuilderTest
         builder.update(2);
         builder.update(2);
         builder.update(2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
         builder.update(2, Integer.MAX_VALUE); // To check that value overflow is handled correctly
         TombstoneHistogram hist = builder.build();
         Map<Integer, Integer> asMap = asMap(hist);
@@ -138,6 +139,7 @@ public class StreamingTombstoneHistogramBuilderTest
 
         asMap = asMap(deserialized);
         assertEquals(1, deserialized.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
         assertEquals(Integer.MAX_VALUE, asMap.get(2).intValue());
     }
 
@@ -182,6 +184,7 @@ public class StreamingTombstoneHistogramBuilderTest
     @Test
     public void testLargeDeletionTimesAndLargeValuesDontCauseOverflow()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
         qt().forAll(streamingTombstoneHistogramBuilderGen(1000, 300000, 60),
                     lists().of(integers().from(0).upTo(Cell.MAX_DELETION_TIME)).ofSize(300),
                     lists().of(integers().allPositive()).ofSize(300))

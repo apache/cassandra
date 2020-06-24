@@ -58,6 +58,7 @@ public abstract class Selector
         {
             return new ColumnSpecification(table.keyspace,
                                            table.name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                                            new ColumnIdentifier(getColumnName(), true), // note that the name is not necessarily
                                                                                         // a true column name so we shouldn't intern it
                                            getReturnType());
@@ -114,6 +115,7 @@ public abstract class Selector
          */
         public boolean isSimpleSelectorFactory()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return false;
         }
 
@@ -126,6 +128,7 @@ public abstract class Selector
          */
         public boolean isSimpleSelectorFactoryFor(int index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
             return false;
         }
 
@@ -163,6 +166,7 @@ public abstract class Selector
          * {@code false} otherwise.
          */
         abstract boolean areAllFetchedColumnsKnown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
 
         /**
          * Adds the columns fetched by the selector created by this factory to the provided builder, assuming the

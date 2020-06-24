@@ -51,6 +51,7 @@ public class StreamPlan
      */
     public StreamPlan(StreamOperation streamOperation)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         this(streamOperation, 1, false, NO_PENDING_REPAIR, PreviewKind.NONE);
     }
 
@@ -104,9 +105,11 @@ public class StreamPlan
     public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges, String... columnFamilies)
     {
         //It should either be a dummy address for repair or if it's a bootstrap/move/rebuild it should be this node
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         assert all(fullRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
         assert all(transientRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         StreamSession session = coordinator.getOrCreateNextSession(from);
         session.addStreamRequest(keyspace, fullRanges, transientRanges, Arrays.asList(columnFamilies));
         return this;
@@ -123,6 +126,7 @@ public class StreamPlan
      */
     public StreamPlan transferRanges(InetAddressAndPort to, String keyspace, RangesAtEndpoint replicas, String... columnFamilies)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         StreamSession session = coordinator.getOrCreateNextSession(to);
         session.addTransferRanges(keyspace, replicas, Arrays.asList(columnFamilies), flushBeforeTransfer);
         return this;
@@ -137,12 +141,14 @@ public class StreamPlan
      */
     public StreamPlan transferStreams(InetAddressAndPort to, Collection<OutgoingStream> streams)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         coordinator.transferStreams(to, streams);
         return this;
     }
 
     public StreamPlan listeners(StreamEventHandler handler, StreamEventHandler... handlers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6636
         this.handlers.add(handler);
         if (handlers != null)
             Collections.addAll(this.handlers, handlers);
@@ -158,6 +164,7 @@ public class StreamPlan
     public StreamPlan connectionFactory(StreamConnectionFactory factory)
     {
         this.coordinator.setConnectionFactory(factory);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7585
         return this;
     }
 
@@ -166,6 +173,7 @@ public class StreamPlan
      */
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7836
         return !coordinator.hasActiveSessions();
     }
 
@@ -176,6 +184,7 @@ public class StreamPlan
      */
     public StreamResultFuture execute()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         return StreamResultFuture.createInitiator(planId, streamOperation, handlers, coordinator);
     }
 
@@ -194,11 +203,13 @@ public class StreamPlan
 
     public UUID getPendingRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         return coordinator.getPendingRepair();
     }
 
     public boolean getFlushBeforeTransfer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         return flushBeforeTransfer;
     }
 

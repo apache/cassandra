@@ -81,6 +81,7 @@ public class LocalSession extends ConsistentSession
     public String toString()
     {
         return "LocalSession{" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
                "sessionID=" + sessionID +
                ", state=" + getState() +
                ", coordinator=" + coordinator +

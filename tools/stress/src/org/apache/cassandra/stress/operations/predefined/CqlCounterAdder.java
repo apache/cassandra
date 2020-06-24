@@ -39,6 +39,7 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     final Distribution counteradd;
     public CqlCounterAdder(DistributionFactory counteradd, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         super(Command.COUNTER_WRITE, timer, generator, seedManager, settings);
         this.counteradd = counteradd.get();
     }
@@ -47,6 +48,7 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     protected String buildQuery()
     {
         StringBuilder query = new StringBuilder("UPDATE counter1 SET ");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9374
 
         // TODO : increment distribution subset of columns
         for (int i = 0; i < settings.columns.maxColumnsPerKey; i++)
@@ -54,6 +56,7 @@ public class CqlCounterAdder extends CqlOperation<Integer>
             if (i > 0)
                 query.append(",");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9374
             String name = wrapInQuotes(settings.columns.namestrs.get(i));
             query.append(name).append("=").append(name).append("+?");
         }
@@ -79,6 +82,7 @@ public class CqlCounterAdder extends CqlOperation<Integer>
 
     public boolean isWrite()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return true;
     }
 }

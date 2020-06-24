@@ -41,6 +41,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
     {
         SetSerializer<T> t = instances.get(elements);
         if (t == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13271
             t = instances.computeIfAbsent(elements, k -> new SetSerializer<>(k, elementComparator) );
         return t;
     }
@@ -53,9 +54,11 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 
     public List<ByteBuffer> serializeValues(Set<T> values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         List<ByteBuffer> buffers = new ArrayList<>(values.size());
         for (T value : values)
             buffers.add(elements.serialize(value));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10162
         Collections.sort(buffers, comparator);
         return buffers;
     }
@@ -67,8 +70,10 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 
     public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7208
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14365
             if (bytes.remaining() == 0)
             {
                 return;
@@ -106,14 +111,17 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             {
                 ByteBuffer databb = readValue(input, version);
                 elements.validate(databb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
                 l.add(elements.deserialize(databb));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7833
             if (input.hasRemaining())
                 throw new MarshalException("Unexpected extraneous bytes after set value");
             return l;
         }
         catch (BufferUnderflowException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             throw new MarshalException("Not enough bytes to read a set");
         }
     }
@@ -131,6 +139,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 sb.append(", ");
             }
             sb.append(elements.toString(element));
@@ -147,6 +156,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
     @Override
     public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         try
         {
             ByteBuffer input = collection.duplicate();
@@ -172,6 +182,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 
     @Override
     public ByteBuffer getSliceFromSerialized(ByteBuffer collection,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
                                              ByteBuffer from,
                                              ByteBuffer to,
                                              AbstractType<?> comparator,
@@ -227,6 +238,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
                     break;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
             if (count == 0 && !frozen)
                 return null;
 

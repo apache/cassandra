@@ -76,6 +76,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
     public InetAddressAndPort withPort(int port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new InetAddressAndPort(address, addressBytes, port);
     }
 
@@ -141,6 +142,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     {
         if (withPort)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return toString(address, port);
         }
         else
@@ -151,6 +153,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
     public static String toString(InetAddress address, int port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return HostAndPort.fromParts(address.getHostAddress(), port).toString();
     }
 
@@ -221,6 +224,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
     static int getDefaultPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return defaultPort;
     }
 

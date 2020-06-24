@@ -36,7 +36,9 @@ public abstract class StreamMessage
 {
     public static void serialize(StreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         out.writeByte(message.type.id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6503
         message.type.outSerializer.serialize(message, out, version, session);
     }
 
@@ -47,7 +49,9 @@ public abstract class StreamMessage
 
     public static StreamMessage deserialize(DataInputPlus in, int version) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Type type = Type.lookupById(in.readByte());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         return type.inSerializer.deserialize(in, version);
     }
 
@@ -55,6 +59,7 @@ public abstract class StreamMessage
     public static interface Serializer<V extends StreamMessage>
     {
         V deserialize(DataInputPlus in, int version) throws IOException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         void serialize(V message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException;
         long serializedSize(V message, int version) throws IOException;
     }
@@ -62,6 +67,7 @@ public abstract class StreamMessage
     /** StreamMessage types */
     public enum Type
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         PREPARE_SYN    (1,  5, PrepareSynMessage.serializer   ),
         STREAM         (2,  0, IncomingStreamMessage.serializer, OutgoingStreamMessage.serializer),
         RECEIVED       (3,  4, ReceivedMessage.serializer     ),
@@ -120,6 +126,7 @@ public abstract class StreamMessage
 
             this.id = id;
             this.priority = priority;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6503
             this.inSerializer = inSerializer;
             this.outSerializer = outSerializer;
         }

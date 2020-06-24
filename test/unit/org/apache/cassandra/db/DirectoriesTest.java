@@ -72,8 +72,12 @@ public class DirectoriesTest
     public static void beforeClass() throws IOException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11578
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11578
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11750
 
         for (String table : TABLES)
         {
@@ -83,6 +87,7 @@ public class DirectoriesTest
                                  .build());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         tempDataDir = FileUtils.createTempFile("cassandra", "unittest");
         tempDataDir.delete(); // hack to create a temp dir
         tempDataDir.mkdir();
@@ -123,6 +128,7 @@ public class DirectoriesTest
 
     private static void createFakeSSTable(File dir, String cf, int gen, List<File> addTo) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         Descriptor desc = new Descriptor(dir, KS, cf, gen, SSTableFormat.Type.BIG);
         for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER })
         {
@@ -157,10 +163,12 @@ public class DirectoriesTest
         {
             Directories directories = new Directories(cfm);
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
 
             Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);
             File snapshotDir = new File(cfDir(cfm),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
             assertEquals(snapshotDir.getCanonicalFile(), Directories.getSnapshotDirectory(desc, "42"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13231
 
             File backupsDir = new File(cfDir(cfm),  File.separator + Directories.BACKUPS_SUBDIR);
             assertEquals(backupsDir.getCanonicalFile(), Directories.getBackupsDirectory(desc));
@@ -186,6 +194,7 @@ public class DirectoriesTest
 
         TableMetadata PARENT_CFM = builder.build();
         TableMetadata INDEX_CFM = CassandraIndex.indexCfsMetadata(PARENT_CFM, indexDef);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9687
         Directories parentDirectories = new Directories(PARENT_CFM);
         Directories indexDirectories = new Directories(INDEX_CFM);
         // secondary index has its own directory
@@ -220,6 +229,7 @@ public class DirectoriesTest
         assertEquals(40, indexDirectories.trueSnapshotsSize());
 
         // check snapshot details
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         Map<String, Directories.SnapshotSizeDetails> parentSnapshotDetail = parentDirectories.getSnapshotDetails();
         assertTrue(parentSnapshotDetail.containsKey("test"));
         assertEquals(30L, parentSnapshotDetail.get("test").dataSizeBytes);
@@ -252,6 +262,7 @@ public class DirectoriesTest
         for (TableMetadata cfm : CFM)
         {
             Directories directories = new Directories(cfm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
             checkFiles(cfm, directories);
         }
     }
@@ -288,6 +299,7 @@ public class DirectoriesTest
         {
             if (f.getPath().contains(Directories.SNAPSHOT_SUBDIR) || f.getPath().contains(Directories.BACKUPS_SUBDIR))
                 assertFalse(f + " should not be listed", listed.contains(f));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6962
             else if (f.getName().contains("tmp-"))
                 assertFalse(f + " should not be listed", listed.contains(f));
             else
@@ -328,6 +340,8 @@ public class DirectoriesTest
     {
         DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         try
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
@@ -339,6 +353,7 @@ public class DirectoriesTest
                 FileUtils.handleFSError(new FSWriteError(new IOException("Unable to create directory " + dir), dir));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
             for (DataDirectory dd : Directories.dataDirectories)
             {
                 File file = new File(dd.location, new File(KS, "bad").getPath());
@@ -357,6 +372,7 @@ public class DirectoriesTest
         for (final TableMetadata cfm : CFM)
         {
             final Directories directories = new Directories(cfm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
             final String n = Long.toString(System.nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
@@ -375,6 +391,7 @@ public class DirectoriesTest
     @Test
     public void testDiskFreeSpace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7386
         DataDirectory[] dataDirectories = new DataDirectory[]
                                           {
                                           new DataDirectory(new File("/nearlyFullDir1"))
@@ -484,6 +501,7 @@ public class DirectoriesTest
 
         for (TableMetadata cfm : CFM)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13974
             Directories dirs = new Directories(cfm, paths);
             for (DataDirectory dir : paths)
             {

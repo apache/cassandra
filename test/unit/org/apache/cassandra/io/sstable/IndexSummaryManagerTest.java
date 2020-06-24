@@ -88,12 +88,15 @@ public class IndexSummaryManagerTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLOWiINTERVAL)
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                                 .caching(CachingParams.CACHE_NOTHING),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDRACE)
                                                 .minIndexInterval(8)
@@ -116,8 +119,10 @@ public class IndexSummaryManagerTest
     @After
     public void afterTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         for (CompactionInfo.Holder holder : CompactionManager.instance.active.getCompactions())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8805
             holder.stop();
         }
 
@@ -157,6 +162,7 @@ public class IndexSummaryManagerTest
 
     private void validateData(ColumnFamilyStore cfs, int numPartition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         for (int i = 0; i < numPartition; i++)
         {
             Row row = Util.getOnlyRowUnfiltered(Util.cmd(cfs, String.format("%3d", i)).build());
@@ -171,6 +177,7 @@ public class IndexSummaryManagerTest
     {
         public int compare(SSTableReader o1, SSTableReader o2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
             return Double.compare(o1.getReadMeter().fifteenMinuteRate(), o2.getReadMeter().fifteenMinuteRate());
         }
     };
@@ -186,6 +193,7 @@ public class IndexSummaryManagerTest
         ByteBuffer value = ByteBuffer.wrap(new byte[100]);
         for (int sstable = 0; sstable < numSSTables; sstable++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             for (int p = 0; p < numPartition; p++)
             {
 
@@ -204,12 +212,15 @@ public class IndexSummaryManagerTest
             {
                 future.get();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12808
             catch (InterruptedException | ExecutionException e)
             {
                 throw new RuntimeException(e);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(numSSTables, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         validateData(cfs, numPartition);
     }
 
@@ -252,8 +263,10 @@ public class IndexSummaryManagerTest
         // halve the min_index_interval, but constrain the available space to exactly what we have now; as a result,
         // the summary shouldn't change
         MigrationManager.announceTableUpdate(cfs.metadata().unbuild().minIndexInterval(originalMinIndexInterval / 2).build(), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         long summarySpace = sstable.getIndexSummaryOffHeapSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(asList(sstable), OperationType.UNKNOWN))
         {
             redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.id, txn), summarySpace);
@@ -270,6 +283,7 @@ public class IndexSummaryManagerTest
         {
             redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.id, txn), (long) Math.ceil(summarySpace * 1.5));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         sstable = cfs.getLiveSSTables().iterator().next();
         assertEquals(previousSize * 1.5, (double) sstable.getIndexSummarySize(), 1);
         assertEquals(previousInterval * (1.0 / 1.5), sstable.getEffectiveIndexInterval(), 0.001);
@@ -281,6 +295,7 @@ public class IndexSummaryManagerTest
         {
             redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.id, txn), (long) Math.ceil(summarySpace / 2.0));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         sstable = cfs.getLiveSSTables().iterator().next();
         assertEquals(originalMinIndexInterval * 2, sstable.getEffectiveIndexInterval(), 0.001);
         assertEquals(numRows / (originalMinIndexInterval * 2), sstable.getIndexSummarySize());
@@ -294,6 +309,7 @@ public class IndexSummaryManagerTest
         {
             redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.id, txn), 10);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         sstable = cfs.getLiveSSTables().iterator().next();
         assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
     }
@@ -301,6 +317,8 @@ public class IndexSummaryManagerTest
     @Test
     public void testChangeMaxIndexInterval() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
@@ -327,6 +345,8 @@ public class IndexSummaryManagerTest
         {
             redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.id, txn), 1);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         sstables = new ArrayList<>(cfs.getLiveSSTables());
         for (SSTableReader sstable : sstables)
         {
@@ -340,6 +360,9 @@ public class IndexSummaryManagerTest
         {
             redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.id, txn), 1);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertEquals(cfs.metadata().params.maxIndexInterval, sstable.getEffectiveIndexInterval(), 0.01);
@@ -416,6 +439,7 @@ public class IndexSummaryManagerTest
 
         // make two of the four sstables cold, only leave enough space for three full index summaries,
         // so the two cold sstables should get downsampled to be half of their original size
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         sstables.get(0).overrideReadMeter(new RestorableMeter(50.0, 50.0));
         sstables.get(1).overrideReadMeter(new RestorableMeter(50.0, 50.0));
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
@@ -432,6 +456,7 @@ public class IndexSummaryManagerTest
         // small increases or decreases in the read rate don't result in downsampling or upsampling
         double lowerRate = 50.0 * (DOWNSAMPLE_THESHOLD + (DOWNSAMPLE_THESHOLD * 0.10));
         double higherRate = 50.0 * (UPSAMPLE_THRESHOLD - (UPSAMPLE_THRESHOLD * 0.10));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         sstables.get(0).overrideReadMeter(new RestorableMeter(lowerRate, lowerRate));
         sstables.get(1).overrideReadMeter(new RestorableMeter(higherRate, higherRate));
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
@@ -446,7 +471,9 @@ public class IndexSummaryManagerTest
         validateData(cfs, numRows);
 
         // reset, and then this time, leave enough space for one of the cold sstables to not get downsampled
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         sstables = resetSummaries(cfs, sstables, singleSummaryOffHeapSpace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         sstables.get(0).overrideReadMeter(new RestorableMeter(1.0, 1.0));
         sstables.get(1).overrideReadMeter(new RestorableMeter(2.0, 2.0));
         sstables.get(2).overrideReadMeter(new RestorableMeter(1000.0, 1000.0));
@@ -458,6 +485,7 @@ public class IndexSummaryManagerTest
         }
         Collections.sort(sstables, hotnessComparator);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         if (sstables.get(0).getIndexSummarySamplingLevel() == minSamplingLevel)
             assertEquals(BASE_SAMPLING_LEVEL, sstables.get(1).getIndexSummarySamplingLevel());
         else
@@ -472,6 +500,7 @@ public class IndexSummaryManagerTest
         // coldest sstables will get downsampled to 4/128 of their size, leaving us with 1 and 92/128th index
         // summaries worth of space.  The hottest sstable should get a full index summary, and the one in the middle
         // should get the remainder.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         sstables.get(0).overrideReadMeter(new RestorableMeter(0.0, 0.0));
         sstables.get(1).overrideReadMeter(new RestorableMeter(0.0, 0.0));
         sstables.get(2).overrideReadMeter(new RestorableMeter(92, 92));
@@ -501,6 +530,7 @@ public class IndexSummaryManagerTest
     @Test
     public void testRebuildAtSamplingLevel() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL;
         Keyspace keyspace = Keyspace.open(ksname);
@@ -513,6 +543,7 @@ public class IndexSummaryManagerTest
         int numRows = 256;
         for (int row = 0; row < numRows; row++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             String key = String.format("%3d", row);
             new RowUpdateBuilder(cfs.metadata(), 0, key)
             .clustering("column")
@@ -523,15 +554,18 @@ public class IndexSummaryManagerTest
 
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         SSTableReader original = sstables.get(0);
 
         SSTableReader sstable = original;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(asList(sstable), OperationType.UNKNOWN))
         {
             for (int samplingLevel = 1; samplingLevel < BASE_SAMPLING_LEVEL; samplingLevel++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6912
                 sstable = sstable.cloneWithNewSummarySamplingLevel(cfs, samplingLevel);
                 assertEquals(samplingLevel, sstable.getIndexSummarySamplingLevel());
                 int expectedSize = (numRows * samplingLevel) / (cfs.metadata().params.minIndexInterval * BASE_SAMPLING_LEVEL);
@@ -564,10 +598,12 @@ public class IndexSummaryManagerTest
         manager.setMemoryPoolCapacityInMB(10);
         assertEquals(10, manager.getMemoryPoolCapacityInMB());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8981
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
 
@@ -579,6 +615,7 @@ public class IndexSummaryManagerTest
         {
             for (int row = 0; row < numRows; row++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 String key = String.format("%3d", row);
                 new RowUpdateBuilder(cfs.metadata(), 0, key)
                 .clustering("column")
@@ -592,6 +629,7 @@ public class IndexSummaryManagerTest
         assertTrue(manager.getAverageIndexInterval() >= cfs.metadata().params.minIndexInterval);
         Map<String, Integer> intervals = manager.getIndexIntervals();
         for (Map.Entry<String, Integer> entry : intervals.entrySet())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
             if (entry.getKey().contains(CF_STANDARDLOWiINTERVAL))
                 assertEquals(cfs.metadata().params.minIndexInterval, entry.getValue(), 0.001);
 
@@ -601,6 +639,7 @@ public class IndexSummaryManagerTest
         intervals = manager.getIndexIntervals();
         for (Map.Entry<String, Integer> entry : intervals.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
             if (entry.getKey().contains(CF_STANDARDLOWiINTERVAL))
                 assertTrue(entry.getValue() >= cfs.metadata().params.minIndexInterval);
         }
@@ -641,6 +680,7 @@ public class IndexSummaryManagerTest
         // everything should get cut in half
         final AtomicReference<CompactionInterruptedException> exception = new AtomicReference<>();
         // barrier to control when redistribution runs
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12808
         final CountDownLatch barrier = new CountDownLatch(1);
         CompactionInfo.Holder ongoingCompaction = new CompactionInfo.Holder()
         {
@@ -658,6 +698,8 @@ public class IndexSummaryManagerTest
         {
             CompactionManager.instance.active.beginCompaction(ongoingCompaction);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
             Thread t = NamedThreadFactory.createThread(new Runnable()
             {
                 public void run()
@@ -691,6 +733,7 @@ public class IndexSummaryManagerTest
             // to proceed until stopCompaction has been called.
             cancelFunction.accept(cfs);
             // allows the redistribution to proceed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12808
             barrier.countDown();
             t.join();
         }
@@ -701,6 +744,7 @@ public class IndexSummaryManagerTest
 
         assertNotNull("Expected compaction interrupted exception", exception.get());
         assertTrue("Expected no active compactions", CompactionManager.instance.active.getCompactions().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         Set<SSTableReader> beforeRedistributionSSTables = new HashSet<>(allSSTables);
         Set<SSTableReader> afterCancelSSTables = new HashSet<>(cfs.getLiveSSTables());
@@ -715,6 +759,9 @@ public class IndexSummaryManagerTest
     @Test
     public void testPauseIndexSummaryManager() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
@@ -723,14 +770,22 @@ public class IndexSummaryManagerTest
         int numRows = 256;
         createSSTables(ksname, cfname, numSSTables, numRows);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         for (SSTableReader sstable : sstables)
             sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
 
         long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummaryOffHeapSize();
 
         // everything should get cut in half
         assert sstables.size() == numSSTables;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
             try (AutoCloseable toresume = CompactionManager.instance.pauseGlobalCompaction())
@@ -751,6 +806,7 @@ public class IndexSummaryManagerTest
 
     private static List<SSTableReader> redistributeSummaries(List<SSTableReader> compacting,
                                                              Map<TableId, LifecycleTransaction> transactions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12808
                                                              long memoryPoolBytes)
     throws IOException
     {

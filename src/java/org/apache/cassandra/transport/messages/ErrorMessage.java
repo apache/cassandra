@@ -61,11 +61,13 @@ public class ErrorMessage extends Message.Response
                 case PROTOCOL_ERROR:
                     te = new ProtocolException(msg);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
                 case BAD_CREDENTIALS:
                     te = new AuthenticationException(msg);
                     break;
                 case UNAVAILABLE:
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4734
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                         int required = body.readInt();
                         int alive = body.readInt();
@@ -81,7 +83,10 @@ public class ErrorMessage extends Message.Response
                 case TRUNCATE_ERROR:
                     te = new TruncateException(msg);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
                 case WRITE_FAILURE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
                 case READ_FAILURE:
                     {
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
@@ -90,7 +95,9 @@ public class ErrorMessage extends Message.Response
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
                         int failure = body.readInt();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15543
                         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             ImmutableMap.Builder<InetAddressAndPort, RequestFailureReason> builder = ImmutableMap.builderWithExpectedSize(failure);
@@ -122,9 +129,11 @@ public class ErrorMessage extends Message.Response
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                         int received = body.readInt();
                         int blockFor = body.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4723
                         if (code == ExceptionCode.WRITE_TIMEOUT)
                         {
                             WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
@@ -145,12 +154,14 @@ public class ErrorMessage extends Message.Response
                         }
                         break;
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
                 case FUNCTION_FAILURE:
                     String fKeyspace = CBUtil.readString(body);
                     String fName = CBUtil.readString(body);
                     List<String> argTypes = CBUtil.readStringList(body);
                     te = new FunctionExecutionException(new FunctionName(fKeyspace, fName), argTypes, msg);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4449
                 case UNPREPARED:
                     {
                         MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
@@ -169,6 +180,7 @@ public class ErrorMessage extends Message.Response
                 case CONFIG_ERROR:
                     te = new ConfigurationException(msg);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                 case CDC_WRITE_FAILURE:
                     te = new CDCWriteException(msg);
                     break;
@@ -180,6 +192,7 @@ public class ErrorMessage extends Message.Response
                     else
                         te = new AlreadyExistsException(ksName, cfName);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                 case CAS_WRITE_UNKNOWN:
                     assert version.isGreaterOrEqualTo(ProtocolVersion.V5);
 
@@ -211,6 +224,7 @@ public class ErrorMessage extends Message.Response
                 case READ_FAILURE:
                     {
                         RequestFailureException rfe = (RequestFailureException) err;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
 
                         CBUtil.writeConsistencyLevel(rfe.consistency, dest);
                         dest.writeInt(rfe.received);
@@ -220,6 +234,7 @@ public class ErrorMessage extends Message.Response
 
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                             for (Map.Entry<InetAddressAndPort, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
                                 CBUtil.writeInetAddr(entry.getKey().address, dest);
@@ -227,6 +242,7 @@ public class ErrorMessage extends Message.Response
                             }
                         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                         if (err.code() == ExceptionCode.WRITE_FAILURE)
                             CBUtil.writeAsciiString(((WriteFailureException) rfe).writeType.toString(), dest);
                         else
@@ -242,6 +258,7 @@ public class ErrorMessage extends Message.Response
                     dest.writeInt(rte.blockFor);
                     if (err.code() == ExceptionCode.WRITE_TIMEOUT)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                         CBUtil.writeAsciiString(((WriteTimeoutException)rte).writeType.toString(), dest);
                         // CasWriteTimeoutException already implies protocol V5, but double check to be safe.
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && rte instanceof CasWriteTimeoutException)
@@ -259,14 +276,17 @@ public class ErrorMessage extends Message.Response
                     CBUtil.writeStringList(fee.argTypes, dest);
                     break;
                 case UNPREPARED:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
                     PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)err;
                     CBUtil.writeBytes(pqnfe.id.bytes, dest);
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)err;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     CBUtil.writeAsciiString(aee.ksName, dest);
                     CBUtil.writeAsciiString(aee.cfName, dest);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                 case CAS_WRITE_UNKNOWN:
                     assert version.isGreaterOrEqualTo(ProtocolVersion.V5);
                     CasWriteUnknownResultException cwue = (CasWriteUnknownResultException)err;
@@ -293,13 +313,17 @@ public class ErrorMessage extends Message.Response
                         RequestFailureException rfe = (RequestFailureException)err;
 
                         size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                         if (err.code() == ExceptionCode.WRITE_FAILURE)
                             size += CBUtil.sizeOfAsciiString(((WriteFailureException)rfe).writeType.toString());
                         else
                             size += 1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                             for (Map.Entry<InetAddressAndPort, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
                                 size += CBUtil.sizeOfInetAddr(entry.getKey().address);
@@ -313,6 +337,7 @@ public class ErrorMessage extends Message.Response
                     RequestTimeoutException rte = (RequestTimeoutException)err;
                     boolean isWrite = err.code() == ExceptionCode.WRITE_TIMEOUT;
                     size += CBUtil.sizeOfConsistencyLevel(rte.consistency) + 8;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                     if (isWrite)
                         size += CBUtil.sizeOfAsciiString(((WriteTimeoutException)rte).writeType.toString());
                     else
@@ -334,9 +359,11 @@ public class ErrorMessage extends Message.Response
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)err;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     size += CBUtil.sizeOfAsciiString(aee.ksName);
                     size += CBUtil.sizeOfAsciiString(aee.cfName);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
                 case CAS_WRITE_UNKNOWN:
                     assert version.isGreaterOrEqualTo(ProtocolVersion.V5);
                     CasWriteUnknownResultException cwue = (CasWriteUnknownResultException)err;
@@ -349,22 +376,28 @@ public class ErrorMessage extends Message.Response
 
     private static TransportException getBackwardsCompatibleException(ErrorMessage msg, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (version.isSmallerThan(ProtocolVersion.V4))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
             switch (msg.error.code())
             {
                 case READ_FAILURE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
                     ReadFailureException rfe = (ReadFailureException) msg.error;
                     return new ReadTimeoutException(rfe.consistency, rfe.received, rfe.blockFor, rfe.dataPresent);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
                 case WRITE_FAILURE:
                     WriteFailureException wfe = (WriteFailureException) msg.error;
                     return new WriteTimeoutException(wfe.writeType, wfe.consistency, wfe.received, wfe.blockFor);
                 case FUNCTION_FAILURE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                 case CDC_WRITE_FAILURE:
                     return new InvalidRequestException(msg.toString());
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         if (version.isSmallerThan(ProtocolVersion.V5))
         {
             switch (msg.error.code())
@@ -396,12 +429,14 @@ public class ErrorMessage extends Message.Response
 
     private ErrorMessage(TransportException error, int streamId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5164
         this(error);
         setStreamId(streamId);
     }
 
     public static ErrorMessage fromException(Throwable e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7849
         return fromException(e, null);
     }
 
@@ -416,9 +451,11 @@ public class ErrorMessage extends Message.Response
 
         // Netty will wrap exceptions during decoding in a CodecException. If the cause was one of our ProtocolExceptions
         // or some other internal exception, extract that and use it.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8118
         if (e instanceof CodecException)
         {
             Throwable cause = e.getCause();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9451
             if (cause != null)
             {
                 if (cause instanceof WrappedException)
@@ -445,6 +482,7 @@ public class ErrorMessage extends Message.Response
             {
                 // if the driver attempted to connect with a protocol version not supported then
                 // respond with the appropiate version, see ProtocolVersion.decode()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 ProtocolVersion forcedProtocolVersion = ((ProtocolException) e).getForcedProtocolVersion();
                 if (forcedProtocolVersion != null)
                     message.forcedProtocolVersion = forcedProtocolVersion;
@@ -453,6 +491,7 @@ public class ErrorMessage extends Message.Response
         }
 
         // Unexpected exception
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7849
         if (unexpectedExceptionHandler == null || !unexpectedExceptionHandler.apply(e))
             logger.error("Unexpected exception during request", e);
 
@@ -462,11 +501,13 @@ public class ErrorMessage extends Message.Response
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         return "ERROR " + error.code() + ": " + error.getMessage();
     }
 
     public static RuntimeException wrap(Throwable t, int streamId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5164
         return new WrappedException(t, streamId);
     }
 
@@ -483,6 +524,7 @@ public class ErrorMessage extends Message.Response
         @VisibleForTesting
         public int getStreamId()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8848
             return this.streamId;
         }
     }

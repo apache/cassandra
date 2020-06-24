@@ -78,6 +78,7 @@ public class BatchStatement implements CQLStatement
     private static final Logger logger = LoggerFactory.getLogger(BatchStatement.class);
 
     private static final String UNLOGGED_BATCH_WARNING = "Unlogged batch covering {} partitions detected " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9917
                                                          "against table{} {}. You should use a logged batch for " +
                                                          "atomicity, or asynchronous writes for performance.";
 
@@ -99,6 +100,7 @@ public class BatchStatement implements CQLStatement
     public BatchStatement(Type type, VariableSpecifications bindVariables, List<ModificationStatement> statements, Attributes attrs)
     {
         this.type = type;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this.bindVariables = bindVariables;
         this.statements = statements;
         this.attrs = attrs;
@@ -110,10 +112,12 @@ public class BatchStatement implements CQLStatement
         boolean updateStatic = false;
         boolean updatesVirtualTables = false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         for (ModificationStatement stmt : statements)
         {
             regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
             updateRegular |= stmt.updatesRegularRows();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             updatesVirtualTables |= stmt.isVirtual();
             if (stmt.hasConditions())
             {
@@ -128,12 +132,14 @@ public class BatchStatement implements CQLStatement
         this.updatesRegularRows = updateRegular;
         this.updatesStaticRow = updateStatic;
         this.hasConditions = hasConditions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         this.updatesVirtualTables = updatesVirtualTables;
     }
 
     @Override
     public List<ColumnSpecification> getBindVariables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return bindVariables.getBindVariables();
     }
 
@@ -142,6 +148,7 @@ public class BatchStatement implements CQLStatement
     {
         boolean affectsMultipleTables =
             !statements.isEmpty() && !statements.stream().map(s -> s.metadata().id).allMatch(isEqual(statements.get(0).metadata().id));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15730
 
         // Use the TableMetadata of the first statement for partition key bind indexes.  If the statements affect
         // multiple tables, we won't send partition key bind indexes.
@@ -153,6 +160,7 @@ public class BatchStatement implements CQLStatement
     @Override
     public Iterable<org.apache.cassandra.cql3.functions.Function> getFunctions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         List<org.apache.cassandra.cql3.functions.Function> functions = new ArrayList<>();
         for (ModificationStatement statement : statements)
             statement.addFunctionsTo(functions);
@@ -162,6 +170,7 @@ public class BatchStatement implements CQLStatement
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         for (ModificationStatement statement : statements)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             statement.authorize(state);
     }
 
@@ -177,6 +186,7 @@ public class BatchStatement implements CQLStatement
             if (hasConditions)
                 throw new InvalidRequestException("Cannot provide custom timestamp for conditional BATCH");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9917
             if (isCounter())
                 throw new InvalidRequestException("Cannot provide custom timestamp for counter BATCH");
         }
@@ -192,11 +202,13 @@ public class BatchStatement implements CQLStatement
             if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7351
             if (statement.isCounter())
                 hasCounters = true;
             else
                 hasNonCounters = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             if (statement.isVirtual())
                 hasVirtualTables = true;
             else
@@ -240,6 +252,7 @@ public class BatchStatement implements CQLStatement
 
     private boolean isCounter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9917
         return type == Type.COUNTER;
     }
 
@@ -263,11 +276,13 @@ public class BatchStatement implements CQLStatement
 
     private List<? extends IMutation> getMutations(BatchQueryOptions options,
                                                          boolean local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                                          long batchTimestamp,
                                                          int nowInSeconds,
                                                          long queryStartNanoTime)
     {
         Set<String> tablesWithZeroGcGs = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         BatchUpdatesCollector collector = new BatchUpdatesCollector(updatedColumns, updatedRows());
         for (int i = 0; i < statements.size(); i++)
         {
@@ -279,6 +294,7 @@ public class BatchStatement implements CQLStatement
                 tablesWithZeroGcGs.add(statement.metadata.toString());
             }
             QueryOptions statementOptions = options.forStatement(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
             long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
             statement.addUpdates(collector, statementOptions, local, timestamp, nowInSeconds, queryStartNanoTime);
         }
@@ -291,6 +307,7 @@ public class BatchStatement implements CQLStatement
             ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
                                                      .getMessage());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         return collector.toMutations();
     }
 
@@ -298,6 +315,7 @@ public class BatchStatement implements CQLStatement
     {
         // Note: it's possible for 2 statements to actually apply to the same row, but that's just an estimation
         // for sizing our PartitionUpdate backing array, so it's good enough.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return statements.size();
     }
 
@@ -309,11 +327,13 @@ public class BatchStatement implements CQLStatement
     private static void verifyBatchSize(Collection<? extends IMutation> mutations) throws InvalidRequestException
     {
         // We only warn for batch spanning multiple mutations (#10876)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10876
         if (mutations.size() <= 1)
             return;
 
         long warnThreshold = DatabaseDescriptor.getBatchSizeWarnThreshold();
         long size = IMutation.dataSize(mutations);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
 
         if (size > warnThreshold)
         {
@@ -329,6 +349,7 @@ public class BatchStatement implements CQLStatement
             String format = "Batch for {} is of size {}, exceeding specified threshold of {} by {}.{}";
             if (size > failThreshold)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 Tracing.trace(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
                               FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
                 logger.error(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
@@ -382,6 +403,7 @@ public class BatchStatement implements CQLStatement
 
     public ResultMessage execute(QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         long timestamp = options.getTimestamp(queryState);
         int nowInSeconds = options.getNowInSeconds(queryState);
 
@@ -393,25 +415,31 @@ public class BatchStatement implements CQLStatement
         if (hasConditions)
             return executeWithConditions(options, queryState, queryStartNanoTime);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (updatesVirtualTables)
             executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
         else    
             executeWithoutConditions(getMutations(options, false, timestamp, nowInSeconds, queryStartNanoTime), options.getConsistency(), queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
 
         return new ResultMessage.Void();
     }
 
     private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10711
         if (mutations.isEmpty())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10876
         verifyBatchSize(mutations);
         verifyBatchType(mutations);
 
         updatePartitionsPerBatchMetrics(mutations.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
     }
 
@@ -441,10 +469,13 @@ public class BatchStatement implements CQLStatement
                                                    casRequest,
                                                    options.getSerialConsistency(),
                                                    options.getConsistency(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                    state.getClientState(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                                    options.getNowInSeconds(state),
                                                    queryStartNanoTime))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
             return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName,
                                                                                   tableName,
                                                                                   result,
@@ -460,6 +491,7 @@ public class BatchStatement implements CQLStatement
         long batchTimestamp = options.getTimestamp(state);
         int nowInSeconds = options.getNowInSeconds(state);
         DecoratedKey key = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7499
         CQL3CasRequest casRequest = null;
         Set<ColumnMetadata> columnsWithConditions = new LinkedHashSet<>();
 
@@ -467,6 +499,7 @@ public class BatchStatement implements CQLStatement
         {
             ModificationStatement statement = statements.get(i);
             QueryOptions statementOptions = options.forStatement(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
             long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
             List<ByteBuffer> pks = statement.buildPartitionKeyNames(statementOptions);
             if (statement.getRestrictions().keyIsInRelation())
@@ -485,6 +518,7 @@ public class BatchStatement implements CQLStatement
                        "IN on the clustering key columns is not supported with conditional %s",
                        statement.type.isUpdate()? "updates" : "deletions");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
             if (statement.hasSlices())
             {
                 // All of the conditions require meaningful Clustering, not Slices
@@ -497,6 +531,7 @@ public class BatchStatement implements CQLStatement
 
                 for (Slice slice : slices)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                     casRequest.addRangeDeletion(slice, statement, statementOptions, timestamp, nowInSeconds);
                 }
 
@@ -508,11 +543,13 @@ public class BatchStatement implements CQLStatement
                 {
                     statement.addConditions(clustering, casRequest, statementOptions);
                     // As soon as we have a ifNotExists, we set columnsWithConditions to null so that everything is in the resultSet
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5708
                     if (statement.hasIfNotExistCondition() || statement.hasIfExistCondition())
                         columnsWithConditions = null;
                     else if (columnsWithConditions != null)
                         Iterables.addAll(columnsWithConditions, statement.getColumnsWithConditions());
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                 casRequest.addRowUpdate(clustering, statement, statementOptions, timestamp, nowInSeconds);
             }
         }
@@ -533,15 +570,18 @@ public class BatchStatement implements CQLStatement
             return executeInternalWithConditions(batchOptions, queryState);
 
         executeInternalWithoutCondition(queryState, batchOptions, System.nanoTime());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7337
         return new ResultMessage.Void();
     }
 
     private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         long timestamp = batchOptions.getTimestamp(queryState);
         int nowInSeconds = batchOptions.getNowInSeconds(queryState);
 
         for (IMutation mutation : getMutations(batchOptions, true, timestamp, nowInSeconds, queryStartNanoTime))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             mutation.apply();
         return null;
     }
@@ -555,6 +595,7 @@ public class BatchStatement implements CQLStatement
         String ksName = request.metadata.keyspace;
         String tableName = request.metadata.name;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         long timestamp = options.getTimestamp(state);
         int nowInSeconds = options.getNowInSeconds(state);
 
@@ -574,6 +615,7 @@ public class BatchStatement implements CQLStatement
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4734
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
@@ -595,6 +637,7 @@ public class BatchStatement implements CQLStatement
         public void setKeyspace(ClientState state) throws InvalidRequestException
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 statement.setKeyspace(state);
         }
 

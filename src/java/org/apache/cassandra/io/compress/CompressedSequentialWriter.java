@@ -74,10 +74,15 @@ public class CompressedSequentialWriter extends SequentialWriter
      * @param sstableMetadataCollector Metadata collector
      */
     public CompressedSequentialWriter(File file,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4165
                                       String offsetsPath,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
                                       File digestFile,
                                       SequentialWriterOption option,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                       CompressionParams parameters,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
                                       MetadataCollector sstableMetadataCollector)
     {
         super(file, SequentialWriterOption.newBuilder()
@@ -98,15 +103,22 @@ public class CompressedSequentialWriter extends SequentialWriter
         /* Index File (-CompressionInfo.db component) and it's header */
         metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3393
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3393
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         this.sstableMetadataCollector = sstableMetadataCollector;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         crcMetadata = new ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));
     }
 
     @Override
     public long getOnDiskFilePointer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             return fchannel.position();
         }
         catch (IOException e)
@@ -123,6 +135,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     @Override
     public long getEstimatedOnDiskBytesWritten()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         return chunkOffset;
     }
 
@@ -136,11 +149,13 @@ public class CompressedSequentialWriter extends SequentialWriter
     protected void flushData()
     {
         seekToChunkStart(); // why is this necessary? seems like it should always be at chunk start in normal operation
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
 
         try
         {
             // compressing data with buffer re-use
             buffer.flip();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
             compressed.clear();
             compressor.compress(buffer, compressed);
         }
@@ -153,6 +168,8 @@ public class CompressedSequentialWriter extends SequentialWriter
         int compressedLength = compressed.position();
         uncompressedSize += uncompressedLength;
         ByteBuffer toWrite = compressed;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
         if (compressedLength >= maxCompressedLength)
         {
             toWrite = buffer;
@@ -176,6 +193,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         try
         {
             // write an offset of the newly written chunk to the index file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
             metadataWriter.addOffset(chunkOffset);
             chunkCount++;
 
@@ -197,6 +215,7 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         // next chunk should be written right after current + length of the checksum (int)
         chunkOffset += compressedLength + 4;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8747
         if (runPostFlush != null)
             runPostFlush.run();
     }
@@ -204,6 +223,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     public CompressionMetadata open(long overrideLength)
     {
         if (overrideLength <= 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             overrideLength = uncompressedSize;
         return metadataWriter.open(overrideLength, chunkOffset);
     }
@@ -212,7 +232,9 @@ public class CompressedSequentialWriter extends SequentialWriter
     public DataPosition mark()
     {
         if (!buffer.hasRemaining())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
             doFlush(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         return new CompressedFileWriterMark(chunkOffset, current(), buffer.position(), chunkCount + 1);
     }
 
@@ -240,8 +262,10 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         // compressed chunk size (- 4 bytes reserved for checksum)
         int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         if (compressed.capacity() < chunkSize)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15340
             FileUtils.clean(compressed);
             compressed = compressor.preferredBufferType().allocate(chunkSize);
         }
@@ -250,6 +274,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         {
             compressed.clear();
             compressed.limit(chunkSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             fchannel.position(chunkOffset);
             fchannel.read(compressed);
 
@@ -258,6 +283,8 @@ public class CompressedSequentialWriter extends SequentialWriter
                 // Repopulate buffer from compressed data
                 buffer.clear();
                 compressed.flip();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
                 if (chunkSize < maxCompressedLength)
                     compressor.uncompress(compressed, buffer);
                 else
@@ -265,17 +292,22 @@ public class CompressedSequentialWriter extends SequentialWriter
             }
             catch (IOException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12889
                 throw new CorruptBlockException(getPath(), chunkOffset, chunkSize, e);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8684
             CRC32 checksum = new CRC32();
             compressed.rewind();
             checksum.update(compressed);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9650
 
             crcCheckBuffer.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             fchannel.read(crcCheckBuffer);
             crcCheckBuffer.flip();
             if (crcCheckBuffer.getInt() != (int) checksum.getValue())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                 throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
         }
         catch (CorruptBlockException e)
@@ -293,17 +325,21 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         // Mark as dirty so we can guarantee the newly buffered bytes won't be lost on a rebuffer
         buffer.position(realMark.validBufferBytes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
 
         bufferOffset = truncateTarget - buffer.position();
         chunkCount = realMark.nextChunkIndex - 1;
 
         // truncate data and index file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12743
         truncate(chunkOffset, bufferOffset);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6791
         metadataWriter.resetAndTruncate(realMark.nextChunkIndex - 1);
     }
 
     private void truncate(long toFileSize, long toBufferOffset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
             fchannel.truncate(toFileSize);
@@ -320,10 +356,12 @@ public class CompressedSequentialWriter extends SequentialWriter
      */
     private void seekToChunkStart()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         if (getOnDiskFilePointer() != chunkOffset)
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
                 fchannel.position(chunkOffset);
             }
             catch (IOException e)
@@ -338,12 +376,14 @@ public class CompressedSequentialWriter extends SequentialWriter
         @Override
         protected Throwable doCommit(Throwable accumulate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
             return super.doCommit(metadataWriter.commit(accumulate));
         }
 
         @Override
         protected Throwable doAbort(Throwable accumulate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             return super.doAbort(metadataWriter.abort(accumulate));
         }
 
@@ -351,6 +391,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         protected void doPrepare()
         {
             syncInternal();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             digestFile.ifPresent(crcMetadata::writeFullChecksum);
             sstableMetadataCollector.addCompressionRatio(compressedSize, uncompressedSize);
             metadataWriter.finalizeLength(current(), chunkCount).prepareToCommit();
@@ -359,6 +400,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         @Override
         protected Throwable doPreCleanup(Throwable accumulate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
             accumulate = super.doPreCleanup(accumulate);
             if (compressed != null)
             {
@@ -387,6 +429,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         // uncompressed data offset (real data offset)
         final long uncDataOffset;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         final int validBufferBytes;
         final int nextChunkIndex;
 

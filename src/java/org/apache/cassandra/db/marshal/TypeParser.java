@@ -53,6 +53,7 @@ public class TypeParser
 
     public TypeParser(String str)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
         this(str, 0);
     }
 
@@ -89,6 +90,7 @@ public class TypeParser
             type = getAbstractType(name);
 
         Verify.verify(type != null, "Parsing %s yielded null, which is a bug", str);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
         // Prevent concurrent modification to the map acting as the cache for TypeParser at the expense of
         // more allocation when the cache needs to be updated, since updates to the cache are rare compared
@@ -139,6 +141,7 @@ public class TypeParser
         if (str.charAt(idx) != '(')
             throw new IllegalStateException();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         Map<String, String> map = new HashMap<>();
         ++idx; // skipping '('
 
@@ -165,12 +168,14 @@ public class TypeParser
             }
             map.put(k, v);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
     {
         List<AbstractType<?>> list = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
 
         if (isEOS())
             return list;
@@ -192,6 +197,7 @@ public class TypeParser
             {
                 list.add(parse());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
             catch (SyntaxException e)
             {
                 SyntaxException ex = new SyntaxException(String.format("Exception while parsing '%s' around char %d", str, idx));
@@ -205,6 +211,7 @@ public class TypeParser
     public Map<Byte, AbstractType<?>> getAliasParameters() throws SyntaxException, ConfigurationException
     {
         Map<Byte, AbstractType<?>> map = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
 
         if (isEOS())
             return map;
@@ -240,6 +247,7 @@ public class TypeParser
             {
                 map.put((byte)aliasChar, parse());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
             catch (SyntaxException e)
             {
                 SyntaxException ex = new SyntaxException(String.format("Exception while parsing '%s' around char %d", str, idx));
@@ -253,6 +261,7 @@ public class TypeParser
     public Map<ByteBuffer, CollectionType> getCollectionsParameters() throws SyntaxException, ConfigurationException
     {
         Map<ByteBuffer, CollectionType> map = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
         if (isEOS())
             return map;
@@ -271,6 +280,7 @@ public class TypeParser
             }
 
             ByteBuffer bb = fromHex(readNextIdentifier());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5590
 
             skipBlank();
             if (str.charAt(idx) != ':')
@@ -297,6 +307,7 @@ public class TypeParser
 
     private ByteBuffer fromHex(String hex) throws SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5590
         try
         {
             return ByteBufferUtil.hexToBytes(hex);
@@ -317,6 +328,7 @@ public class TypeParser
         ++idx; // skipping '('
 
         skipBlankAndComma();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
         String keyspace = readNextIdentifier();
         skipBlankAndComma();
         ByteBuffer typeName = fromHex(readNextIdentifier());
@@ -327,6 +339,7 @@ public class TypeParser
             if (str.charAt(idx) == ')')
             {
                 ++idx;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
                 return Pair.create(Pair.create(keyspace, typeName), defs);
             }
 
@@ -370,6 +383,7 @@ public class TypeParser
     private static AbstractType<?> getAbstractType(String compareWith, TypeParser parser) throws SyntaxException, ConfigurationException
     {
         String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
         Class<? extends AbstractType<?>> typeClass = FBUtilities.<AbstractType<?>>classForName(className, "abstract-type");
         try
         {
@@ -395,8 +409,10 @@ public class TypeParser
         try
         {
             Field field = typeClass.getDeclaredField("instance");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
             return (AbstractType<?>) field.get(null);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         catch (NoSuchFieldException | IllegalAccessException e)
         {
             throw new ConfigurationException("Invalid comparator class " + typeClass.getName() + ": must define a public static instance field or a public static method getInstance(TypeParser).");
@@ -408,6 +424,7 @@ public class TypeParser
         try
         {
             Method method = typeClass.getDeclaredMethod("getInstance", TypeParser.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
             return (AbstractType<?>) method.invoke(null, parser);
         }
         catch (NoSuchMethodException | IllegalAccessException e)
@@ -424,6 +441,7 @@ public class TypeParser
 
     private void throwSyntaxError(String msg) throws SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: %s", str, idx, msg));
     }
 
@@ -505,6 +523,7 @@ public class TypeParser
     {
         StringBuilder sb = new StringBuilder();
         sb.append('(');
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
         Iterator<Map.Entry<Byte, AbstractType<?>>> iter = aliases.entrySet().iterator();
         if (iter.hasNext())
         {
@@ -525,6 +544,7 @@ public class TypeParser
      */
     public static String stringifyTypeParameters(List<AbstractType<?>> types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         return stringifyTypeParameters(types, false);
     }
 
@@ -567,6 +587,7 @@ public class TypeParser
         StringBuilder sb = new StringBuilder();
         sb.append('(').append(keysace).append(",").append(ByteBufferUtil.bytesToHex(typeName));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         for (int i = 0; i < fields.size(); i++)
         {
             sb.append(',');

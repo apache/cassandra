@@ -78,6 +78,7 @@ public abstract class PartitionOperation extends Operation
 
     public DataSpec getDataSpecification()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
         return spec;
     }
 
@@ -90,6 +91,7 @@ public abstract class PartitionOperation extends Operation
     {
         int partitionCount = (int) spec.partitionCount.next();
         if (partitionCount <= 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
             return 0;
         partitionCount = permits.takePermits(partitionCount);
         if (partitionCount <= 0)
@@ -97,6 +99,7 @@ public abstract class PartitionOperation extends Operation
 
         int i = 0;
         boolean success = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
         for (; i < partitionCount && success; i++)
         {
             if (i >= partitionCache.size())
@@ -115,6 +118,7 @@ public abstract class PartitionOperation extends Operation
         partitionCount = i;
 
         partitions = partitionCache.subList(0, partitionCount);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         return partitions.size();
     }
 

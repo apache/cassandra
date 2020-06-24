@@ -50,6 +50,7 @@ public class OutOfSpaceTest extends CQLTester
         KillerForTests killerForTests = new KillerForTests();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.die);
@@ -70,6 +71,7 @@ public class OutOfSpaceTest extends CQLTester
         makeTable();
 
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.stop);
@@ -88,6 +90,7 @@ public class OutOfSpaceTest extends CQLTester
         makeTable();
 
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.ignore);
@@ -126,6 +129,7 @@ public class OutOfSpaceTest extends CQLTester
 
         // Make sure commit log wasn't discarded.
         TableId tableId = currentTableMetadata().id;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         for (CommitLogSegment segment : CommitLog.instance.segmentManager.getActiveSegments())
             if (segment.getDirtyTableIds().contains(tableId))
                 return;

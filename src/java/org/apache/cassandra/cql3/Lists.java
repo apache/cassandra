@@ -57,6 +57,7 @@ public abstract class Lists
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((ListType<?>)column.type).getElementsType());
     }
 
@@ -132,8 +133,10 @@ public abstract class Lists
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(keyspace, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (Term.Raw rt : elements)
@@ -149,6 +152,7 @@ public abstract class Lists
                 values.add(t);
             }
             DelayedValue value = new DelayedValue(values);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -167,6 +171,7 @@ public abstract class Lists
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return testListAssignment(receiver, elements);
         }
 
@@ -197,10 +202,12 @@ public abstract class Lists
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 List<?> l = type.getSerializer().deserializeForNativeProtocol(value, version);
                 List<ByteBuffer> elements = new ArrayList<>(l.size());
                 for (Object element : l)
                     // elements can be null in lists that represent a set of IN values
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                     elements.add(element == null ? null : type.getElementsType().decompose(element));
                 return new Value(elements);
             }
@@ -221,6 +228,7 @@ public abstract class Lists
                 return false;
 
             for (int i = 0; i < elements.size(); i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                 if (lt.getElementsType().compare(elements.get(i), v.elements.get(i)) != 0)
                     return false;
 
@@ -229,6 +237,7 @@ public abstract class Lists
 
         public List<ByteBuffer> getElements()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6875
             return elements;
         }
     }
@@ -248,6 +257,7 @@ public abstract class Lists
 
         public DelayedValue(List<Term> elements)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5795
             this.elements = elements;
         }
 
@@ -268,8 +278,10 @@ public abstract class Lists
             {
                 ByteBuffer bytes = t.bindAndGet(options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3783
                 if (bytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     return UNSET_VALUE;
 
@@ -280,6 +292,7 @@ public abstract class Lists
 
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(elements, functions);
         }
     }
@@ -298,6 +311,7 @@ public abstract class Lists
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == null)
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
@@ -330,6 +344,7 @@ public abstract class Lists
 
         static PrecisionTime getNext(long millis, int count)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13149
             if (count == 0)
                 return last.get();
 
@@ -391,6 +406,7 @@ public abstract class Lists
 
             // delete + append
             if (column.type.isMultiCell())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.setComplexDeletionTimeForOverwrite(column);
             Appender.doAppend(value, column, params);
         }
@@ -401,6 +417,7 @@ public abstract class Lists
         if (row == null)
             return 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         ComplexColumnData complexData = row.getComplexColumnData(column);
         return complexData == null ? 0 : complexData.cellsCount();
     }
@@ -432,15 +449,19 @@ public abstract class Lists
         {
             // we should not get here for frozen lists
             assert column.type.isMultiCell() : "Attempted to set an individual element on a frozen list";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             ByteBuffer index = idx.bindAndGet(params.options);
             ByteBuffer value = t.bindAndGet(params.options);
 
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (index == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw new InvalidRequestException("Invalid unset value for list index");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
             int existingSize = existingSize(existingRow, column);
             int idx = ByteBufferUtil.toInt(index);
@@ -449,10 +470,13 @@ public abstract class Lists
             if (idx < 0 || idx >= existingSize)
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingSize));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             CellPath elementPath = existingRow.getComplexColumnData(column).getCellByIndex(idx).path();
             if (value == null)
                 params.addTombstone(column, elementPath);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.addCell(column, elementPath, value);
         }
     }
@@ -467,6 +491,9 @@ public abstract class Lists
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to append to a frozen list";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             Term.Terminal value = t.bind(params.options);
             doAppend(value, column, params);
         }
@@ -489,9 +516,12 @@ public abstract class Lists
             else
             {
                 // for frozen lists, we're overwriting the whole cell value
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
                 if (value == null)
                     params.addTombstone(column);
                 else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                     params.addCell(column, value.get(ProtocolVersion.CURRENT));
             }
         }
@@ -506,13 +536,17 @@ public abstract class Lists
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             assert column.type.isMultiCell() : "Attempted to prepend to a frozen list";
             Term.Terminal value = t.bind(params.options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == null || value == UNSET_VALUE)
                 return;
 
             List<ByteBuffer> toAdd = ((Value) value).elements;
             final int totalCount = toAdd.size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13149
 
             // we have to obey MAX_NANOS per batch - in the unlikely event a client has decided to prepend a list with
             // an insane number of entries.
@@ -528,6 +562,7 @@ public abstract class Lists
                 }
 
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, (pt.nanos + remainingInBatch--)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.addCell(column, CellPath.create(uuid), toAdd.get(i));
             }
         }
@@ -549,10 +584,12 @@ public abstract class Lists
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete from a frozen list";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
             // We want to call bind before possibly returning to reject queries where the value provided is not a list.
             Term.Terminal value = t.bind(params.options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
             ComplexColumnData complexData = existingRow == null ? null : existingRow.getComplexColumnData(column);
             if (value == null || value == UNSET_VALUE || complexData == null)
@@ -563,6 +600,7 @@ public abstract class Lists
             // the read-before-write this operation requires limits its usefulness on big lists, so in practice
             // toDiscard will be small and keeping a list will be more efficient.
             List<ByteBuffer> toDiscard = ((Value)value).elements;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             for (Cell cell : complexData)
             {
                 if (toDiscard.contains(cell.value()))
@@ -586,13 +624,18 @@ public abstract class Lists
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             assert column.type.isMultiCell() : "Attempted to delete an item by index from a frozen list";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             Term.Terminal index = t.bind(params.options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (index == Constants.UNSET_VALUE)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
             int existingSize = existingSize(existingRow, column);
             int idx = ByteBufferUtil.toInt(index.get(params.options.getProtocolVersion()));
@@ -601,6 +644,7 @@ public abstract class Lists
             if (idx < 0 || idx >= existingSize)
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingSize));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             params.addTombstone(column, existingRow.getComplexColumnData(column).getCellByIndex(idx).path());
         }
     }

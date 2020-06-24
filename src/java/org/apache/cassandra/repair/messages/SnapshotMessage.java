@@ -29,15 +29,18 @@ public class SnapshotMessage extends RepairMessage
 {
     public SnapshotMessage(RepairJobDesc desc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(desc);
     }
 
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12934
         if (!(o instanceof SnapshotMessage))
             return false;
         SnapshotMessage other = (SnapshotMessage) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return desc.equals(other.desc);
     }
 
@@ -64,5 +67,6 @@ public class SnapshotMessage extends RepairMessage
         {
             return RepairJobDesc.serializer.serializedSize(message.desc, version);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     };
 }

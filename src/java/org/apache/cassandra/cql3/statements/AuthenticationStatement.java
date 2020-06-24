@@ -32,6 +32,7 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
 {
     public AuthenticationStatement prepare(ClientState state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return this;
     }
 
@@ -53,6 +54,7 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             state.ensurePermission(required, resource);
         }
         catch (UnauthorizedException e)

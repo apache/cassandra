@@ -30,6 +30,7 @@ public class RepairException extends Exception
 
     public RepairException(RepairJobDesc desc, String message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         this(desc, null, message);
     }
 

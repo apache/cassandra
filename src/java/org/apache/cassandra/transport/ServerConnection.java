@@ -40,6 +40,7 @@ public class ServerConnection extends Connection
     private volatile ConnectionStage stage;
     public final Counter requests = new Counter();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
     ServerConnection(Channel channel, ProtocolVersion version, Connection.Tracker tracker)
     {
         super(channel, version, tracker);
@@ -50,14 +51,17 @@ public class ServerConnection extends Connection
 
     public ClientState getClientState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13665
         return clientState;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
     ConnectionStage stage()
     {
         return stage;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
     QueryState validateNewMessage(Message.Type type, ProtocolVersion version)
     {
         switch (stage)
@@ -69,6 +73,7 @@ public class ServerConnection extends Connection
             case AUTHENTICATING:
                 // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
                 if (type != Message.Type.AUTH_RESPONSE && type != Message.Type.CREDENTIALS)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                     throw new ProtocolException(String.format("Unexpected message %s, expecting %s", type, version == ProtocolVersion.V1 ? "CREDENTIALS" : "SASL_RESPONSE"));
                 break;
             case READY:
@@ -79,11 +84,13 @@ public class ServerConnection extends Connection
                 throw new AssertionError();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         return new QueryState(clientState);
     }
 
     void applyStateTransition(Message.Type requestType, Message.Type responseType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         switch (stage)
         {
             case ESTABLISHED:
@@ -103,6 +110,7 @@ public class ServerConnection extends Connection
                 {
                     stage = ConnectionStage.READY;
                     // we won't use the authenticator again, null it so that it can be GC'd
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
                     saslNegotiator = null;
                 }
                 break;
@@ -116,6 +124,7 @@ public class ServerConnection extends Connection
     public IAuthenticator.SaslNegotiator getSaslNegotiator(QueryState queryState)
     {
         if (saslNegotiator == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14652
             saslNegotiator = DatabaseDescriptor.getAuthenticator()
                                                .newSaslNegotiator(queryState.getClientAddress(), certificates());
         return saslNegotiator;

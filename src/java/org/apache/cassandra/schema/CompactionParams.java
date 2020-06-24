@@ -46,6 +46,7 @@ public final class CompactionParams
         CLASS,
         ENABLED,
         MIN_THRESHOLD,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         MAX_THRESHOLD,
         PROVIDE_OVERLAPPING_TOMBSTONES;
 
@@ -58,6 +59,7 @@ public final class CompactionParams
 
     public enum TombstoneOption
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         NONE,
         ROW,
         CELL;
@@ -95,6 +97,7 @@ public final class CompactionParams
         boolean isEnabled = options.containsKey(Option.ENABLED.toString())
                           ? Boolean.parseBoolean(options.get(Option.ENABLED.toString()))
                           : DEFAULT_ENABLED;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         TombstoneOption tombstoneOption = TombstoneOption.valueOf(options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
                                                                                        DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES.toString()).toUpperCase());
 
@@ -105,6 +108,7 @@ public final class CompactionParams
             allOptions.putIfAbsent(Option.MAX_THRESHOLD.toString(), Integer.toString(DEFAULT_MAX_THRESHOLD));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return new CompactionParams(klass, allOptions, isEnabled, tombstoneOption);
     }
 
@@ -120,6 +124,7 @@ public final class CompactionParams
 
     public static CompactionParams twcs(Map<String, String> options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12701
         return create(TimeWindowCompactionStrategy.class, options);
     }
 
@@ -141,6 +146,7 @@ public final class CompactionParams
 
     public TombstoneOption tombstoneOption()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return tombstoneOption;
     }
 

@@ -33,6 +33,7 @@ public class SettingsLog implements Serializable
 {
     public static enum Level
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6849
         MINIMAL, NORMAL, VERBOSE
     }
 
@@ -46,13 +47,16 @@ public class SettingsLog implements Serializable
     public SettingsLog(Options options)
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         noSummary = options.noSummmary.setByUser();
         noSettings = options.noSettings.setByUser();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
 
         if (options.outputFile.setByUser())
             file = new File(options.outputFile.value());
         else
             file = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         if (options.hdrOutputFile.setByUser())
             hdrFile = new File(options.hdrOutputFile.value());
         else
@@ -66,6 +70,7 @@ public class SettingsLog implements Serializable
             intervalMillis = 1000 * Integer.parseInt(interval);
         if (intervalMillis <= 0)
             throw new IllegalArgumentException("Log interval must be greater than zero");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6849
         level = Level.valueOf(options.level.value().toUpperCase());
     }
 
@@ -73,6 +78,7 @@ public class SettingsLog implements Serializable
     {
         // Always print to stdout regardless of whether we're graphing or not
         MultiResultLogger stream = new MultiResultLogger(new PrintStream(System.out));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
 
         if (file != null)
             stream.addStream(new PrintStream(file));
@@ -85,6 +91,7 @@ public class SettingsLog implements Serializable
     public static final class Options extends GroupedOptions
     {
         final OptionSimple noSummmary = new OptionSimple("no-summary", "", null, "Disable printing of aggregate statistics at the end of a test", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         final OptionSimple noSettings = new OptionSimple("no-settings", "", null, "Disable printing of settings values at start of test", false);
         final OptionSimple outputFile = new OptionSimple("file=", ".*", null, "Log to a file", false);
         final OptionSimple hdrOutputFile = new OptionSimple("hdrfile=", ".*", null, "Log to a file", false);
@@ -94,6 +101,7 @@ public class SettingsLog implements Serializable
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
             return Arrays.asList(level, noSummmary, outputFile, hdrOutputFile, interval, noSettings);
         }
     }
@@ -102,6 +110,7 @@ public class SettingsLog implements Serializable
     public void printSettings(ResultLogger out)
     {
         out.printf("  No Summary: %b%n", noSummary);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12473
         out.printf("  No Settings: %b%n", noSettings);
         out.printf("  File: %s%n", file);
         out.printf("  Interval Millis: %d%n", intervalMillis);

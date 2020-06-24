@@ -87,6 +87,7 @@ public final class Batch
             long size = UUIDSerializer.serializer.serializedSize(batch.id, version);
             size += sizeof(batch.creationTime);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             size += sizeofUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
@@ -108,6 +109,7 @@ public final class Batch
             out.writeUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
                 out.writeUnsignedVInt(mutation.serializedSize(version));
                 Mutation.serializer.serialize(mutation, out, version);
             }
@@ -145,6 +147,7 @@ public final class Batch
             ArrayList<Mutation> mutations = new ArrayList<>(count);
             for (int i = 0; i < count; i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                 in.readUnsignedVInt(); // skip mutation size
                 mutations.add(Mutation.serializer.deserialize(in, version));
             }

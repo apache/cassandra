@@ -41,6 +41,7 @@ public class DecimalType extends NumberType<BigDecimal>
     private static final MathContext MAX_PRECISION = new MathContext(10000);
 
     DecimalType() {super(ComparisonType.CUSTOM);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
@@ -50,6 +51,8 @@ public class DecimalType extends NumberType<BigDecimal>
     @Override
     public boolean isFloatingPoint()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return true;
     }
 
@@ -83,6 +86,7 @@ public class DecimalType extends NumberType<BigDecimal>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(getSerializer().serialize(new BigDecimal(parsed.toString())));
@@ -101,6 +105,7 @@ public class DecimalType extends NumberType<BigDecimal>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.DECIMAL;
     }
 
@@ -112,6 +117,7 @@ public class DecimalType extends NumberType<BigDecimal>
     @Override
     protected int toInt(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         throw new UnsupportedOperationException();
     }
 
@@ -147,6 +153,7 @@ public class DecimalType extends NumberType<BigDecimal>
 
     public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
         return decompose(leftType.toBigDecimal(left).add(rightType.toBigDecimal(right), MAX_PRECISION));
     }
 

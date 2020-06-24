@@ -54,15 +54,18 @@ import static org.junit.Assert.fail;
 public class DatabaseDescriptorRefTest
 {
     static final String[] validClasses = {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
     "org.apache.cassandra.audit.AuditLogOptions",
     "org.apache.cassandra.audit.BinAuditLogger",
     "org.apache.cassandra.audit.BinLogAuditLogger",
     "org.apache.cassandra.audit.IAuditLogger",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13324
     "org.apache.cassandra.auth.AllowAllInternodeAuthenticator",
     "org.apache.cassandra.auth.IInternodeAuthenticator",
     "org.apache.cassandra.auth.IAuthenticator",
     "org.apache.cassandra.auth.IAuthorizer",
     "org.apache.cassandra.auth.IRoleManager",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
     "org.apache.cassandra.auth.INetworkAuthorizer",
     "org.apache.cassandra.config.DatabaseDescriptor",
     "org.apache.cassandra.config.ConfigurationLoader",
@@ -76,21 +79,26 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$FlushCompression",
     "org.apache.cassandra.config.Config$InternodeCompression",
     "org.apache.cassandra.config.Config$MemtableAllocationType",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13594
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
     "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
     "org.apache.cassandra.config.DatabaseDescriptor$ByteUnit",
     "org.apache.cassandra.config.ParameterizedClass",
     "org.apache.cassandra.config.EncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ClientEncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions$InternodeEncryption",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions$OutgoingEncryptedPortSource",
     "org.apache.cassandra.config.YamlConfigurationLoader",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.TransparentDataEncryptionOptions",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
     "org.apache.cassandra.db.ConsistencyLevel",
     "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerFactory",
     "org.apache.cassandra.db.commitlog.DefaultCommitLogSegmentMgrFactory",
@@ -121,6 +129,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.exceptions.RequestValidationException",
     "org.apache.cassandra.exceptions.CassandraException",
     "org.apache.cassandra.exceptions.TransportException",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
     "org.apache.cassandra.fql.FullQueryLogger",
     "org.apache.cassandra.fql.FullQueryLoggerOptions",
     "org.apache.cassandra.locator.IEndpointSnitch",
@@ -136,13 +145,16 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.util.DataOutputStreamPlus",
     "org.apache.cassandra.io.util.DataOutputPlus",
     "org.apache.cassandra.io.util.DiskOptimizationStrategy",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12677
     "org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy",
     "org.apache.cassandra.locator.Replica",
     "org.apache.cassandra.locator.SimpleSeedProvider",
     "org.apache.cassandra.locator.SeedProvider",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
     "org.apache.cassandra.net.BackPressureStrategy",
     "org.apache.cassandra.security.EncryptionContext",
     "org.apache.cassandra.service.CacheService$CacheType",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
     "org.apache.cassandra.utils.binlog.BinLogOptions",
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",
@@ -152,6 +164,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.ConsoleAppender",
     "org.apache.cassandra.ConsoleAppender$1",
     "org.apache.cassandra.LogbackStatusListener",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14974
     "org.apache.cassandra.LogbackStatusListener$ToLoggerOutputStream",
     "org.apache.cassandra.LogbackStatusListener$WrappedPrintStream",
     "org.apache.cassandra.TeeingAppender",
@@ -200,6 +213,7 @@ public class DatabaseDescriptorRefTest
 
             protected Class<?> findClass(String name) throws ClassNotFoundException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
                 if (name.startsWith("java."))
                     // Java 11 does not allow a "custom" class loader (i.e. user code)
                     // to define classes in protected packages (like java, java.sql, etc).
@@ -224,6 +238,7 @@ public class DatabaseDescriptorRefTest
                 {
                     // For Java 11: system class files are not readable via getResource(), so
                     // try it this way
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
                     cls = Class.forName(name, false, delegate);
                     classMap.put(name, cls);
                     return cls;
@@ -272,6 +287,7 @@ public class DatabaseDescriptorRefTest
             method.invoke(null);
 
             if ("clientInitialization".equals(methodName) &&
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14183
                 threadCount + 2 == threads.getThreadCount())
             {
                 // ignore the "AsyncAppender-Worker-ASYNC" and "logback-1" threads

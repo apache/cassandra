@@ -47,11 +47,13 @@ public class SimpleSeedProvider implements SeedProvider
             throw new AssertionError(e);
         }
         String[] hosts = conf.seed_provider.parameters.get("seeds").split(",", -1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> seeds = new ArrayList<>(hosts.length);
         for (String host : hosts)
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14285
                 if(!host.trim().isEmpty()) {
                     seeds.add(InetAddressAndPort.getByName(host.trim()));
                 }

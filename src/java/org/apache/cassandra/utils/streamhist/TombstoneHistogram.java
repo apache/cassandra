@@ -96,6 +96,7 @@ public class TombstoneHistogram
                 int localDeletionTime = StreamingTombstoneHistogramBuilder.saturatingCastToMaxDeletionTime((long) in.readDouble());
                 int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readLong());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
                 dataHolder.addValue(localDeletionTime, count);
             }
 

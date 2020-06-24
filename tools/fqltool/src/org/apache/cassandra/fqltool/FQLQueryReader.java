@@ -59,6 +59,7 @@ public class FQLQueryReader implements ReadMarshallable
 
         long queryStartTime = wireIn.read(QUERY_START_TIME).int64();
         int protocolVersion = wireIn.read(PROTOCOL_VERSION).int32();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
         QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read(QUERY_OPTIONS).bytes()), ProtocolVersion.decode(protocolVersion, true));
         long generatedTimestamp = wireIn.read(GENERATED_TIMESTAMP).int64();
         int generatedNowInSeconds = wireIn.read(GENERATED_NOW_IN_SECONDS).int32();
@@ -107,6 +108,7 @@ public class FQLQueryReader implements ReadMarshallable
                                            values);
                 break;
             default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                 throw new IORuntimeException("Unhandled record type: " + type);
         }
     }

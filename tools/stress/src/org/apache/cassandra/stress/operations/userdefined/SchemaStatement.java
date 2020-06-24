@@ -40,22 +40,28 @@ public abstract class SchemaStatement extends PartitionOperation
 {
     public enum ArgSelect
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
         MULTIROW, SAMEROW;
         //TODO: FIRSTROW, LASTROW
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
     final PreparedStatement statement;
     final ConsistencyLevel cl;
     final int[] argumentIndex;
     final Object[] bindBuffer;
     final ColumnDefinitions definitions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9556
 
     public SchemaStatement(Timer timer, StressSettings settings, DataSpec spec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                            PreparedStatement statement, List<String> bindNames, ConsistencyLevel cl)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         super(timer, settings, spec);
         this.statement = statement;
         this.cl = cl;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         argumentIndex = new int[bindNames.size()];
         bindBuffer = new Object[argumentIndex.length];
         definitions = statement != null ? statement.getVariables() : null;
@@ -65,9 +71,11 @@ public abstract class SchemaStatement extends PartitionOperation
 
         if (statement != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13925
             if (cl.isSerialConsistency())
                 statement.setSerialConsistencyLevel(JavaDriverClient.from(cl));
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8948
                 statement.setConsistencyLevel(JavaDriverClient.from(cl));
         }
     }
@@ -78,6 +86,7 @@ public abstract class SchemaStatement extends PartitionOperation
 
         for (int i = 0 ; i < argumentIndex.length ; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9556
             Object value = row.get(argumentIndex[i]);
             if (definitions.getType(i).getName().equals(DataType.date().getName()))
             {
@@ -85,12 +94,14 @@ public abstract class SchemaStatement extends PartitionOperation
                 value= LocalDate.fromDaysSinceEpoch((Integer) value);
             }
             bindBuffer[i] = value;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             if (bindBuffer[i] == null && !spec.partitionGenerator.permitNulls(argumentIndex[i]))
                 throw new IllegalStateException();
         }
         return statement.bind(bindBuffer);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
     List<ByteBuffer> rowArgs(Row row)
     {
         List<ByteBuffer> args = new ArrayList<>();

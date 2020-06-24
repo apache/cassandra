@@ -200,6 +200,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, functionName);
     }
 

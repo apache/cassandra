@@ -84,6 +84,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneRack;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
@@ -100,6 +101,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneDc;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
@@ -162,6 +164,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 continue;
             }
@@ -173,6 +176,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     String csEndpointFromLease(File lease) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         String line;
         String endpoint = null;
         Pattern identifierPattern = Pattern.compile("^[ \t]*option dhcp-server-identifier (.*);$");

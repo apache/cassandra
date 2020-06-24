@@ -50,6 +50,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         UUID hostId = message.payload.hostId;
         Hint hint = message.payload.hint;
         InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // If we see an unknown table id, it means the table, or one of the tables in the mutation, had been dropped.
         // In that case there is nothing we can really do, or should do, other than log it go on.
@@ -57,6 +58,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         // is schema agreement between the sender and the receiver.
         if (hint == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13205
             logger.trace("Failed to decode and apply a hint for {}: {} - table with id {} is unknown",
                          address,
                          hostId,
@@ -72,7 +74,10 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         }
         catch (MarshalException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13205
             logger.warn("Failed to validate a hint for {}: {} - skipped", address, hostId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             respond(message);
             return;
         }
@@ -82,6 +87,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             // the node is not the final destination of the hint (must have gotten it from a decommissioning node),
             // so just store it locally, to be delivered later.
             HintsService.instance.write(hostId, hint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             respond(message);
         }
         else if (!StorageProxy.instance.appliesLocally(hint.mutation))

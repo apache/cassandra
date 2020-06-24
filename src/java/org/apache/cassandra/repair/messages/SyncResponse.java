@@ -46,6 +46,7 @@ public class SyncResponse extends RepairMessage
 
     public SyncResponse(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(desc);
         this.nodes = nodes;
         this.success = success;
@@ -56,6 +57,7 @@ public class SyncResponse extends RepairMessage
     {
         super(desc);
         this.summaries = summaries;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         this.nodes = new SyncNodePair(endpoint1, endpoint2);
         this.success = success;
     }
@@ -63,6 +65,7 @@ public class SyncResponse extends RepairMessage
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         if (!(o instanceof SyncResponse))
             return false;
         SyncResponse other = (SyncResponse)o;
@@ -75,6 +78,7 @@ public class SyncResponse extends RepairMessage
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return Objects.hash(desc, success, nodes, summaries);
     }
 
@@ -83,9 +87,11 @@ public class SyncResponse extends RepairMessage
         public void serialize(SyncResponse message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             SyncNodePair.serializer.serialize(message.nodes, out, version);
             out.writeBoolean(message.success);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             out.writeInt(message.summaries.size());
             for (SessionSummary summary: message.summaries)
             {
@@ -96,6 +102,7 @@ public class SyncResponse extends RepairMessage
         public SyncResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             SyncNodePair nodes = SyncNodePair.serializer.deserialize(in, version);
             boolean success = in.readBoolean();
 
@@ -106,15 +113,19 @@ public class SyncResponse extends RepairMessage
                 summaries.add(SessionSummary.serializer.deserialize(in, version));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             return new SyncResponse(desc, nodes, success, summaries);
         }
 
         public long serializedSize(SyncResponse message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             size += SyncNodePair.serializer.serializedSize(message.nodes, version);
             size += TypeSizes.sizeof(message.success);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             size += TypeSizes.sizeof(message.summaries.size());
             for (SessionSummary summary: message.summaries)
             {
@@ -123,5 +134,6 @@ public class SyncResponse extends RepairMessage
 
             return size;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     };
 }

@@ -146,11 +146,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     private static final ScheduledThreadPoolExecutor syncExecutor = initSyncExecutor();
     private static ScheduledThreadPoolExecutor initSyncExecutor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         if (DatabaseDescriptor.isClientOrToolInitialized())
             return null;
 
         // Do NOT start this thread pool in client mode
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12586
         ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("read-hotness-tracker"));
         // Immediately remove readMeter sync task when cancelled.
         syncExecutor.setRemoveOnCancelPolicy(true);
@@ -174,6 +176,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         public int compare(SSTableReader o1, SSTableReader o2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5371
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
             return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
         }
     };
@@ -194,9 +198,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public enum OpenReason
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8066
         NORMAL,
         EARLY,
         METADATA_CHANGE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         MOVED_START
     }
 
@@ -247,6 +253,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         long count = -1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         if (Iterables.isEmpty(sstables))
             return count;
 
@@ -293,8 +300,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // if something went wrong above or cardinality is not available, calculate using index summary
         if (count < 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14647
             count = 0;
             for (SSTableReader sstable : sstables)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
                 count += sstable.estimatedKeys();
         }
         return count;
@@ -314,6 +323,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 if (cardinality != null)
                     cardinalities.add(cardinality);
                 else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("Got a null cardinality estimator in: {}", sstable.getFilename());
             }
             catch (IOException e)
@@ -330,6 +340,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             return 1;
 
         long totalKeyCountAfter = mergeCardinalities(cardinalities).cardinality();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
         return ((double)totalKeyCountAfter)/totalKeyCountBefore;
     }
@@ -373,6 +384,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
         return open(descriptor, components, metadata, true, false);
     }
 
@@ -400,15 +413,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
         // Minimum components without which we can't do anything
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9514
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9514
         assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13620
         Map<MetadataType, MetadataComponent> sstableMetadata;
         try
         {
              sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13620
         catch (IOException e)
         {
             throw new CorruptSSTableException(e, descriptor.filenameFor(Component.STATS));
@@ -432,6 +449,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         long fileLength = new File(descriptor.filenameFor(Component.DATA)).length();
         logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         final SSTableReader sstable;
         try
         {
@@ -448,6 +466,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             throw new IllegalStateException(e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try(FileHandle.Builder ibuilder = new FileHandle.Builder(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX))
                                                      .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
                                                      .withChunkCache(ChunkCache.instance);
@@ -466,9 +485,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     throw new CorruptSSTableException(e, sstable.getFilename());
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
             int dataBufferSize = sstable.optimizationStrategy.bufferSize(statsMetadata.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
             int indexBufferSize = sstable.optimizationStrategy.bufferSize(indexFileLength / sstable.indexSummary.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12292
             sstable.ifile = ibuilder.bufferSize(indexBufferSize).complete();
             sstable.dfile = dbuilder.bufferSize(dataBufferSize).complete();
             sstable.bf = FilterFactory.AlwaysPresent;
@@ -489,6 +511,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @throws IOException
      */
     public static SSTableReader open(Descriptor descriptor,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
                                      Set<Component> components,
                                      TableMetadataRef metadata,
                                      boolean validate,
@@ -500,6 +524,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         // For the 3.0+ sstable format, the (misnomed) stats component hold the serialization header which we need to deserialize the sstable content
         assert components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
 
@@ -508,6 +533,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14202
         catch (Throwable t)
         {
             throw new CorruptSSTableException(t, descriptor.filenameFor(Component.STATS));
@@ -530,7 +556,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         long fileLength = new File(descriptor.filenameFor(Component.DATA)).length();
         logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         final SSTableReader sstable;
         try
         {
@@ -550,11 +579,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try
         {
             // load index and filter
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
             long start = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
             sstable.load(validationMetadata, isOffline);
             logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
             sstable.setup(!isOffline); // Don't track hotness if we're offline.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4321
             if (validate)
                 sstable.validate();
 
@@ -566,6 +600,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         catch (Throwable t)
         {
             sstable.selfRef().release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14202
             throw new CorruptSSTableException(t, sstable.getFilename());
         }
     }
@@ -574,7 +609,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                     final TableMetadataRef metadata)
     {
         final Collection<SSTableReader> sstables = new LinkedBlockingQueue<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4790
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4790
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4790
         ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
         for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
         {
@@ -585,6 +624,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     SSTableReader sstable;
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                         sstable = open(entry.getKey(), entry.getValue(), metadata);
                     }
                     catch (CorruptSSTableException ex)
@@ -625,6 +665,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static SSTableReader internalOpen(Descriptor desc,
                                       Set<Component> components,
                                       TableMetadataRef metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                                       FileHandle ifile,
                                       FileHandle dfile,
                                       IndexSummary isummary,
@@ -635,6 +676,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                       SerializationHeader header)
     {
         assert desc != null && ifile != null && dfile != null && isummary != null && bf != null && sstableMetadata != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         SSTableReader reader = internalOpen(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header);
 
@@ -669,6 +711,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                             OpenReason openReason,
                             SerializationHeader header)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         super(desc, components, metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
         this.sstableMetadata = sstableMetadata;
         this.header = header;
@@ -681,6 +724,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
         long sum = 0;
         for (SSTableReader sstable : sstables)
             sum += sstable.onDiskLength();
@@ -698,6 +742,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public boolean equals(Object that)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         return that instanceof SSTableReader && ((SSTableReader) that).descriptor.equals(this.descriptor);
     }
 
@@ -716,12 +761,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         InstrumentingCache<KeyCacheKey, RowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
         if (maybeKeyCache.getCapacity() > 0)
             keyCache = maybeKeyCache;
 
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
         if (cfs != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10543
             setCrcCheckChance(cfs.getCrcCheckChance());
     }
 
@@ -736,6 +783,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (metadata().params.bloomFilterFpChance == 1.0)
         {
             // bf is disabled.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
             load(false, !isOffline);
             bf = FilterFactory.AlwaysPresent;
         }
@@ -768,6 +817,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void loadBloomFilter(boolean oldBfFormat) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(descriptor.filenameFor(Component.FILTER))))))
         {
             bf = BloomFilterSerializer.deserialize(stream, oldBfFormat);
@@ -782,6 +832,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void load(boolean recreateBloomFilter, boolean saveSummaryIfCreated) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try(FileHandle.Builder ibuilder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
                                                      .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
                                                      .withChunkCache(ChunkCache.instance);
@@ -791,6 +842,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             boolean summaryLoaded = loadSummary();
             boolean buildSummary = !summaryLoaded || recreateBloomFilter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
             if (buildSummary)
                 buildSummary(recreateBloomFilter, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
 
@@ -846,6 +899,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void buildSummary(boolean recreateBloomFilter, boolean summaryLoaded, int samplingLevel) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15755
         if (!components.contains(Component.PRIMARY_INDEX))
             return;
 
@@ -853,16 +907,20 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             logger.debug("Attempting to build summary for {}", descriptor);
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX))))
         {
             long indexSize = primaryIndex.length();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             long histogramCount = sstableMetadata.estimatedPartitionSize.count();
             long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedPartitionSize.isOverflowed()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
                     ? histogramCount
                     : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
                 bf = FilterFactory.getFilter(estimatedKeys, metadata().params.bloomFilterFpChance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
 
             try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata().params.minIndexInterval, samplingLevel))
             {
@@ -872,22 +930,27 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 {
                     ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
                     RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     DecoratedKey decoratedKey = decorateKey(key);
                     if (first == null)
                         first = decoratedKey;
                     last = decoratedKey;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5015
                     if (recreateBloomFilter)
                         bf.add(decoratedKey);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
 
                     // if summary was already read from disk we don't want to re-populate it using primary index
                     if (!summaryLoaded)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5506
                         summaryBuilder.maybeAddEntry(decoratedKey, indexPosition);
                     }
                 }
 
                 if (!summaryLoaded)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     indexSummary = summaryBuilder.build(getPartitioner());
             }
         }
@@ -908,8 +971,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public boolean loadSummary()
     {
         File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6869
         if (!summariesFile.exists())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15755
             if (logger.isDebugEnabled())
                 logger.debug("SSTable Summary File {} does not exist", summariesFile.getAbsolutePath());
             return false;
@@ -919,9 +984,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try
         {
             TableMetadata metadata = metadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
             iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath()));
             indexSummary = IndexSummary.serializer.deserialize(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                     iStream, getPartitioner(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                     metadata.params.minIndexInterval, metadata.params.maxIndexInterval);
             first = decorateKey(ByteBufferUtil.readWithLength(iStream));
             last = decorateKey(ByteBufferUtil.readWithLength(iStream));
@@ -930,15 +998,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             if (indexSummary != null)
                 indexSummary.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.getPath(), e.getMessage());
             // corrupted; delete it and fall back to creating a new summary
             FileUtils.closeQuietly(iStream);
             // delete it and fall back to creating a new summary
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3961
             FileUtils.deleteWithConfirm(summariesFile);
             return false;
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6380
             FileUtils.closeQuietly(iStream);
         }
 
@@ -951,6 +1022,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void saveSummary()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         saveSummary(this.descriptor, this.first, this.last, indexSummary);
     }
 
@@ -968,24 +1040,31 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (summariesFile.exists())
             FileUtils.deleteWithConfirm(summariesFile);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile));)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             IndexSummary.serializer.serialize(summary, oStream);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
             ByteBufferUtil.writeWithLength(last.getKey(), oStream);
         }
         catch (IOException e)
         {
             logger.trace("Cannot save SSTable Summary: ", e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
             // corrupted hence delete it and let it load it now.
             if (summariesFile.exists())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
                 FileUtils.deleteWithConfirm(summariesFile);
         }
     }
 
     public void saveBloomFilter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
         saveBloomFilter(this.descriptor, bf);
     }
 
@@ -1019,6 +1098,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public boolean isReplaced()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         synchronized (tidy.global)
         {
             return tidy.isReplaced;
@@ -1095,6 +1175,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                  bf.sharedCopy(),
                                                  maxDataAge,
                                                  sstableMetadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                  reason,
                                                  header);
         replacement.first = newFirst;
@@ -1105,6 +1186,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public SSTableReader cloneWithRestoredStart(DecoratedKey restoredStart)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         synchronized (tidy.global)
         {
             return cloneAndReplace(restoredStart, OpenReason.NORMAL);
@@ -1131,6 +1213,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     private static class DropPageCache implements Runnable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         final FileHandle dfile;
         final long dfilePosition;
         final FileHandle ifile;
@@ -1152,6 +1235,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             if (ifile != null)
                 ifile.dropPageCache(ifilePosition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12062
             if (andThen != null)
                 andThen.run();
         }
@@ -1183,6 +1267,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // 2. The min_index_interval changed (in either direction); this changes what entries would be in the summary
             //    at full sampling (and consequently at any other sampling level)
             // 3. The max_index_interval was lowered, forcing us to raise the sampling level
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
             if (samplingLevel > indexSummary.getSamplingLevel() || indexSummary.getMinIndexInterval() != minIndexInterval || effectiveInterval > maxIndexInterval)
             {
                 newSummary = buildSummaryAtLevel(samplingLevel);
@@ -1190,16 +1275,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             else if (samplingLevel < indexSummary.getSamplingLevel())
             {
                 // we can use the existing index summary to make a smaller one
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, getPartitioner());
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
                 throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
                         "no adjustments to min/max_index_interval");
             }
 
             // Always save the resampled index
             saveSummary(newSummary);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
 
             return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
         }
@@ -1208,6 +1296,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
     {
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4937
         RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
         try
         {
@@ -1217,7 +1306,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 long indexPosition;
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     summaryBuilder.maybeAddEntry(decorateKey(ByteBufferUtil.readWithShortLength(primaryIndex)), indexPosition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
                     RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
                 }
 
@@ -1247,6 +1338,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public int getMinIndexInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         return indexSummary.getMinIndexInterval();
     }
 
@@ -1263,8 +1355,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     private void validate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4321
         if (this.first.compareTo(this.last) > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13620
             throw new CorruptSSTableException(new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last)), getFilename());
         }
     }
@@ -1278,6 +1372,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
             key = first;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         return getIndexScanPositionFromBinarySearchResult(indexSummary.binarySearch(key), indexSummary);
     }
 
@@ -1313,9 +1408,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public CompressionMetadata getCompressionMetadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3427
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         if (!compression)
             throw new IllegalStateException(this + " is not compressed");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         return dfile.compressionMetadata().get();
     }
 
@@ -1336,16 +1434,20 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public void forceFilterFailures()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5938
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5938
         bf = FilterFactory.AlwaysPresent;
     }
 
     public IFilter getBloomFilter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1074
         return bf;
     }
 
     public long getBloomFilterSerializedSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5938
         return bf.serializedSize();
     }
 
@@ -1363,6 +1465,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long estimatedKeys()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         return indexSummary.getEstimatedKeyCount();
     }
 
@@ -1373,12 +1476,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
         long sampleKeyCount = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         List<IndexesBounds> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
         for (IndexesBounds sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.upperPosition - sampleIndexRange.lowerPosition + 1);
 
         // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
         long estimatedKeys = sampleKeyCount * ((long) Downsampling.BASE_SAMPLING_LEVEL * indexSummary.getMinIndexInterval()) / indexSummary.getSamplingLevel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         return Math.max(1, estimatedKeys);
     }
 
@@ -1411,9 +1516,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         // use the index to determine a minimal section for each range
         List<IndexesBounds> positions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
 
         for (Range<Token> range : Range.normalize(ranges))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             PartitionPosition leftPosition = range.left.maxKeyBound();
             PartitionPosition rightPosition = range.right.maxKeyBound();
 
@@ -1428,6 +1535,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 continue;
 
             int right = Range.isWrapAround(range.left, range.right)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
                     ? summary.size() - 1
                     : summary.binarySearch(rightPosition);
             if (right < 0)
@@ -1435,15 +1543,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 // range are end inclusive so we use the previous index from what binarySearch give us
                 // since that will be the last index we will return
                 right = (right + 1) * -1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                 if (right == 0)
                     // Means the first key is already stricly greater that the right bound
                     continue;
                 right--;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2916
             if (left > right)
                 // empty range
                 continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             positions.add(new IndexesBounds(left, right));
         }
         return positions;
@@ -1456,6 +1567,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (indexRanges.isEmpty())
             return Collections.emptyList();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3978
         return new Iterable<DecoratedKey>()
         {
             public Iterator<DecoratedKey> iterator()
@@ -1468,6 +1580,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
                     public boolean hasNext()
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
                         if (current == null || idx > current.upperPosition)
                         {
                             if (rangeIter.hasNext())
@@ -1485,6 +1598,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     public DecoratedKey next()
                     {
                         byte[] bytes = indexSummary.getKey(idx++);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                         return decorateKey(ByteBuffer.wrap(bytes));
                     }
 
@@ -1504,11 +1618,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public List<PartitionPositionBounds> getPositionsForRanges(Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         List<PartitionPositionBounds> positions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         for (Range<Token> range : Range.normalize(ranges))
         {
             assert !range.isWrapAround() || range.right.isMinimum();
             // truncate the range so it at most covers the sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             AbstractBounds<PartitionPosition> bounds = Range.makeRowRange(range);
             PartitionPosition leftBound = bounds.left.compareTo(first) > 0 ? bounds.left : first.getToken().minKeyBound();
             PartitionPosition rightBound = bounds.right.isMinimum() ? last.getToken().maxKeyBound() : bounds.right;
@@ -1526,6 +1643,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 continue;
 
             assert left < right : String.format("Range=%s openReason=%s first=%s last=%s left=%d right=%d", range, openReason, first, last, left, right);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             positions.add(new PartitionPositionBounds(left, right));
         }
         return positions;
@@ -1550,6 +1668,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         if (isKeyCacheEnabled())
             return getCachedPosition(new KeyCacheKey(metadata(), descriptor, key.getKey()), updateStats);
         return null;
@@ -1559,6 +1678,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         if (isKeyCacheEnabled())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5868
             if (updateStats)
             {
                 RowIndexEntry cachedEntry = keyCache.get(unifiedKey);
@@ -1580,6 +1700,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public boolean isKeyCacheEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         return keyCache != null && metadata().params.caching.cacheKeys();
     }
 
@@ -1591,6 +1712,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public final RowIndexEntry getPosition(PartitionPosition key, Operator op)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
         return getPosition(key, op, SSTableReadsListener.NOOP_LISTENER);
     }
 
@@ -1657,16 +1779,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             while (!in.isEOF())
             {
                 ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 DecoratedKey indexDecoratedKey = decorateKey(indexKey);
                 if (indexDecoratedKey.compareTo(token) > 0)
                     return indexDecoratedKey;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
                 RowIndexEntry.Serializer.skip(in, descriptor.version);
             }
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
             markSuspect();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
             throw new CorruptSSTableException(e, path);
         }
 
@@ -1680,6 +1808,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long uncompressedLength()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         return dfile.dataLength();
     }
 
@@ -1690,12 +1819,15 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long onDiskLength()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3338
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return dfile.onDiskLength;
     }
 
     @VisibleForTesting
     public double getCrcCheckChance()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10543
         return crcCheckChance;
     }
 
@@ -1708,6 +1840,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public void setCrcCheckChance(double crcCheckChance)
     {
         this.crcCheckChance = crcCheckChance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         dfile.compressionMetadata().ifPresent(metadata -> metadata.parameters.setCrcCheckChance(crcCheckChance));
     }
 
@@ -1721,6 +1854,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public void markObsolete(Runnable tidier)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
             logger.trace("Marking {} compacted", getFilename());
 
@@ -1744,12 +1878,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (logger.isTraceEnabled())
             logger.trace("Marking {} as a suspect to be excluded from reads.", getFilename());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
         isSuspect.getAndSet(true);
     }
 
     @VisibleForTesting
     public void unmarkSuspect()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         isSuspect.getAndSet(false);
     }
 
@@ -1767,6 +1903,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public ISSTableScanner getScanner(Range<Token> range)
     {
         if (range == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
             return getScanner();
         return getScanner(Collections.singletonList(range));
     }
@@ -1815,33 +1952,41 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public boolean newSince(long age)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-531
         return maxDataAge > age;
     }
 
     public void createLinks(String snapshotDirectoryPath)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         createLinks(descriptor, components, snapshotDirectoryPath);
     }
 
     public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1736
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         for (Component component : components)
         {
             File sourceFile = new File(descriptor.filenameFor(component));
             if (!sourceFile.exists())
                 continue;
             File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             FileUtils.createHardLink(sourceFile, targetLink);
         }
     }
 
     public boolean isRepaired()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
     }
 
     public DecoratedKey keyAt(long indexPosition) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         DecoratedKey key;
         try (FileDataInput in = ifile.createReader(indexPosition))
         {
@@ -1853,7 +1998,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // hint read path about key location if caching is enabled
             // this saves index summary lookup and index file iteration which whould be pretty costly
             // especially in presence of promoted column indexes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
             if (isKeyCacheEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                 cacheKey(key, rowIndexEntrySerializer.deserialize(in));
         }
 
@@ -1862,11 +2009,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public boolean isPendingRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return sstableMetadata.pendingRepair != ActiveRepairService.NO_PENDING_REPAIR;
     }
 
     public UUID getPendingRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         return sstableMetadata.pendingRepair;
     }
 
@@ -1882,6 +2031,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public boolean intersects(Collection<Range<Token>> ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13217
         Bounds<Token> range = new Bounds<>(first.getToken(), last.getToken());
         return Iterables.any(ranges, r -> r.intersects(range));
     }
@@ -1901,6 +2052,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
          */
         public abstract int apply(int comparison);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-579
         final static class Equals extends Operator
         {
             public int apply(int comparison) { return -comparison; }
@@ -1939,26 +2091,32 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public InstrumentingCache<KeyCacheKey, RowIndexEntry> getKeyCache()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-688
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2272
         return keyCache;
     }
 
     public EstimatedHistogram getEstimatedPartitionSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         return sstableMetadata.estimatedPartitionSize;
     }
 
     public EstimatedHistogram getEstimatedCellPerPartitionCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
         return sstableMetadata.estimatedCellPerPartitionCount;
     }
 
     public double getEstimatedDroppableTombstoneRatio(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3442
         return sstableMetadata.getEstimatedDroppableTombstoneRatio(gcBefore);
     }
 
     public double getDroppableTombstonesBefore(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5159
         return sstableMetadata.getDroppableTombstonesBefore(gcBefore);
     }
 
@@ -1969,6 +2127,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public long getMinTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4671
         return sstableMetadata.minTimestamp;
     }
 
@@ -1979,6 +2138,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public int getMinLocalDeletionTime()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return sstableMetadata.minLocalDeletionTime;
     }
 
@@ -2030,6 +2190,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public int getSSTableLevel()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4872
         return sstableMetadata.sstableLevel;
     }
 
@@ -2044,6 +2205,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public void reloadSSTableMetadata() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
         this.sstableMetadata = (StatsMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.STATS);
     }
 
@@ -2067,6 +2229,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         if (ifile != null)
             return ifile.createReader();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-408
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
         return null;
     }
 
@@ -2091,6 +2255,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long getCreationTimeFor(Component component)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4781
         return new File(descriptor.filenameFor(component)).lastModified();
     }
 
@@ -2099,6 +2264,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public long getKeyCacheHit()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5868
         return keyCacheHit.get();
     }
 
@@ -2116,6 +2282,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public void incrementReadCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5515
         if (readMeter != null)
             readMeter.mark();
     }
@@ -2124,6 +2291,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         // We could return sstable.header.stats(), but this may not be as accurate than the actual sstable stats (see
         // SerializationHeader.make() for details) so we use the latter instead.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         return sstableMetadata.encodingStats;
     }
 
@@ -2156,6 +2324,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         identities.add(this);
         identities.add(tidy.globalRef);
         dfile.addTo(identities);
@@ -2215,6 +2384,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         public void tidy()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
             if (logger.isTraceEnabled())
                 logger.trace("Running instance tidier for {} with setup {}", descriptor, setup);
 
@@ -2236,6 +2406,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 public void run()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
                     if (logger.isTraceEnabled())
                         logger.trace("Async instance tidier for {}, before barrier", descriptor);
 
@@ -2249,6 +2420,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         bf.close();
                     if (summary != null)
                         summary.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
                     if (runOnClose != null)
                         runOnClose.run();
                     if (dfile != null)
@@ -2257,6 +2429,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         ifile.close();
                     globalRef.release();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
                     if (logger.isTraceEnabled())
                         logger.trace("Async instance tidier for {}, completed", descriptor);
                 }
@@ -2316,6 +2489,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (SchemaConstants.isLocalSystemKeyspace(desc.ksname) || DatabaseDescriptor.isClientOrToolInitialized())
             {
                 readMeter = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
                 readMeterSyncFuture = NULL;
                 return;
             }
@@ -2332,6 +2506,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
             }, 1, 5, TimeUnit.MINUTES));
         }
 
@@ -2353,6 +2528,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 obsoletion.run();
 
             // don't ideally want to dropPageCache for the file until all instances have been released
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             NativeLibrary.trySkipCache(desc.filenameFor(Component.DATA), 0, 0);
             NativeLibrary.trySkipCache(desc.filenameFor(Component.PRIMARY_INDEX), 0, 0);
         }
@@ -2373,6 +2549,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             final GlobalTidy tidy = new GlobalTidy(sstable);
             refc = new Ref<>(tidy, tidy);
             Ref<?> ex = lookup.putIfAbsent(descriptor, refc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
             if (ex != null)
             {
                 refc.close();
@@ -2385,6 +2563,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     @VisibleForTesting
     public static void resetTidying()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         GlobalTidy.lookup.clear();
     }
 
@@ -2395,6 +2574,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                            TableMetadataRef metadata,
                                            Long maxDataAge,
                                            StatsMetadata sstableMetadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                            OpenReason openReason,
                                            SerializationHeader header);
 
@@ -2407,6 +2587,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         public PartitionPositionBounds(long lower, long upper)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             this.lowerPosition = lower;
             this.upperPosition = upper;
         }
@@ -2462,6 +2643,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         if (!oldDescriptor.isCompatible())
             throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
                                                      oldDescriptor.getFormat().getLatestVersion(),
@@ -2501,6 +2683,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static void shutdownBlocking(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         ExecutorUtils.shutdownNowAndWait(timeout, unit, syncExecutor);
         resetTidying();
     }

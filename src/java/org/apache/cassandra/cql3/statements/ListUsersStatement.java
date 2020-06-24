@@ -41,6 +41,7 @@ public class ListUsersStatement extends ListRolesStatement
 
     private static final List<ColumnSpecification> metadata =
         ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("name", true), UTF8Type.instance),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("datacenters", true), UTF8Type.instance));
 
@@ -51,12 +52,15 @@ public class ListUsersStatement extends ListRolesStatement
         ResultSet result = new ResultSet(resultMetadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         INetworkAuthorizer networkAuthorizer = DatabaseDescriptor.getNetworkAuthorizer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         for (RoleResource role : sortedRoles)
         {
             if (!roleManager.canLogin(role))
                 continue;
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8849
             result.addColumnValue(BooleanType.instance.decompose(Roles.hasSuperuserStatus(role)));
             result.addColumnValue(UTF8Type.instance.decompose(networkAuthorizer.authorize(role).toString()));
         }
@@ -67,6 +71,7 @@ public class ListUsersStatement extends ListRolesStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

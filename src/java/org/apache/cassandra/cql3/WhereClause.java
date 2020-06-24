@@ -40,6 +40,7 @@ public final class WhereClause
 
     private WhereClause(Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         relations = builder.relations.build();
         expressions = builder.expressions.build();
     }
@@ -63,6 +64,7 @@ public final class WhereClause
     public WhereClause renameIdentifier(ColumnMetadata.Raw from, ColumnMetadata.Raw to)
     {
         WhereClause.Builder builder = new WhereClause.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         relations.stream()
                  .map(r -> r.renameIdentifier(from, to))

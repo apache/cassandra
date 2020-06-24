@@ -63,6 +63,7 @@ public class RowAndDeletionMergeIteratorTest
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         TableMetadata.Builder builder =
             TableMetadata.builder(KEYSPACE1, CF_STANDARD1)
@@ -89,6 +90,7 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, Collections.emptyIterator(), false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 0);
@@ -113,10 +115,12 @@ public class RowAndDeletionMergeIteratorTest
     {
         int delTime = nowInSeconds + 1;
         long timestamp = toMillis(delTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(rt(1, false, 3, false, timestamp, delTime),
                                                                                        atLeast(4, timestamp, delTime));
         UnfilteredRowIterator iterator = createMergeIterator(Collections.emptyIterator(), rangeTombstoneIterator, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_START_BOUND, 1);
@@ -140,6 +144,7 @@ public class RowAndDeletionMergeIteratorTest
 
         int delTime = nowInSeconds + 1;
         long timestamp = toMillis(delTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime));
 
@@ -173,6 +178,7 @@ public class RowAndDeletionMergeIteratorTest
 
         int delTime = nowInSeconds + 1;
         long timestamp = toMillis(delTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(greaterThan(2, timestamp, delTime));
 
@@ -254,6 +260,7 @@ public class RowAndDeletionMergeIteratorTest
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY, 2);
@@ -281,12 +288,17 @@ public class RowAndDeletionMergeIteratorTest
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringBound.TOP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
         assertFalse(iterator.hasNext());
     }
@@ -299,9 +311,17 @@ public class RowAndDeletionMergeIteratorTest
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, -1L, 0));
 
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
         assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 0);
@@ -321,6 +341,7 @@ public class RowAndDeletionMergeIteratorTest
         assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 4);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
         assertFalse(iterator.hasNext());
     }
 
@@ -331,6 +352,9 @@ public class RowAndDeletionMergeIteratorTest
 
         int delTime = nowInSeconds - 1;
         long timestamp = toMillis(delTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime),
                                                                                        greaterThan(2, timestamp, delTime));
@@ -393,6 +417,7 @@ public class RowAndDeletionMergeIteratorTest
 
     private Iterator<Row> createRowIterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(cfm, dk, cfm.regularAndStaticColumns(), 1);
         for (int i = 0; i < 5; i++)
             addRow(update, i, i);
@@ -402,6 +427,7 @@ public class RowAndDeletionMergeIteratorTest
 
     private UnfilteredRowIterator createMergeIterator(Iterator<Row> rows, Iterator<RangeTombstone> tombstones, boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
         return createMergeIterator(rows, tombstones, DeletionTime.LIVE, reversed);
     }
 
@@ -416,6 +442,7 @@ public class RowAndDeletionMergeIteratorTest
                                                ColumnFilter.all(cfm),
                                                Rows.EMPTY_STATIC_ROW,
                                                reversed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                                                EncodingStats.NO_STATS,
                                                rows,
                                                tombstones,
@@ -434,6 +461,7 @@ public class RowAndDeletionMergeIteratorTest
 
     private static RangeTombstone atLeast(int start, long tstamp, int delTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new RangeTombstone(Slice.make(ClusteringBound.inclusiveStartOf(bb(start)), ClusteringBound.TOP), new DeletionTime(tstamp, delTime));
     }
 
@@ -457,6 +485,7 @@ public class RowAndDeletionMergeIteratorTest
         ClusteringBound startBound = startInclusive ? ClusteringBound.inclusiveStartOf(bb(start)) : ClusteringBound.exclusiveStartOf(bb(start));
         ClusteringBound endBound = endInclusive ? ClusteringBound.inclusiveEndOf(bb(end)) : ClusteringBound.exclusiveEndOf(bb(end));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(tstamp, delTime));
     }
 
@@ -472,6 +501,7 @@ public class RowAndDeletionMergeIteratorTest
 
     private long toMillis(int timeInSeconds)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10003
         return timeInSeconds * 1000L;
     }
 }

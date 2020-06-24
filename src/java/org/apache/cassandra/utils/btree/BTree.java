@@ -74,6 +74,7 @@ public class BTree
     static
     {
         int fanfactor = Integer.parseInt(System.getProperty("cassandra.btree.fanfactor", "32"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         assert fanfactor >= 2 : "the minimal btree fanfactor is 2";
         int shift = 1;
         while (1 << shift < fanfactor)
@@ -110,6 +111,7 @@ public class BTree
     // direction of iteration
     public static enum Dir
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         ASC, DESC;
         public Dir invert() { return this == ASC ? DESC : ASC; }
         public static Dir asc(boolean asc) { return asc ? ASC : DESC; }
@@ -129,6 +131,7 @@ public class BTree
          * values, starting at 0, and must only be called once per index value. The results of calling this method
          * without following these rules are undefined.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15390
         <K> K nextAt(T input, int idx);
     }
 
@@ -155,11 +158,13 @@ public class BTree
 
     public static Object[] singleton(Object value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         return new Object[] { value };
     }
 
     public static <C, K extends C, V extends C> Object[] build(Collection<K> source, UpdateFunction<K, V> updateF)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15390
         return buildInternal(source.iterator(), ITERATOR_FUNCTION, source.size(), updateF);
     }
 
@@ -174,6 +179,7 @@ public class BTree
     {
         if (size < 0)
             throw new IllegalArgumentException(Integer.toString(size));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15390
         return buildInternal(source.iterator(), ITERATOR_FUNCTION, size, updateF);
     }
 
@@ -187,6 +193,7 @@ public class BTree
     private static <C, K extends C, V extends C, S> Object[] buildLeaf(S source, IteratingFunction<S> iterFunc, int size, int startIdx, UpdateFunction<K, V> updateF)
     {
         V[] values = (V[]) new Object[size | 1];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
 
         int idx = startIdx;
         for (int i = 0; i < size; i++)
@@ -224,6 +231,7 @@ public class BTree
             // The performance could be improved by pre-compute the childSize (see #9989 comments).
             int childSize = (size - index) / (childNum - i);
             // Build the tree with inorder traversal
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15390
             values[childPos + i] = (V) buildInternal(source, iterFunc, childSize, level - 1, startIdx + index, updateF);
             index += childSize;
             indexOffsets[i] = index;
@@ -251,10 +259,12 @@ public class BTree
         int level = 0;
         while (size > TREE_SIZE[level])
             level++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15390
         return buildInternal(source, iterFunc, size, level, 0, updateF);
     }
 
     public static <C, K extends C, V extends C> Object[] update(Object[] btree,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                                 Comparator<C> comparator,
                                                                 Collection<K> updateWith,
                                                                 UpdateFunction<K, V> updateF)
@@ -274,6 +284,7 @@ public class BTree
      * @return
      */
     public static <C, K extends C, V extends C> Object[] update(Object[] btree,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                                 Comparator<C> comparator,
                                                                 Iterable<K> updateWith,
                                                                 int updateWithLength,
@@ -283,6 +294,8 @@ public class BTree
             return build(updateWith, updateWithLength, updateF);
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
         TreeBuilder builder = TreeBuilder.newInstance();
         btree = builder.update(btree, comparator, updateWith, updateF);
         return btree;
@@ -296,16 +309,19 @@ public class BTree
             tree1 = tree2;
             tree2 = tmp;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
         return update(tree1, comparator, new BTreeSet<>(tree2, comparator), updateF);
     }
 
     public static <V> Iterator<V> iterator(Object[] btree)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         return iterator(btree, Dir.ASC);
     }
 
     public static <V> Iterator<V> iterator(Object[] btree, Dir dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9988
         return isLeaf(btree) ? new LeafBTreeSearchIterator<>(btree, null, dir)
                              : new FullBTreeSearchIterator<>(btree, null, dir);
     }
@@ -341,6 +357,7 @@ public class BTree
      */
     public static <K, V> BTreeSearchIterator<K, V> slice(Object[] btree, Comparator<? super K> comparator, Dir dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9988
         return isLeaf(btree) ? new LeafBTreeSearchIterator<>(btree, comparator, dir)
                              : new FullBTreeSearchIterator<>(btree, comparator, dir);
     }
@@ -355,6 +372,7 @@ public class BTree
      */
     public static <K, V extends K> BTreeSearchIterator<K, V> slice(Object[] btree, Comparator<? super K> comparator, K start, K end, Dir dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         return slice(btree, comparator, start, true, end, false, dir);
     }
 
@@ -368,6 +386,7 @@ public class BTree
      */
     public static <K, V extends K> BTreeSearchIterator<K, V> slice(Object[] btree, Comparator<? super K> comparator, int startIndex, int endIndex, Dir dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9988
         return isLeaf(btree) ? new LeafBTreeSearchIterator<>(btree, comparator, dir, startIndex, endIndex)
                              : new FullBTreeSearchIterator<>(btree, comparator, dir, startIndex, endIndex);
     }
@@ -385,6 +404,7 @@ public class BTree
     public static <K, V extends K> BTreeSearchIterator<K, V> slice(Object[] btree, Comparator<? super K> comparator, K start, boolean startInclusive, K end, boolean endInclusive, Dir dir)
     {
         int inclusiveLowerBound = max(0,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
                                       start == null ? Integer.MIN_VALUE
                                                     : startInclusive ? ceilIndex(btree, comparator, start)
                                                                      : higherIndex(btree, comparator, start));
@@ -392,6 +412,7 @@ public class BTree
                                       end == null ? Integer.MAX_VALUE
                                                   : endInclusive ? floorIndex(btree, comparator, end)
                                                                  : lowerIndex(btree, comparator, end));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9988
         return isLeaf(btree) ? new LeafBTreeSearchIterator<>(btree, comparator, dir, inclusiveLowerBound, inclusiveUpperBound)
                              : new FullBTreeSearchIterator<>(btree, comparator, dir, inclusiveLowerBound, inclusiveUpperBound);
     }
@@ -401,6 +422,7 @@ public class BTree
      */
     public static <V> V find(Object[] node, Comparator<? super V> comparator, V find)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         while (true)
         {
             int keyEnd = getKeyEnd(node);
@@ -424,6 +446,7 @@ public class BTree
     public static <V> void replaceInSitu(Object[] tree, int index, V replace)
     {
         // WARNING: if semantics change, see also InternalCursor.seekTo, which mirrors this implementation
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9991
         if ((index < 0) | (index >= size(tree)))
             throw new IndexOutOfBoundsException(index + " not in range [0.." + size(tree) + ")");
 
@@ -622,6 +645,7 @@ public class BTree
     static int getLeafKeyEnd(Object[] node)
     {
         int len = node.length;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         return node[len - 1] == null ? len - 1 : len;
     }
 
@@ -686,6 +710,7 @@ public class BTree
 
     public static long sizeOfStructureOnHeap(Object[] tree)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;
@@ -708,6 +733,7 @@ public class BTree
     public static int depth(Object[] tree)
     {
         int depth = 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         while (!isLeaf(tree))
         {
             depth++;
@@ -725,6 +751,7 @@ public class BTree
      */
     public static int toArray(Object[] tree, Object[] target, int targetOffset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         return toArray(tree, 0, size(tree), target, targetOffset);
     }
     public static int toArray(Object[] tree, int treeStart, int treeEnd, Object[] target, int targetOffset)
@@ -757,6 +784,7 @@ public class BTree
     // simple class for avoiding duplicate transformation work
     private static class FiltrationTracker<V> implements Function<V, V>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         final Function<? super V, ? extends V> wrapped;
         int index;
         boolean failed;
@@ -797,6 +825,7 @@ public class BTree
         remainder = filter(transform(remainder, function), (x) -> x != null);
         Iterable<V> build = concat(head, remainder);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
         Builder<V> builder = builder((Comparator<? super V>) naturalOrder());
         builder.auto(false);
         for (V v : build)
@@ -830,6 +859,7 @@ public class BTree
 
     public static boolean equals(Object[] a, Object[] b)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return size(a) == size(b) && Iterators.elementsEqual(iterator(a), iterator(b));
     }
 
@@ -898,6 +928,7 @@ public class BTree
 
     public static <V> Builder<V> builder(Comparator<? super V> comparator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
         return new Builder<>(comparator);
     }
 
@@ -914,6 +945,7 @@ public class BTree
             // can return a different output type to input, so long as sort order is maintained
             // if a resolver is present, this method will be called for every sequence of equal inputs
             // even those with only one item
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             Object resolve(Object[] array, int lb, int ub);
         }
 
@@ -923,6 +955,7 @@ public class BTree
             // can return a different output type to input, so long as sort order is maintained
             // if a resolver is present, this method will be called for every sequence of equal inputs
             // even those with only one item
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             V resolve(V a, V b);
         }
 
@@ -935,6 +968,7 @@ public class BTree
 
         protected Builder(Comparator<? super V> comparator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
             this(comparator, 16);
         }
 
@@ -979,12 +1013,15 @@ public class BTree
 
         public void reuse()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
             reuse(comparator);
         }
 
         public void reuse(Comparator<? super V> comparator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11937
             this.comparator = comparator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13754
             Arrays.fill(values, null);
             count = 0;
             detected = true;
@@ -1001,6 +1038,7 @@ public class BTree
             if (count == values.length)
                 values = Arrays.copyOf(values, count * 2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             Object[] values = this.values;
             int prevCount = this.count++;
             values[prevCount] = v;
@@ -1026,6 +1064,7 @@ public class BTree
 
         public Builder<V> addAll(Collection<V> add)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             if (auto && add instanceof SortedSet && equalComparators(comparator, ((SortedSet) add).comparator()))
             {
                 // if we're a SortedSet, permit quick order-preserving addition of items
@@ -1053,6 +1092,7 @@ public class BTree
         // iter must be in sorted order!
         private Builder<V> mergeAll(Iterable<V> add, int addCount)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             assert auto;
             // ensure the existing contents are in order
             autoEnforce();
@@ -1089,6 +1129,7 @@ public class BTree
             // save time in cases where we already have a subset, by skipping dir
             while (i < curEnd && j < addEnd)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
                 V ai = (V) a[i], aj = (V) a[j];
                 // in some cases, such as Columns, we may have identity supersets, so perform a cheap object-identity check
                 int c = ai == aj ? 0 : comparator.compare(ai, aj);
@@ -1096,6 +1137,7 @@ public class BTree
                     break;
                 else if (c == 0)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                     if (quickResolver != null)
                         a[i] = quickResolver.resolve(ai, aj);
                     j++;
@@ -1114,6 +1156,7 @@ public class BTree
 
             while (i < curEnd && j < addEnd)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 V ai = (V) a[i];
                 V aj = (V) a[j];
                 // could avoid one comparison if we cared, but would make this ugly
@@ -1154,6 +1197,7 @@ public class BTree
 
         public Builder<V> reverse()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             assert !auto;
             int mid = count / 2;
             for (int i = 0 ; i < mid ; i++)
@@ -1167,6 +1211,7 @@ public class BTree
 
         public Builder<V> sort()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             Arrays.sort((V[]) values, 0, count, comparator);
             return this;
         }
@@ -1178,6 +1223,7 @@ public class BTree
             {
                 sort();
                 int prevIdx = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 V prev = (V) values[0];
                 for (int i = 1 ; i < count ; i++)
                 {
@@ -1194,6 +1240,7 @@ public class BTree
 
         public Builder<V> resolve(Resolver resolver)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             if (count > 0)
             {
                 int c = 0;
@@ -1216,6 +1263,7 @@ public class BTree
         {
             if (auto)
                 autoEnforce();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15390
             return BTree.build(values, count, UpdateFunction.noOp());
         }
     }
@@ -1248,10 +1296,12 @@ public class BTree
         if (isLeaf(node))
         {
             if (isRoot)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
                 return node.length <= FAN_FACTOR + 1;
             return node.length >= FAN_FACTOR / 2 && node.length <= FAN_FACTOR + 1;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9991
         final int keyCount = getBranchKeyEnd(node);
         if ((!isRoot && keyCount < FAN_FACTOR / 2) || keyCount > FAN_FACTOR + 1)
             return false;
@@ -1291,6 +1341,7 @@ public class BTree
 
     private static <V, A> void applyValue(V value, BiConsumer<A, V> function, A argument)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         function.accept(argument, value);
     }
 
@@ -1312,6 +1363,7 @@ public class BTree
      */
     public static <V, A> void apply(Object[] btree, BiConsumer<A, V> function, A argument)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         if (isLeaf(btree))
         {
             applyLeaf(btree, function, argument);

@@ -26,6 +26,8 @@ public class SimpleSnitch extends AbstractEndpointSnitch
 {
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1530
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return "rack1";
     }
 
@@ -46,6 +48,7 @@ public class SimpleSnitch extends AbstractEndpointSnitch
     {
         // Making all endpoints equal ensures we won't change the original ordering (since
         // Collections.sort is guaranteed to be stable)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return 0;
     }
 }

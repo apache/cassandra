@@ -157,6 +157,7 @@ public class CqlConfigHelper
 
     public static void setUserNameAndPassword(Configuration conf, String username, String password)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7221
         if (StringUtils.isNotBlank(username))
         {
             conf.set(INPUT_NATIVE_AUTH_PROVIDER, PlainTextAuthProvider.class.getName());
@@ -182,6 +183,7 @@ public class CqlConfigHelper
 
     public static int getOutputNativePort(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         return Integer.parseInt(conf.get(OUTPUT_NATIVE_PORT, "9042"));
     }
 
@@ -293,12 +295,14 @@ public class CqlConfigHelper
     public static Cluster getInputCluster(String host, Configuration conf)
     {
         // this method has been left for backward compatibility
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7774
         return getInputCluster(new String[] {host}, conf);
     }
 
     public static Cluster getInputCluster(String[] hosts, Configuration conf)
     {
         int port = getInputNativePort(conf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         return getCluster(hosts, conf, port);
     }
 
@@ -317,6 +321,7 @@ public class CqlConfigHelper
     {
         Optional<AuthProvider> authProvider = getAuthProvider(conf);
         Optional<SSLOptions> sslOptions = getSSLOptions(conf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8577
         Optional<Integer> protocolVersion = getProtocolVersion(conf);
         LoadBalancingPolicy loadBalancingPolicy = getReadLoadBalancingPolicy(hosts);
         SocketOptions socketOptions = getReadSocketOptions(conf);
@@ -324,6 +329,7 @@ public class CqlConfigHelper
         PoolingOptions poolingOptions = getReadPoolingOptions(conf);
 
         Cluster.Builder builder = Cluster.builder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
                 .addContactPoints(hosts)
                 .withPort(port)
                 .withCompression(ProtocolOptions.Compression.NONE);
@@ -333,11 +339,14 @@ public class CqlConfigHelper
         if (sslOptions.isPresent())
             builder.withSSL(sslOptions.get());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         if (protocolVersion.isPresent())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9493
             builder.withProtocolVersion(ProtocolVersion.fromInt(protocolVersion.get()));
         }
         builder.withLoadBalancingPolicy(loadBalancingPolicy)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
                 .withSocketOptions(socketOptions)
                 .withQueryOptions(queryOptions)
                 .withPoolingOptions(poolingOptions);
@@ -397,6 +406,7 @@ public class CqlConfigHelper
 
     public static void setInputNativeSSLTruststorePath(Configuration conf, String path)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7093
         conf.set(INPUT_NATIVE_SSL_TRUST_STORE_PATH, path);
     }
 
@@ -450,6 +460,7 @@ public class CqlConfigHelper
             if (maxConnections.isPresent())
                 poolingOptions.setMaxConnectionsPerHost(hostDistance, maxConnections.get());
             if (maxSimultaneousRequests.isPresent())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11001
                 poolingOptions.setNewConnectionThreshold(hostDistance, maxSimultaneousRequests.get());
         }
 
@@ -478,6 +489,7 @@ public class CqlConfigHelper
         Optional<Integer> sendBufferSize = getInputNativeSendBufferSize(conf);
         Optional<Integer> soLinger = getInputNativeSolinger(conf);
         Optional<Boolean> tcpNoDelay = getInputNativeTcpNodelay(conf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         Optional<Boolean> reuseAddress = getInputNativeReuseAddress(conf);
         Optional<Boolean> keepAlive = getInputNativeKeepAlive(conf);
 
@@ -497,6 +509,7 @@ public class CqlConfigHelper
             socketOptions.setReuseAddress(reuseAddress.get());
         if (keepAlive.isPresent())
             socketOptions.setKeepAlive(keepAlive.get());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
 
         return socketOptions;
     }
@@ -508,6 +521,7 @@ public class CqlConfigHelper
 
     private static Optional<AuthProvider> getDefaultAuthProvider(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10717
         Optional<String> username = getStringSetting(USERNAME, conf);
         Optional<String> password = getStringSetting(PASSWORD, conf);
 
@@ -551,6 +565,7 @@ public class CqlConfigHelper
             {
                 throw new RuntimeException(e);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11001
             String[] css = null;
             if (cipherSuites.isPresent())
                 css = cipherSuites.get().split(",");
@@ -567,6 +582,7 @@ public class CqlConfigHelper
         String setting = conf.get(parameter);
         if (setting == null)
             return Optional.absent();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         return Optional.of(Integer.valueOf(setting));
     }
 
@@ -575,6 +591,7 @@ public class CqlConfigHelper
         String setting = conf.get(parameter);
         if (setting == null)
             return Optional.absent();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         return Optional.of(Boolean.valueOf(setting));
     }
 
@@ -583,6 +600,7 @@ public class CqlConfigHelper
         String setting = conf.get(parameter);
         if (setting == null)
             return Optional.absent();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         return Optional.of(setting);
     }
 
@@ -590,6 +608,7 @@ public class CqlConfigHelper
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7221
             Class<?> c = Class.forName(factoryClassName);
             if (PlainTextAuthProvider.class.equals(c))
             {
@@ -610,6 +629,7 @@ public class CqlConfigHelper
     }
 
     private static SSLContext getSSLContext(Optional<String> truststorePath,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11532
                                             Optional<String> truststorePassword,
                                             Optional<String> keystorePath,
                                             Optional<String> keystorePassword)
@@ -625,6 +645,7 @@ public class CqlConfigHelper
         TrustManagerFactory tmf = null;
         if (truststorePath.isPresent())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
             try (InputStream tsf = Files.newInputStream(Paths.get(truststorePath.get())))
             {
                 KeyStore ts = KeyStore.getInstance("JKS");
@@ -637,6 +658,7 @@ public class CqlConfigHelper
         KeyManagerFactory kmf = null;
         if (keystorePath.isPresent())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
             try (InputStream ksf = Files.newInputStream(Paths.get(keystorePath.get())))
             {
                 KeyStore ks = KeyStore.getInstance("JKS");

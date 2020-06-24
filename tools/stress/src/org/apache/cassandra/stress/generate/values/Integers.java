@@ -27,6 +27,7 @@ public class Integers extends Generator<Integer>
 
     public Integers(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(Int32Type.instance, config, name, Integer.class);
     }
 

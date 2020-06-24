@@ -71,11 +71,13 @@ public class Dump implements Runnable
     public static void dump(List<String> arguments, String rollCycle, boolean follow)
     {
         StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         ReadMarshallable reader = wireIn ->
         {
             sb.setLength(0);
 
             int version = wireIn.read(BinLog.VERSION).int16();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             if (version > FullQueryLogger.CURRENT_VERSION)
             {
                 throw new IORuntimeException("Unsupported record version [" + version
@@ -106,6 +108,7 @@ public class Dump implements Runnable
             QueryOptions options =
                 QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read(FullQueryLogger.QUERY_OPTIONS).bytes()),
                                           ProtocolVersion.decode(protocolVersion, true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
 
             long generatedTimestamp = wireIn.read(FullQueryLogger.GENERATED_TIMESTAMP).int64();
             sb.append("Generated timestamp:")
@@ -128,6 +131,7 @@ public class Dump implements Runnable
                     break;
 
                 default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                     throw new IORuntimeException("Log entry of unsupported type " + type);
             }
 
@@ -137,6 +141,7 @@ public class Dump implements Runnable
 
         //Backoff strategy for spinning on the queue, not aggressive at all as this doesn't need to be low latency
         Pauser pauser = Pauser.millis(100);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14504
         List<ChronicleQueue> queues = arguments.stream().distinct().map(path -> ChronicleQueueBuilder.single(new File(path)).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build()).collect(Collectors.toList());
         List<ExcerptTailer> tailers = queues.stream().map(ChronicleQueue::createTailer).collect(Collectors.toList());
         boolean hadWork = true;
@@ -166,6 +171,7 @@ public class Dump implements Runnable
 
     private static void dumpQuery(QueryOptions options, WireIn wireIn, StringBuilder sb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         sb.append("Query: ")
           .append(wireIn.read(FullQueryLogger.QUERY).text())
           .append(System.lineSeparator());

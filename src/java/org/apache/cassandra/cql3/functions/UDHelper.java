@@ -66,6 +66,7 @@ public final class UDHelper
                 // only care about classes that can be used in a data type
                 Class<?> clazz = typeToken.getRawType();
                 if (clazz == Integer.class)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11309
                     typeToken = TypeToken.of(int.class);
                 else if (clazz == Long.class)
                     typeToken = TypeToken.of(long.class);
@@ -106,12 +107,14 @@ public final class UDHelper
     public static DataType driverType(AbstractType abstractType)
     {
         CQL3Type cqlType = abstractType.asCQL3Type();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
         String abstractTypeDef = cqlType.getType().toString();
         return driverTypeFromAbstractType(abstractTypeDef);
     }
 
     public static DataType driverTypeFromAbstractType(String abstractTypeDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
         return DataTypeClassNameParser.parseOne(abstractTypeDef,
                                                 ProtocolVersion.CURRENT,
                                                 codecRegistry);
@@ -127,6 +130,7 @@ public final class UDHelper
         if (!codec.getJavaType().getRawType().isAssignableFrom(value.getClass()))
             throw new InvalidTypeException("Invalid value for CQL type " + codec.getCqlType().getName());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
         return ((TypeCodec)codec).serialize(value, protocolVersion);
     }
 
@@ -137,6 +141,7 @@ public final class UDHelper
 
     public static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return bb == null ||
                (bb.remaining() == 0 && type.isEmptyValueMeaningless());
     }

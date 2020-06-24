@@ -21,6 +21,7 @@ package org.apache.cassandra.net;
 public enum ConnectionCategory
 {
     MESSAGING, STREAMING;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
     public boolean isStreaming()
     {

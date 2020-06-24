@@ -104,6 +104,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     {
         public ValidationCompactionIterator(List<ISSTableScanner> scanners, ValidationCompactionController controller, int nowInSec, ActiveCompactionsTracker activeCompactions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             super(OperationType.VALIDATION, scanners, controller, nowInSec, UUIDGen.getTimeUUID(), activeCompactions);
         }
     }
@@ -126,6 +127,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         if (prs.isPreview())
         {
             predicate = prs.previewKind.predicate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
 
         }
         else if (isIncremental)
@@ -152,6 +154,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             sstables = Refs.tryRef(sstablesToValidate);
             if (sstables == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                 logger.error("Could not reference sstables for {}", parentId);
                 throw new RuntimeException("Could not reference sstables");
             }
@@ -204,6 +207,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         }
 
         Preconditions.checkArgument(sstables != null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentId);
         if (prs != null)
         {
@@ -218,6 +222,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));
         scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
         ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.active);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         long allPartitions = 0;
         rangePartitionCounts = Maps.newHashMapWithExpectedSize(ranges.size());
@@ -234,6 +239,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         long estimatedTotalBytes = 0;
         for (SSTableReader sstable : sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             for (SSTableReader.PartitionPositionBounds positionsForRanges : sstable.getPositionsForRanges(ranges))
                 estimatedTotalBytes += positionsForRanges.upperPosition - positionsForRanges.lowerPosition;
         }

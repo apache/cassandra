@@ -44,10 +44,13 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
 
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         Directories directories,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
                                         LifecycleTransaction txn,
                                         Set<SSTableReader> nonExpiredSSTables,
                                         long maxSSTableSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, false);
     }
 
@@ -60,6 +63,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                         boolean offline,
                                         boolean keepOriginals)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, keepOriginals);
     }
 
@@ -73,7 +77,9 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     {
         super(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
         this.maxSSTableSize = maxSSTableSize;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         this.levelFanoutSize = cfs.getLevelFanoutSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(nonExpiredSSTables) / maxSSTableSize);
         keysPerSSTable = estimatedTotalKeys / estimatedSSTables;
     }
@@ -84,10 +90,12 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     {
         RowIndexEntry rie = sstableWriter.append(partition);
         partitionsWritten++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         long totalWrittenInCurrentWriter = sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten();
         if (totalWrittenInCurrentWriter > maxSSTableSize)
         {
             totalWrittenInLevel += totalWrittenInCurrentWriter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
             if (totalWrittenInLevel > LeveledManifest.maxBytesForLevel(currentLevel, levelFanoutSize, maxSSTableSize))
             {
                 totalWrittenInLevel = 0;
@@ -104,14 +112,17 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     {
         this.sstableDirectory = location;
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         sstableWriter.switchWriter(SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
                 keysPerSSTable,
                 minRepairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                 pendingRepair,
                 isTransient,
                 cfs.metadata,
                 new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
                 SerializationHeader.make(cfs.metadata(), txn.originals()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                 cfs.indexManager.listIndexes(),
                 txn));
         partitionsWritten = 0;

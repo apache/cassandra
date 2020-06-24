@@ -73,6 +73,7 @@ public abstract class TraceState implements ProgressEventNotifier
         sessionIdBytes = ByteBufferUtil.bytes(sessionId);
         this.traceType = traceType;
         this.ttl = traceType.getTTL();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6639
         watch = Stopwatch.createStarted();
         this.status = Status.IDLE;
     }
@@ -86,6 +87,7 @@ public abstract class TraceState implements ProgressEventNotifier
     {
         assert traceType == Tracing.TraceType.REPAIR;
         notify = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8901
         this.tag = tag;
     }
 
@@ -112,7 +114,9 @@ public abstract class TraceState implements ProgressEventNotifier
     public synchronized void stop()
     {
         waitForPendingEvents();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11465
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         status = Status.STOPPED;
         notifyAll();
     }
@@ -172,6 +176,7 @@ public abstract class TraceState implements ProgressEventNotifier
             notifyActivity();
 
         traceImpl(message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10392
 
         for (ProgressListener listener : listeners)
         {
@@ -200,6 +205,7 @@ public abstract class TraceState implements ProgressEventNotifier
 
     public int releaseReference()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11465
         waitForPendingEvents();
         return references.decrementAndGet();
     }

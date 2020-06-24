@@ -314,6 +314,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     public Snapshot getSnapshot()
     {
         rescaleIfNeeded();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
         return new EstimatedHistogramReservoirSnapshot(this);
     }
 
@@ -359,6 +360,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
                 }
                 finally
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
                     decayLandmark = now;
                     rescaling.set(false);
                 }
@@ -369,6 +371,8 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     private void rescale(long now)
     {
         // despite striping its safe to rescale each bucket individually
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11752
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11752
         final double rescaleFactor = forwardDecayWeight(now);
         for (int i = 0; i < decayingBuckets.length(); i++)
         {
@@ -516,12 +520,14 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          */
         public int size()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14696
             return Ints.saturatedCast(count);
         }
 
         @VisibleForTesting
         public long getSnapshotLandmark()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
             return snapshotLandmark;
         }
 
@@ -529,6 +535,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public Range getBucketingRangeForValue(long value)
         {
             int index = findIndex(bucketOffsets, value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15718
             long max = bucketOffsets[index];
             long min = index == 0 ? 0 : 1 + bucketOffsets[index - 1];
             return new Range(min, max);
@@ -653,6 +660,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
         public void dump(OutputStream output)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
             try (PrintWriter out = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8)))
             {
                 int length = decayingBuckets.length;
@@ -671,6 +679,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          */
         public void add(Snapshot other)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
             if (!(other instanceof EstimatedHistogramReservoirSnapshot))
             {
                 throw new IllegalStateException("Unable to add other types of Snapshot than another DecayingEstimatedHistogramReservoir");
@@ -735,6 +744,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
         public Range(long min, long max)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15718
             this.min = min;
             this.max = max;
         }

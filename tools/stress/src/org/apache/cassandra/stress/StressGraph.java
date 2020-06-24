@@ -199,6 +199,7 @@ public class StressGraph
                         continue;
                     }
                     // the graphing js expects lower case names
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
                     json.put(parts[0].trim().toLowerCase(), parts[1].trim());
                 }
                 else if (mode == ReadingMode.NEXTITERATION)
@@ -210,6 +211,7 @@ public class StressGraph
                         json.put("revision", stressSettings.graph.revision);
                     else
                         json.put("revision", String.format("%s - %s threads", stressSettings.graph.revision, currentThreadCount));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12233
                     String command = StringUtils.join(stressArguments, " ").replaceAll("password=.*? ", "password=******* ");
                     json.put("command", command);
                     json.put("intervals", intervals);
@@ -226,12 +228,14 @@ public class StressGraph
         {
             throw new RuntimeException("Couldn't read from temporary stress log file");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
         if (json.size() != 0) stats.add(json);
         return stats;
     }
 
     private JSONObject createJSONStats(JSONObject json)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         try (InputStream logStream = Files.newInputStream(stressSettings.graph.temporaryLogFile.toPath()))
         {
             JSONArray stats;

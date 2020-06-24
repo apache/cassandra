@@ -140,6 +140,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static int getRingDelay()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3600
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         String newdelay = System.getProperty("cassandra.ring_delay_ms");
         if (newdelay != null)
         {
@@ -165,6 +167,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public boolean isInShutdownHook()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
         return isShutdown();
     }
 
@@ -175,6 +178,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return Keyspace.open(keyspaceName).getReplicationStrategy()
                 .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
     }
@@ -211,6 +216,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     /* we bootstrap but do NOT join the ring unless told to do so */
     private boolean isSurveyMode = Boolean.parseBoolean(System.getProperty
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
             ("cassandra.write_survey", "false"));
     /* true if node is rebuilding and receiving data */
     private final AtomicBoolean isRebuilding = new AtomicBoolean();
@@ -249,6 +255,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isSurveyMode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
         return isSurveyMode;
     }
 
@@ -260,13 +267,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /** This method updates the local token on disk  */
     public void setTokens(Collection<Token> tokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12935
         assert tokens != null && !tokens.isEmpty() : "Node needs at least one token.";
         if (logger.isDebugEnabled())
             logger.debug("Setting tokens to {}", tokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         SystemKeyspace.updateTokens(tokens);
         Collection<Token> localTokens = getLocalTokens();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8336
         setGossipTokens(localTokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddressAndPort());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         setMode(Mode.NORMAL, false);
     }
 
@@ -274,6 +287,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
         states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens)));
         states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
         Gossiper.instance.addLocalApplicationStates(states);
@@ -283,7 +297,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         // use dedicated executor for handling JMX notifications
         super(JMXBroadcastExecutor.executor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14435
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
         MBeanWrapper.instance.registerMBean(this, jmxObjectName);
         MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
@@ -291,11 +308,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void registerDaemon(CassandraDaemon daemon)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1951
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         this.daemon = daemon;
     }
 
     public void register(IEndpointLifecycleSubscriber subscriber)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4679
         lifecycleSubscribers.add(subscriber);
     }
 
@@ -307,6 +327,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     // should only be called via JMX
     public void stopGossiping()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (gossipActive)
         {
             logger.warn("Stopping gossip by operator request");
@@ -321,9 +342,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!gossipActive)
         {
             checkServiceAllowedToStart("gossip");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
 
             logger.warn("Starting gossip by operator request");
             Collection<Token> tokens = SystemKeyspace.getSavedTokens();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12253
 
             boolean validTokens = tokens != null && !tokens.isEmpty();
 
@@ -335,6 +358,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 setGossipTokens(tokens);
 
             Gossiper.instance.forceNewerGeneration();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
             gossipActive = true;
         }
@@ -343,12 +367,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     // should only be called via JMX
     public boolean isGossipRunning()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8125
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8125
         return Gossiper.instance.isEnabled();
     }
 
     public synchronized void startNativeTransport()
     {
         checkServiceAllowedToStart("native transport");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
 
         if (daemon == null)
         {
@@ -357,6 +384,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
             daemon.startNativeTransport();
         }
         catch (Exception e)
@@ -371,6 +399,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
         daemon.stopNativeTransport();
     }
 
@@ -386,6 +415,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void enableNativeTransportOldProtocolVersions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14659
         DatabaseDescriptor.setNativeTransportAllowOlderProtocols(true);
     }
 
@@ -397,6 +427,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void stopTransports()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (isGossipActive())
         {
             logger.error("Stopping gossiper");
@@ -421,32 +452,42 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void shutdownClientServers()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12781
         setRpcReady(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5507
         stopNativeTransport();
     }
 
     public void stopClient()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3727
         MessagingService.instance().shutdown();
         // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
         Stage.shutdownNow();
     }
 
     public boolean isInitialized()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3106
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1756
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return initialized;
     }
 
     public boolean isGossipActive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         return gossipActive;
     }
 
     public boolean isDaemonSetupCompleted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9686
         return daemon == null
                ? false
                : daemon.setupCompleted();
@@ -455,6 +496,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void stopDaemon()
     {
         if (daemon == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5425
             throw new IllegalStateException("No configured daemon");
         daemon.deactivate();
     }
@@ -473,6 +515,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                        "To perform this operation, please restart with " +
                                        "-Dcassandra.allow_unsafe_replace=true");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort replaceAddress = DatabaseDescriptor.getReplaceAddress();
         logger.info("Gathering node replacement information for {}", replaceAddress);
         Map<InetAddressAndPort, EndpointState> epStates = Gossiper.instance.doShadowRound();
@@ -481,6 +524,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException(String.format("Cannot replace_address %s because it doesn't exist in gossip", replaceAddress));
 
         validateEndpointSnitch(epStates.values().iterator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
 
         try
         {
@@ -524,6 +568,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // If not bootstrapping, compare the host id for this endpoint learned from gossip (if any) with the local
         // one, which was either read from system.local or generated at startup. If a learned id is present &
         // doesn't match the local, then the node needs replacing
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!Gossiper.instance.isSafeForStartup(FBUtilities.getBroadcastAddressAndPort(), localHostId, shouldBootstrap(), epStates))
         {
             throw new RuntimeException(String.format("A node with address %s already exists, cancelling join. " +
@@ -532,6 +577,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         validateEndpointSnitch(epStates.values().iterator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
 
         if (shouldBootstrap() && useStrictConsistency && !allowSimultaneousMoves())
         {
@@ -547,6 +593,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     value = entry.getValue().getApplicationState(ApplicationState.STATUS);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 String[] pieces = splitValue(value);
                 assert (pieces.length > 0);
                 String state = pieces[0];
@@ -558,6 +605,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static void validateEndpointSnitch(Iterator<EndpointState> endpointStates)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
         Set<String> datacenters = new HashSet<>();
         Set<String> racks = new HashSet<>();
         while (endpointStates.hasNext())
@@ -587,18 +635,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void unsafeInitialize() throws ConfigurationException
     {
         initialized = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         gossipActive = true;
         Gossiper.instance.register(this);
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4317
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9748
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().listen();
     }
 
     public void populateTokenMetadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9317
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger.info("Populating token metadata from system tables");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
             if (!shouldBootstrap()) // if we have not completed bootstrapping, we should not add ourselves as a normal token
                 loadedTokens.putAll(FBUtilities.getBroadcastAddressAndPort(), SystemKeyspace.getSavedTokens());
@@ -617,6 +671,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void initServer(int delay) throws ConfigurationException
     {
         logger.info("Cassandra version: {}", FBUtilities.getReleaseVersionString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         logger.info("CQL version: {}", QueryProcessor.CQL_VERSION);
         logger.info("Native protocol supported versions: {} (default: {})",
                     StringUtils.join(ProtocolVersion.supportedVersions(), ", "), ProtocolVersion.CURRENT);
@@ -626,6 +681,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // Ensure StorageProxy is initialized on start-up; see CASSANDRA-3797.
             Class.forName("org.apache.cassandra.service.StorageProxy");
             // also IndexSummaryManager, which is otherwise unreferenced
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
             Class.forName("org.apache.cassandra.io.sstable.IndexSummaryManager");
         }
         catch (ClassNotFoundException e)
@@ -634,6 +690,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         drainOnShutdown = NamedThreadFactory.createThread(new WrappedRunnable()
         {
             @Override
@@ -644,17 +702,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (FBUtilities.isWindows)
                     WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13396
                 LoggingSupportFactory.getLoggingSupport().onShutdown();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         replacing = isReplacing();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10809
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10809
         if (!Boolean.parseBoolean(System.getProperty("cassandra.start_gossip", "true")))
         {
             logger.info("Not starting gossip as requested.");
             // load ring state in preparation for starting gossip later
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
             loadRingState();
             initialized = true;
             return;
@@ -663,6 +729,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         prepareToJoin();
 
         // Has to be called after the host id has potentially changed in prepareToJoin().
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6747
         try
         {
             CacheService.instance.counterCache.loadSavedAsync().get();
@@ -673,8 +740,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.warn("Error loading counter cache", t);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12253
         if (joinRing)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2477
             joinTokenRing(delay);
         }
         else
@@ -682,26 +751,33 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Collection<Token> tokens = SystemKeyspace.getSavedTokens();
             if (!tokens.isEmpty())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddressAndPort());
                 // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6125
                 List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
                 states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
                 states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true)));
                 states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
                 Gossiper.instance.addLocalApplicationStates(states);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15398
             doAuthSetup(true);
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         initialized = true;
     }
 
     private void loadRingState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1864
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger.info("Loading persisted ring state");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
             Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
             for (InetAddressAndPort ep : loadedTokens.keySet())
@@ -713,8 +789,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5197
                     if (loadedHostIds.containsKey(ep))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5032
                         tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
                     Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(ep));
                 }
             }
@@ -723,6 +802,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private boolean isReplacing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         if (System.getProperty("cassandra.replace_address_first_boot", null) != null && SystemKeyspace.bootstrapComplete())
         {
             logger.info("Replace address on first boot requested; this node is already bootstrapped");
@@ -736,9 +816,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void removeShutdownHook()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
         if (drainOnShutdown != null)
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
     }
@@ -750,6 +833,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public static boolean isSeed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort());
     }
 
@@ -758,7 +842,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!joined)
         {
             Map<ApplicationState, VersionedValue> appStates = new EnumMap<>(ApplicationState.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8801
             if (SystemKeyspace.wasDecommissioned())
             {
                 if (Boolean.getBoolean("cassandra.override_decommission"))
@@ -774,6 +860,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
 
             MessagingService.instance().listen();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9748
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9748
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9748
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
             UUID localHostId = SystemKeyspace.getLocalHostId();
 
@@ -795,7 +885,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 "the node to be replaced ({}). If the previous node has been down for longer than max_hint_window_in_ms, " +
                                 "repair must be run after the replacement process in order to make this node consistent.",
                                 DatabaseDescriptor.getReplaceAddress());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     appStates.put(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6125
                     appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
                 }
             }
@@ -804,6 +896,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 checkForEndpointCollision(localHostId, SystemKeyspace.loadHostIds().keySet());
                 if (SystemKeyspace.bootstrapComplete())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15335
                     Preconditions.checkState(!Config.isClientMode());
                     // tokens are only ever saved to system.local after bootstrap has completed and we're joining the ring,
                     // or when token update operations (move, decom) are completed
@@ -817,6 +910,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // for bootstrap to get the load info it needs.
             // (we won't be part of the storage ring though until we add a counterId to our state, below.)
             // Seed the host ID-to-endpoint map with our own ID.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             getTokenMetadata().updateHostId(localHostId, FBUtilities.getBroadcastAddressAndPort());
             appStates.put(ApplicationState.NET_VERSION, valueFactory.networkVersion());
             appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(localHostId));
@@ -834,11 +928,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), appStates); // needed for node-ring gathering.
             gossipActive = true;
             // gossip snitch infos (local DC and rack)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4814
             gossipSnitchInfo();
             // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
             Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
             LoadBroadcaster.instance.startBroadcasting();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             HintsService.instance.startDispatch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4542
             BatchlogManager.instance.start();
         }
     }
@@ -846,19 +943,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void waitForSchema(int delay)
     {
         // first sleep the delay to make sure we see all our peers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
         for (int i = 0; i < delay; i += 1000)
         {
             // if we see schema, we can proceed to the next check directly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
             if (!Schema.instance.isEmpty())
             {
                 logger.debug("current schema version: {}", Schema.instance.getVersion());
                 break;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5557
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5557
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
         // if our schema hasn't matched yet, wait until it has
         // we do this by waiting for all in-flight migration requests and responses to complete
         // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10731
         if (!MigrationManager.isReadyForBootstrap())
         {
             setMode(Mode.JOINING, "waiting for schema information to complete", true);
@@ -879,11 +981,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         //
         // We attempted to replace this with a schema-presence check, but you need a meaningful sleep
         // to get schema info from gossip which defeats the purpose.  See CASSANDRA-4427 for the gory details.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> current = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8942
         if (logger.isDebugEnabled())
         {
             logger.debug("Bootstrap variables: {} {} {} {}",
                          DatabaseDescriptor.isAutoBootstrap(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                          SystemKeyspace.bootstrapInProgress(),
                          SystemKeyspace.bootstrapComplete(),
                          DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort()));
@@ -895,6 +1000,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         boolean dataAvailable = true; // make this to false when bootstrap streaming failed
         boolean bootstrap = shouldBootstrap();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         if (bootstrap)
         {
             if (SystemKeyspace.bootstrapInProgress())
@@ -904,19 +1010,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             setMode(Mode.JOINING, "waiting for ring information", true);
             waitForSchema(delay);
             setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
             setMode(Mode.JOINING, "waiting for pending range calculation", true);
             PendingRangeCalculatorService.instance.blockUntilFinished();
             setMode(Mode.JOINING, "calculation complete, ready to bootstrap", true);
 
             logger.debug("... got ring + schema info");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8942
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12786
             if (useStrictConsistency && !allowSimultaneousMoves() &&
                     (
                         tokenMetadata.getBootstrapTokens().valueSet().size() > 0 ||
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
                         tokenMetadata.getSizeOfLeavingEndpoints() > 0 ||
                         tokenMetadata.getSizeOfMovingEndpoints() > 0
                     ))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13744
                 String bootstrapTokens = StringUtils.join(tokenMetadata.getBootstrapTokens().valueSet(), ',');
                 String leavingTokens = StringUtils.join(tokenMetadata.getLeavingEndpoints(), ',');
                 String movingTokens = StringUtils.join(tokenMetadata.getMovingEndpoints().stream().map(e -> e.right).toArray(), ',');
@@ -924,13 +1036,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             // get bootstrap tokens
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
             if (!replacing)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 if (tokenMetadata.isMember(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
                     throw new UnsupportedOperationException(s);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                 setMode(Mode.JOINING, "getting bootstrap token", true);
                 bootstrapTokens = BootStrapper.getBootstrapTokens(tokenMetadata, FBUtilities.getBroadcastAddressAndPort(), delay);
             }
@@ -950,8 +1066,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     }
 
                     // check for operator errors...
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6961
                     for (Token token : bootstrapTokens)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                         InetAddressAndPort existing = tokenMetadata.getEndpoint(token);
                         if (existing != null)
                         {
@@ -960,18 +1078,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 throw new UnsupportedOperationException("Cannot replace a live node... ");
                             current.add(existing);
                         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5337
                         else
                         {
                             throw new UnsupportedOperationException("Cannot replace token " + token + " which does not exist!");
                         }
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6622
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6622
                 else
                 {
                     try
                     {
                         Thread.sleep(RING_DELAY);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                     catch (InterruptedException e)
                     {
                         throw new AssertionError(e);
@@ -981,6 +1103,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 setMode(Mode.JOINING, "Replacing a node with token(s): " + bootstrapTokens, true);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8942
             dataAvailable = bootstrap(bootstrapTokens);
         }
         else
@@ -988,10 +1111,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             bootstrapTokens = SystemKeyspace.getSavedTokens();
             if (bootstrapTokens.isEmpty())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 bootstrapTokens = BootStrapper.getBootstrapTokens(tokenMetadata, FBUtilities.getBroadcastAddressAndPort(), delay);
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7649
                 if (bootstrapTokens.size() != DatabaseDescriptor.getNumTokens())
                     throw new ConfigurationException("Cannot change the number of tokens from " + bootstrapTokens.size() + " to " + DatabaseDescriptor.getNumTokens());
                 else
@@ -1000,6 +1125,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         setUpDistributedSystemKeyspaces();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15398
 
         if (!isSurveyMode)
         {
@@ -1010,6 +1136,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!current.isEmpty())
                 {
                     Gossiper.runInGossipStageBlocking(() -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                         for (InetAddressAndPort existing : current)
                             Gossiper.instance.replacedEndpoint(existing);
                     });
@@ -1022,6 +1149,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
             if (dataAvailable)
                 logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
             else
@@ -1044,6 +1172,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void gossipSnitchInfo()
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         String dc = snitch.getLocalDatacenter();
         String rack = snitch.getLocalRack();
         Gossiper.instance.addLocalApplicationState(ApplicationState.DC, StorageService.instance.valueFactory.datacenter(dc));
@@ -1052,6 +1181,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void joinRing() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         SystemKeyspace.BootstrapState state = SystemKeyspace.getBootstrapState();
         joinRing(state.equals(SystemKeyspace.BootstrapState.IN_PROGRESS));
     }
@@ -1061,8 +1191,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!joined)
         {
             logger.info("Joining ring by operator request");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4893
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2477
                 joinTokenRing(0);
             }
             catch (ConfigurationException e)
@@ -1074,6 +1206,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // if isSurveyMode is on then verify isBootstrapMode
             // node can join the ring even if isBootstrapMode is true which should not happen
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
             if (!isBootstrapMode())
             {
                 logger.info("Leaving write survey mode and joining ring at operator request");
@@ -1095,6 +1228,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void executePreJoinTasks(boolean bootstrap)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
                 .filter(cfs -> Schema.instance.getUserKeyspaces().contains(cfs.keyspace.getName()))
                 .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(bootstrap));
@@ -1103,7 +1237,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void finishJoiningRing(boolean didBootstrap, Collection<Token> tokens)
     {
         // start participating in the ring.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12836
         setMode(Mode.JOINING, "Finish joining ring", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
         executePreJoinTasks(didBootstrap);
         setTokens(tokens);
@@ -1122,8 +1258,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             DatabaseDescriptor.getRoleManager().setup();
             DatabaseDescriptor.getAuthenticator().setup();
             DatabaseDescriptor.getAuthorizer().setup();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
             DatabaseDescriptor.getNetworkAuthorizer().setup();
             Schema.instance.registerListener(new AuthSchemaChangeListener());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
             authSetupComplete = true;
         }
     }
@@ -1136,6 +1274,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void setUpDistributedSystemKeyspaces()
     {
         Collection<Mutation> changes = new ArrayList<>(3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15398
 
         evolveSystemKeyspace(            TraceKeyspace.metadata(),             TraceKeyspace.GENERATION).ifPresent(changes::add);
         evolveSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION).ifPresent(changes::add);
@@ -1147,11 +1286,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isJoined()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return tokenMetadata.isMember(FBUtilities.getBroadcastAddressAndPort()) && !isSurveyMode;
     }
 
     public void rebuild(String sourceDc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9875
         rebuild(sourceDc, null, null, null);
     }
 
@@ -1164,6 +1305,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // check the arguments
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
         if (keyspace == null && tokens != null)
         {
             throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
@@ -1177,18 +1319,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             RangeStreamer streamer = new RangeStreamer(tokenMetadata,
                                                        null,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                        FBUtilities.getBroadcastAddressAndPort(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
                                                        StreamOperation.REBUILD,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
                                                        useStrictConsistency && !replacing,
                                                        DatabaseDescriptor.getEndpointSnitch(),
                                                        streamStateStore,
                                                        false,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4663
                                                        DatabaseDescriptor.getStreamingConnectionsPerHost());
             if (sourceDc != null)
                 streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
             if (keyspace == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
                 for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
                     streamer.addRanges(keyspaceName, getLocalReplicas(keyspaceName));
             }
@@ -1218,6 +1366,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // Ensure all specified ranges are actually ranges owned by this host
                 RangesAtEndpoint localReplicas = getLocalReplicas(keyspace);
                 RangesAtEndpoint.Builder streamRanges = new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort(), ranges.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9875
                 for (Range<Token> specifiedRange : ranges)
                 {
                     boolean foundParentRange = false;
@@ -1239,6 +1388,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (specificSources != null)
                 {
                     String[] stringHosts = specificSources.split(",");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     Set<InetAddressAndPort> sources = new HashSet<>(stringHosts.length);
                     for (String stringHost : stringHosts)
                     {
@@ -1276,6 +1426,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.error("Error while rebuilding node", e.getCause());
             throw new RuntimeException("Error while rebuilding node: " + e.getCause().getMessage());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9119
         finally
         {
             // rebuild is done (successfully or not)
@@ -1285,12 +1436,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setRpcTimeout(long value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10953
         DatabaseDescriptor.setRpcTimeout(value);
         logger.info("set rpc timeout to {} ms", value);
     }
 
     public long getRpcTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
     }
 
@@ -1302,6 +1455,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getReadRpcTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getReadRpcTimeout(MILLISECONDS);
     }
 
@@ -1313,6 +1467,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getRangeRpcTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS);
     }
 
@@ -1324,6 +1479,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getWriteRpcTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS);
     }
 
@@ -1357,6 +1513,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getCounterWriteRpcTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getCounterWriteRpcTimeout(MILLISECONDS);
     }
 
@@ -1368,6 +1525,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getCasContentionTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getCasContentionTimeout(MILLISECONDS);
     }
 
@@ -1379,11 +1537,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long getTruncateRpcTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS);
     }
 
     public void setStreamThroughputMbPerSec(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3571
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
         logger.info("setstreamthroughput: throttle set to {}", value);
     }
@@ -1395,6 +1556,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setInterDCStreamThroughputMbPerSec(int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(value);
         logger.info("setinterdcstreamthroughput: throttle set to {}", value);
     }
@@ -1413,11 +1575,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setCompactionThroughputMbPerSec(int value)
     {
         DatabaseDescriptor.setCompactionThroughputMbPerSec(value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10025
         CompactionManager.instance.setRate(value);
     }
 
     public int getBatchlogReplayThrottleInKB()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
         return DatabaseDescriptor.getBatchlogReplayThrottleInKB();
     }
 
@@ -1429,6 +1593,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getConcurrentCompactors()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
         return DatabaseDescriptor.getConcurrentCompactors();
     }
 
@@ -1459,6 +1624,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getConcurrentValidators()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13521
         return DatabaseDescriptor.getConcurrentValidations();
     }
 
@@ -1486,6 +1652,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getConcurrentViewBuilders()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         return DatabaseDescriptor.getConcurrentViewBuilders();
     }
 
@@ -1499,6 +1666,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isIncrementalBackupsEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3561
         return DatabaseDescriptor.isIncrementalBackupsEnabled();
     }
 
@@ -1509,6 +1677,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void setMode(Mode m, boolean log)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         setMode(m, null, log);
     }
 
@@ -1535,12 +1705,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         isBootstrapMode = true;
         SystemKeyspace.updateTokens(tokens); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
         if (!replacing || !isReplacingSameAddress())
         {
             // if not an existing token then bootstrap
             List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
             states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, replacing?
                                                             valueFactory.bootReplacingWithPort(DatabaseDescriptor.getReplaceAddress()) :
                                                             valueFactory.bootstrapping(tokens)));
@@ -1548,18 +1720,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                             valueFactory.bootReplacing(DatabaseDescriptor.getReplaceAddress().address) :
                                                             valueFactory.bootstrapping(tokens)));
             Gossiper.instance.addLocalApplicationStates(states);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
             Uninterruptibles.sleepUninterruptibly(RING_DELAY, MILLISECONDS);
         }
         else
         {
             // Dont set any state for the node which is bootstrapping the existing token...
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddressAndPort());
             SystemKeyspace.removeEndpoint(DatabaseDescriptor.getReplaceAddress());
         }
         if (!Gossiper.instance.seenAnySeed())
             throw new IllegalStateException("Unable to contact any seeds!");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
         if (Boolean.getBoolean("cassandra.reset_bootstrap_progress"))
         {
             logger.info("Resetting bootstrap progress to start fresh");
@@ -1568,7 +1744,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // Force disk boundary invalidation now that local tokens are set
         invalidateDiskBoundaries();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddressAndPort(), tokens, tokenMetadata);
         bootstrapper.addProgressListener(progressSupport);
@@ -1576,6 +1755,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         try
         {
             bootstrapStream.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14878
             bootstrapFinished();
             logger.info("Bootstrap completed for tokens {}", tokens);
             return true;
@@ -1589,6 +1769,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void invalidateDiskBoundaries()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         for (Keyspace keyspace : Keyspace.all())
         {
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
@@ -1605,9 +1786,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * All MVs have been created during bootstrap, so mark them as built
      */
     private void markViewsAsBuilt() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12984
         for (String keyspace : Schema.instance.getUserKeyspaces())
         {
             for (ViewMetadata view: Schema.instance.getKeyspaceMetadata(keyspace).views)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 SystemKeyspace.finishViewBuildStatus(view.keyspace(), view.name());
         }
     }
@@ -1629,8 +1812,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // get bootstrap tokens saved in system keyspace
             final Collection<Token> tokens = SystemKeyspace.getSavedTokens();
             // already bootstrapped ranges are filtered during bootstrap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddressAndPort(), tokens, tokenMetadata);
             bootstrapper.addProgressListener(progressSupport);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
             ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
             Futures.addCallback(bootstrapStream, new FutureCallback<StreamState>()
             {
@@ -1639,7 +1826,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12984
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12984
                         bootstrapFinished();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
                         if (isSurveyMode)
                         {
                             logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
@@ -1666,6 +1856,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 @Override
                 public void onFailure(Throwable e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13272
                     String message = "Error during bootstrap: ";
                     if (e instanceof ExecutionException && e.getCause() != null)
                     {
@@ -1691,6 +1882,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         Stream<Stage> stageStream = stageNames.isEmpty() ? stream(Stage.values()) : stageNames.stream().map(Stage::fromPoolName);
         return stageStream.collect(toMap(s -> s.jmxName,
                                          s -> Arrays.asList(s.getCorePoolSize(), s.getMaximumPoolSize())));
@@ -1716,6 +1909,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<List<String>, List<String>> getRangeToEndpointMap(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getRangeToEndpointMap(keyspace, false);
     }
 
@@ -1753,6 +1947,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14398
                 InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT).value);
                 return address.getHostAddress(withPort);
             }
@@ -1814,6 +2009,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // non-system keyspace.
         if (keyspace == null)
             keyspace = Schema.instance.getNonLocalStrategyKeyspaces().get(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
 
         Map<List<String>, List<String>> map = new HashMap<>();
         for (Map.Entry<Range<Token>, EndpointsForRange> entry : tokenMetadata.getPendingRangesMM(keyspace).asMap().entrySet())
@@ -1858,6 +2054,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean isLocalDC(InetAddressAndPort targetHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         String localDC = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
         return remoteDC.equals(localDC);
     }
@@ -1868,14 +2065,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // non-system keyspace.
         if (keyspace == null)
             keyspace = Schema.instance.getNonLocalStrategyKeyspaces().get(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
 
         List<Range<Token>> ranges = getAllRanges(sortedTokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
         return constructRangeToEndpointMap(keyspace, ranges);
     }
 
 
     public List<String> describeRingJMX(String keyspace) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return describeRingJMX(keyspace, false);
     }
 
@@ -1893,9 +2093,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private List<String> describeRingJMX(String keyspace, boolean withPort) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
         List<TokenRange> tokenRanges;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             tokenRanges = describeRing(keyspace, false, withPort);
         }
         catch (InvalidRequestException e)
@@ -1906,6 +2108,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (TokenRange tokenRange : tokenRanges)
             result.add(tokenRange.toString(withPort));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         return result;
     }
@@ -1921,6 +2124,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public List<TokenRange> describeRing(String keyspace) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return describeRing(keyspace, false, false);
     }
 
@@ -1929,19 +2133,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public List<TokenRange> describeLocalRing(String keyspace) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return describeRing(keyspace, true, false);
     }
 
     private List<TokenRange> describeRing(String keyspace, boolean includeOnlyLocalDC, boolean withPort) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6529
         if (!Schema.instance.getKeyspaces().contains(keyspace))
             throw new InvalidRequestException("No such keyspace: " + keyspace);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         if (keyspace == null || Keyspace.open(keyspace).getReplicationStrategy() instanceof LocalStrategy)
             throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
 
         List<TokenRange> ranges = new ArrayList<>();
         Token.TokenFactory tf = getTokenFactory();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         EndpointsByRange rangeToAddressMap =
                 includeOnlyLocalDC
@@ -1956,6 +2164,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, String> getTokenToEndpointMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getTokenToEndpointMap(false);
     }
 
@@ -1990,12 +2199,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, String> getHostIdMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10382
         return getEndpointToHostId();
     }
 
 
     public Map<String, String> getEndpointToHostId()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getEndpointToHostId(false);
     }
 
@@ -2038,6 +2249,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     */
     private EndpointsByRange constructRangeToEndpointMap(String keyspace, List<Range<Token>> ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
         Map<Range<Token>, EndpointsForRange> rangeToEndpointMap = new HashMap<>(ranges.size());
         for (Range<Token> range : ranges)
@@ -2084,6 +2297,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (state == ApplicationState.STATUS || state == ApplicationState.STATUS_WITH_PORT)
         {
             String[] pieces = splitValue(value);
@@ -2100,8 +2314,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     handleStateBootstrap(endpoint);
                     break;
                 case VersionedValue.STATUS_NORMAL:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
                     handleStateNormal(endpoint, VersionedValue.STATUS_NORMAL);
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9871
                 case VersionedValue.SHUTDOWN:
                     handleStateNormal(endpoint, VersionedValue.SHUTDOWN);
                     break;
@@ -2129,11 +2345,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 return;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9180
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9180
             if (getTokenMetadata().isMember(endpoint))
             {
                 switch (state)
                 {
                     case RELEASE_VERSION:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
                         SystemKeyspace.updatePeerInfo(endpoint, "release_version", value.value);
                         break;
                     case DC:
@@ -2154,6 +2373,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             throw new RuntimeException(e);
                         }
                         break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     case NATIVE_ADDRESS_AND_PORT:
                         try
                         {
@@ -2175,6 +2395,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     case RPC_READY:
                         notifyRpcChange(endpoint, epState.isRpcReady());
                         break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1128
                     case NET_VERSION:
                         updateNetVersion(endpoint, value);
                         break;
@@ -2192,6 +2413,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             MessagingService.instance().versions.set(endpoint, Integer.parseInt(value.value));
         }
         catch (NumberFormatException e)
@@ -2216,14 +2438,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void updatePeerInfo(InetAddressAndPort endpoint)
     {
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddress native_address = null;
         int native_port = DatabaseDescriptor.getNativeTransportPort();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.states())
         {
             switch (entry.getKey())
             {
                 case RELEASE_VERSION:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
                     SystemKeyspace.updatePeerInfo(endpoint, "release_version", entry.getValue().value);
                     break;
                 case DC:
@@ -2235,6 +2460,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 case RPC_ADDRESS:
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                         native_address = InetAddress.getByName(entry.getValue().value);
                     }
                     catch (UnknownHostException e)
@@ -2254,6 +2480,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         throw new RuntimeException(e);
                     }
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6971
                 case SCHEMA:
                     SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(entry.getValue().value));
                     break;
@@ -2264,6 +2491,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         //Some tests won't set all the states
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (native_address != null)
         {
             SystemKeyspace.updatePeerNativeAddress(endpoint,
@@ -2276,6 +2504,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (ready)
             notifyUp(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7510
         else
             notifyDown(endpoint);
     }
@@ -2285,18 +2514,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!isRpcReady(endpoint) || !Gossiper.instance.isAlive(endpoint))
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4679
         for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
             subscriber.onUp(endpoint);
     }
 
     private void notifyDown(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4679
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
         for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
             subscriber.onDown(endpoint);
     }
 
     private void notifyJoined(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11038
         if (!isStatus(endpoint, VersionedValue.STATUS_NORMAL))
             return;
 
@@ -2306,6 +2539,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void notifyMoved(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4679
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
         for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
             subscriber.onMove(endpoint);
     }
@@ -2338,9 +2573,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void setRpcReady(boolean value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort());
         // if value is false we're OK with a null state, if it is true we are not.
         assert !value || state != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12781
 
         if (state != null)
             Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_READY, valueFactory.rpcReady(value));
@@ -2350,6 +2587,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
             EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
             if (state == null)
                 return Collections.emptyList();
@@ -2376,6 +2614,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Collection<Token> tokens;
         // explicitly check for TOKENS, because a bootstrapping node might be bootstrapping in legacy mode; that is, not using vnodes and no token specified
         tokens = getTokensFor(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5131
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state bootstrapping, token {}", endpoint, tokens);
@@ -2395,14 +2634,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             tokenMetadata.removeEndpoint(endpoint);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
         tokenMetadata.addBootstrapTokens(tokens, endpoint);
         PendingRangeCalculatorService.instance.update();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9370
         tokenMetadata.updateHostId(Gossiper.instance.getHostId(endpoint), endpoint);
     }
 
     private void handleStateBootreplacing(InetAddressAndPort newNode, String[] pieces)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort oldNode;
         try
         {
@@ -2419,6 +2663,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException(String.format("Node %s is trying to replace alive node %s.", newNode, oldNode));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Optional<InetAddressAndPort> replacingNode = tokenMetadata.getReplacingNode(newNode);
         if (replacingNode.isPresent() && !replacingNode.get().equals(oldNode))
         {
@@ -2472,11 +2717,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (final Token token : tokens)
         {
             // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort currentOwner = tokenMetadata.getEndpoint(token);
             if (currentOwner == null)
             {
                 logger.debug("New node {} at token {}", endpoint, token);
                 tokensToUpdateInMetadata.add(token);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
                 tokensToUpdateInSystemKeyspace.add(token);
             }
             else if (endpoint.equals(currentOwner))
@@ -2489,9 +2737,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 tokensToUpdateInMetadata.add(token);
                 tokensToUpdateInSystemKeyspace.add(token);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
                 // currentOwner is no longer current, endpoint is.  Keep track of these moves, because when
                 // a host no longer has any tokens, we'll want to remove it.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 Multimap<InetAddressAndPort, Token> epToTokenCopy = getTokenMetadata().getEndpointToTokenMapForReading();
                 epToTokenCopy.get(currentOwner).remove(token);
                 if (epToTokenCopy.get(currentOwner).isEmpty())
@@ -2506,8 +2757,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort ep : endpointsToRemove)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5167
             removeEndpoint(ep);
             if (replacing && ep.equals(DatabaseDescriptor.getReplaceAddress()))
                 Gossiper.instance.replacementQuarantine(ep); // quarantine locally longer than normally; see CASSANDRA-8260
@@ -2523,8 +2776,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void handleStateNormal(final InetAddressAndPort endpoint, final String status)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         Collection<Token> tokens = getTokensFor(endpoint);
         Set<InetAddressAndPort> endpointsToRemove = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state {}, token {}", endpoint, status, tokens);
@@ -2537,6 +2792,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                          endpoint,
                          Gossiper.instance.getEndpointStateForEndpoint(endpoint));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Optional<InetAddressAndPort> replacingNode = tokenMetadata.getReplacingNode(endpoint);
         if (replacingNode.isPresent())
         {
@@ -2550,23 +2806,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             endpointsToRemove.add(replacingNode.get());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Optional<InetAddressAndPort> replacementNode = tokenMetadata.getReplacementNode(endpoint);
         if (replacementNode.isPresent())
         {
             logger.warn("Node {} is currently being replaced by node {}.", endpoint, replacementNode.get());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7122
         updatePeerInfo(endpoint);
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9370
         UUID hostId = Gossiper.instance.getHostId(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort existing = tokenMetadata.getEndpointForHostId(hostId);
         if (replacing && isReplacingSameAddress() && Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null
             && (hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()))))
             logger.warn("Not updating token metadata for {} because I am replacing it", endpoint);
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6615
             if (existing != null && !existing.equals(endpoint))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 if (existing.equals(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     logger.warn("Not updating host ID {} for {} because it's mine", hostId, endpoint);
@@ -2597,11 +2859,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         updateTokenMetadata(endpoint, tokens, endpointsToRemove);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8516
         if (isMoving || operationMode == Mode.MOVING)
         {
             tokenMetadata.removeFromMoving(endpoint);
             notifyMoved(endpoint);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11038
         else if (!isMember) // prior to this, the node was not a member
         {
             notifyJoined(endpoint);
@@ -2639,10 +2903,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         assert pieces.length >= 2;
         Collection<Token> tokens = getTokensFor(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state left, tokens {}", endpoint, tokens);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
         excise(tokens, endpoint, extractExpireTime(pieces));
     }
 
@@ -2658,6 +2925,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         assert pieces.length >= 2;
         Token token = getTokenFactory().fromString(pieces[1]);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state moving, new token {}", endpoint, token);
@@ -2677,6 +2945,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         assert (pieces.length > 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
         {
             logger.info("Received removenode gossip about myself. Is this node rejoining after an explicit removenode?");
@@ -2692,11 +2961,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         if (tokenMetadata.isMember(endpoint))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3396
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             String state = pieces[0];
             Collection<Token> removeTokens = tokenMetadata.getTokens(endpoint);
 
             if (VersionedValue.REMOVED_TOKEN.equals(state))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
                 excise(removeTokens, endpoint, extractExpireTime(pieces));
             }
             else if (VersionedValue.REMOVING_TOKEN.equals(state))
@@ -2709,9 +2981,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // Note that the endpoint is being removed
                 tokenMetadata.addLeavingEndpoint(endpoint);
                 PendingRangeCalculatorService.instance.update();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
 
                 // find the endpoint coordinating this removal that we need to notify when we're done
                 String[] coordinator = splitValue(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.REMOVAL_COORDINATOR));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
                 UUID hostId = UUID.fromString(coordinator[1]);
                 // grab any data we are now responsible for and notify responsible node
                 restoreReplicaCount(endpoint, tokenMetadata.getEndpointForHostId(hostId));
@@ -2720,6 +2996,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         else // now that the gossiper has told us about this nonexistent member, notify the gossiper to remove it
         {
             if (VersionedValue.REMOVED_TOKEN.equals(pieces[0]))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
                 addExpireTimeIfFound(endpoint, extractExpireTime(pieces));
             removeEndpoint(endpoint);
         }
@@ -2734,12 +3011,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // enough time for writes to expire and MessagingService timeout reporter callback to fire, which is where
             // hints are mostly written from - using getMinRpcTimeout() / 2 for the interval.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long delay = DatabaseDescriptor.getMinRpcTimeout(MILLISECONDS) + DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS);
             ScheduledExecutors.optionalTasks.schedule(() -> HintsService.instance.excise(hostId), delay, MILLISECONDS);
         }
 
         removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         if (!tokens.isEmpty())
             tokenMetadata.removeBootstrapTokens(tokens);
         notifyLeft(endpoint);
@@ -2755,7 +3034,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /** unlike excise we just need this endpoint gone without going through any notifications **/
     private void removeEndpoint(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(endpoint));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
         SystemKeyspace.removeEndpoint(endpoint);
     }
 
@@ -2785,6 +3067,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         EndpointsByRange rangeReplicas = Keyspace.open(keyspaceName).getReplicationStrategy().getRangeAddresses(tokenMetadata.cloneOnlyTokenMap());
         Multimap<InetAddressAndPort, FetchReplica> sourceRanges = HashMultimap.create();
         IFailureDetector failureDetector = FailureDetector.instance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
 
         logger.debug("Getting new source replicas for {}", leavingReplicas);
 
@@ -2839,6 +3122,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void sendReplicationNotification(InetAddressAndPort remote)
     {
         // notify the remote token
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message msg = Message.out(REPLICATION_DONE_REQ, noPayload);
         IFailureDetector failureDetector = FailureDetector.instance;
         if (logger.isDebugEnabled())
@@ -2937,6 +3221,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             replicasToFetch.put(keyspaceName, getNewSourceReplicas(keyspaceName, myNewReplicas));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         StreamPlan stream = new StreamPlan(StreamOperation.RESTORE_REPLICA_COUNT);
         replicasToFetch.forEach((keyspaceName, sources) -> {
             logger.debug("Requesting keyspace {} sources", keyspaceName);
@@ -2971,8 +3256,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.warn("Streaming to restore replica count failed", t);
                 // We still want to send the notification
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3617
                 sendReplicationNotification(notifyEndpoint);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         }, MoreExecutors.directExecutor());
     }
 
@@ -3015,6 +3304,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             temp.removeEndpoint(endpoint);
 
         EndpointsByReplica.Builder changedRanges = new EndpointsByReplica.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         // Go through the ranges and for each range check who will be
         // storing replicas for these ranges when the leaving endpoint
@@ -3050,21 +3340,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             changedRanges.putAll(replica, newReplicaEndpoints, Conflict.NONE);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return changedRanges.build();
     }
 
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.states())
         {
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6648
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6648
         MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
     }
 
     public void onAlive(InetAddressAndPort endpoint, EndpointState state)
     {
         MigrationManager.instance.scheduleSchemaPull(endpoint, state);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6648
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6648
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7993
 
         if (tokenMetadata.isMember(endpoint))
             notifyUp(endpoint);
@@ -3080,6 +3377,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         // interrupt any outbound connection; if the node is failing and we cannot reconnect,
         // this will rapidly lower the number of bytes we are willing to queue to the node
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().interruptOutbound(endpoint);
         notifyDown(endpoint);
     }
@@ -3092,6 +3390,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // Then, the node may have been upgraded and changed its messaging protocol version. If so, we
         // want to update that before we mark the node live again to avoid problems like CASSANDRA-11128.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1128
         VersionedValue netVersion = state.getApplicationState(ApplicationState.NET_VERSION);
         if (netVersion != null)
             updateNetVersion(endpoint, netVersion);
@@ -3100,11 +3399,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getLoadString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return FileUtils.stringifyFileSize(StorageMetrics.load.getCount());
     }
 
     public Map<String, String> getLoadMapWithPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getLoadMap(true);
     }
 
@@ -3128,11 +3429,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     // TODO
     public final void deliverHints(String host)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         throw new UnsupportedOperationException();
     }
 
     public Collection<Token> getLocalTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Collection<Token> tokens = SystemKeyspace.getSavedTokens();
         assert tokens != null && !tokens.isEmpty(); // should not be called before initServer sets this
         return tokens;
@@ -3141,6 +3444,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Nullable
     public InetAddressAndPort getEndpointForHostId(UUID hostId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         return tokenMetadata.getEndpointForHostId(hostId);
     }
 
@@ -3154,6 +3458,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getTokens(FBUtilities.getBroadcastAddressAndPort());
     }
 
@@ -3172,16 +3477,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getReleaseVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1031
         return FBUtilities.getReleaseVersionString();
     }
 
     public String getSchemaVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3937
         return Schema.instance.getVersion().toString();
     }
 
     public String getKeyspaceReplicationInfo(String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13853
         Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspaceName);
         if (keyspaceInstance == null)
             throw new IllegalArgumentException(); // ideally should never happen
@@ -3193,6 +3501,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<String> getLeavingNodes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return stringify(tokenMetadata.getLeavingEndpoints(), false);
     }
 
@@ -3276,6 +3585,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<String> getUnreachableNodes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return stringify(Gossiper.instance.getUnreachableMembers(), false);
     }
 
@@ -3288,6 +3598,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             locations[i] = FileUtils.getCanonicalPath(locations[i]);
         return locations;
     }
@@ -3305,6 +3616,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
     {
         List<String> stringEndpoints = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort ep : endpoints)
         {
             stringEndpoints.add(ep.getHostAddress(withPort));
@@ -3328,6 +3640,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tables))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.forceCleanup(jobs);
@@ -3367,6 +3680,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         return verify(extendedVerify, false, false, false, false, false, keyspaceName, tableNames);
     }
 
@@ -3380,6 +3694,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      .checkOwnsTokens(checkOwnsTokens)
                                                      .quick(quick).build();
         logger.info("Verifying {}.{} with options = {}", keyspaceName, Arrays.toString(tableNames), options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tableNames))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.verify(options);
@@ -3397,6 +3712,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, keyspaceName, tableNames))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.sstablesRewrite(excludeCurrentVersion, jobs);
@@ -3408,6 +3724,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             cfStore.forceMajorCompaction(splitOutput);
@@ -3433,7 +3750,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int garbageCollect(String tombstoneOptionString, int jobs, String keyspaceName, String ... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfs : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
         {
@@ -3441,6 +3760,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                 status = oneStatus;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7879
         return status.statusCode;
     }
 
@@ -3459,6 +3779,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
         if (entities != null && entities.length > 0 && entities[0].contains("."))
         {
             takeMultipleTableSnapshot(tag, skipFlush, entities);
@@ -3481,6 +3802,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      *            the tag given to the snapshot; may not be null or empty
      */
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
             throws IOException
     {
         takeMultipleTableSnapshot(tag, false, keyspaceName + "." + tableName);
@@ -3504,6 +3826,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
         takeSnapshot(tag, false, keyspaceNames);
     }
 
@@ -3555,6 +3878,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
 
         for (Keyspace keyspace : keyspaces)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
             keyspace.snapshot(tag, null, skipFlush);
     }
 
@@ -3573,8 +3897,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throws IOException
     {
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         for (String table : tableList)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
             String splittedString[] = StringUtils.split(table, '.');
             if (splittedString.length == 2)
             {
@@ -3583,6 +3909,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 if (keyspaceName == null)
                     throw new IOException("You must supply a keyspace name");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6585
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6585
                 if (operationMode.equals(Mode.JOINING))
                     throw new IOException("Cannot snapshot until bootstrap completes");
 
@@ -3606,6 +3934,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // Add Keyspace columnfamily to map in order to support atomicity for snapshot process.
                 // So no snapshot should happen if any one of the above conditions fail for any keyspace or columnfamily
                 keyspaceColumnfamily.get(keyspace).add(tableName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
             }
             else
@@ -3618,6 +3947,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
                 entry.getKey().snapshot(tag, table, skipFlush);
         }
 
@@ -3625,6 +3955,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void verifyKeyspaceIsValid(String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (null != VirtualKeyspaceRegistry.instance.getKeyspaceNullable(keyspaceName))
             throw new IllegalArgumentException("Cannot perform any operations against virtual keyspace " + keyspaceName);
 
@@ -3647,6 +3978,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if(tag == null)
             tag = "";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6281
         Set<String> keyspaces = new HashSet<>();
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
@@ -3673,6 +4005,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
                 for (Map.Entry<String, Directories.SnapshotSizeDetails> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
                 {
                     TabularDataSupport data = (TabularDataSupport)snapshotMap.get(snapshotDetail.getKey());
@@ -3738,6 +4071,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void forceKeyspaceFlush(String keyspaceName, String... tableNames) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             logger.debug("Forcing flush on keyspace {}, CF {}", keyspaceName, cfStore.name);
@@ -3747,11 +4081,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int repairAsync(String keyspace, Map<String, String> repairSpec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return repair(keyspace, repairSpec, Collections.emptyList()).left;
     }
 
     public Pair<Integer, Future<?>> repair(String keyspace, Map<String, String> repairSpec, List<ProgressListener> listeners)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         RepairOption option = RepairOption.parse(repairSpec, tokenMetadata.partitioner);
         // if ranges are not specified
         if (option.getRanges().isEmpty())
@@ -3762,6 +4098,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (option.getDataCenters().isEmpty() && option.getHosts().isEmpty())
                     option.getRanges().addAll(getPrimaryRanges(keyspace));
                     // except dataCenters only contain local DC (i.e. -local)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12522
                 else if (option.isInLocalDCOnly())
                     option.getRanges().addAll(getPrimaryRangesWithinDC(keyspace));
                 else
@@ -3769,6 +4107,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                 Iterables.addAll(option.getRanges(), getLocalReplicas(keyspace).onlyFull().ranges());
             }
         }
@@ -3787,8 +4126,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @return collection of ranges that match ring layout in TokenMetadata
      */
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7983
     Collection<Range<Token>> createRepairRangeFrom(String beginToken, String endToken)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         Token parsedBeginToken = getTokenFactory().fromString(beginToken);
         Token parsedEndToken = getTokenFactory().fromString(endToken);
 
@@ -3819,21 +4160,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public TokenFactory getTokenFactory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return tokenMetadata.partitioner.getTokenFactory();
     }
 
     private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final RepairOption options, List<ProgressListener> listeners)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9521
         if (!options.getDataCenters().isEmpty() && !options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
         {
             throw new IllegalArgumentException("the local data center must be part of the repair");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8901
         RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
         task.addProgressListener(progressSupport);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         for (ProgressListener listener : listeners)
             task.addProgressListener(listener);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13594
         if (options.isTraced())
         {
             Runnable r = () ->
@@ -3860,6 +4206,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Nullable
     public List<String> getParentRepairStatus(int cmd)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         Pair<ActiveRepairService.ParentRepairStatus, List<String>> pair = ActiveRepairService.instance.getRepairStatus(cmd);
         return pair == null ? null :
                ImmutableList.<String>builder().add(pair.left.name()).addAll(pair.right).build();
@@ -3889,6 +4236,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public Collection<Range<Token>> getPrimaryRangesForEndpoint(String keyspace, InetAddressAndPort ep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
         Collection<Range<Token>> primaryRanges = new HashSet<>();
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
@@ -3916,6 +4264,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
         String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(referenceEndpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<InetAddressAndPort> localDcNodes = metadata.getTopology().getDatacenterEndpoints().get(localDC);
         AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
 
@@ -3973,9 +4322,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     */
     public List<Range<Token>> getAllRanges(List<Token> sortedTokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11411
         if (logger.isTraceEnabled())
             logger.trace("computing ranges for {}", StringUtils.join(sortedTokens, ", "));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3106
         if (sortedTokens.isEmpty())
             return Collections.emptyList();
         int size = sortedTokens.size();
@@ -4017,6 +4368,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
         replicas.forEach(r -> inetList.add(r.endpoint().address));
@@ -4025,6 +4378,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
         return Replicas.stringify(replicas, true);
     }
@@ -4039,6 +4394,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (metadata == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return getNaturalReplicasForToken(keyspaceName, metadata.partitionKeyType.fromString(key));
     }
 
@@ -4050,6 +4407,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13396
         LoggingSupportFactory.getLoggingSupport().setLoggingLevel(classQualifier, rawLevel);
     }
 
@@ -4071,8 +4429,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Keyspace t = Keyspace.open(keyspaceName);
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfName);
         List<DecoratedKey> keys = keySamples(Collections.singleton(cfs), range);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2917
 
         long totalRowCountEstimate = cfs.estimatedKeysForRange(range);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
 
         // splitCount should be much smaller than number of key samples, to avoid huge sampling error
         int minSamplesPerSplit = 4;
@@ -4105,14 +4465,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<Token> tokens = Lists.newArrayListWithExpectedSize(keys.size() + 2);
         tokens.add(range.left);
         for (DecoratedKey key : keys)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             tokens.add(key.getToken());
         tokens.add(range.right);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8193
         return tokens;
     }
 
     private List<DecoratedKey> keySamples(Iterable<ColumnFamilyStore> cfses, Range<Token> range)
     {
         List<DecoratedKey> keys = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2917
         for (ColumnFamilyStore cfs : cfses)
             Iterables.addAll(keys, cfs.keySamples(range));
         FBUtilities.sortSampledKeys(keys, range);
@@ -4124,7 +4488,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void startLeaving()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.leaving(getLocalTokens()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.leaving(getLocalTokens()));
         tokenMetadata.addLeavingEndpoint(FBUtilities.getBroadcastAddressAndPort());
         PendingRangeCalculatorService.instance.update();
@@ -4132,18 +4498,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void decommission(boolean force) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12510
         TokenMetadata metadata = tokenMetadata.cloneAfterAllLeft();
         if (operationMode != Mode.LEAVING)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             if (!tokenMetadata.isMember(FBUtilities.getBroadcastAddressAndPort()))
                 throw new UnsupportedOperationException("local node is not a member of the token ring yet");
             if (metadata.getAllEndpoints().size() < 2)
                     throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8741
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8741
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8741
             if (operationMode != Mode.NORMAL)
                 throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12008
         if (!isDecommissioning.compareAndSet(false, true))
             throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12008
 
         if (logger.isDebugEnabled())
             logger.debug("DECOMMISSIONING");
@@ -4153,7 +4526,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             PendingRangeCalculatorService.instance.blockUntilFinished();
 
             String dc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12510
             if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
             {
                 int rf, numNodes;
@@ -4180,12 +4555,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                     + " Perform a forceful decommission to ignore.");
                     }
                     // TODO: do we care about fixing transient/full self-movements here? probably
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddressAndPort()).size() > 0)
                         throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
                 }
             }
 
             startLeaving();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7446
             long timeout = Math.max(RING_DELAY, BatchlogManager.instance.getBatchlogTimeout());
             setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
             Thread.sleep(timeout);
@@ -4195,17 +4572,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 public void run()
                 {
                     shutdownClientServers();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
                     Gossiper.instance.stop();
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3727
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1959
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                         MessagingService.instance().shutdown();
                     }
                     catch (IOError ioe)
                     {
                         logger.info("failed to shutdown message service: {}", ioe);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
                     Stage.shutdownNow();
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                     setMode(Mode.DECOMMISSIONED, true);
                     // let op be responsible for killing the process
                 }
@@ -4229,14 +4613,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void leaveRing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.NEEDS_BOOTSTRAP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tokenMetadata.removeEndpoint(FBUtilities.getBroadcastAddressAndPort());
         PendingRangeCalculatorService.instance.update();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
 
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.left(getLocalTokens(),Gossiper.computeExpireTime()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalTokens(),Gossiper.computeExpireTime()));
         int delay = Math.max(RING_DELAY, Gossiper.intervalInMillis * 2);
         logger.info("Announcing that I have left the ring for {}ms", delay);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Uninterruptibles.sleepUninterruptibly(delay, MILLISECONDS);
     }
 
@@ -4244,6 +4635,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, EndpointsByReplica> rangesToStream = new HashMap<>();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             EndpointsByReplica rangesMM = getChangedReplicasForLeaving(keyspaceName, FBUtilities.getBroadcastAddressAndPort(), tokenMetadata, Keyspace.open(keyspaceName).getReplicationStrategy());
@@ -4255,6 +4647,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         setMode(Mode.LEAVING, "replaying batch log and streaming data to other nodes", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7446
 
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
@@ -4263,22 +4656,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // Wait for batch log to complete before streaming hints.
         logger.debug("waiting for batch log processing.");
         batchlogReplay.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12008
 
         setMode(Mode.LEAVING, "streaming hints to other nodes", true);
 
         Future hintsSuccess = streamHints();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
 
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream acks.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12008
         streamSuccess.get();
         hintsSuccess.get();
         logger.debug("stream acks all received.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-573
         leaveRing();
         onFinish.run();
     }
 
     private Future streamHints()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
         return HintsService.instance.transferHints(this::getPreferredHintsStreamTarget);
     }
 
@@ -4288,6 +4686,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                              .filter(endpoint -> FailureDetector.instance.isAlive(endpoint) && !FBUtilities.getBroadcastAddressAndPort().equals(endpoint))
                              .collect(Collectors.toList());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return SystemReplicas.getSystemReplicas(endpoints);
     }
     /**
@@ -4301,6 +4701,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (candidates.isEmpty())
         {
             logger.warn("Unable to stream hints since no live endpoints seen");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
             throw new RuntimeException("Unable to stream hints since no live endpoints seen");
         }
         else
@@ -4308,14 +4709,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // stream to the closest peer as chosen by the snitch
             candidates = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), candidates);
             InetAddressAndPort hintsDestinationHost = candidates.get(0).endpoint();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13020
             return tokenMetadata.getHostId(hintsDestinationHost);
         }
     }
 
     public void move(String newToken) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4893
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             getTokenFactory().validate(newToken);
         }
         catch (ConfigurationException e)
@@ -4342,8 +4746,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // address of the current node
         InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // This doesn't make any sense in a vnodes environment.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4125
         if (getTokenMetadata().getTokens(localAddress).size() > 1)
         {
             logger.error("Invalid request to move(Token); This node has more than one token and cannot be moved thusly.");
@@ -4351,7 +4758,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         List<String> keyspacesToProcess = Schema.instance.getNonLocalStrategyKeyspaces();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
         PendingRangeCalculatorService.instance.blockUntilFinished();
         // checking if data is moving to this node
         for (String keyspaceName : keyspacesToProcess)
@@ -4361,18 +4775,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.moving(newToken));
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.moving(newToken));
         setMode(Mode.MOVING, String.format("Moving %s from %s to %s.", localAddress, getLocalTokens().iterator().next(), newToken), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4252
         setMode(Mode.MOVING, String.format("Sleeping %s ms before start streaming/fetching ranges", RING_DELAY), true);
         Uninterruptibles.sleepUninterruptibly(RING_DELAY, MILLISECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         RangeRelocator relocator = new RangeRelocator(Collections.singleton(newToken), keyspacesToProcess, tokenMetadata);
         relocator.calculateToFromStreams();
 
         if (relocator.streamsNeeded())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             setMode(Mode.MOVING, "fetching new ranges and streaming old ranges", true);
             try
             {
@@ -4383,12 +4804,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new RuntimeException("Interrupted while waiting for stream/fetch ranges to finish: " + e.getMessage());
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4559
         else
         {
             setMode(Mode.MOVING, "No ranges to fetch/stream", true);
         }
 
         setTokens(Collections.singleton(newToken)); // setting new token as we have everything settled
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
 
         if (logger.isDebugEnabled())
             logger.debug("Successfully moved to new token {}", getLocalTokens().iterator().next());
@@ -4396,6 +4819,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getRemovalStatus()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getRemovalStatus(false);
     }
 
@@ -4436,13 +4860,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void forceRemoveCompletion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         if (!replicatingNodes.isEmpty()  || tokenMetadata.getSizeOfLeavingEndpoints() > 0)
         {
             logger.warn("Removal not confirmed for for {}", StringUtils.join(this.replicatingNodes, ","));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (InetAddressAndPort endpoint : tokenMetadata.getLeavingEndpoints())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
                 UUID hostId = tokenMetadata.getHostId(endpoint);
                 Gossiper.instance.advertiseTokenRemoved(endpoint, hostId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
                 excise(tokenMetadata.getTokens(endpoint), endpoint);
             }
             replicatingNodes.clear();
@@ -4450,6 +4878,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10926
             logger.warn("No nodes to force removal on, call 'removenode' first");
         }
     }
@@ -4465,6 +4894,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void removeNode(String hostIdString)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort myAddress = FBUtilities.getBroadcastAddressAndPort();
         UUID localHostId = tokenMetadata.getHostId(myAddress);
         UUID hostId = UUID.fromString(hostIdString);
@@ -4473,6 +4903,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (endpoint == null)
             throw new UnsupportedOperationException("Host ID not found.");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10926
         if (!tokenMetadata.isMember(endpoint))
             throw new UnsupportedOperationException("Node to be removed is not a member of the token ring");
 
@@ -4486,12 +4917,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (tokenMetadata.isLeaving(endpoint))
             logger.warn("Node {} is already being removed, continuing removal anyway", endpoint);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (!replicatingNodes.isEmpty())
             throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete, or use 'removenode force' if this has failed.");
 
         Collection<Token> tokens = tokenMetadata.getTokens(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10926
 
         // Find the endpoints that are going to become responsible for data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
@@ -4514,10 +4950,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         tokenMetadata.addLeavingEndpoint(endpoint);
         PendingRangeCalculatorService.instance.update();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5135
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6244
 
         // the gossiper will handle spoofing this node's state to REMOVING_TOKEN for us
         // we add our own token so other nodes to let us know when they're done
         Gossiper.instance.advertiseRemoving(endpoint, hostId, localHostId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);
@@ -4525,13 +4986,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // wait for ReplicationDoneVerbHandler to signal we're done
         while (!replicatingNodes.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Uninterruptibles.sleepUninterruptibly(100, MILLISECONDS);
         }
 
         excise(tokens, endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
 
         // gossiper will indicate the token has left
         Gossiper.instance.advertiseTokenRemoved(endpoint, hostId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         replicatingNodes.clear();
         removingNode = null;
@@ -4554,16 +5018,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getOperationMode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3388
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return operationMode.toString();
     }
 
     public boolean isStarting()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8122
         return operationMode == Mode.STARTING;
     }
 
     public boolean isMoving()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10621
         return operationMode == Mode.MOVING;
     }
 
@@ -4574,6 +5042,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isDrained()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
         return operationMode == Mode.DRAINED;
     }
 
@@ -4584,6 +5053,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getDrainProgress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1588
         return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);
     }
 
@@ -4592,11 +5062,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
         drain(false);
     }
 
     protected synchronized void drain(boolean isFinalShutdown) throws IOException, InterruptedException, ExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         ExecutorService counterMutationStage = Stage.COUNTER_MUTATION.executor();
         ExecutorService viewMutationStage = Stage.VIEW_MUTATION.executor();
         ExecutorService mutationStage = Stage.MUTATION.executor();
@@ -4613,6 +5086,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         assert !isShutdown;
         isShutdown = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12461
         Throwable preShutdownHookThrowable = Throwables.perform(null, preShutdownHooks.stream().map(h -> h::run));
         if (preShutdownHookThrowable != null)
             logger.error("Attempting to continue draining after pre-shutdown hooks returned exception", preShutdownHookThrowable);
@@ -4621,6 +5095,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             setMode(Mode.DRAINING, "starting drain process", !isFinalShutdown);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
             try
             {
                 /* not clear this is reasonable time, but propagated from prior embedded behaviour */
@@ -4632,11 +5107,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             HintsService.instance.pauseDispatch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7889
             if (daemon != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5507
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5507
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5507
                 shutdownClientServers();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
             ScheduledExecutors.optionalTasks.shutdown();
             Gossiper.instance.stop();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2034
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "shutting down MessageService", false);
@@ -4644,9 +5128,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // In-progress writes originating here could generate hints to be written, so shut down MessagingService
             // before mutation stage, so we can get all the hints saved before shutting down
             MessagingService.instance().shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3727
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3727
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1959
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "clearing mutation stage", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
             viewMutationStage.shutdown();
             counterMutationStage.shutdown();
             mutationStage.shutdown();
@@ -4660,12 +5150,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 setMode(Mode.DRAINING, "flushing column families", false);
 
             // disable autocompaction - we don't want to start any new compactions while we are draining
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11878
             for (Keyspace keyspace : Keyspace.all())
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
                     cfs.disableAutoCompaction();
 
             // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
             totalCFs = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             for (Keyspace keyspace : Keyspace.nonSystem())
                 totalCFs += keyspace.getColumnFamilyStores().size();
             remainingCFs = totalCFs;
@@ -4674,6 +5166,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.nonSystem())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5064
                     flushes.add(cfs.forceFlush());
             }
             // wait for the flushes.
@@ -4685,6 +5178,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     FBUtilities.waitOnFuture(f);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
@@ -4703,6 +5197,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // system tables (for example compactions can obsolete sstables and the tidiers in SSTableReader update
             // system tables, see SSTableReader.GlobalTidy)
             flushes.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             for (Keyspace keyspace : Keyspace.system())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
@@ -4711,6 +5206,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             FBUtilities.waitOnFutures(flushes);
 
             HintsService.instance.shutdownBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
@@ -4718,14 +5215,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // whilst we've flushed all the CFs, which will have recycled all completed segments, we want to ensure
             // there are no segments to replay, so we force the recycling of any remaining (should be at most one)
             CommitLog.instance.forceRecycleAllSegments();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3578
 
             CommitLog.instance.shutdownBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1919
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2034
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ScheduledExecutors.nonPeriodicTasks.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
             if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, MINUTES))
                 logger.warn("Failed to wait for non periodic tasks to shutdown");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12457
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12251
             ColumnFamilyStore.shutdownPostFlushExecutor();
             setMode(Mode.DRAINED, !isFinalShutdown);
         }
@@ -4733,6 +5238,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.error("Caught an exception while draining ", t);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12461
         finally
         {
             Throwable postShutdownHookThrowable = Throwables.perform(null, postShutdownHooks.stream().map(h -> h::run));
@@ -4777,6 +5283,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!isDraining() && !isDrained())
             return postShutdownHooks.add(hook);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2721
         return false;
     }
 
@@ -4807,6 +5314,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner oldPartitioner = DatabaseDescriptor.setPartitionerUnsafe(newPartitioner);
         tokenMetadata = tokenMetadata.cloneWithNewPartitioner(newPartitioner);
         valueFactory = new VersionedValue.VersionedValueFactory(newPartitioner);
@@ -4823,9 +5331,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void truncate(String keyspace, String table) throws TimeoutException, IOException
     {
         verifyKeyspaceIsValid(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             StorageProxy.truncateBlocking(keyspace, table);
         }
         catch (UnavailableException e)
@@ -4838,12 +5348,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         List<Token> sortedTokens = tokenMetadata.sortedTokens();
         // describeOwnership returns tokens in an unspecified order, let's re-order them
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         Map<Token, Float> tokenMap = new TreeMap<Token, Float>(tokenMetadata.partitioner.describeOwnership(sortedTokens));
         Map<InetAddress, Float> nodeMap = new LinkedHashMap<>();
         for (Map.Entry<Token, Float> entry : tokenMap.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort endpoint = tokenMetadata.getEndpoint(entry.getKey());
             Float tokenOwnership = entry.getValue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14216
             if (nodeMap.containsKey(endpoint.address))
                 nodeMap.put(endpoint.address, nodeMap.get(endpoint.address) + tokenOwnership);
             else
@@ -4862,6 +5375,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             InetAddressAndPort endpoint = tokenMetadata.getEndpoint(entry.getKey());
             Float tokenOwnership = entry.getValue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14216
             if (nodeMap.containsKey(endpoint.toString()))
                 nodeMap.put(endpoint.toString(), nodeMap.get(endpoint.toString()) + tokenOwnership);
             else
@@ -4881,6 +5395,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private LinkedHashMap<InetAddressAndPort, Float> getEffectiveOwnership(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7238
         AbstractReplicationStrategy strategy;
         if (keyspace != null)
         {
@@ -4895,6 +5410,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         else
         {
             List<String> userKeyspaces = Schema.instance.getUserKeyspaces();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10176
 
             if (userKeyspaces.size() > 0)
             {
@@ -4912,6 +5428,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7238
             if (keyspaceInstance == null)
                 throw new IllegalArgumentException("The node does not have " + keyspace + " yet, probably still bootstrapping");
             strategy = keyspaceInstance.getReplicationStrategy();
@@ -4925,6 +5442,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Collection<InetAddressAndPort> endpoints : sortedDcsToEndpoints.values())
             endpointsGroupedByDc.add(endpoints);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         Map<Token, Float> tokenOwnership = tokenMetadata.partitioner.describeOwnership(tokenMetadata.sortedTokens());
         LinkedHashMap<InetAddressAndPort, Float> finalOwnership = Maps.newLinkedHashMap();
 
@@ -4949,6 +5467,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         LinkedHashMap<InetAddressAndPort, Float> result = getEffectiveOwnership(keyspace);
         LinkedHashMap<InetAddress, Float> asInets = new LinkedHashMap<>();
         result.entrySet().stream().forEachOrdered(entry -> asInets.put(entry.getKey().address, entry.getValue()));
@@ -4971,18 +5490,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNonSystemKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12271
         List<String> nonKeyspaceNamesList = new ArrayList<>(Schema.instance.getNonSystemKeyspaces());
         return Collections.unmodifiableList(nonKeyspaceNamesList);
     }
 
     public List<String> getNonLocalStrategyKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         return Collections.unmodifiableList(Schema.instance.getNonLocalStrategyKeyspaces());
     }
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view, boolean withPort)
     {
         Map<UUID, String> coreViewStatus = SystemDistributedKeyspace.viewStatus(keyspace, view);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, UUID> hostIdToEndpoint = tokenMetadata.getEndpointToHostIdMapForReading();
         Map<String, String> result = new HashMap<>();
 
@@ -4999,6 +5521,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getViewBuildStatuses(keyspace, view, false);
     }
 
@@ -5009,6 +5532,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setDynamicUpdateInterval(int dynamicUpdateInterval)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
         if (DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitch)
         {
 
@@ -5049,7 +5573,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (oldSnitch instanceof DynamicEndpointSnitch)
                 ((DynamicEndpointSnitch)oldSnitch).close();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
             IEndpointSnitch newSnitch;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4893
             try
             {
                 newSnitch = DatabaseDescriptor.createEndpointSnitch(dynamic != null && dynamic, epSnitchClassName);
@@ -5072,6 +5598,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // point snitch references to the new instance
             DatabaseDescriptor.setEndpointSnitch(newSnitch);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             for (String ks : Schema.instance.getKeyspaces())
             {
                 Keyspace.open(ks).getReplicationStrategy().snitch = newSnitch;
@@ -5116,6 +5643,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Map<InetAddressAndPort, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges("Unbootstrap",
                                                                                                                          keyspace,
                                                                                                                          StorageService.instance.getTokenMetadata().partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             RangesByEndpoint.Builder replicasPerEndpoint = new RangesByEndpoint.Builder();
             for (Map.Entry<Replica, Replica> endPointEntry : rangesWithEndpoints.flattenEntries())
             {
@@ -5131,10 +5659,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 replicasPerEndpoint.put(remote.endpoint(), remote.decorateSubrange(local.range()));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             sessionsToStreamByKeyspace.put(keyspace, replicasPerEndpoint.build());
         }
 
         StreamPlan streamPlan = new StreamPlan(StreamOperation.DECOMMISSION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
 
         // Vinculate StreamStateStore to current StreamPlan to update transferred rangeas per StreamSession
         streamPlan.listeners(streamStateStore);
@@ -5158,6 +5688,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void bulkLoad(String directory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4757
         try
         {
             bulkLoadInternal(directory).get();
@@ -5186,11 +5717,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             public void init(String keyspace)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
                 this.keyspace = keyspace;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3106
                 try
                 {
                     for (Map.Entry<Range<Token>, EndpointsForRange> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
                         Range<Token> range = entry.getKey();
                         EndpointsForRange replicas = entry.getValue();
                         Replicas.temporaryAssertFull(replicas);
@@ -5215,6 +5749,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rescheduleFailedDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LifecycleTransaction.rescheduleFailedDeletions();
     }
 
@@ -5224,9 +5759,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public void loadNewSSTables(String ksName, String cfName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14310
         if (!isInitialized())
             throw new RuntimeException("Not yet initialized, can't load new sstables");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         verifyKeyspaceIsValid(ksName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
         ColumnFamilyStore.loadNewSSTables(ksName, cfName);
     }
 
@@ -5236,8 +5775,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public List<String> sampleKeyRange() // do not rename to getter - see CASSANDRA-4452 for details
     {
         List<DecoratedKey> keys = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.getName(), FBUtilities.getBroadcastAddressAndPort()))
                 keys.addAll(keySamples(keyspace.getColumnFamilyStores(), range));
         }
@@ -5253,6 +5794,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     @Override
     public Map<String, List<CompositeData>> samplePartitions(int durationMillis, int capacity, int count,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
             List<String> samplers) throws OpenDataException
     {
         ConcurrentHashMap<String, List<CompositeData>> result = new ConcurrentHashMap<>();
@@ -5264,6 +5806,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         Uninterruptibles.sleepUninterruptibly(durationMillis, MILLISECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         for (String sampler : samplers)
         {
@@ -5288,6 +5831,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
         String[] indices = asList(idxNames).stream()
                                            .map(p -> isIndexColumnFamily(p) ? getIndexName(p) : p)
                                            .collect(toList())
@@ -5298,6 +5842,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void resetLocalSchema() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2963
         MigrationManager.resetLocalSchema();
     }
 
@@ -5308,6 +5853,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setTraceProbability(double probability)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6926
         this.traceProbability = probability;
     }
 
@@ -5318,6 +5864,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean shouldTraceProbablistically()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         return traceProbability != 0 && ThreadLocalRandom.current().nextDouble() < traceProbability;
     }
 
@@ -5332,6 +5879,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void enableAutoCompaction(String ks, String... tables) throws IOException
     {
         checkServiceAllowedToStart("auto compaction");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
 
         for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))
         {
@@ -5341,6 +5889,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, Boolean> getAutoCompactionStatus(String ks, String... tables) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8727
         Map<String, Boolean> status = new HashMap<String, Boolean>();
         for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))
             status.put(cfs.getTableName(), cfs.isAutoCompactionDisabled());
@@ -5350,6 +5899,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /** Returns the name of the cluster */
     public String getClusterName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5881
         return DatabaseDescriptor.getClusterName();
     }
 
@@ -5361,6 +5911,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setSSTablePreemptiveOpenIntervalInMB(int intervalInMB)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMB(intervalInMB);
     }
 
@@ -5381,6 +5932,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getTombstoneWarnThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6117
         return DatabaseDescriptor.getTombstoneWarnThreshold();
     }
 
@@ -5401,6 +5953,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getColumnIndexCacheSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         return DatabaseDescriptor.getColumnIndexCacheSizeInKB();
     }
 
@@ -5412,12 +5965,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getBatchSizeFailureThreshold()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8011
         return DatabaseDescriptor.getBatchSizeFailThresholdInKB();
     }
 
     public void setBatchSizeFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13699
         logger.info("Updated batch_size_fail_threshold_in_kb to {}", threshold);
     }
 
@@ -5434,6 +5989,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getInitialRangeTombstoneListAllocationSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15763
         return DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize();
     }
 
@@ -5469,6 +6025,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7635
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7635
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
         logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
     }
@@ -5476,11 +6034,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void clearConnectionHistory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
         daemon.clearConnectionHistory();
         logger.info("Cleared connection history");
     }
     public void disableAuditLog()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogManager.instance.disableAuditLog();
         logger.info("Auditlog is disabled");
     }
@@ -5488,6 +6048,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
 
@@ -5510,9 +6071,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         auditLogOptions.excluded_users = excludedUsers != null ? excludedUsers : DatabaseDescriptor.getAuditLoggingOptions().excluded_users;
 
         AuditLogManager.instance.enable(auditLogOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
         logger.info("AuditLog is enabled with logger: [{}], included_keyspaces: [{}], excluded_keyspaces: [{}], " +
                     "included_categories: [{}], excluded_categories: [{}], included_users: [{}], "
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
                     + "excluded_users: [{}], archive_command: [{}]", auditLogOptions.logger, auditLogOptions.included_keyspaces, auditLogOptions.excluded_keyspaces,
                     auditLogOptions.included_categories, auditLogOptions.excluded_categories, auditLogOptions.included_users, auditLogOptions.excluded_users,
                     auditLogOptions.archive_command);
@@ -5521,11 +6084,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isAuditLogEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         return AuditLogManager.instance.isEnabled();
     }
 
     public String getCorruptedTombstoneStrategy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         return DatabaseDescriptor.getCorruptedTombstoneStrategy().toString();
     }
 
@@ -5538,6 +6103,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public long getNativeTransportMaxConcurrentRequestsInBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
         return Server.EndpointPayloadTracker.getGlobalLimit();
     }
 
@@ -5562,6 +6128,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public void shutdownServer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         if (drainOnShutdown != null)
         {
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
@@ -5571,6 +6138,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void enableFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLoggerOptions fqlOptions = DatabaseDescriptor.getFullQueryLogOptions();
         path = path != null ? path : fqlOptions.log_dir;
         rollCycle = rollCycle != null ? rollCycle : fqlOptions.roll_cycle;

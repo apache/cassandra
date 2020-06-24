@@ -33,6 +33,7 @@ public abstract class Distribution implements Serializable
 
     public long maxValue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         return inverseCumProb(1d);
     }
 
@@ -46,6 +47,7 @@ public abstract class Distribution implements Serializable
     {
         double sum = 0;
         float d = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14106
         for (int count = 0; count < 51 ; count++)
         {
             sum += inverseCumProb(d);

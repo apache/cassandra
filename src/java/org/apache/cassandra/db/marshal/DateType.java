@@ -44,6 +44,7 @@ public class DateType extends AbstractType<Date>
     public static final DateType instance = new DateType();
 
     DateType() {super(ComparisonType.BYTE_ORDER);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
@@ -56,12 +57,14 @@ public class DateType extends AbstractType<Date>
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6973
       return ByteBufferUtil.bytes(TimestampSerializer.dateStringToTimestamp(source));
     }
 
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (parsed instanceof Long)
             return new Constants.Value(ByteBufferUtil.bytes((Long) parsed));
 
@@ -80,12 +83,14 @@ public class DateType extends AbstractType<Date>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10814
         return '"' + TimestampSerializer.getJsonDateFormatter().format(TimestampSerializer.instance.deserialize(buffer)) + '"';
     }
 
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5723
         if (super.isCompatibleWith(previous))
             return true;
 
@@ -95,6 +100,7 @@ public class DateType extends AbstractType<Date>
                       + "(negative timestamp values) and thus this change will corrupt your data if you have such negative timestamp. There is no "
                       + "reason to switch from DateType to TimestampType except if you were using DateType in the first place and switched to "
                       + "TimestampType by mistake.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
             return true;
         }
 
@@ -104,12 +110,15 @@ public class DateType extends AbstractType<Date>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         return this == otherType || otherType == TimestampType.instance || otherType == LongType.instance;
     }
 
     @Override
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5928
         return CQL3Type.Native.TIMESTAMP;
     }
 
@@ -121,6 +130,7 @@ public class DateType extends AbstractType<Date>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 8;
     }
 }

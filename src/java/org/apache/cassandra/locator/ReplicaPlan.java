@@ -162,6 +162,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         public boolean isAlive(Replica replica) { return live.endpoints().contains(replica.endpoint()); }
         public Replica lookup(InetAddressAndPort endpoint)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
             return liveAndDown().byEndpoint().get(endpoint);
         }
 

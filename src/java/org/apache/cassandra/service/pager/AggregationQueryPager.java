@@ -52,6 +52,7 @@ public final class AggregationQueryPager implements QueryPager
     @Override
     public PartitionIterator fetchPage(int pageSize,
                                        ConsistencyLevel consistency,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                        ClientState clientState,
                                        long queryStartNanoTime)
     {
@@ -72,6 +73,7 @@ public final class AggregationQueryPager implements QueryPager
     {
         if (limits.isGroupByLimit())
             return new GroupByPartitionIterator(pageSize, executionController, System.nanoTime());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
 
         return new AggregationPartitionIterator(pageSize, executionController, System.nanoTime());
     }
@@ -157,6 +159,7 @@ public final class AggregationQueryPager implements QueryPager
 
         public GroupByPartitionIterator(int pageSize,
                                          ConsistencyLevel consistency,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                          ClientState clientState,
                                         long queryStartNanoTime)
         {
@@ -287,6 +290,7 @@ public final class AggregationQueryPager implements QueryPager
          */
         private final PartitionIterator fetchSubPage(int subPageSize)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             return consistency != null ? subPager.fetchPage(subPageSize, consistency, clientState, queryStartNanoTime)
                                        : subPager.fetchPageInternal(subPageSize, executionController);
         }
@@ -400,6 +404,7 @@ public final class AggregationQueryPager implements QueryPager
     {
         public AggregationPartitionIterator(int pageSize,
                                             ConsistencyLevel consistency,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                             ClientState clientState,
                                             long queryStartNanoTime)
         {

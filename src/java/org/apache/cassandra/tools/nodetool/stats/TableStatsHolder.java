@@ -39,6 +39,7 @@ public class TableStatsHolder implements StatsHolder
     public TableStatsHolder(NodeProbe probe, boolean humanReadable, boolean ignore, List<String> tableNames, String sortKey, int top)
     {
         this.keyspaces = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
         this.humanReadable = humanReadable;
         this.sortKey = sortKey;
         this.top = top;
@@ -85,6 +86,7 @@ public class TableStatsHolder implements StatsHolder
             Map<String, Map<String, Object>> mpTables = new HashMap<>();
             for (StatsTable table : tables)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
                 Map<String, Object> mpTable = convertStatsTableToMap(table);
                 mpTables.put(table.tableName, mpTable);
             }
@@ -99,6 +101,7 @@ public class TableStatsHolder implements StatsHolder
      */
     private Map<String, Object> convertSortedFilteredSubsetToMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
         HashMap<String, Object> mpRet = new HashMap<>();
         mpRet.put("total_number_of_tables", numberOfTables);
         List<StatsTable> sortedFilteredTables = getSortedFilteredTables();
@@ -204,11 +207,13 @@ public class TableStatsHolder implements StatsHolder
             {
                 String tableName = table.getTableName();
                 StatsTable statsTable = new StatsTable();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
                 statsTable.fullName = keyspaceName + "." + tableName;
                 statsTable.keyspaceName = keyspaceName;
                 statsTable.tableName = tableName;
                 statsTable.isIndex = tableName.contains(".");
                 statsTable.sstableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "LiveSSTableCount");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
                 statsTable.oldSSTableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "OldVersionSSTableCount");
                 int[] leveledSStables = table.getSSTableCountPerLevel();
                 if (leveledSStables != null)
@@ -220,6 +225,7 @@ public class TableStatsHolder implements StatsHolder
                         int count = leveledSStables[level];
                         long maxCount = 4L; // for L0
                         if (level > 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
                             maxCount = (long) Math.pow(table.getLevelFanoutSize(), level);
                         // show max threshold for level when exceeded
                         statsTable.sstablesInEachLevel.add(count + ((count > maxCount) ? "/" + maxCount : ""));
@@ -337,6 +343,7 @@ public class TableStatsHolder implements StatsHolder
      * Sort and filter this TableStatHolder's tables as specified by its sortKey and top attributes.
      */
     public List<StatsTable> getSortedFilteredTables() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
         List<StatsTable> tables = new ArrayList<>();
         for (StatsKeyspace keyspace : keyspaces)
             tables.addAll(keyspace.tables);

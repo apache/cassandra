@@ -50,6 +50,7 @@ public interface IAuthorizer
      * @return Set of permissions of the user on the resource. Should never return null. Use Permission.NONE instead.
      */
     Set<Permission> authorize(AuthenticatedUser user, IResource resource);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
 
     /**
      * Grants a set of permissions on a resource to a role.
@@ -66,8 +67,10 @@ public interface IAuthorizer
      * @throws RequestExecutionException
      * @throws java.lang.UnsupportedOperationException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4898
 
     /**
      * Revokes a set of permissions on a resource from a user.
@@ -84,6 +87,7 @@ public interface IAuthorizer
      * @throws RequestExecutionException
      * @throws java.lang.UnsupportedOperationException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException;
 
@@ -106,8 +110,11 @@ public interface IAuthorizer
      * @throws RequestExecutionException
      * @throws java.lang.UnsupportedOperationException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4898
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4898
 
     /**
      * Called before deleting a role with DROP ROLE statement (or the alias provided for compatibility,

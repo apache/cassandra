@@ -46,6 +46,7 @@ public class EncryptionUtilsTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -80,6 +81,7 @@ public class EncryptionUtilsTest
         CipherFactory cipherFactory = new CipherFactory(tdeOptions);
         Cipher encryptor = cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
         FileChannel channel = new RandomAccessFile(f, "rw").getChannel();
@@ -109,6 +111,7 @@ public class EncryptionUtilsTest
         // encrypt
         CipherFactory cipherFactory = new CipherFactory(tdeOptions);
         Cipher encryptor = cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
         FileChannel channel = new RandomAccessFile(f, "rw").getChannel();

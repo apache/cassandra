@@ -74,6 +74,7 @@ final class ScriptBasedUDFunction extends UDFunction
     "jdk.nashorn.internal.runtime",
     "jdk.nashorn.internal.runtime.linker",
     // Nashorn / Java 11
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
     "java.lang.ref",
     "java.io",
     "java.util.function",
@@ -89,6 +90,7 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.google.common.collect",
     "com.google.common.reflect",
     // following required by UDF
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
     "org.apache.cassandra.cql3.functions.types",
     "org.apache.cassandra.cql3.functions.types.exceptions",
     "org.apache.cassandra.cql3.functions.types.utils"
@@ -97,6 +99,7 @@ final class ScriptBasedUDFunction extends UDFunction
     // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal
     // classes, which triggers AccessControlException from the UDF sandbox
     private static final UDFExecutorService executor =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10026
         new UDFExecutorService(new NamedThreadFactory("UserDefinedScriptFunctions",
                                                       Thread.MIN_PRIORITY,
                                                       udfClassLoader,
@@ -181,6 +184,7 @@ final class ScriptBasedUDFunction extends UDFunction
             params[i] = compose(protocolVersion, i, parameters.get(i));
 
         Object result = executeScriptInternal(params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
 
         return decompose(protocolVersion, result);
     }
@@ -209,6 +213,7 @@ final class ScriptBasedUDFunction extends UDFunction
         for (int i = 0; i < params.length; i++)
             bindings.put(argNames.get(i).toString(), params[i]);
         bindings.put("udfContext", udfContextBinding);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
 
         Object result;
         try
@@ -277,6 +282,7 @@ final class ScriptBasedUDFunction extends UDFunction
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9613
         return result;
     }
 
@@ -287,6 +293,7 @@ final class ScriptBasedUDFunction extends UDFunction
         private final AbstractJSObject fRetTup;
         private final AbstractJSObject fArgTup;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10818
         UDFContextWrapper()
         {
             fRetUDT = new AbstractJSObject()

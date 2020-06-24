@@ -187,6 +187,7 @@ class InboundSockets
 
     private static void addBindings(InboundConnectionSettings template, ImmutableList.Builder<InboundSocket> out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
         InboundConnectionSettings       settings = template.withDefaults();
         InboundConnectionSettings legacySettings = template.withLegacyDefaults();
 

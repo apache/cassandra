@@ -30,6 +30,7 @@ public class InstanceIDDefiner extends PropertyDefinerBase
     private static volatile String instanceId = "<main>";
     public static void setInstanceId(int id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
         instanceId = "node" + id;
         NamedThreadFactory.setGlobalPrefix("node" + id + "_");
     }

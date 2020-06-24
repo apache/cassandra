@@ -43,6 +43,7 @@ public class LocalPartitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return new CachedHashDecoratedKey(getToken(key), key);
     }
 
@@ -53,11 +54,13 @@ public class LocalPartitioner implements IPartitioner
 
     public Token split(Token left, Token right, double ratioToLeft)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         throw new UnsupportedOperationException();
     }
 
     public LocalToken getMinimumToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return new LocalToken(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
@@ -73,11 +76,13 @@ public class LocalPartitioner implements IPartitioner
 
     public LocalToken getRandomToken(Random random)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         throw new UnsupportedOperationException();
     }
 
     public Token.TokenFactory getTokenFactory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7237
         return tokenFactory;
     }
 
@@ -116,6 +121,8 @@ public class LocalPartitioner implements IPartitioner
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1553
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return Collections.singletonMap((Token)getMinimumToken(), new Float(1.0));
     }
 
@@ -126,6 +133,8 @@ public class LocalPartitioner implements IPartitioner
 
     public AbstractType<?> partitionOrdering()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return comparator;
     }
 
@@ -135,6 +144,7 @@ public class LocalPartitioner implements IPartitioner
 
         private LocalToken()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12651
             super(null);
         }
 
@@ -146,6 +156,7 @@ public class LocalPartitioner implements IPartitioner
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
             return comparator.getString(token);
         }
 

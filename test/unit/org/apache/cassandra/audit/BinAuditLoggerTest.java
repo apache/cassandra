@@ -51,10 +51,12 @@ public class BinAuditLoggerTest extends CQLTester
 
         AuditLogOptions options = new AuditLogOptions();
         options.enabled = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         options.logger = new ParameterizedClass("BinAuditLogger", null);
         options.roll_cycle = "TEST_SECONDLY";
         options.audit_logs_dir = tempDir.toString();
         DatabaseDescriptor.setAuditLoggingOptions(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogManager.instance.enable(DatabaseDescriptor.getAuditLoggingOptions());
         requireNetwork();
     }
@@ -78,6 +80,7 @@ public class BinAuditLoggerTest extends CQLTester
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                 assertEquals(0L, wire.read("version").int16());
                 assertEquals("audit", wire.read("type").text());
                 assertThat(wire.read("message").text(), containsString(AuditLogEntryType.PREPARE_STATEMENT.toString()));

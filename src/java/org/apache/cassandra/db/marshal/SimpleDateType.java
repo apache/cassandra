@@ -37,6 +37,7 @@ public class SimpleDateType extends TemporalType<Integer>
     public static final SimpleDateType instance = new SimpleDateType();
 
     SimpleDateType() {super(ComparisonType.BYTE_ORDER);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
@@ -46,6 +47,7 @@ public class SimpleDateType extends TemporalType<Integer>
     @Override
     public ByteBuffer fromTimeInMillis(long millis) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         return ByteBufferUtil.bytes(SimpleDateSerializer.timeInMillisToDay(millis));
     }
 
@@ -58,11 +60,13 @@ public class SimpleDateType extends TemporalType<Integer>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10027
         return this == otherType || otherType == Int32Type.instance;
     }
 
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(fromString((String) parsed));
@@ -96,6 +100,7 @@ public class SimpleDateType extends TemporalType<Integer>
     protected void validateDuration(Duration duration)
     {
         // Checks that the duration has no data below days.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         if (!duration.hasDayPrecision())
             throw invalidRequest("The duration must have a day precision. Was: %s", duration);
     }

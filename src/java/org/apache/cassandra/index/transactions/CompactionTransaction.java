@@ -33,6 +33,7 @@ import org.apache.cassandra.db.rows.Row;
 public interface CompactionTransaction extends IndexTransaction
 {
     void onRowMerge(Row merged, Row...versions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
 
     CompactionTransaction NO_OP = new CompactionTransaction()
     {

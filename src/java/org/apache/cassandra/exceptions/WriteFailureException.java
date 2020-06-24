@@ -31,6 +31,7 @@ public class WriteFailureException extends RequestFailureException
 
     public WriteFailureException(ConsistencyLevel consistency, int received, int blockFor, WriteType writeType, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15543
         super(ExceptionCode.WRITE_FAILURE, consistency, received, blockFor, ImmutableMap.copyOf(failureReasonByEndpoint));
         this.writeType = writeType;
     }

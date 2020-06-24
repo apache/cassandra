@@ -11,6 +11,7 @@ public class PreviewRepairCoordinatorTimeoutTest extends RepairCoordinatorTimeou
 {
     public PreviewRepairCoordinatorTimeoutTest(RepairParallelism parallelism, boolean withNotifications)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         super(RepairType.PREVIEW, parallelism, withNotifications);
     }
 }

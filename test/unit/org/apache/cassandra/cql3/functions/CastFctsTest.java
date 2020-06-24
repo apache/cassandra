@@ -156,6 +156,7 @@ public class CastFctsTest extends CQLTester
                 "CAST(g AS decimal), " +
                 "CAST(h AS decimal), " +
                 "CAST(i AS decimal) FROM %s"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14170
                    row(BigDecimal.valueOf(1),
                        BigDecimal.valueOf(2),
                        BigDecimal.valueOf(3),
@@ -208,6 +209,7 @@ public class CastFctsTest extends CQLTester
     @Test
     public void testNoLossOfPrecisionForCastToDecimal() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14170
         createTable("CREATE TABLE %s (k int PRIMARY KEY, bigint_clmn bigint, varint_clmn varint)");
         execute("INSERT INTO %s(k, bigint_clmn, varint_clmn) VALUES(2, 9223372036854775807, 1234567890123456789)");
 
@@ -220,6 +222,7 @@ public class CastFctsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a timeuuid primary key, b timestamp, c date, d time)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         final String yearMonthDay = "2015-05-21";
         final LocalDate localDate = LocalDate.of(2015, 5, 21);
         ZonedDateTime date = localDate.atStartOfDay(ZoneOffset.UTC);
@@ -245,6 +248,7 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT CAST(b AS text), " +
                            "CAST(c AS text), " +
                            "CAST(d AS text) FROM %s"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
                    row(yearMonthDay + "T11:03:02.000Z", yearMonthDay, "11:03:02.000000000"));
     }
 
@@ -308,6 +312,7 @@ public class CastFctsTest extends CQLTester
     public void testCounterCastsInSelectionClause() throws Throwable
     {
         createTable("CREATE TABLE %s (a int primary key, b counter)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10824
 
         execute("UPDATE %s SET b = b + 2 WHERE a = 1");
 
@@ -320,6 +325,7 @@ public class CastFctsTest extends CQLTester
                 "CAST(b AS decimal), " +
                 "CAST(b AS ascii), " +
                 "CAST(b AS text) FROM %s"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14170
                    row((byte) 2, (short) 2, 2, 2L, 2.0F, 2.0, BigDecimal.valueOf(2), "2", "2"));
     }
 }

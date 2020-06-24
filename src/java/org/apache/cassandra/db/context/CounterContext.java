@@ -140,6 +140,7 @@ public class CounterContext
      */
     public ByteBuffer createGlobal(CounterId id, long clock, long count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState state = ContextState.allocate(1, 0, 0);
         state.writeGlobal(id, clock, count);
         return state.context;
@@ -151,6 +152,7 @@ public class CounterContext
      */
     public ByteBuffer createLocal(long count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState state = ContextState.allocate(0, 1, 0);
         state.writeLocal(CounterId.getLocalId(), 1L, count);
         return state.context;
@@ -162,6 +164,7 @@ public class CounterContext
      */
     public ByteBuffer createRemote(CounterId id, long clock, long count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState state = ContextState.allocate(0, 0, 1);
         state.writeRemote(id, clock, count);
         return state.context;
@@ -169,11 +172,13 @@ public class CounterContext
 
     public static int headerLength(ByteBuffer context)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3003
         return HEADER_SIZE_LENGTH + Math.abs(context.getShort(context.position())) * HEADER_ELT_LENGTH;
     }
 
     private static int compareId(ByteBuffer bb1, int pos1, ByteBuffer bb2, int pos2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4647
         return ByteBufferUtil.compareSubArrays(bb1, pos1, bb2, pos2, CounterId.LENGTH);
     }
 
@@ -205,6 +210,7 @@ public class CounterContext
             {
                 long leftClock  = leftState.getClock();
                 long rightClock = rightState.getClock();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3641
                 long leftCount = leftState.getCount();
                 long rightCount = rightState.getCount();
 
@@ -215,6 +221,7 @@ public class CounterContext
                 // process clock comparisons
                 if (leftClock == rightClock)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3641
                     if (leftCount != rightCount)
                     {
                         // Inconsistent shard (see the corresponding code in merge()). We return DISJOINT in this
@@ -299,6 +306,8 @@ public class CounterContext
         int localCount = 0;
         int remoteCount = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
         ContextState leftState = ContextState.wrap(left);
         ContextState rightState = ContextState.wrap(right);
 
@@ -307,6 +316,7 @@ public class CounterContext
             int cmp = leftState.compareIdTo(rightState);
             if (cmp == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
                 Relationship rel = compare(leftState, rightState);
                 if (rel == Relationship.GREATER_THAN)
                     rightIsSuperSet = false;
@@ -353,10 +363,13 @@ public class CounterContext
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
         if (leftState.hasRemaining())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
             rightIsSuperSet = false;
         else if (rightState.hasRemaining())
             leftIsSuperSet = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
 
         // if one of the contexts is a superset, return it early.
         if (leftIsSuperSet)
@@ -391,6 +404,7 @@ public class CounterContext
         leftState.reset();
         rightState.reset();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         return merge(ContextState.allocate(globalCount, localCount, remoteCount), leftState, rightState);
     }
 
@@ -401,6 +415,7 @@ public class CounterContext
             int cmp = leftState.compareIdTo(rightState);
             if (cmp == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
                 Relationship rel = compare(leftState, rightState);
                 if (rel == Relationship.DISJOINT) // two local shards
                     mergedState.writeLocal(leftState.getCounterId(),
@@ -450,6 +465,7 @@ public class CounterContext
      */
     private Relationship compare(ContextState leftState, ContextState rightState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
         long leftClock = leftState.getClock();
         long leftCount = leftState.getCount();
         long rightClock = rightState.getClock();
@@ -471,6 +487,7 @@ public class CounterContext
                     }
 
                     if (leftCount > rightCount)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6953
                         return Relationship.GREATER_THAN;
                     else if (leftCount == rightCount)
                         return Relationship.EQUAL;
@@ -536,6 +553,7 @@ public class CounterContext
      */
     public String toString(ByteBuffer context)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
         ContextState state = ContextState.wrap(context);
         StringBuilder sb = new StringBuilder();
         sb.append("[");
@@ -578,6 +596,7 @@ public class CounterContext
     public boolean shouldClearLocal(ByteBuffer context)
     {
         // #elt being negative means we have to clean local shards.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
         return context.getShort(context.position()) < 0;
     }
 
@@ -589,6 +608,7 @@ public class CounterContext
         int totalCount = (context.remaining() - headerLength(context)) / STEP_LENGTH;
         int localAndGlobalCount = Math.abs(context.getShort(context.position()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
         if (localAndGlobalCount < totalCount)
             return true; // remote shard(s) present
 
@@ -628,6 +648,7 @@ public class CounterContext
 
         ByteBuffer marked = ByteBuffer.allocate(context.remaining());
         marked.putShort(marked.position(), (short) (count * -1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBufferUtil.copyBytes(context,
                                  context.position() + HEADER_SIZE_LENGTH,
                                  marked,
@@ -667,6 +688,7 @@ public class CounterContext
             cleared.putShort(cleared.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH, globalShardIndexes.get(i));
 
         int origHeaderLength = headerLength(context);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBufferUtil.copyBytes(context,
                                  context.position() + origHeaderLength,
                                  cleared,
@@ -695,6 +717,7 @@ public class CounterContext
      */
     public long getLocalCount(ByteBuffer context)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10470
         return getLocalClockAndCount(context).count;
     }
 
@@ -764,6 +787,7 @@ public class CounterContext
         private ContextState(ByteBuffer context)
         {
             this.context = context;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
             this.headerLength = this.bodyOffset = headerLength(context);
             this.headerOffset = HEADER_SIZE_LENGTH;
             updateIsGlobalOrLocal();
@@ -783,6 +807,7 @@ public class CounterContext
             int headerLength = HEADER_SIZE_LENGTH + (globalCount + localCount) * HEADER_ELT_LENGTH;
             int bodyLength = (globalCount + localCount + remoteCount) * STEP_LENGTH;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
             ByteBuffer buffer = ByteBuffer.allocate(headerLength + bodyLength);
             buffer.putShort(buffer.position(), (short) (globalCount + localCount));
 
@@ -845,6 +870,7 @@ public class CounterContext
         {
             this.headerOffset = HEADER_SIZE_LENGTH;
             this.bodyOffset = headerLength;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
             updateIsGlobalOrLocal();
         }
 
@@ -855,6 +881,7 @@ public class CounterContext
 
         public CounterId getCounterId()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4647
             return CounterId.wrap(context, context.position() + bodyOffset);
         }
 
@@ -870,6 +897,7 @@ public class CounterContext
 
         public void writeGlobal(CounterId id, long clock, long count)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
             writeElement(id, clock, count, true, false);
         }
 

@@ -44,10 +44,13 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public abstract class QueryOptions
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
                                                                        Collections.emptyList(),
                                                                        false,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                                                                        SpecificOptions.DEFAULT,
                                                                        ProtocolVersion.CURRENT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
     public static final CBCodec<QueryOptions> codec = new Codec();
 
@@ -66,10 +69,12 @@ public abstract class QueryOptions
 
     public static QueryOptions forProtocolVersion(ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         return new DefaultQueryOptions(null, null, true, null, protocolVersion);
     }
 
     public static QueryOptions create(ConsistencyLevel consistency,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                       List<ByteBuffer> values,
                                       boolean skipMetadata,
                                       int pageSize,
@@ -101,6 +106,8 @@ public abstract class QueryOptions
 
     public static QueryOptions addColumnSpecifications(QueryOptions options, List<ColumnSpecification> columnSpecs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
         return new OptionsWithColumnSpecifications(options, columnSpecs);
     }
 
@@ -130,6 +137,7 @@ public abstract class QueryOptions
      */
     public Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnMetadata> expectedReceivers) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10631
         if (jsonValuesCache == null)
             jsonValuesCache = new ArrayList<>(Collections.<Map<ColumnIdentifier, Term>>nCopies(getValues().size(), null));
 
@@ -202,6 +210,7 @@ public abstract class QueryOptions
     public int getNowInSeconds(QueryState state)
     {
         int nowInSeconds = getSpecificOptions().nowInSeconds;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         return nowInSeconds != Integer.MIN_VALUE ? nowInSeconds : state.getNowInSeconds();
     }
 
@@ -231,6 +240,7 @@ public abstract class QueryOptions
 
         private final transient ProtocolVersion protocolVersion;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
         {
             this.consistency = consistency;
@@ -277,6 +287,8 @@ public abstract class QueryOptions
 
         public List<ByteBuffer> getValues()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
             return this.wrapped.getValues();
         }
 
@@ -315,6 +327,8 @@ public abstract class QueryOptions
     {
         private final ImmutableList<ColumnSpecification> columnSpecs;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
         OptionsWithColumnSpecifications(QueryOptions wrapped, List<ColumnSpecification> columnSpecs)
         {
             super(wrapped);
@@ -350,6 +364,8 @@ public abstract class QueryOptions
         {
             super.prepare(specs);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
             orderedValues = new ArrayList<>(specs.size());
             for (int i = 0; i < specs.size(); i++)
             {
@@ -387,6 +403,7 @@ public abstract class QueryOptions
         private final int nowInSeconds;
 
         private SpecificOptions(int pageSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                 PagingState state,
                                 ConsistencyLevel serialConsistency,
                                 long timestamp,
@@ -414,6 +431,7 @@ public abstract class QueryOptions
             SERIAL_CONSISTENCY,
             TIMESTAMP,
             NAMES_FOR_VALUES,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             KEYSPACE,
             NOW_IN_SECONDS;
 
@@ -422,6 +440,7 @@ public abstract class QueryOptions
             public static EnumSet<Flag> deserialize(int flags)
             {
                 EnumSet<Flag> set = EnumSet.noneOf(Flag.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7244
                 for (int n = 0; n < ALL_VALUES.length; n++)
                 {
                     if ((flags & (1 << n)) != 0)
@@ -445,13 +464,16 @@ public abstract class QueryOptions
             EnumSet<Flag> flags = Flag.deserialize(version.isGreaterOrEqualTo(ProtocolVersion.V5)
                                                    ? (int)body.readUnsignedInt()
                                                    : (int)body.readUnsignedByte());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13443
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
             List<String> names = null;
             if (flags.contains(Flag.VALUES))
             {
                 if (flags.contains(Flag.NAMES_FOR_VALUES))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                     Pair<List<String>, List<ByteBuffer>> namesAndValues = CBUtil.readNameAndValueList(body, version);
                     names = namesAndValues.left;
                     values = namesAndValues.right;
@@ -470,6 +492,7 @@ public abstract class QueryOptions
             if (!flags.isEmpty())
             {
                 int pageSize = flags.contains(Flag.PAGE_SIZE) ? body.readInt() : -1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
                 PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValueNoCopy(body), version) : null;
                 ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
                 long timestamp = Long.MIN_VALUE;
@@ -482,6 +505,7 @@ public abstract class QueryOptions
                 }
                 String keyspace = flags.contains(Flag.KEYSPACE) ? CBUtil.readString(body) : null;
                 int nowInSeconds = flags.contains(Flag.NOW_IN_SECONDS) ? body.readInt() : Integer.MIN_VALUE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                 options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
             }
 
@@ -493,7 +517,9 @@ public abstract class QueryOptions
         {
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             EnumSet<Flag> flags = gatherFlags(options, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 dest.writeInt(Flag.serialize(flags));
             else
@@ -507,10 +533,13 @@ public abstract class QueryOptions
                 CBUtil.writeValue(options.getPagingState().serialize(version), dest);
             if (flags.contains(Flag.SERIAL_CONSISTENCY))
                 CBUtil.writeConsistencyLevel(options.getSerialConsistency(), dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             if (flags.contains(Flag.TIMESTAMP))
                 dest.writeLong(options.getSpecificOptions().timestamp);
             if (flags.contains(Flag.KEYSPACE))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                 CBUtil.writeAsciiString(options.getSpecificOptions().keyspace, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             if (flags.contains(Flag.NOW_IN_SECONDS))
                 dest.writeInt(options.getSpecificOptions().nowInSeconds);
 
@@ -525,8 +554,10 @@ public abstract class QueryOptions
 
             size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             EnumSet<Flag> flags = gatherFlags(options, version);
             size += (version.isGreaterOrEqualTo(ProtocolVersion.V5) ? 4 : 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
             if (flags.contains(Flag.VALUES))
                 size += CBUtil.sizeOfValueList(options.getValues());
@@ -536,10 +567,13 @@ public abstract class QueryOptions
                 size += CBUtil.sizeOfValue(options.getPagingState().serializedSize(version));
             if (flags.contains(Flag.SERIAL_CONSISTENCY))
                 size += CBUtil.sizeOfConsistencyLevel(options.getSerialConsistency());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             if (flags.contains(Flag.TIMESTAMP))
                 size += 8;
             if (flags.contains(Flag.KEYSPACE))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                 size += CBUtil.sizeOfAsciiString(options.getSpecificOptions().keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             if (flags.contains(Flag.NOW_IN_SECONDS))
                 size += 4;
 
@@ -551,6 +585,7 @@ public abstract class QueryOptions
             EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
             if (options.getValues().size() > 0)
                 flags.add(Flag.VALUES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             if (options.skipMetadata())
                 flags.add(Flag.SKIP_METADATA);
             if (options.getPageSize() >= 0)
@@ -562,8 +597,11 @@ public abstract class QueryOptions
             if (options.getSpecificOptions().timestamp != Long.MIN_VALUE)
                 flags.add(Flag.TIMESTAMP);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
                 if (options.getSpecificOptions().keyspace != null)
                     flags.add(Flag.KEYSPACE);
                 if (options.getSpecificOptions().nowInSeconds != Integer.MIN_VALUE)
@@ -577,6 +615,7 @@ public abstract class QueryOptions
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -41,6 +41,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
     {
         super(channel, compressor.preferredBufferType());
         this.compressor = compressor;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         this.sourcePosition = this.filePosition = filePosition;
     }
 
@@ -55,6 +56,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
 
     public long getSourcePosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         return sourcePosition;
     }
 
@@ -119,6 +121,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
             {
                 BufferPool.put(compressedBuffer);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
             compressedBuffer = BufferPool.get(bufferSize, compressor.preferredBufferType());
         }
 
@@ -132,6 +135,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         {
             int bufferSize = uncompressedSize + (uncompressedSize / 20);
             BufferPool.put(buffer);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
             buffer = BufferPool.get(bufferSize, compressor.preferredBufferType());
         }
 
@@ -151,6 +155,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
     @Override
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         BufferPool.put(compressedBuffer);
         super.close();
     }
@@ -161,6 +166,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
         ChannelProxy channel = new ChannelProxy(input.getPath());
         try
         {
@@ -173,6 +179,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
     ICompressor getCompressor()
     {
         return compressor;

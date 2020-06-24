@@ -53,6 +53,7 @@ import org.apache.hadoop.util.Progressable;
  * </p>
  */
 public class CqlBulkOutputFormat extends OutputFormat<Object, List<ByteBuffer>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         implements org.apache.hadoop.mapred.OutputFormat<Object, List<ByteBuffer>>
 {   
   
@@ -84,6 +85,7 @@ public class CqlBulkOutputFormat extends OutputFormat<Object, List<ByteBuffer>>
     @Override
     public void checkOutputSpecs(JobContext context)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         checkOutputSpecs(HadoopCompat.getConfiguration(context));
     }
 
@@ -140,6 +142,7 @@ public class CqlBulkOutputFormat extends OutputFormat<Object, List<ByteBuffer>>
     
     public static void setDeleteSourceOnSuccess(Configuration conf, boolean deleteSrc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7777
         conf.setBoolean(DELETE_SOURCE, deleteSrc);
     }
     
@@ -150,6 +153,7 @@ public class CqlBulkOutputFormat extends OutputFormat<Object, List<ByteBuffer>>
     
     public static void setTableAlias(Configuration conf, String alias, String columnFamily)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         conf.set(TABLE_ALIAS_PREFIX + alias, columnFamily);
     }
     

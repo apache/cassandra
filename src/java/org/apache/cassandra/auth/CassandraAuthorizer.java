@@ -65,6 +65,7 @@ public class CassandraAuthorizer implements IAuthorizer
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15041
             if (user.isSuper())
                 return resource.applicablePermissions();
 
@@ -107,15 +108,18 @@ public class CassandraAuthorizer implements IAuthorizer
         try
         {
             UntypedResultSet rows = process(String.format("SELECT resource FROM %s.%s WHERE role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.ROLE_PERMISSIONS,
                                                           escape(revokee.getRoleName())));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
 
             List<CQLStatement> statements = new ArrayList<>();
             for (UntypedResultSet.Row row : rows)
             {
                 statements.add(
                     QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE resource = '%s' AND role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                               SchemaConstants.AUTH_KEYSPACE_NAME,
                                                               AuthKeyspace.RESOURCE_ROLE_INDEX,
                                                               escape(row.getString("resource")),
@@ -125,8 +129,10 @@ public class CassandraAuthorizer implements IAuthorizer
             }
 
             statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                      AuthKeyspace.ROLE_PERMISSIONS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                                                      escape(revokee.getRoleName())),
                                                        ClientState.forInternalCalls()));
 
@@ -134,6 +140,7 @@ public class CassandraAuthorizer implements IAuthorizer
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
             logger.warn(String.format("CassandraAuthorizer failed to revoke all permissions of %s", revokee.getRoleName()), e);
         }
     }
@@ -146,6 +153,7 @@ public class CassandraAuthorizer implements IAuthorizer
         try
         {
             UntypedResultSet rows = process(String.format("SELECT role FROM %s.%s WHERE resource = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.RESOURCE_ROLE_INDEX,
                                                           escape(droppedResource.getName())));
@@ -154,23 +162,29 @@ public class CassandraAuthorizer implements IAuthorizer
             for (UntypedResultSet.Row row : rows)
             {
                 statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE role = '%s' AND resource = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                          AuthKeyspace.ROLE_PERMISSIONS,
                                                                          escape(row.getString("role")),
                                                                          escape(droppedResource.getName())),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                            ClientState.forInternalCalls()));
             }
 
             statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE resource = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                      AuthKeyspace.RESOURCE_ROLE_INDEX,
                                                                      escape(droppedResource.getName())),
                                                       ClientState.forInternalCalls()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
             executeLoggedBatch(statements);
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
             logger.warn(String.format("CassandraAuthorizer failed to revoke all permissions on %s", droppedResource), e);
         }
     }
@@ -178,10 +192,12 @@ public class CassandraAuthorizer implements IAuthorizer
     private void executeLoggedBatch(List<CQLStatement> statements)
     throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED,
                                                   VariableSpecifications.empty(),
                                                   Lists.newArrayList(Iterables.filter(statements, ModificationStatement.class)),
                                                   Attributes.none());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         processBatch(batch);
     }
 
@@ -190,10 +206,12 @@ public class CassandraAuthorizer implements IAuthorizer
     throws RequestExecutionException, RequestValidationException
     {
         QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                                              Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
                                                                                 ByteBufferUtil.bytes(resource.getName())));
 
         ResultMessage.Rows rows = select(authorizeRoleStatement, options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
 
         UntypedResultSet result = UntypedResultSet.create(rows.result);
 
@@ -211,10 +229,12 @@ public class CassandraAuthorizer implements IAuthorizer
             throws RequestExecutionException
     {
         process(String.format("UPDATE %s.%s SET permissions = permissions %s {%s} WHERE role = '%s' AND resource = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_PERMISSIONS,
                               op,
                               "'" + StringUtils.join(permissions, "','") + "'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                               escape(role.getRoleName()),
                               escape(resource.getName())));
     }
@@ -223,6 +243,7 @@ public class CassandraAuthorizer implements IAuthorizer
     private void removeLookupEntry(IResource resource, RoleResource role) throws RequestExecutionException
     {
         process(String.format("DELETE FROM %s.%s WHERE resource = '%s' and role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.RESOURCE_ROLE_INDEX,
                               escape(resource.getName()),
@@ -233,6 +254,7 @@ public class CassandraAuthorizer implements IAuthorizer
     private void addLookupEntry(IResource resource, RoleResource role) throws RequestExecutionException
     {
         process(String.format("INSERT INTO %s.%s (resource, role) VALUES ('%s','%s')",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.RESOURCE_ROLE_INDEX,
                               escape(resource.getName()),
@@ -246,9 +268,11 @@ public class CassandraAuthorizer implements IAuthorizer
     public Set<PermissionDetails> list(AuthenticatedUser performer,
                                        Set<Permission> permissions,
                                        IResource resource,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                        RoleResource grantee)
     throws RequestValidationException, RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
         if (!(performer.isSuper() || performer.isSystem()) && !performer.getRoles().contains(grantee))
             throw new UnauthorizedException(String.format("You are not authorized to view %s's permissions",
                                                           grantee == null ? "everyone" : grantee.getRoleName()));
@@ -266,6 +290,7 @@ public class CassandraAuthorizer implements IAuthorizer
 
     private Set<PermissionDetails> listPermissionsForRole(Set<Permission> permissions,
                                                           IResource resource,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                                           RoleResource role)
     throws RequestExecutionException
     {
@@ -279,6 +304,7 @@ public class CassandraAuthorizer implements IAuthorizer
                     Permission permission = Permission.valueOf(p);
                     if (permissions.contains(permission))
                         details.add(new PermissionDetails(row.getString(ROLE),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
                                                           Resources.fromName(row.getString(RESOURCE)),
                                                           permission));
                 }
@@ -301,6 +327,7 @@ public class CassandraAuthorizer implements IAuthorizer
         if (grantee != null)
         {
             conditions.add(ROLE + " = '%s'");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
             vars.add(escape(grantee.getRoleName()));
         }
 
@@ -318,6 +345,7 @@ public class CassandraAuthorizer implements IAuthorizer
 
     public Set<DataResource> protectedResources()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_PERMISSIONS));
     }
 
@@ -333,9 +361,11 @@ public class CassandraAuthorizer implements IAuthorizer
     private SelectStatement prepare(String entityname, String permissionsTable)
     {
         String query = String.format("SELECT permissions FROM %s.%s WHERE %s = ? AND resource = ?",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      permissionsTable,
                                      entityname);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
     }
 
@@ -345,6 +375,7 @@ public class CassandraAuthorizer implements IAuthorizer
         return StringUtils.replace(name, "'", "''");
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
         return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
@@ -359,6 +390,7 @@ public class CassandraAuthorizer implements IAuthorizer
     {
         QueryProcessor.instance.processBatch(statement,
                                              QueryState.forInternalCalls(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                              BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT),
                                              System.nanoTime());
     }

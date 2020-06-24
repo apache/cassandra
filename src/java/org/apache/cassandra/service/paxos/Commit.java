@@ -59,6 +59,7 @@ public class Commit
 
     public static Commit newProposal(UUID ballot, PartitionUpdate update)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         PartitionUpdate withNewTimestamp = new PartitionUpdate.Builder(update, 0).updateAllTimestamp(UUIDGen.microsTimestamp(ballot)).build();
         return new Commit(ballot, withNewTimestamp);
     }
@@ -80,6 +81,7 @@ public class Commit
 
     public Mutation makeMutation()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new Mutation(update);
     }
 
@@ -91,6 +93,7 @@ public class Commit
 
         Commit commit = (Commit) o;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return ballot.equals(commit.ballot) && update.equals(commit.update);
     }
 
@@ -117,6 +120,7 @@ public class Commit
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.LOCAL);
             return new Commit(ballot, update);
         }

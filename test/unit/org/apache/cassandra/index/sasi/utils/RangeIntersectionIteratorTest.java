@@ -224,6 +224,7 @@ public class RangeIntersectionIteratorTest
 
         RangeIterator emptyTokens = RangeIntersectionIterator.builder(strategy).build();
         Assert.assertEquals(0, emptyTokens.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
 
         builder = RangeIntersectionIterator.builder(strategy);
         Assert.assertEquals(0L, builder.add((RangeIterator<Long, Token>) null).rangeCount());
@@ -237,6 +238,7 @@ public class RangeIntersectionIteratorTest
         Assert.assertEquals(range, single);
 
         // Make a difference between empty and null ranges.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
         builder = RangeIntersectionIterator.builder(strategy);
         builder.add(new LongIterator(new long[] {}));
         Assert.assertEquals(0L, builder.rangeCount());
@@ -261,6 +263,7 @@ public class RangeIntersectionIteratorTest
     @Test
     public void emptyRangeTest() {
         RangeIterator.Builder<Long, Token> builder;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
 
         // empty, then non-empty
         builder = RangeIntersectionIterator.builder();
@@ -388,6 +391,7 @@ public class RangeIntersectionIteratorTest
             {
                 int rangeSize = random.nextInt(16, 512);
                 LongSet range = new LongHashSet(rangeSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
 
                 for (int j = 0; j < rangeSize; j++)
                     range.add(random.nextLong(0, 100));

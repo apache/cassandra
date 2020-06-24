@@ -62,6 +62,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
      * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
      */
     final static Field BITS_TOTAL_CAPACITY;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
 
     
     static
@@ -70,6 +71,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         try
         {
             Class<?> bitsClass = Class.forName("java.nio.Bits");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14757
             Field f;
             try
             {
@@ -119,6 +121,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     static final class GCState
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9124
         final GarbageCollectorMXBean gcBean;
         final boolean assumeGCIsPartiallyConcurrent;
         final boolean assumeGCIsOldGen;
@@ -191,6 +194,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
      */
     private static boolean assumeGCIsPartiallyConcurrent(GarbageCollectorMXBean gc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9124
         switch (gc.getName())
         {
                 //First two are from the serial collector
@@ -247,6 +251,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             // retrieve the garbage collection notification information
             CompositeData cd = (CompositeData) notification.getUserData();
             GarbageCollectionNotificationInfo info = GarbageCollectionNotificationInfo.from(cd);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9124
             String gcName = info.getGcName();
             GcInfo gcInfo = info.getGcInfo();
 
@@ -293,6 +298,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                     break;
             }
             
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12661
             if (gcWarnThreasholdInMs != 0 && duration > gcWarnThreasholdInMs)
                 logger.warn(sb.toString());
             else if (duration > gcLogThreshholdInMs)
@@ -302,9 +308,12 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
             if (duration > this.getStatusThresholdInMs())
                 StatusLogger.log();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9124
             if (gcState.assumeGCIsOldGen)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
                 LifecycleTransaction.rescheduleFailedDeletions();
         }
     }
@@ -325,6 +334,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         r[4] = state.totalBytesReclaimed;
         r[5] = state.count;
         r[6] = getAllocatedDirectMemory();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
 
         return r;
     }
@@ -346,7 +356,9 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcWarnThresholdInMs(long threshold)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12661
         if (threshold < 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12661
             throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
         if (threshold != 0 && threshold <= gcLogThreshholdInMs)
             throw new IllegalArgumentException("Threshold must be greater than gcLogTreasholdInMs which is currently " 

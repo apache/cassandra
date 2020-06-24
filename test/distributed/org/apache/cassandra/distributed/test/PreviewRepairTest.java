@@ -177,6 +177,8 @@ public class PreviewRepairTest extends TestBaseImpl
             SimpleCondition continuePreviewRepair = new SimpleCondition();
             DelayMessageFilter filter = new DelayMessageFilter(continuePreviewRepair);
             cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
 
             // get local ranges to repair two separate ranges:
             List<String> localRanges = cluster.get(1).callOnInstance(() -> {

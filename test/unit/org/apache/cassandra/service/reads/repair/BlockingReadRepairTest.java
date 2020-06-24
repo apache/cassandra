@@ -63,6 +63,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
         configureClass(ReadRepairStrategy.BLOCKING);
     }
 
@@ -89,6 +90,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         ReadCallback readCallback = null;
 
         @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
         void sendReadCommand(Replica to, ReadCallback callback, boolean speculative)
         {
             assert readCallback == null || readCallback == callback;
@@ -241,6 +243,8 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs);
         handler.sendInitialRepairs();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1);
         Assert.assertFalse(getCurrentRepairStatus(handler));
@@ -273,6 +277,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
 
         Assert.assertEquals(1, handler.waitingOn());
         Assert.assertFalse(getCurrentRepairStatus(handler));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
 
         handler.ack(remote1.endpoint());
         Assert.assertEquals(1, handler.waitingOn());

@@ -64,6 +64,7 @@ public class GeneratorConfig implements Serializable
 
     public String getConfigAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         StringBuilder sb = new StringBuilder();
         if (clusteringDistributions != null){
             sb.append(String.format("Clustering: %s;", clusteringDistributions.getConfigAsString()));

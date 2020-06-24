@@ -29,7 +29,9 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class Stop extends NodeToolCmd
 {
     @Arguments(title = "compaction_type",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
               usage = "<compaction type>",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15401
               description = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, UPGRADE_SSTABLES, INDEX_BUILD, TOMBSTONE_COMPACTION, ANTICOMPACTION, VERIFY, VIEW_BUILD, INDEX_SUMMARY, RELOCATE, GARBAGE_COLLECT",
               required = false)
     private OperationType compactionType = OperationType.UNKNOWN;

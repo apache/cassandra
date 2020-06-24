@@ -52,6 +52,7 @@ public class IndexSummaryTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         final long seed = System.nanoTime();
         System.out.println("Using seed: " + seed);
@@ -59,10 +60,12 @@ public class IndexSummaryTest
     }
 
     IPartitioner partitioner = Util.testPartitioner();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
     @BeforeClass
     public static void setup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
         final long seed = System.nanoTime();
         System.out.println("Using seed: " + seed);
         random.setSeed(seed);
@@ -73,6 +76,7 @@ public class IndexSummaryTest
     {
         // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
         Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
 
         testIndexSummaryProperties(32, 100);
         testIndexSummaryProperties(64, 100);
@@ -154,6 +158,8 @@ public class IndexSummaryTest
     {
         // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
         Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
 
         final int numKeys = 1000000;
         final int keySize = 3000;
@@ -191,6 +197,7 @@ public class IndexSummaryTest
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
         for (int i = 0; i < 100; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             assertEquals(random.left.get(i).getKey(), ByteBuffer.wrap(random.right.getKey(i)));
         random.right.close();
     }
@@ -217,7 +224,9 @@ public class IndexSummaryTest
     public void testSerialization() throws IOException
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         DataOutputBuffer dos = new DataOutputBuffer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         IndexSummary.serializer.serialize(random.right, dos);
         // write junk
         dos.writeUTF("JUNK");
@@ -232,6 +241,7 @@ public class IndexSummaryTest
         assertEquals(dis.readUTF(), "JUNK");
         is.close();
         FileUtils.closeQuietly(dis);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9134
         random.right.close();
     }
 
@@ -239,6 +249,7 @@ public class IndexSummaryTest
     public void testAddEmptyKey() throws Exception
     {
         IPartitioner p = new RandomPartitioner();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         try (IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, BASE_SAMPLING_LEVEL))
         {
             builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
@@ -247,7 +258,9 @@ public class IndexSummaryTest
             assertEquals(0, summary.getPosition(0));
             assertArrayEquals(new byte[0], summary.getKey(0));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
             DataOutputBuffer dos = new DataOutputBuffer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             IndexSummary.serializer.serialize(summary, dos);
             DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.toByteArray()));
             IndexSummary loaded = IndexSummary.serializer.deserialize(dis, p, 1, 1);
@@ -268,6 +281,7 @@ public class IndexSummaryTest
             for (int i = 0; i < size; i++)
             {
                 UUID uuid = UUID.randomUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.bytes(uuid));
                 list.add(key);
             }
@@ -277,6 +291,7 @@ public class IndexSummaryTest
             IndexSummary summary = builder.build(partitioner);
             return Pair.create(list, summary);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         catch (IOException e)
         {
             throw new RuntimeException(e);
@@ -286,9 +301,11 @@ public class IndexSummaryTest
     @Test
     public void testDownsamplePatterns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         assertEquals(Arrays.asList(0), Downsampling.getSamplingPattern(0));
         assertEquals(Arrays.asList(0), Downsampling.getSamplingPattern(1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         assertEquals(Arrays.asList(1, 0), Downsampling.getSamplingPattern(2));
         assertEquals(Arrays.asList(3, 1, 2, 0), Downsampling.getSamplingPattern(4));
         assertEquals(Arrays.asList(7, 3, 5, 1, 6, 2, 4, 0), Downsampling.getSamplingPattern(8));
@@ -320,6 +337,7 @@ public class IndexSummaryTest
         // sanity check on the original index summary
         for (int i = 0; i < ORIGINAL_NUM_ENTRIES; i++)
             assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(original.getKey(i)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
 
         List<Integer> samplePattern = Downsampling.getSamplingPattern(BASE_SAMPLING_LEVEL);
 
@@ -327,6 +345,7 @@ public class IndexSummaryTest
         int downsamplingRound = 1;
         for (int samplingLevel = BASE_SAMPLING_LEVEL - 1; samplingLevel >= 1; samplingLevel--)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             try (IndexSummary downsampled = downsample(original, samplingLevel, 128, partitioner);)
             {
                 assertEquals(entriesAtSamplingLevel(samplingLevel, original.getMaxNumberOfEntries()), downsampled.size());
@@ -352,6 +371,7 @@ public class IndexSummaryTest
         downsamplingRound = 1;
         for (int downsampleLevel = BASE_SAMPLING_LEVEL - 1; downsampleLevel >= 1; downsampleLevel--)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             IndexSummary downsampled = downsample(previous, downsampleLevel, 128, partitioner);
             if (previous != original)
                 previous.close();
@@ -363,6 +383,8 @@ public class IndexSummaryTest
             {
                 if (!shouldSkip(i, skipStartPoints))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                     assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(downsampled.getKey(sampledCount)));
                     sampledCount++;
                 }
@@ -384,6 +406,7 @@ public class IndexSummaryTest
             int binarySearch = downsampled.binarySearch(key);
             int index = SSTableReader.getIndexSummaryIndexFromBinarySearchResult(binarySearch);
             int scanFrom = (int) SSTableReader.getIndexScanPositionFromBinarySearchResult(index, downsampled);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8993
             assert scanFrom <= orig;
             int effectiveInterval = downsampled.getEffectiveIndexIntervalAfterIndex(index);
             DecoratedKey k = null;
@@ -396,6 +419,7 @@ public class IndexSummaryTest
     @Test
     public void testOriginalIndexLookup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         for (int i = BASE_SAMPLING_LEVEL; i >= 1; i--)
             assertEquals(i, Downsampling.getOriginalIndexes(i).size());
 
@@ -406,11 +430,13 @@ public class IndexSummaryTest
         assertEquals(full, Downsampling.getOriginalIndexes(BASE_SAMPLING_LEVEL));
         // the entry at index 127 is the first to go
         assertEquals(full.subList(0, full.size() - 1), Downsampling.getOriginalIndexes(BASE_SAMPLING_LEVEL - 1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
 
         // spot check a few values (these depend on BASE_SAMPLING_LEVEL being 128)
         assertEquals(128, BASE_SAMPLING_LEVEL);
         assertEquals(Arrays.asList(0, 32, 64, 96), Downsampling.getOriginalIndexes(4));
         assertEquals(Arrays.asList(0, 64), Downsampling.getOriginalIndexes(2));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8993
         assertEquals(Arrays.asList(0), Downsampling.getOriginalIndexes(1));
     }
 

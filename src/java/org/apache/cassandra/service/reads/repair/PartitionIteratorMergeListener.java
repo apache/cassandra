@@ -32,6 +32,8 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 
 public class PartitionIteratorMergeListener<E extends Endpoints<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         implements UnfilteredPartitionIterators.MergeListener
 {
     private final ReplicaPlan.ForRead<E> replicaPlan;

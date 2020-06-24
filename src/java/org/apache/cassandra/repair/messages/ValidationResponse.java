@@ -39,7 +39,9 @@ public class ValidationResponse extends RepairMessage
 
     public ValidationResponse(RepairJobDesc desc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(desc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         trees = null;
     }
 
@@ -61,6 +63,7 @@ public class ValidationResponse extends RepairMessage
      */
     public ValidationResponse tryMoveOffHeap() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return trees == null ? this : new ValidationResponse(desc, trees.tryMoveOffHeap());
     }
 
@@ -85,6 +88,7 @@ public class ValidationResponse extends RepairMessage
         public void serialize(ValidationResponse message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
             out.writeBoolean(message.success());
             if (message.trees != null)
                 MerkleTrees.serializer.serialize(message.trees, out, version);
@@ -98,6 +102,7 @@ public class ValidationResponse extends RepairMessage
             if (success)
             {
                 MerkleTrees trees = MerkleTrees.serializer.deserialize(in, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 return new ValidationResponse(desc, trees);
             }
 
@@ -112,5 +117,6 @@ public class ValidationResponse extends RepairMessage
                 size += MerkleTrees.serializer.serializedSize(message.trees, version);
             return size;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     };
 }

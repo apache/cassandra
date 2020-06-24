@@ -59,6 +59,7 @@ public class CassandraNetworkAuthorizerTest
     {
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
@@ -70,6 +71,7 @@ public class CassandraNetworkAuthorizerTest
         @Override
         void processBatch(BatchStatement statement)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
         }
     }
@@ -78,6 +80,8 @@ public class CassandraNetworkAuthorizerTest
     {
         ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return statement.executeLocally(QueryState.forInternalCalls(), options);
         }
 
@@ -107,6 +111,7 @@ public class CassandraNetworkAuthorizerTest
                                new LocalCassandraNetworkAuthorizer());
         setupSuperUser();
         // not strictly necessary to init the cache here, but better to be explicit
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15089
         Roles.initRolesCache(DatabaseDescriptor.getRoleManager(), () -> true);
     }
 
@@ -153,6 +158,7 @@ public class CassandraNetworkAuthorizerTest
 
     private static void auth(String query, Object... args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
         assert statement instanceof CreateRoleStatement
                || statement instanceof AlterRoleStatement
@@ -193,6 +199,7 @@ public class CassandraNetworkAuthorizerTest
         auth("CREATE ROLE %s WITH password = 'password' AND LOGIN = true", username);
         Assert.assertEquals(DCPermissions.all(), dcPerms(username));
         assertDcPermRow(username);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14413
 
         // unless explicitly restricted
         auth("ALTER ROLE %s WITH ACCESS TO DATACENTERS {'dc1', 'dc2'}", username);
@@ -231,6 +238,7 @@ public class CassandraNetworkAuthorizerTest
         assertDcPermRow(username, "dc1");
 
         // clear the roles cache to lose the (non-)superuser status for the user
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15089
         Roles.clearCache();
         auth("ALTER ROLE %s WITH superuser = true", username);
         Assert.assertEquals(DCPermissions.all(), dcPerms(username));
@@ -247,6 +255,7 @@ public class CassandraNetworkAuthorizerTest
     @Test
     public void getLoginPrivilegeFromRolesCache() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15089
         String username = createName();
         auth("CREATE ROLE %s", username);
         long readCount = getReadCount();

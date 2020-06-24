@@ -78,6 +78,7 @@ public class BigFormat implements SSTableFormat
     @Override
     public RowIndexEntry.IndexSerializer getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new RowIndexEntry.Serializer(version, header);
     }
 
@@ -85,6 +86,7 @@ public class BigFormat implements SSTableFormat
     {
         @Override
         public SSTableWriter open(Descriptor descriptor,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8684
                                   long keyCount,
                                   long repairedAt,
                                   UUID pendingRepair,
@@ -149,16 +151,21 @@ public class BigFormat implements SSTableFormat
         BigVersion(String version)
         {
             super(instance, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9808
 
             isLatestVersion = version.compareTo(current_version) == 0;
             correspondingMessagingVersion = MessagingService.VERSION_30;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
             hasMaxCompressedLength = version.compareTo("na") >= 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13420
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13321
             hasMetadataChecksum = version.compareTo("na") >= 0;
             hasOldBfFormat = version.compareTo("na") < 0;
         }
@@ -178,11 +185,13 @@ public class BigFormat implements SSTableFormat
         @Override
         public boolean hasCommitLogIntervals()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
             return hasCommitLogIntervals;
         }
 
         public boolean hasPendingRepair()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             return hasPendingRepair;
         }
 
@@ -195,12 +204,14 @@ public class BigFormat implements SSTableFormat
         @Override
         public int correspondingMessagingVersion()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return correspondingMessagingVersion;
         }
 
         @Override
         public boolean hasMetadataChecksum()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13321
             return hasMetadataChecksum;
         }
 

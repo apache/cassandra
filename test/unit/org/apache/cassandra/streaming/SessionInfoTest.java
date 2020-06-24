@@ -37,6 +37,7 @@ public class SessionInfoTest
     {
         TableId tableId = TableId.generate();
         InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         Collection<StreamSummary> summaries = new ArrayList<>();
         for (int i = 0; i < 10; i++)
@@ -57,6 +58,7 @@ public class SessionInfoTest
         assert info.getTotalFilesSent() == 0;
 
         // receive in progress
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         info.updateProgress(new ProgressInfo(local, 0, "test.txt", ProgressInfo.Direction.IN, 50, 100));
         // still in progress, but not completed yet
         assert info.getTotalSizeReceived() == 50;

@@ -62,6 +62,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
     {
         if (wasFailed())
             return new DriverColumnDefinitions(null, true, failureException);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
 
         return new DriverColumnDefinitions(resultSet.getColumnDefinitions());
     }
@@ -165,6 +166,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
 
         public DriverColumnDefinitions(ColumnDefinitions columnDefinitions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             this(columnDefinitions, false, null);
         }
 
@@ -189,6 +191,7 @@ public class DriverResultSet implements ResultHandler.ComparableResultSet
 
         public Throwable getFailureException()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             return failureException;
         }
 

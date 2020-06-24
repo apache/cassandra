@@ -58,6 +58,7 @@ public abstract class UnfilteredPartitionIterators
         // want a RowIterator out of this method, so we return an empty one.
         UnfilteredRowIterator toReturn = iter.hasNext()
                               ? iter.next()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                               : EmptyIterators.unfilteredRow(command.metadata(),
                                                              command.partitionKey(),
                                                              command.clusteringIndexFilter().isReversed());
@@ -80,6 +81,7 @@ public abstract class UnfilteredPartitionIterators
 
     public static UnfilteredPartitionIterator concat(final List<UnfilteredPartitionIterator> iterators)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12474
         if (iterators.size() == 1)
             return iterators.get(0);
 
@@ -98,6 +100,7 @@ public abstract class UnfilteredPartitionIterators
 
     public static PartitionIterator filter(final UnfilteredPartitionIterator iterator, final int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         return FilteredPartitions.filter(iterator, nowInSec);
     }
 
@@ -134,6 +137,7 @@ public abstract class UnfilteredPartitionIterators
 
                 // Make a single empty iterator object to merge, we don't need toMerge.size() copiess
                 UnfilteredRowIterator empty = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14261
 
                 // Replace nulls by empty iterators
                 for (int i = 0; i < toMerge.size(); i++)
@@ -180,6 +184,7 @@ public abstract class UnfilteredPartitionIterators
                 merged.close();
 
                 if (listener != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
                     listener.close();
             }
         };
@@ -225,6 +230,8 @@ public abstract class UnfilteredPartitionIterators
         {
             public TableMetadata metadata()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
                 return metadata;
             }
 
@@ -261,6 +268,7 @@ public abstract class UnfilteredPartitionIterators
         {
             try (UnfilteredRowIterator partition = iterator.next())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
                 UnfilteredRowIterators.digest(partition, digest, version);
             }
         }
@@ -279,6 +287,7 @@ public abstract class UnfilteredPartitionIterators
      */
     public static UnfilteredPartitionIterator loggingIterator(UnfilteredPartitionIterator iterator, final String id, final boolean fullDetails)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class Logging extends Transformation<UnfilteredRowIterator>
         {
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
@@ -299,6 +308,7 @@ public abstract class UnfilteredPartitionIterators
         {
             // Previously, a boolean indicating if this was for a thrift query.
             // Unused since 4.0 but kept on wire for compatibility.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             out.writeBoolean(false);
             while (iter.hasNext())
             {
@@ -315,6 +325,7 @@ public abstract class UnfilteredPartitionIterators
         {
             // Skip now unused isForThrift boolean
             in.readBoolean();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
 
             return new AbstractUnfilteredPartitionIterator()
             {
@@ -324,6 +335,7 @@ public abstract class UnfilteredPartitionIterators
 
                 public TableMetadata metadata()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
                     return metadata;
                 }
 
@@ -368,6 +380,7 @@ public abstract class UnfilteredPartitionIterators
                     try
                     {
                         nextReturned = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
                         next = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, selection, flag);
                         return next;
                     }

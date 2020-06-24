@@ -64,6 +64,7 @@ public class SystemPropertiesTableTest extends CQLTester
         ResultSet result = executeNet("SELECT * FROM vts.system_properties");
 
         for (Row r : result)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15643
             Assert.assertEquals(System.getProperty(r.getString("name"), System.getenv(r.getString("name"))), r.getString("value"));
     }
 
@@ -92,6 +93,7 @@ public class SystemPropertiesTableTest extends CQLTester
     @Test
     public void testSelectProperty() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15643
         try
         {
             String value = "test_value";

@@ -36,7 +36,9 @@ public class RMIServerSocketFactoryImplTest
     @Test
     public void testReusableAddrSocket() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
         RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11093
         ServerSocket socket = serverFactory.createServerSocket(7199);
         assertTrue(socket.getReuseAddress());
     }

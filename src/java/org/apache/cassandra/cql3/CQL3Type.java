@@ -70,14 +70,17 @@ public interface CQL3Type
         BLOB        (BytesType.instance),
         BOOLEAN     (BooleanType.instance),
         COUNTER     (CounterColumnType.instance),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         DATE        (SimpleDateType.instance),
         DECIMAL     (DecimalType.instance),
         DOUBLE      (DoubleType.instance),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         DURATION    (DurationType.instance),
         EMPTY       (EmptyType.instance),
         FLOAT       (FloatType.instance),
         INET        (InetAddressType.instance),
         INT         (Int32Type.instance),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8951
         SMALLINT    (ShortType.instance),
         TEXT        (UTF8Type.instance),
         TIME        (TimeType.instance),
@@ -90,6 +93,7 @@ public interface CQL3Type
 
         private final AbstractType<?> type;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Native(AbstractType<?> type)
         {
             this.type = type;
@@ -115,6 +119,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
             return super.toString().toLowerCase();
         }
     }
@@ -147,6 +152,7 @@ public interface CQL3Type
         @Override
         public final boolean equals(Object o)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5386
             if(!(o instanceof Custom))
                 return false;
 
@@ -163,6 +169,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             return "'" + type + '\'';
         }
     }
@@ -188,6 +195,7 @@ public interface CQL3Type
 
         public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             if (buffer == null)
                 return "null";
 
@@ -248,6 +256,7 @@ public interface CQL3Type
         @Override
         public final boolean equals(Object o)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5386
             if(!(o instanceof Collection))
                 return false;
 
@@ -265,6 +274,7 @@ public interface CQL3Type
         public String toString()
         {
             boolean isFrozen = !this.type.isMultiCell();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             StringBuilder sb = new StringBuilder(isFrozen ? "frozen<" : "");
             switch (type.kind)
             {
@@ -284,6 +294,7 @@ public interface CQL3Type
                 default:
                     throw new AssertionError();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             sb.append('>');
             if (isFrozen)
                 sb.append('>');
@@ -305,6 +316,7 @@ public interface CQL3Type
 
         public static UserDefined create(UserType type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
             return new UserDefined(UTF8Type.instance.compose(type.name), type);
         }
 
@@ -320,6 +332,7 @@ public interface CQL3Type
 
         public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
             if (buffer == null)
                 return "null";
 
@@ -366,6 +379,8 @@ public interface CQL3Type
         {
             if(!(o instanceof UserDefined))
                 return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5590
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5590
 
             UserDefined that = (UserDefined)o;
             return type.equals(that.type);
@@ -383,6 +398,7 @@ public interface CQL3Type
             if (type.isMultiCell())
                 return ColumnIdentifier.maybeQuote(name);
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                 return "frozen<" + ColumnIdentifier.maybeQuote(name) + '>';
         }
     }
@@ -393,6 +409,7 @@ public interface CQL3Type
 
         private Tuple(TupleType type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             this.type = type;
         }
 
@@ -468,6 +485,7 @@ public interface CQL3Type
         public String toString()
         {
             StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
             sb.append("frozen<tuple<");
             for (int i = 0; i < type.size(); i++)
             {
@@ -488,6 +506,7 @@ public interface CQL3Type
 
         protected Raw(boolean frozen)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             this.frozen = frozen;
         }
 
@@ -495,11 +514,13 @@ public interface CQL3Type
 
         public boolean isFrozen()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
             return this.frozen;
         }
 
         public boolean isDuration()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
             return false;
         }
 
@@ -515,6 +536,7 @@ public interface CQL3Type
 
         public String keyspace()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
             return null;
         }
 
@@ -527,6 +549,7 @@ public interface CQL3Type
         public CQL3Type prepare(String keyspace)
         {
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
             if (ksm == null)
                 throw new ConfigurationException(String.format("Keyspace %s doesn't exist", keyspace));
             return prepare(keyspace, ksm.types);
@@ -536,6 +559,7 @@ public interface CQL3Type
 
         public CQL3Type prepareInternal(String keyspace, Types udts) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
             return prepare(keyspace, udts);
         }
 
@@ -546,6 +570,7 @@ public interface CQL3Type
 
         public static Raw from(CQL3Type type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return new RawType(type, false);
         }
 
@@ -591,6 +616,11 @@ public interface CQL3Type
 
             public boolean supportsFreezing()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5082
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5082
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5590
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                 return false;
             }
 
@@ -601,6 +631,7 @@ public interface CQL3Type
 
             public boolean isDuration()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                 return type == Native.DURATION;
             }
 
@@ -619,6 +650,7 @@ public interface CQL3Type
 
             private RawCollection(CollectionType.Kind kind, CQL3Type.Raw keys, CQL3Type.Raw values, boolean frozen)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 super(frozen);
                 this.kind = kind;
                 this.keys = keys;
@@ -653,6 +685,7 @@ public interface CQL3Type
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                 return prepare(keyspace, udts, false);
             }
 
@@ -673,11 +706,13 @@ public interface CQL3Type
                 if (values.isCounter() && !isInternal)
                     throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                 if (values.isDuration() && kind == Kind.SET)
                     throw new InvalidRequestException("Durations are not allowed inside sets: " + this);
 
                 if (keys != null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10760
                     if (keys.isCounter())
                         throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
                     if (keys.isDuration())
@@ -704,6 +739,7 @@ public interface CQL3Type
             {
                 if (innerType instanceof RawCollection)
                     throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
                 else if (innerType.isUDT())
                     throw new InvalidRequestException("Non-frozen UDTs are not allowed inside collections: " + this);
                 else
@@ -722,6 +758,7 @@ public interface CQL3Type
                 String end = frozen ? ">" : "";
                 switch (kind)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
                     case LIST: return start + "list<" + values + '>' + end;
                     case SET:  return start + "set<" + values + '>' + end;
                     case MAP:  return start + "map<" + keys + ", " + values + '>' + end;
@@ -736,27 +773,32 @@ public interface CQL3Type
 
             private RawUT(UTName name, boolean frozen)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 super(frozen);
                 this.name = name;
             }
 
             public String keyspace()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
                 return name.getKeyspace();
             }
 
             @Override
             public RawUT freeze()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 return new RawUT(name, true);
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6643
                 if (name.hasKeyspace())
                 {
                     // The provided keyspace is the one of the current statement this is part of. If it's different from the keyspace of
                     // the UTName, we reject since we want to limit user types to their own keyspace (see #6643)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                     if (!keyspace.equals(name.getKeyspace()))
                         throw new InvalidRequestException(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; "
                                                                         + "user types can only be used in the keyspace they are defined in",
@@ -767,6 +809,7 @@ public interface CQL3Type
                     name.setKeyspace(keyspace);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                 UserType type = udts.getNullable(name.getUserTypeName());
                 if (type == null)
                     throw new InvalidRequestException("Unknown type " + name);
@@ -778,6 +821,7 @@ public interface CQL3Type
 
             public boolean referencesUserType(String name)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                 return this.name.getStringTypeName().equals(name);
             }
 
@@ -794,6 +838,7 @@ public interface CQL3Type
             @Override
             public String toString()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10624
                 if (frozen)
                     return "frozen<" + name.toString() + '>';
                 else
@@ -807,18 +852,21 @@ public interface CQL3Type
 
             private RawTuple(List<CQL3Type.Raw> types, boolean frozen)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 super(frozen);
                 this.types = types;
             }
 
             public boolean supportsFreezing()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
                 return true;
             }
 
             @Override
             public RawTuple freeze()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 List<CQL3Type.Raw> frozenTypes =
                     types.stream()
                          .map(t -> t.supportsFreezing() ? t.freeze() : t)
@@ -836,6 +884,7 @@ public interface CQL3Type
                     if (t.isCounter())
                         throw new InvalidRequestException("Counters are not allowed inside tuples");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                     ts.add(t.prepare(keyspace, udts).getType());
                 }
                 return new Tuple(new TupleType(ts));
@@ -857,6 +906,7 @@ public interface CQL3Type
                         sb.append(", ");
                     sb.append(types.get(i));
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
                 sb.append('>');
                 return sb.toString();
             }

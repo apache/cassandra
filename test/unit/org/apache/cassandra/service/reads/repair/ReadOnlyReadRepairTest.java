@@ -38,6 +38,8 @@ import org.apache.cassandra.service.reads.ReadCallback;
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {
     private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
         public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
@@ -49,6 +51,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
         ReadCallback readCallback = null;
 
         @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
         void sendReadCommand(Replica to, ReadCallback callback, boolean speculative)
         {
             assert readCallback == null || readCallback == callback;
@@ -92,6 +95,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
         ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);

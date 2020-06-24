@@ -23,6 +23,7 @@ package org.apache.cassandra.stress.settings;
 
 public enum ConnectionAPI
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
     SIMPLE_NATIVE, JAVA_DRIVER_NATIVE
 }
 

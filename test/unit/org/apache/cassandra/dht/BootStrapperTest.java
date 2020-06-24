@@ -71,8 +71,11 @@ public class BootStrapperTest
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.startGossiper();
         SchemaLoader.prepareServer();
         SchemaLoader.schemaDefinition("BootStrapperTest");
@@ -82,6 +85,7 @@ public class BootStrapperTest
     @AfterClass
     public static void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
         RangeStreamer.ALIVE_PREDICATE = originalAlivePredicate;
     }
@@ -90,6 +94,7 @@ public class BootStrapperTest
     public void testSourceTargetComputation() throws UnknownHostException
     {
         final int[] clusterSizes = new int[] { 1, 3, 5, 10, 100};
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             int replicationFactor = Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor().allReplicas;
@@ -101,13 +106,17 @@ public class BootStrapperTest
 
     private RangeStreamer testSourceTargetComputation(String keyspaceName, int numOldNodes, int replicationFactor) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         generateFakeEndpoints(numOldNodes);
         Token myToken = tmd.partitioner.getRandomToken();
         InetAddressAndPort myEndpoint = InetAddressAndPort.getByName("127.0.0.1");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-522
         assertEquals(numOldNodes, tmd.sortedTokens().size());
         IFailureDetector mockFailureDetector = new IFailureDetector()
         {
@@ -123,6 +132,7 @@ public class BootStrapperTest
             public void remove(InetAddressAndPort ep) { throw new UnsupportedOperationException(); }
             public void forceConviction(InetAddressAndPort ep) { throw new UnsupportedOperationException(); }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         RangeStreamer s = new RangeStreamer(tmd, null, myEndpoint, StreamOperation.BOOTSTRAP, true, DatabaseDescriptor.getEndpointSnitch(), new StreamStateStore(), mockFailureDetector, false, 1);
         assertNotNull(Keyspace.open(keyspaceName));
         s.addRanges(keyspaceName, Keyspace.open(keyspaceName).getReplicationStrategy().getPendingAddressRanges(tmd, myToken, myEndpoint));
@@ -148,21 +158,27 @@ public class BootStrapperTest
     private void generateFakeEndpoints(TokenMetadata tmd, int numOldNodes, int numVNodes) throws UnknownHostException
     {
         tmd.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11139
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11139
         generateFakeEndpoints(tmd, numOldNodes, numVNodes, "0", "0");
     }
 
     Random rand = new Random(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
 
     private void generateFakeEndpoints(TokenMetadata tmd, int numOldNodes, int numVNodes, String dc, String rack) throws UnknownHostException
     {
         IPartitioner p = tmd.partitioner;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         for (int i = 1; i <= numOldNodes; i++)
         {
             // leave .1 for myEndpoint
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort addr = InetAddressAndPort.getByName("127." + dc + "." + rack + "." + (i + 1));
             List<Token> tokens = Lists.newArrayListWithCapacity(numVNodes);
             for (int j = 0; j < numVNodes; ++j)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
                 tokens.add(p.getRandomToken(rand));
             
             tmd.updateNormalTokens(tokens, addr);
@@ -185,14 +201,18 @@ public class BootStrapperTest
     {
         int vn = 16;
         int allocateTokensForLocalRf = 3;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         TokenMetadata tm = new TokenMetadata();
         generateFakeEndpoints(tm, 10, vn);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
         allocateTokensForNode(vn, allocateTokensForLocalRf, tm, addr);
     }
 
     public void testAllocateTokensNetworkStrategy(int rackCount, int replicas) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11139
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11139
         IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
         try
         {
@@ -204,10 +224,12 @@ public class BootStrapperTest
             // Register peers with expected DC for NetworkTopologyStrategy.
             TokenMetadata metadata = StorageService.instance.getTokenMetadata();
             metadata.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.1.0.99"));
             metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.15.0.99"));
 
             SchemaLoader.createKeyspace(ks, KeyspaceParams.nts(dc, replicas, "15", 15), SchemaLoader.standardCFMD(ks, "Standard1"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12715
             TokenMetadata tm = StorageService.instance.getTokenMetadata();
             tm.clearUnsafe();
             for (int i = 0; i < rackCount; ++i)
@@ -252,6 +274,7 @@ public class BootStrapperTest
 
     private void allocateTokensForNode(int vn, String ks, TokenMetadata tm, InetAddressAndPort addr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12715
         SummaryStatistics os = TokenAllocation.replicatedOwnershipStats(tm.cloneOnlyTokenMap(), Keyspace.open(ks).getReplicationStrategy(), addr);
         Collection<Token> tokens = BootStrapper.allocateTokens(tm, addr, ks, vn, 0);
         assertEquals(vn, tokens.size());
@@ -262,6 +285,7 @@ public class BootStrapperTest
 
     private void allocateTokensForNode(int vn, int rf, TokenMetadata tm, InetAddressAndPort addr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         Collection<Token> tokens = BootStrapper.allocateTokens(tm, addr, rf, vn, 0);
         assertEquals(vn, tokens.size());
         tm.updateNormalTokens(tokens, addr);
@@ -279,6 +303,7 @@ public class BootStrapperTest
     @Test
     public void testAllocateTokensRfEqRacks() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15600
         IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
         try
         {
@@ -335,6 +360,7 @@ public class BootStrapperTest
         TokenMetadata tm = new TokenMetadata();
         generateFakeEndpoints(tm, 10, vn);
         
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort dcaddr = FBUtilities.getBroadcastAddressAndPort();
         SummaryStatistics os3 = TokenAllocation.replicatedOwnershipStats(tm, Keyspace.open(ks3).getReplicationStrategy(), dcaddr);
         SummaryStatistics os2 = TokenAllocation.replicatedOwnershipStats(tm, Keyspace.open(ks2).getReplicationStrategy(), dcaddr);

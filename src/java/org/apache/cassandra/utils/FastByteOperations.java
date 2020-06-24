@@ -57,6 +57,7 @@ public class FastByteOperations
 
     public static int compareUnsigned(ByteBuffer b1, int s1, int l1, byte[] b2, int s2, int l2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return BestHolder.BEST.compare(b1, s1, l1, b2, s2, l2);
     }
 
@@ -88,6 +89,7 @@ public class FastByteOperations
         abstract public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2);
 
         abstract public int compare(ByteBuffer buffer1, int offset1, int length1, byte[] buffer2, int offset2, int length2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
         abstract public int compare(ByteBuffer buffer1, ByteBuffer buffer2);
 
@@ -127,6 +129,7 @@ public class FastByteOperations
             }
             catch (Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                 JVMStabilityInspector.inspectThrowable(t);
                 // ensure we really catch *everything*
                 return new PureJavaOperations();
@@ -199,6 +202,7 @@ public class FastByteOperations
 
         public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             return compare(buffer1, buffer1.position(), buffer1.remaining(), buffer2, offset2, length2);
         }
 
@@ -291,6 +295,7 @@ public class FastByteOperations
         @Inline
         public static int compareTo(ByteBuffer buffer1, ByteBuffer buffer2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6755
             Object obj1;
             long offset1;
             int length1;
@@ -361,6 +366,7 @@ public class FastByteOperations
                 long lw = theUnsafe.getLong(buffer1, memoryOffset1 + i);
                 long rw = theUnsafe.getLong(buffer2, memoryOffset2 + i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6755
                 if (lw != rw)
                 {
                     if (BIG_ENDIAN)
@@ -410,6 +416,7 @@ public class FastByteOperations
 
         public int compare(ByteBuffer buffer1, int position1, int length1, byte[] buffer2, int offset2, int length2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             if (buffer1.hasArray())
                 return compare(buffer1.array(), buffer1.arrayOffset() + position1, length1, buffer2, offset2, length2);
 

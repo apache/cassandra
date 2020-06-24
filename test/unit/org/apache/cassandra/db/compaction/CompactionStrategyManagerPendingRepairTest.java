@@ -103,6 +103,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void sstableListChangedAddAndRemove()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
@@ -152,6 +153,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void sstableRepairStatusChanged()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
@@ -209,6 +211,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void getStrategies()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
@@ -253,6 +256,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         // run the compaction
         compactionTask.execute(ActiveCompactionsTracker.NOOP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         Assert.assertTrue(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
@@ -261,6 +265,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(hasTransientStrategiesFor(repairID));
 
         // sstable should have pendingRepair cleared, and repairedAt set correctly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
         long expectedRepairedAt = ActiveRepairService.instance.getParentRepairSession(repairID).repairedAt;
         Assert.assertFalse(sstable.isPendingRepair());
         Assert.assertTrue(sstable.isRepaired());
@@ -310,6 +315,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     public void finalizedSessionTransientCleanup()
     {
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
@@ -331,6 +337,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         // run the compaction
         compactionTask.execute(ActiveCompactionsTracker.NOOP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
@@ -341,6 +348,9 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     public void failedSessionTransientCleanup()
     {
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
@@ -355,6 +365,8 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
         cfs.getCompactionStrategyManager().enable(); // enable compaction to fetch next background task
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
         Assert.assertNotNull(compactionTask);
@@ -362,6 +374,8 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         // run the compaction
         compactionTask.execute(ActiveCompactionsTracker.NOOP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
 
         Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));

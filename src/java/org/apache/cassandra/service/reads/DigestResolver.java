@@ -45,6 +45,8 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
     public DigestResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         super(command, replicaPlan, queryStartNanoTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
                                     "DigestResolver can only be used with SinglePartitionReadCommand commands");
@@ -54,6 +56,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     public void preprocess(Message<ReadResponse> message)
     {
         super.preprocess(message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         Replica replica = replicaPlan().lookup(message.from());
         if (dataResponse == null && !message.payload.isDigestResponse() && replica.isFull())
             dataResponse = message;
@@ -69,6 +72,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     {
         return any(responses,
                 msg -> !msg.payload.isDigestResponse()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
                         && replicaPlan().lookup(msg.from()).isTransient());
     }
 
@@ -93,6 +97,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
             // Reconcile with transient replicas
             for (Message<ReadResponse> response : responses)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
                 Replica replica = replicaPlan().lookup(response.from());
                 if (replica.isTransient())
                     dataResolver.preprocess(response);
@@ -108,6 +113,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
         // validate digests against each other; return false immediately on mismatch.
         ByteBuffer digest = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Collection<Message<ReadResponse>> snapshot = responses.snapshot();
         if (snapshot.size() <= 1)
             return true;
@@ -115,6 +121,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         // TODO: should also not calculate if only one full node
         for (Message<ReadResponse> message : snapshot)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
             if (replicaPlan().lookup(message.from()).isTransient())
                 continue;
 
@@ -139,9 +146,11 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
     public DigestResolverDebugResult[] getDigestsByEndpoint()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14668
         DigestResolverDebugResult[] ret = new DigestResolverDebugResult[responses.size()];
         for (int i = 0; i < responses.size(); i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Message<ReadResponse> message = responses.get(i);
             ReadResponse response = message.payload;
             String digestHex = ByteBufferUtil.bytesToHex(response.digest(command));

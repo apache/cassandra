@@ -40,6 +40,7 @@ public final class SchemaPullVerbHandler implements IVerbHandler<NoPayload>
 
     public void doVerb(Message<NoPayload> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         logger.trace("Received schema pull request from {}", message.from());
         Message<Collection<Mutation>> response = message.responseWith(SchemaKeyspace.convertSchemaToMutations());
         MessagingService.instance().send(response, message.from());

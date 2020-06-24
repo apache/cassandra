@@ -27,10 +27,12 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
 
     private SystemViewsKeyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14670
         super(NAME, new ImmutableList.Builder<VirtualTable>()
                     .add(new CachesTable(NAME))
                     .add(new ClientsTable(NAME))
                     .add(new SettingsTable(NAME))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15616
                     .add(new SystemPropertiesTable(NAME))
                     .add(new SSTableTasksTable(NAME))
                     .add(new ThreadPoolsTable(NAME))

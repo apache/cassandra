@@ -63,6 +63,7 @@ public class CacheMetrics
     public CacheMetrics(String type, CacheSize cache)
     {
         factory = new DefaultNameFactory("Cache", type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14628
 
         capacity = Metrics.register(factory.createMetricName("Capacity"), cache::capacity);
         size = Metrics.register(factory.createMetricName("Size"), cache::weightedSize);

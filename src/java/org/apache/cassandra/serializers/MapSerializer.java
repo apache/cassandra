@@ -43,6 +43,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         Pair<TypeSerializer<?>, TypeSerializer<?>> p = Pair.<TypeSerializer<?>, TypeSerializer<?>>create(keys, values);
         MapSerializer<K, V> t = instances.get(p);
         if (t == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13271
             t = instances.computeIfAbsent(p, k -> new MapSerializer<>(k.left, k.right, comparator) );
         return t;
     }
@@ -57,6 +58,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     public List<ByteBuffer> serializeValues(Map<K, V> map)
     {
         List<Pair<ByteBuffer, ByteBuffer>> pairs = new ArrayList<>(map.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         for (Map.Entry<K, V> entry : map.entrySet())
             pairs.add(Pair.create(keys.serialize(entry.getKey()), values.serialize(entry.getValue())));
         Collections.sort(pairs, comparator);
@@ -76,8 +78,10 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
     public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7208
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14365
             if (bytes.remaining() == 0)
             {
                 return;
@@ -121,8 +125,10 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
                 ByteBuffer vbb = readValue(input, version);
                 values.validate(vbb);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
                 m.put(keys.deserialize(kbb), values.deserialize(vbb));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7833
             if (input.hasRemaining())
                 throw new MarshalException("Unexpected extraneous bytes after map value");
             return m;
@@ -138,6 +144,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             ByteBuffer input = collection.duplicate();
             int n = readCollectionSize(input, ProtocolVersion.V3);
             for (int i = 0; i < n; i++)
@@ -162,11 +169,13 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
     @Override
     public ByteBuffer getSliceFromSerialized(ByteBuffer collection,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
                                              ByteBuffer from,
                                              ByteBuffer to,
                                              AbstractType<?> comparator,
                                              boolean frozen)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         if (from == ByteBufferUtil.UNSET_BYTE_BUFFER && to == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return collection;
 
@@ -219,6 +228,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
                     break;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
             if (count == 0 && !frozen)
                 return null;
 
@@ -226,6 +236,8 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
         catch (BufferUnderflowException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14365
             throw new MarshalException("Not enough bytes to read a map");
         }
     }
@@ -233,6 +245,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     public String toString(Map<K, V> value)
     {
         StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         sb.append('{');
         boolean isFirst = true;
         for (Map.Entry<K, V> element : value.entrySet())

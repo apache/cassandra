@@ -70,6 +70,7 @@ public class ViewManager
 
     public boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
             return false;
 
@@ -97,10 +98,12 @@ public class ViewManager
 
     public void reload(boolean buildAllViews)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         Views views = keyspace.getMetadata().views;
         Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
         for (ViewMetadata definition : views)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             newViewsByName.put(definition.name(), definition);
         }
 
@@ -110,6 +113,7 @@ public class ViewManager
                 addView(entry.getValue());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         if (!buildAllViews)
             return;
 
@@ -120,6 +124,7 @@ public class ViewManager
         // init'd we schedule builds for *all* views anyway, so this doesn't have any effect
         // on startup. It does mean however, that builds will not be triggered if gossip is
         // disabled via JMX or nodetool as that sets SS to an uninitialized state.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (!StorageService.instance.isInitialized())
         {
             logger.info("Not submitting build tasks for views in keyspace {} as " +
@@ -141,6 +146,7 @@ public class ViewManager
         if (!keyspace.hasColumnFamilyStore(definition.baseTableId))
         {
             logger.warn("Not adding view {} because the base table {} is unknown",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                         definition.name(),
                         definition.baseTableId);
             return;
@@ -163,9 +169,11 @@ public class ViewManager
         if (view == null)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14646
         view.stopBuild();
         forTable(view.getDefinition().baseTableId).removeByName(name);
         SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
 
@@ -196,6 +204,7 @@ public class ViewManager
     public static Lock acquireLockFor(int keyAndCfidHash)
     {
         Lock lock = LOCKS.get(keyAndCfidHash);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10981
 
         if (lock.tryLock())
             return lock;

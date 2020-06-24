@@ -133,6 +133,8 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
          * Passed to add() and addAll() as ignoreConflicts parameter. The meaning of conflict varies by collection type
          * (for Endpoints, it is a duplicate InetAddressAndPort; for RangesAtEndpoint it is a duplicate Range).
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         enum Conflict
         {
             /** fail on addition of any such conflict */
@@ -148,6 +150,7 @@ public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Itera
          * @param ignoreConflict conflicts to ignore, see {@link Conflict}
          */
         Builder<C> add(Replica replica, Conflict ignoreConflict);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         default public Builder<C> add(Replica replica)
         {

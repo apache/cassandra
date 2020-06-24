@@ -188,6 +188,7 @@ public class AuthorizationProxy implements InvocationHandler
                      methodName,
                      subject == null ? "" :subject.toString().replaceAll("\\n", " "));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         if (!isAuthSetupComplete.getAsBoolean())
         {
             logger.trace("Auth setup is not complete, refusing access");
@@ -220,6 +221,7 @@ public class AuthorizationProxy implements InvocationHandler
         // might choose to associate with the Subject following successful authentication
         RoleResource userResource = RoleResource.role(principals.iterator().next().getName());
         // A role with superuser status can do anything
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         if (isSuperuser.test(userResource))
             return true;
 

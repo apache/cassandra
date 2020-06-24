@@ -45,14 +45,17 @@ public final class TableParams
         COMPACTION,
         COMPRESSION,
         DEFAULT_TIME_TO_LIVE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9426
         EXTENSIONS,
         GC_GRACE_SECONDS,
         MAX_INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
         SPECULATIVE_RETRY,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
         CDC,
         READ_REPAIR;
 
@@ -86,6 +89,7 @@ public final class TableParams
         bloomFilterFpChance = builder.bloomFilterFpChance == null
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
         crcCheckChance = builder.crcCheckChance;
         gcGraceSeconds = builder.gcGraceSeconds;
         defaultTimeToLive = builder.defaultTimeToLive;
@@ -93,12 +97,16 @@ public final class TableParams
         minIndexInterval = builder.minIndexInterval;
         maxIndexInterval = builder.maxIndexInterval;
         speculativeRetry = builder.speculativeRetry;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         additionalWritePolicy = builder.additionalWritePolicy;
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9426
         extensions = builder.extensions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         cdc = builder.cdc;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
         readRepair = builder.readRepair;
     }
 
@@ -114,6 +122,7 @@ public final class TableParams
                             .comment(params.comment)
                             .compaction(params.compaction)
                             .compression(params.compression)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
                             .gcGraceSeconds(params.gcGraceSeconds)
@@ -121,8 +130,10 @@ public final class TableParams
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
                             .speculativeRetry(params.speculativeRetry)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
                             .cdc(params.cdc)
                             .readRepair(params.readRepair);
     }
@@ -146,6 +157,7 @@ public final class TableParams
                  bloomFilterFpChance);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
         if (crcCheckChance < 0 || crcCheckChance > 1.0)
         {
             fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
@@ -156,6 +168,7 @@ public final class TableParams
         if (defaultTimeToLive < 0)
             fail("%s must be greater than or equal to 0 (got %s)", Option.DEFAULT_TIME_TO_LIVE, defaultTimeToLive);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14071
         if (defaultTimeToLive > Attributes.MAX_TTL)
             fail("%s must be less than or equal to %d (got %s)", Option.DEFAULT_TIME_TO_LIVE, Attributes.MAX_TTL, defaultTimeToLive);
 
@@ -196,6 +209,7 @@ public final class TableParams
 
         return comment.equals(p.comment)
             && bloomFilterFpChance == p.bloomFilterFpChance
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
             && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
             && defaultTimeToLive == p.defaultTimeToLive
@@ -207,6 +221,7 @@ public final class TableParams
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
             && extensions.equals(p.extensions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
             && cdc == p.cdc
             && readRepair == p.readRepair;
     }
@@ -216,6 +231,7 @@ public final class TableParams
     {
         return Objects.hashCode(comment,
                                 bloomFilterFpChance,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
                                 crcCheckChance,
                                 gcGraceSeconds,
                                 defaultTimeToLive,
@@ -227,6 +243,7 @@ public final class TableParams
                                 compaction,
                                 compression,
                                 extensions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
                                 cdc,
                                 readRepair);
     }
@@ -237,6 +254,7 @@ public final class TableParams
         return MoreObjects.toStringHelper(this)
                           .add(Option.COMMENT.toString(), comment)
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
                           .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
                           .add(Option.DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
@@ -247,8 +265,11 @@ public final class TableParams
                           .add(Option.CACHING.toString(), caching)
                           .add(Option.COMPACTION.toString(), compaction)
                           .add(Option.COMPRESSION.toString(), compression)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9426
                           .add(Option.EXTENSIONS.toString(), extensions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                           .add(Option.CDC.toString(), cdc)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
                           .add(Option.READ_REPAIR.toString(), readRepair)
                           .toString();
     }
@@ -295,6 +316,7 @@ public final class TableParams
 
         public Builder crcCheckChance(double val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
             crcCheckChance = val;
             return this;
         }
@@ -337,6 +359,7 @@ public final class TableParams
 
         public Builder additionalWritePolicy(SpeculativeRetryPolicy val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
             additionalWritePolicy = val;
             return this;
         }
@@ -361,18 +384,21 @@ public final class TableParams
 
         public Builder cdc(boolean val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             cdc = val;
             return this;
         }
 
         public Builder readRepair(ReadRepairStrategy val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
             readRepair = val;
             return this;
         }
 
         public Builder extensions(Map<String, ByteBuffer> val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9426
             extensions = ImmutableMap.copyOf(val);
             return this;
         }

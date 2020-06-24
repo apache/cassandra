@@ -56,6 +56,7 @@ public class ActiveCompactions implements ActiveCompactionsTracker
     public CompactionInfo getCompactionForSSTable(SSTableReader sstable)
     {
         CompactionInfo toReturn = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15036
         synchronized (compactions)
         {
             for (CompactionInfo.Holder holder : compactions)

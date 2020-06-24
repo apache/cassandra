@@ -37,6 +37,7 @@ public class PagingStateTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -56,6 +57,7 @@ public class PagingStateTest
          *     System.out.println("PagingState = " + ByteBufferUtil.bytesToHex(state.serialize()));
          */
         PagingState state = Util.makeSomePagingState(ProtocolVersion.V3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         String serializedState = ByteBufferUtil.bytesToHex(state.serialize(ProtocolVersion.V3));
         // Note that we don't assert exact equality because we know 3.0 nodes include the "remainingInPartition" number
@@ -67,6 +69,7 @@ public class PagingStateTest
     @Test
     public void testSerializeV3DeserializeV3()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         PagingState state = Util.makeSomePagingState(ProtocolVersion.V3);
         ByteBuffer serialized = state.serialize(ProtocolVersion.V3);
         assertEquals(serialized.remaining(), state.serializedSize(ProtocolVersion.V3));

@@ -59,9 +59,11 @@ public abstract class Slices implements Iterable<Slice>
      */
     public static Slices with(ClusteringComparator comparator, Slice slice)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         if (slice.start() == ClusteringBound.BOTTOM && slice.end() == ClusteringBound.TOP)
             return Slices.ALL;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
         Preconditions.checkArgument(!slice.isEmpty(comparator));
         return new ArrayBackedSlices(comparator, new Slice[]{ slice });
     }
@@ -149,6 +151,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public final boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         return size() == 0;
     }
 
@@ -193,6 +196,7 @@ public abstract class Slices implements Iterable<Slice>
 
         public Builder add(Slice slice)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
             Preconditions.checkArgument(!slice.isEmpty(comparator));
             if (slices.size() > 0 && comparator.compare(slices.get(slices.size()-1).end(), slice.start()) > 0)
                 needsNormalizing = true;
@@ -202,6 +206,7 @@ public abstract class Slices implements Iterable<Slice>
 
         public Builder addAll(Slices slices)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
             for (Slice slice : slices)
                 add(slice);
             return this;
@@ -295,6 +300,7 @@ public abstract class Slices implements Iterable<Slice>
         {
             int size = slices.size();
             out.writeUnsignedVInt(size);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
 
             if (size == 0)
                 return;
@@ -310,6 +316,7 @@ public abstract class Slices implements Iterable<Slice>
         public long serializedSize(Slices slices, int version)
         {
             long size = TypeSizes.sizeofUnsignedVInt(slices.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
 
             if (slices.size() == 0)
                 return size;
@@ -320,6 +327,7 @@ public abstract class Slices implements Iterable<Slice>
 
             for (Slice slice : slices)
                 size += Slice.serializer.serializedSize(slice, version, types);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
             return size;
         }
@@ -335,6 +343,7 @@ public abstract class Slices implements Iterable<Slice>
             for (int i = 0; i < size; i++)
                 slices[i] = Slice.serializer.deserialize(in, version, metadata.comparator.subtypes());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             if (size == 1 && slices[0].start() == ClusteringBound.BOTTOM && slices[0].end() == ClusteringBound.TOP)
                 return ALL;
 
@@ -623,6 +632,7 @@ public abstract class Slices implements Iterable<Slice>
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15503
                         sb.append(column.name);
                         if (isReversed)
                             sb.append(first.startInclusive ? " <= " : " < ");
@@ -665,6 +675,7 @@ public abstract class Slices implements Iterable<Slice>
 
             public static ComponentOfSlice fromSlice(int component, Slice slice)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBound start = slice.start();
                 ClusteringBound end = slice.end();
 

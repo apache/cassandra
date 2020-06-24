@@ -50,14 +50,17 @@ final class MigrationTask extends WrappedRunnable
 
     private final InetAddressAndPort endpoint;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     MigrationTask(InetAddressAndPort endpoint)
     {
         this.endpoint = endpoint;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaMigrationDiagnostics.taskCreated(endpoint);
     }
 
     static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10731
         return inflightTasks;
     }
 
@@ -73,16 +76,21 @@ final class MigrationTask extends WrappedRunnable
         // There is a chance that quite some time could have passed between now and the MM#maybeScheduleSchemaPull(),
         // potentially enough for the endpoint node to restart - which is an issue if it does restart upgraded, with
         // a higher major.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8462
         if (!MigrationManager.shouldPullSchemaFrom(endpoint))
         {
             logger.info("Skipped sending a migration request: node {} has a higher major version now.", endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
             SchemaMigrationDiagnostics.taskSendAborted(endpoint);
             return;
         }
 
         Message message = Message.out(SCHEMA_PULL_REQ, noPayload);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         final CountDownLatch completionLatch = new CountDownLatch(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10731
 
         RequestCallback<Collection<Mutation>> cb = msg ->
         {
@@ -94,6 +102,7 @@ final class MigrationTask extends WrappedRunnable
             {
                 logger.error("Configuration exception merging remote schema", e);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10731
             finally
             {
                 completionLatch.countDown();
@@ -101,11 +110,14 @@ final class MigrationTask extends WrappedRunnable
         };
 
         // Only save the latches if we need bootstrap or are bootstrapping
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10731
         if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()))
             inflightTasks.offer(completionLatch);
 
         MessagingService.instance().sendWithCallback(message, endpoint, cb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaMigrationDiagnostics.taskRequestSend(endpoint);
     }
 }

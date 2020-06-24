@@ -215,6 +215,7 @@ public class RangeUnionIteratorTest
 
         RangeIterator emptyTokens = RangeUnionIterator.builder().build();
         Assert.assertEquals(0, emptyTokens.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
 
         builder = RangeUnionIterator.builder();
         Assert.assertEquals(0L, builder.add((RangeIterator<Long, Token>) null).rangeCount());
@@ -306,6 +307,7 @@ public class RangeUnionIteratorTest
 
     @Test
     public void emptyRangeTest() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
         RangeIterator.Builder<Long, Token> builder;
         RangeIterator<Long, Token> range;
         // empty, then non-empty

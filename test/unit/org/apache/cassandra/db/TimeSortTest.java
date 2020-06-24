@@ -32,6 +32,7 @@ public class TimeSortTest extends CQLTester
     @Test
     public void testMixedSources() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
 

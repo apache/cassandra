@@ -93,6 +93,7 @@ public class SimpleClient implements Closeable
 
     public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12142
         this(host, port, version, false, encryptionOptions);
     }
 
@@ -103,11 +104,13 @@ public class SimpleClient implements Closeable
 
     public SimpleClient(String host, int port, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         this(host, port, version, new EncryptionOptions());
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions encryptionOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12142
         this.host = host;
         this.port = port;
         if (version.isBeta() && !useBeta)
@@ -119,6 +122,7 @@ public class SimpleClient implements Closeable
 
     public SimpleClient(String host, int port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         this(host, port, new EncryptionOptions());
     }
 
@@ -131,16 +135,19 @@ public class SimpleClient implements Closeable
     {
         establishConnection();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
         Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
         if (throwOnOverload)
             options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
         connection.setThrowOnOverload(throwOnOverload);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         if (useChecksums)
         {
             Compressor compressor = useCompression ? LZ4Compressor.INSTANCE : null;
             connection.setTransformer(ChecksummingTransformer.getTransformer(ChecksumType.CRC32, compressor));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15056
             options.put(StartupMessage.CHECKSUM, "crc32");
             options.put(StartupMessage.COMPRESSION, "lz4");
         }
@@ -156,12 +163,14 @@ public class SimpleClient implements Closeable
 
     public void setEventHandler(EventHandler eventHandler)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
         responseHandler.eventHandler = eventHandler;
     }
 
     protected void establishConnection() throws IOException
     {
         // Configure the client.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
         bootstrap = new Bootstrap()
                     .group(new NioEventLoopGroup())
                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
@@ -189,18 +198,23 @@ public class SimpleClient implements Closeable
 
     public ResultMessage execute(String query, ConsistencyLevel consistency)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6270
         return execute(query, Collections.<ByteBuffer>emptyList(), consistency);
     }
 
     public ResultMessage execute(String query, List<ByteBuffer> values, ConsistencyLevel consistencyLevel)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         Message.Response msg = execute(new QueryMessage(query, QueryOptions.forInternalCalls(consistencyLevel, values)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5349
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }
 
     public ResultMessage.Prepared prepare(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         Message.Response msg = execute(new PrepareMessage(query, null));
         assert msg instanceof ResultMessage.Prepared;
         return (ResultMessage.Prepared)msg;
@@ -224,6 +238,7 @@ public class SimpleClient implements Closeable
         channel.close().awaitUninterruptibly();
 
         // Shut down all thread pools to exit.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
         bootstrap.group().shutdownGracefully();
     }
 
@@ -232,9 +247,11 @@ public class SimpleClient implements Closeable
         try
         {
             request.attach(connection);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
             lastWriteFuture = channel.writeAndFlush(request);
             Message.Response msg = responseHandler.responses.take();
             if (msg instanceof ErrorMessage)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
                 throw new RuntimeException((Throwable)((ErrorMessage)msg).error);
             return msg;
         }
@@ -246,6 +263,7 @@ public class SimpleClient implements Closeable
 
     public interface EventHandler
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
         void onEvent(Event event);
     }
 
@@ -272,6 +290,7 @@ public class SimpleClient implements Closeable
 
         public boolean isRegistered(Event.Type type, Channel ch)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
             return false;
         }
     }
@@ -283,10 +302,13 @@ public class SimpleClient implements Closeable
             connection = new Connection(channel, version, tracker);
             channel.attr(Connection.attributeKey).set(connection);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
             ChannelPipeline pipeline = channel.pipeline();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5778
             pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             pipeline.addLast("inboundFrameTransformer", inboundFrameTransformer);
             pipeline.addLast("outboundFrameTransformer", outboundFrameTransformer);
 
@@ -302,7 +324,10 @@ public class SimpleClient implements Closeable
         protected void initChannel(Channel channel) throws Exception
         {
             super.initChannel(channel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
             SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
                                                                      SSLFactory.SocketType.CLIENT);
             channel.pipeline().addFirst("ssl", sslContext.newHandler(channel.alloc()));
         }
@@ -319,6 +344,7 @@ public class SimpleClient implements Closeable
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
                 if (r instanceof EventMessage)
                 {
                     if (eventHandler != null)
@@ -335,6 +361,7 @@ public class SimpleClient implements Closeable
 
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
             if (this == ctx.pipeline().last())
                 logger.error("Exception in response", cause);
             ctx.fireExceptionCaught(cause);

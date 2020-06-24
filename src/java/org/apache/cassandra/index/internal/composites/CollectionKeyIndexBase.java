@@ -45,6 +45,7 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
 {
     public CollectionKeyIndexBase(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         super(baseCfs, indexDef);
     }
 
@@ -68,6 +69,8 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
     {
         Clustering clustering = indexEntry.clustering();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         Clustering indexedEntryClustering = null;
         if (getIndexedColumn().isStatic())
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;

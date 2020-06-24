@@ -42,6 +42,7 @@ public class FileUtilsTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -49,6 +50,7 @@ public class FileUtilsTest
     public void testParseFileSize() throws Exception
     {
         // test straightforward conversions for each unit
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
         assertEquals("FileUtils.parseFileSize() failed to parse a whole number of bytes",
             256L, FileUtils.parseFileSize("256 bytes"));
         assertEquals("FileUtils.parseFileSize() failed to parse a whole number of kilobytes",
@@ -77,6 +79,7 @@ public class FileUtilsTest
     @Test
     public void testTruncate() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14153
         File file = FileUtils.createDeletableTempFile("testTruncate", "1");
         final String expected = "The quick brown fox jumps over the lazy dog";
 
@@ -85,6 +88,7 @@ public class FileUtilsTest
 
         byte[] b = Files.readAllBytes(file.toPath());
         assertEquals(expected, new String(b, StandardCharsets.UTF_8));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
 
         FileUtils.truncate(file.getAbsolutePath(), 10);
         b = Files.readAllBytes(file.toPath());
@@ -98,6 +102,7 @@ public class FileUtilsTest
     @Test
     public void testFolderSize() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10677
         File folder = createFolder(Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0], "testFolderSize"));
         folder.deleteOnExit();
 
@@ -121,6 +126,7 @@ public class FileUtilsTest
     @Test
     public void testIsContained()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13974
         assertTrue(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abc")));
         assertFalse(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abcd")));
         assertTrue(FileUtils.isContained(new File("/tmp/abc"), new File("/tmp/abc/d")));

@@ -51,6 +51,7 @@ public class DynamicCompositeTypeTest
     static
     {
         aliases.put((byte)'b', BytesType.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
         aliases.put((byte)'B', ReversedType.getInstance(BytesType.instance));
         aliases.put((byte)'t', TimeUUIDType.instance);
         aliases.put((byte)'T', ReversedType.getInstance(TimeUUIDType.instance));
@@ -62,6 +63,7 @@ public class DynamicCompositeTypeTest
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
             uuids[i] = UUIDGen.getTimeUUID();
     }
 
@@ -71,7 +73,9 @@ public class DynamicCompositeTypeTest
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDDYNCOMPOSITE, dynamicComposite));
     }
 
@@ -182,6 +186,7 @@ public class DynamicCompositeTypeTest
     @Test
     public void testFullRound() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARDDYNCOMPOSITE);
 
@@ -201,6 +206,7 @@ public class DynamicCompositeTypeTest
 
         ColumnMetadata cdef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         Iterator<Row> iter = readPartition.iterator();
 
@@ -238,6 +244,7 @@ public class DynamicCompositeTypeTest
 
         ColumnMetadata cdef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         Iterator<Row> iter = readPartition.iterator();
 
@@ -251,6 +258,7 @@ public class DynamicCompositeTypeTest
     @Test
     public void testUncomparableColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3625
         ByteBuffer bytes = ByteBuffer.allocate(2 + 2 + 4 + 1);
         bytes.putShort((short)(0x8000 | 'b'));
         bytes.putShort((short) 4);
@@ -279,6 +287,7 @@ public class DynamicCompositeTypeTest
     @Test
     public void testUncomparableReversedColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
         ByteBuffer uuid = ByteBuffer.allocate(2 + 2 + 16 + 1);
         uuid.putShort((short)(0x8000 | 'T'));
         uuid.putShort((short) 16);
@@ -306,6 +315,7 @@ public class DynamicCompositeTypeTest
 
     public void testCompatibility() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3657
         assert TypeParser.parse("DynamicCompositeType()").isCompatibleWith(TypeParser.parse("DynamicCompositeType()"));
         assert TypeParser.parse("DynamicCompositeType(a => IntegerType)").isCompatibleWith(TypeParser.parse("DynamicCompositeType()"));
         assert TypeParser.parse("DynamicCompositeType(b => BytesType, a => IntegerType)").isCompatibleWith(TypeParser.parse("DynamicCompositeType(a => IntegerType)"));
@@ -316,6 +326,7 @@ public class DynamicCompositeTypeTest
 
     private ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
         return createDynamicCompositeKey(s, uuid, i, lastIsOne, false);
     }
 
@@ -333,6 +344,7 @@ public class DynamicCompositeTypeTest
                 totalSize += 2 + 2 + 16 + 1;
                 if (i != -1)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
                     totalSize += 2 + intType.length() + 2 + 1 + 1;
                 }
             }
@@ -342,6 +354,7 @@ public class DynamicCompositeTypeTest
 
         if (s != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
             bb.putShort((short)(0x8000 | (reversed ? 'B' : 'b')));
             bb.putShort((short) bytes.remaining());
             bb.put(bytes);

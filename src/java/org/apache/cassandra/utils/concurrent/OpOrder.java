@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * {@code
      public final class ExampleShared
      {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         final OpOrder order = new OpOrder();
         volatile SharedState state;
 
@@ -65,6 +66,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
         public void produce()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6901
             try (Group opGroup = order.start())
             {
                 SharedState s = state;
@@ -128,6 +130,7 @@ public class OpOrder
 
     public void awaitNewBarrier()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7437
         Barrier barrier = newBarrier();
         barrier.issue();
         barrier.await();
@@ -242,6 +245,7 @@ public class OpOrder
 
         public boolean isFinished()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15367
             return next.prev == null;
         }
 
@@ -425,6 +429,7 @@ public class OpOrder
          */
         public void await()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15367
             Group current = orderOnOrBefore;
             if (current == null)
                 throw new IllegalStateException("This barrier needs to have issue() called on it before prior operations can complete");

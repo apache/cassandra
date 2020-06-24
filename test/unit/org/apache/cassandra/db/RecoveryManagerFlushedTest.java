@@ -72,6 +72,7 @@ public class RecoveryManagerFlushedTest
             {null, EncryptionContextGenerator.createContext(true)}, // Encryption
             {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
@@ -87,6 +88,7 @@ public class RecoveryManagerFlushedTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
@@ -97,11 +99,13 @@ public class RecoveryManagerFlushedTest
     public void testWithFlush() throws Exception
     {
         // Flush everything that may be in the commit log now to start fresh
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         FBUtilities.waitOnFutures(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).flush());
         FBUtilities.waitOnFutures(Keyspace.open(SchemaConstants.SCHEMA_KEYSPACE_NAME).flush());
 
 
         CompactionManager.instance.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-599
 
         // add a row to another CF so we test skipping mutations within a not-entirely-flushed CF
         insertRow("Standard2", "key");
@@ -112,6 +116,7 @@ public class RecoveryManagerFlushedTest
             insertRow("Standard1", key);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore("Standard1");
         logger.debug("forcing flush");
@@ -126,6 +131,7 @@ public class RecoveryManagerFlushedTest
 
     private void insertRow(String cfname, String key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
         new RowUpdateBuilder(cfs.metadata(), 0, key)

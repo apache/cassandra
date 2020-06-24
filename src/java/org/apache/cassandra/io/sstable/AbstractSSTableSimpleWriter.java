@@ -74,6 +74,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.keyspace, metadata.name, formatType),
                                        0,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
@@ -91,6 +92,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     private static int getNextGeneration(File directory, final String columnFamily)
     {
         final Set<Descriptor> existing = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         directory.listFiles(new FileFilter()
         {
             public boolean accept(File file)
@@ -108,6 +110,9 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         int maxGen = generation.getAndIncrement();
         for (Descriptor desc : existing)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7463
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7463
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7463
             while (desc.generation > maxGen)
             {
                 maxGen = generation.getAndIncrement();
@@ -116,6 +121,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         return maxGen;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
     PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException
     {
         return getUpdateFor(metadata.get().partitioner.decorateKey(key));
@@ -127,6 +133,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
      * @param key they partition key for which the returned update will be.
      * @return an update on partition {@code key} that is tied to this writer.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
     abstract PartitionUpdate.Builder getUpdateFor(DecoratedKey key) throws IOException;
 }
 

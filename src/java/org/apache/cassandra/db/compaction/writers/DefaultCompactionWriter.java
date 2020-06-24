@@ -42,6 +42,7 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
 
     public DefaultCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, directories, txn, nonExpiredSSTables, false, 0);
     }
 
@@ -68,14 +69,17 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
     public void switchCompactionLocation(Directories.DataDirectory directory)
     {
         @SuppressWarnings("resource")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
                                                     estimatedTotalKeys,
                                                     minRepairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                     pendingRepair,
                                                     isTransient,
                                                     cfs.metadata,
                                                     new MetadataCollector(txn.originals(), cfs.metadata().comparator, sstableLevel),
                                                     SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                                     cfs.indexManager.listIndexes(),
                                                     txn);
         sstableWriter.switchWriter(writer);

@@ -60,6 +60,7 @@ public class RepairedDataTombstonesTest extends CQLTester
         Thread.sleep(1000);
         // at this point we have 2 sstables, one repaired and one unrepaired. Both sstables contain expired tombstones, but we should only drop the tombstones from the repaired sstable.
         getCurrentColumnFamilyStore().forceMajorCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12703
         verifyIncludingPurgeable();
         verify2IncludingPurgeable(1);
         assertEquals(2, Iterables.size(getCurrentColumnFamilyStore().getSSTables(SSTableSet.LIVE)));
@@ -84,6 +85,7 @@ public class RepairedDataTombstonesTest extends CQLTester
         flush();
         Thread.sleep(1000);
         getCurrentColumnFamilyStore().forceMajorCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12703
         verifyIncludingPurgeable();
         verify2IncludingPurgeable(1);
         assertEquals(1, Iterables.size(getCurrentColumnFamilyStore().getSSTables(SSTableSet.LIVE)));
@@ -128,6 +130,7 @@ public class RepairedDataTombstonesTest extends CQLTester
 
         // allow gcgrace to properly expire:
         Thread.sleep(1000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12703
         verifyIncludingPurgeable();
         verify2IncludingPurgeable(123);
     }
@@ -182,6 +185,7 @@ public class RepairedDataTombstonesTest extends CQLTester
             while (iterator.hasNext())
             {
                 partitionsFound++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13050
                 try (UnfilteredRowIterator rowIter = iterator.next())
                 {
                     int val = ByteBufferUtil.toInt(rowIter.partitionKey().getKey());
@@ -221,6 +225,7 @@ public class RepairedDataTombstonesTest extends CQLTester
 
         Thread.sleep(2000);
         // we will keep all tombstones since the oldest tombstones are unrepaired:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12703
         verify(30, 0, 30, false);
         verify2(1, 30, 0, 30, false);
     }

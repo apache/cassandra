@@ -41,6 +41,7 @@ public class PropertyDefinitions
 
     public void addProperty(String name, Map<String, String> value) throws SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5292
         if (properties.put(name, value) != null)
             throw new SyntaxException(String.format("Multiple definition for property '%s'", name));
     }
@@ -94,6 +95,7 @@ public class PropertyDefinitions
     public Boolean getBoolean(String key, Boolean defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         return (value == null) ? defaultValue : PATTERN_POSITIVE.matcher(value.toLowerCase()).matches();
     }
 

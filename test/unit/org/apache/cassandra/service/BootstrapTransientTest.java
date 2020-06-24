@@ -70,6 +70,7 @@ public class BootstrapTransientTest
     @BeforeClass
     public static void setUpClass() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         address02 = InetAddressAndPort.getByName("127.0.0.2");
         address03 = InetAddressAndPort.getByName("127.0.0.3");
         address04 = InetAddressAndPort.getByName("127.0.0.4");
@@ -125,6 +126,7 @@ public class BootstrapTransientTest
         DatabaseDescriptor.daemonInitialization();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
     Token tenToken    = new OrderPreservingPartitioner.StringToken("00010");
     Token twentyToken = new OrderPreservingPartitioner.StringToken("00020");
     Token thirtyToken = new OrderPreservingPartitioner.StringToken("00030");
@@ -169,6 +171,7 @@ public class BootstrapTransientTest
     private Pair<TokenMetadata, TokenMetadata> constructTMDs()
     {
         TokenMetadata tmd = new TokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         tmd.updateNormalToken(range30_10.right, address02);
         tmd.updateNormalToken(range10_20.right, address03);
         tmd.updateNormalToken(range20_30.right, address04);
@@ -185,11 +188,13 @@ public class BootstrapTransientTest
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         EndpointsByReplica result = RangeStreamer.calculateRangesToFetchWithPreferredEndpoints((address, replicas) -> replicas,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                                                                                                simpleStrategy(tmds.left),
                                                                                                toFetch,
                                                                                                true,
                                                                                                tmds.left,
                                                                                                tmds.right,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13990
                                                                                                "TestKeyspace",
                                                                                                sourceFilters);
         result.asMap().forEach((replica, list) -> System.out.printf("Replica %s, sources %s%n", replica, list));

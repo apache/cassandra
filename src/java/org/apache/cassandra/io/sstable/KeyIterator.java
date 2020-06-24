@@ -39,6 +39,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
         public In(File path)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
             this.path = path;
         }
 
@@ -87,6 +88,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
     public KeyIterator(Descriptor desc, TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
         this.desc = desc;
         in = new In(new File(desc.filenameFor(Component.PRIMARY_INDEX)));
         partitioner = metadata.partitioner;
@@ -99,13 +101,17 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             if (in.isEOF())
                 return endOfData();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
             keyPosition = in.getFilePointer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
             RowIndexEntry.Serializer.skip(in.get(), desc.version); // skip remainder of the entry
             return key;
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             throw new RuntimeException(e);
         }
     }
@@ -122,11 +128,13 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
     public long getTotalBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         return in.length();
     }
 
     public long getKeyPosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         return keyPosition;
     }
 }

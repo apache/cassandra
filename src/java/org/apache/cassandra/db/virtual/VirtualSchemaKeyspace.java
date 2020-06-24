@@ -75,6 +75,7 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "tables")
                  .comment("virtual table definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14640
                  .partitioner(new LocalPartitioner(UTF8Type.instance))
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
@@ -115,6 +116,8 @@ public final class VirtualSchemaKeyspace extends VirtualKeyspace
             super(builder(keyspace, "columns")
                  .comment("virtual column definitions")
                  .kind(TableMetadata.Kind.VIRTUAL)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14640
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14640
                  .partitioner(new LocalPartitioner(UTF8Type.instance))
                  .addPartitionKeyColumn(KEYSPACE_NAME, UTF8Type.instance)
                  .addClusteringColumn(TABLE_NAME, UTF8Type.instance)

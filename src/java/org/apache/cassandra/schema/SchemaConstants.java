@@ -66,6 +66,7 @@ public final class SchemaConstants
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         emptyVersion = UUID.nameUUIDFromBytes(Digest.forSchema().digest());
     }
 

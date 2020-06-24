@@ -33,6 +33,7 @@ public class TypeCast extends Term.Raw
 
     public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         if (!term.testAssignment(keyspace, castedSpecOf(keyspace, receiver)).isAssignable())
             throw new InvalidRequestException(String.format("Cannot cast value %s to type %s", term, type));
 
@@ -49,6 +50,8 @@ public class TypeCast extends Term.Raw
 
     public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         AbstractType<?> castedType = type.prepare(keyspace).getType();
         if (receiver.type.equals(castedType))
             return AssignmentTestable.TestResult.EXACT_MATCH;
@@ -60,6 +63,7 @@ public class TypeCast extends Term.Raw
 
     public AbstractType<?> getExactTypeIfKnown(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         return type.prepare(keyspace).getType();
     }
 

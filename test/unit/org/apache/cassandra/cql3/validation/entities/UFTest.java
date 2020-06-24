@@ -49,6 +49,7 @@ public class UFTest extends CQLTester
     @Test
     public void testJavaSourceName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10819
         Assert.assertEquals("String", JavaBasedUDFunction.javaSourceName(TypeToken.of(String.class)));
         Assert.assertEquals("java.util.Map<Integer, String>", JavaBasedUDFunction.javaSourceName(TypeTokens.mapOf(Integer.class, String.class)));
         Assert.assertEquals("com.datastax.driver.core.UDTValue", JavaBasedUDFunction.javaSourceName(TypeToken.of(UDTValue.class)));
@@ -58,6 +59,7 @@ public class UFTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidThrowMessage(String.format("Function '%s.func_does_not_exist' doesn't exist", KEYSPACE),
                                   InvalidRequestException.class,
                                   "DROP FUNCTION " + KEYSPACE + ".func_does_not_exist");
@@ -83,9 +85,11 @@ public class UFTest extends CQLTester
     @Test
     public void testSchemaChange() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
         String f = createFunction(KEYSPACE,
                                   "double, double",
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                   "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
                                   "LANGUAGE javascript " +
@@ -98,6 +102,7 @@ public class UFTest extends CQLTester
         createFunctionOverload(f,
                                "double, double",
                                "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                "RETURNS NULL ON NULL INPUT " +
                                "RETURNS int " +
                                "LANGUAGE javascript " +
@@ -108,10 +113,12 @@ public class UFTest extends CQLTester
                                "int", "int");
 
         schemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                      "RETURNS NULL ON NULL INPUT " +
                      "RETURNS int " +
                      "LANGUAGE javascript " +
                      "AS '\"string1\";';");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         assertLastSchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.FUNCTION,
                                KEYSPACE, parseFunctionName(f).name,
@@ -137,7 +144,9 @@ public class UFTest extends CQLTester
         FunctionName fSinName = parseFunctionName(fSin);
 
         Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
                    row(fSinName.name, "java"));
 
@@ -145,6 +154,7 @@ public class UFTest extends CQLTester
 
         assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         Assert.assertEquals(0, Schema.instance.getFunctions(fSinName).size());
     }
 
@@ -155,6 +165,8 @@ public class UFTest extends CQLTester
 
         String fSin = createFunction(KEYSPACE_PER_TEST, "double",
                                      "CREATE FUNCTION %s ( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                      "CALLED ON NULL INPUT " +
                                      "RETURNS double " +
                                      "LANGUAGE java " +
@@ -163,13 +175,16 @@ public class UFTest extends CQLTester
         FunctionName fSinName = parseFunctionName(fSin);
 
         Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
         // create a pairs of Select and Inserts. One statement in each pair uses the function so when we
         // drop it those statements should be removed from the cache in QueryProcessor. The other statements
         // should be unaffected.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
         ResultMessage.Prepared preparedSelect1 = QueryProcessor.prepare(
                                                                        String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                                                        ClientState.forInternalCalls());
         ResultMessage.Prepared preparedSelect2 = QueryProcessor.prepare(
                                                     String.format("SELECT key FROM %s.%s", KEYSPACE, currentTable()),
@@ -195,15 +210,20 @@ public class UFTest extends CQLTester
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert2.statementId));
 
         execute("CREATE FUNCTION " + fSin + " ( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                 "RETURNS NULL ON NULL INPUT " +
                 "RETURNS double " +
                 "LANGUAGE java " +
                 "AS 'return Double.valueOf(Math.sin(input));'");
 
         Assert.assertEquals(1, Schema.instance.getFunctions(fSinName).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
         preparedSelect1= QueryProcessor.prepare(
                                          String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                          ClientState.forInternalCalls());
         preparedInsert1 = QueryProcessor.prepare(
                                          String.format("INSERT INTO %s.%s (key, d) VALUES (?, %s(?))", KEYSPACE, currentTable(), fSin),
@@ -228,6 +248,7 @@ public class UFTest extends CQLTester
         // test that dropping a function removes stmts which use
         // it to provide a DelayedValue collection from the
         // cache in QueryProcessor
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9166
         checkDelayedValuesCorrectlyIdentifyFunctionsInUse(false);
     }
 
@@ -267,6 +288,7 @@ public class UFTest extends CQLTester
         createTable("CREATE TABLE %s (" +
                     " key int PRIMARY KEY," +
                     " val " + collectionType + ')');
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
 
         ResultMessage.Prepared prepared = QueryProcessor.prepare(
                                                                 String.format("INSERT INTO %s.%s (key, val) VALUES (?, %s)",
@@ -289,6 +311,8 @@ public class UFTest extends CQLTester
                                                                              KEYSPACE,
                                                                              currentTable(),
                                                                              function),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                                                 ClientState.forInternalCalls());
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
         return prepared;
@@ -304,6 +328,7 @@ public class UFTest extends CQLTester
                                                                String.format("INSERT INTO %s.%s (key, val) VALUES (?, ?)",
                                                                             KEYSPACE,
                                                                             currentTable()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                                                ClientState.forInternalCalls());
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(control.statementId));
 
@@ -311,11 +336,13 @@ public class UFTest extends CQLTester
         // provide a DelayedValue are removed from the cache in QueryProcessor
         String function = createFunction(KEYSPACE_PER_TEST, "double",
                                         "CREATE FUNCTION %s ( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                         "CALLED ON NULL INPUT " +
                                         "RETURNS double " +
                                         "LANGUAGE javascript " +
                                         "AS 'input'");
         Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(function)).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
         List<ResultMessage.Prepared> prepared = new ArrayList<>();
         // prepare statements which use the function to provide a DelayedValue
@@ -351,6 +378,7 @@ public class UFTest extends CQLTester
         // simple creation
         String fSin = createFunction(KEYSPACE_PER_TEST, "double",
                                      "CREATE FUNCTION %s ( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                      "CALLED ON NULL INPUT " +
                                      "RETURNS double " +
                                      "LANGUAGE java " +
@@ -377,10 +405,12 @@ public class UFTest extends CQLTester
 
         // Replace the method with incompatible return type
         assertInvalidMessage("the new return type text is not compatible with the return type double of existing function",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "CREATE OR REPLACE FUNCTION " + fSin + " ( input double ) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS text " +
                              "LANGUAGE java AS 'return \"42d\";'");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // proper replacement
         execute("CREATE OR REPLACE FUNCTION " + fSin + " ( input double ) " +
@@ -398,9 +428,11 @@ public class UFTest extends CQLTester
         // same function but other keyspace
         String fSin2 = createFunction(KEYSPACE, "double",
                                       "CREATE FUNCTION %s ( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
                                       "LANGUAGE java " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
                                       "AS 'return Math.sin(input);'");
         assertRows(execute("SELECT key, " + fSin2 + "(d) FROM %s"),
             row(1, Math.sin(1d)),
@@ -413,6 +445,7 @@ public class UFTest extends CQLTester
         execute("DROP FUNCTION " + fSin2);
 
         // Drop unexisting function
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Function '%s' doesn't exist", fSin), "DROP FUNCTION " + fSin);
         // but don't complain with "IF EXISTS"
         execute("DROP FUNCTION IF EXISTS " + fSin);
@@ -432,12 +465,15 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(v) VALUES (?)", "aaa");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
         String fRepeat = createFunction(KEYSPACE_PER_TEST, "text,int",
                                         "CREATE FUNCTION %s(v text, n int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                         "RETURNS NULL ON NULL INPUT " +
                                         "RETURNS text " +
                                         "LANGUAGE java " +
                                         "AS 'StringBuilder sb = new StringBuilder();\n" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
                                         "    for (int i = 0; i < n; i++)\n" +
                                         "        sb.append(v);\n" +
                                         "    return sb.toString();'");
@@ -450,6 +486,7 @@ public class UFTest extends CQLTester
     public void testFunctionExecutionWithReversedTypeAsOutput() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, v text, PRIMARY KEY(k, v)) WITH CLUSTERING ORDER BY (v DESC)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10296
 
         String fRepeat = createFunction(KEYSPACE_PER_TEST, "text",
                                         "CREATE FUNCTION %s(v text) " +
@@ -470,6 +507,7 @@ public class UFTest extends CQLTester
 
         String fOverload = createFunction(KEYSPACE_PER_TEST, "varchar",
                                           "CREATE FUNCTION %s ( input varchar ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS text " +
                                           "LANGUAGE java " +
@@ -491,6 +529,7 @@ public class UFTest extends CQLTester
         createFunctionOverload(fOverload,
                                "ascii",
                                "CREATE OR REPLACE FUNCTION %s(v ascii) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                "RETURNS NULL ON NULL INPUT " +
                                "RETURNS text " +
                                "LANGUAGE java " +
@@ -499,6 +538,7 @@ public class UFTest extends CQLTester
         // text == varchar, so this should be considered as a duplicate
         assertInvalidMessage("already exists",
                              "CREATE FUNCTION " + fOverload + "(v varchar) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS text " +
                              "LANGUAGE java AS 'return \"f1\";'");
@@ -509,6 +549,7 @@ public class UFTest extends CQLTester
 
         forcePreparedValues();
         // This shouldn't work if we use preparation since there no way to know which overload to use
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         assertInvalidMessage("Ambiguous call to function", "SELECT v FROM %s WHERE k = " + fOverload + "(?)", "foo");
         stopForcingPreparedValues();
 
@@ -520,6 +561,7 @@ public class UFTest extends CQLTester
         assertEmpty(execute("SELECT v FROM %s WHERE k = " + fOverload + "((varchar)?)", "foo"));
 
         // no such functions exist...
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Function '%s(boolean)' doesn't exist", fOverload), "DROP FUNCTION " + fOverload + "(boolean)");
         assertInvalidMessage(String.format("Function '%s(bigint)' doesn't exist", fOverload), "DROP FUNCTION " + fOverload + "(bigint)");
 
@@ -534,12 +576,14 @@ public class UFTest extends CQLTester
         // single-int-overload must still work
         assertRows(execute("SELECT v FROM %s WHERE k = " + fOverload + "((int)?)", 3), row(1));
         // overloaded has just one overload now - so the following DROP FUNCTION is not ambigious (CASSANDRA-7812)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
         execute("DROP FUNCTION " + fOverload);
     }
 
     @Test
     public void testCreateOrReplaceJavaFunction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7924
         createTable("CREATE TABLE %s (key int primary key, val double)");
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
@@ -547,6 +591,7 @@ public class UFTest extends CQLTester
 
         String fName = createFunction(KEYSPACE_PER_TEST, "double",
                 "CREATE FUNCTION %s( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                 "CALLED ON NULL INPUT " +
                 "RETURNS double " +
                 "LANGUAGE java " +
@@ -556,17 +601,20 @@ public class UFTest extends CQLTester
                 "  if (input == null) {\n" +
                 "    return null;\n" +
                 "  }\n" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
                 "  return Math.sin( input );\n" +
                 "';");
 
         // just check created function
         assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7924
                    row(1, 1d, Math.sin(1d)),
                    row(2, 2d, Math.sin(2d)),
                    row(3, 3d, Math.sin(3d))
         );
 
         execute("CREATE OR REPLACE FUNCTION " + fName + "( input double ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                 "CALLED ON NULL INPUT " +
                 "RETURNS double " +
                 "LANGUAGE java\n" +
@@ -590,7 +638,10 @@ public class UFTest extends CQLTester
         execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".second_tab (key int primary key, val double)");
 
         String fName = createFunction(KEYSPACE_PER_TEST, "double",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
                                       "LANGUAGE JAVA " +
@@ -599,6 +650,7 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         assertInvalidMessage("Unknown function",
                              "SELECT key, val, " + parseFunctionName(fName).name + "(val) FROM %s");
 
@@ -616,8 +668,10 @@ public class UFTest extends CQLTester
     public void testFunctionWithReservedName() throws Throwable
     {
         execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".second_tab (key int primary key, val double)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
 
         String fName = createFunction(KEYSPACE_PER_TEST, "",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                       "CREATE OR REPLACE FUNCTION %s() " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS timestamp " +
@@ -645,13 +699,16 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionInSystemKS() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         execute("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".totimestamp(val timeuuid) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                 "RETURNS NULL ON NULL INPUT " +
                 "RETURNS timestamp " +
                 "LANGUAGE JAVA\n" +
 
                 "AS 'return null;';");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("System keyspace 'system' is not user-modifiable",
                              "CREATE OR REPLACE FUNCTION system.jnft(val double) " +
                              "RETURNS NULL ON NULL INPUT " +
@@ -659,6 +716,7 @@ public class UFTest extends CQLTester
                              "LANGUAGE JAVA\n" +
                              "AS 'return null;';");
         assertInvalidMessage("System keyspace 'system' is not user-modifiable",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
                              "CREATE OR REPLACE FUNCTION system.totimestamp(val timeuuid) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS timestamp " +
@@ -676,6 +734,7 @@ public class UFTest extends CQLTester
                              "LANGUAGE JAVA\n" +
                              "AS 'return null;';");
         assertInvalidMessage("System keyspace 'system' is not user-modifiable",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
                              "CREATE OR REPLACE FUNCTION totimestamp(val timeuuid) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS timestamp " +
@@ -689,6 +748,7 @@ public class UFTest extends CQLTester
     public void testFunctionNonExistingKeyspace() throws Throwable
     {
         assertInvalidMessage("Keyspace 'this_ks_does_not_exist' doesn't exist",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "CREATE OR REPLACE FUNCTION this_ks_does_not_exist.jnft(val double) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS double " +
@@ -701,8 +761,16 @@ public class UFTest extends CQLTester
     {
         dropPerTestKeyspace();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Keyspace '" + KEYSPACE_PER_TEST + "' doesn't exist",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE_PER_TEST + ".jnft(val double) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS double " +
                              "LANGUAGE JAVA\n" +
@@ -712,13 +780,16 @@ public class UFTest extends CQLTester
     @Test
     public void testWrongKeyspace() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9409
         String typeName = createType("CREATE TYPE %s (txt text, i int)");
         String type = KEYSPACE + '.' + typeName;
 
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
                                            KEYSPACE_PER_TEST, KEYSPACE),
                              "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val int ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "CALLED ON NULL INPUT " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                              "RETURNS " + type + " " +
                              "LANGUAGE java\n" +
                              "AS $$return val;$$;");
@@ -736,11 +807,16 @@ public class UFTest extends CQLTester
     public void testUserTypeDrop() throws Throwable
     {
         String type = KEYSPACE + '.' + createType("CREATE TYPE %s (txt text, i int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8241
 
         createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
         String fName = createFunction(KEYSPACE, type,
                                       "CREATE FUNCTION %s( udt " + type + " ) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS int " +
                                       "LANGUAGE java " +
@@ -750,13 +826,16 @@ public class UFTest extends CQLTester
         FunctionName fNameName = parseFunctionName(fName);
 
         Assert.assertEquals(1, Schema.instance.getFunctions(fNameName).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
         ResultMessage.Prepared prepared = QueryProcessor.prepare(String.format("SELECT key, %s(udt) FROM %s.%s", fName, KEYSPACE, currentTable()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                                                  ClientState.forInternalCalls());
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
         // UT still referenced by table
         assertInvalidMessage("Cannot drop user type", "DROP TYPE " + type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
 
         execute("DROP TABLE %s");
 
@@ -766,14 +845,20 @@ public class UFTest extends CQLTester
         Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
         // function stays
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         Assert.assertEquals(1, Schema.instance.getFunctions(fNameName).size());
     }
 
     @Test
     public void testDuplicateArgNames() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Duplicate argument names for given function",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double, val text) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS text " +
                              "LANGUAGE javascript\n" +
@@ -810,11 +895,15 @@ public class UFTest extends CQLTester
                       "AS 'return \"foo bar\";';");
 
         execute("CREATE OR REPLACE FUNCTION " + fNulls + "(val int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                 "CALLED ON NULL INPUT " +
                 "RETURNS text " +
                 "LANGUAGE java\n" +
                 "AS 'return \"foo bar\";';");
         execute("CREATE OR REPLACE FUNCTION " + fNoNulls + "(val int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                 "RETURNS NULL ON NULL INPUT " +
                 "RETURNS text " +
                 "LANGUAGE java\n" +
@@ -836,6 +925,7 @@ public class UFTest extends CQLTester
 
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE_PER_TEST);
         UDFunction f = (UDFunction) ksm.functions.get(parseFunctionName(fName)).iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
 
         UDFunction broken = UDFunction.createBrokenFunction(f.name(),
                                                             f.argNames(),
@@ -858,12 +948,20 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s (key, dval) VALUES (?, ?)", 1, 1d);
 
         String fName = createFunction(KEYSPACE_PER_TEST, "double",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
                                       "LANGUAGE JAVA\n" +
                                       "AS 'throw new RuntimeException();'");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9493
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
             try
@@ -875,6 +973,7 @@ public class UFTest extends CQLTester
             catch (com.datastax.driver.core.exceptions.FunctionExecutionException fee)
             {
                 // Java driver neither throws FunctionExecutionException nor does it set the exception code correctly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 Assert.assertTrue(version.isGreaterOrEqualTo(ProtocolVersion.V4));
             }
             catch (InvalidQueryException e)
@@ -887,6 +986,7 @@ public class UFTest extends CQLTester
     @Test
     public void testEmptyString() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         createTable("CREATE TABLE %s (key int primary key, sval text, aval ascii, bval blob, empty_int int)");
         execute("INSERT INTO %s (key, sval, aval, bval, empty_int) VALUES (?, ?, ?, ?, blobAsInt(0x))", 1, "", "", ByteBuffer.allocate(0));
 
@@ -967,8 +1067,10 @@ public class UFTest extends CQLTester
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10741
         String fNameICN = createFunction(KEYSPACE_PER_TEST, "int",
                                          "CREATE OR REPLACE FUNCTION %s(val int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS int " +
                                          "LANGUAGE JAVA\n" +

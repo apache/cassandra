@@ -39,6 +39,7 @@ public class DurationType extends AbstractType<Duration>
 
     DurationType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         super(ComparisonType.BYTE_ORDER);
     } // singleton
 

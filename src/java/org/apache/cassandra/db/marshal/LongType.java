@@ -33,19 +33,23 @@ public class LongType extends NumberType<Long>
     public static final LongType instance = new LongType();
 
     LongType() {super(ComparisonType.CUSTOM);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5723
         return compareLongs(o1, o2);
     }
 
     public static int compareLongs(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -66,10 +70,13 @@ public class LongType extends NumberType<Long>
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1864
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             longType = Long.parseLong(source);
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             throw new MarshalException(String.format("Unable to make long from '%s'", source), e);
         }
 
@@ -106,11 +113,13 @@ public class LongType extends NumberType<Long>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         return this == otherType || otherType == DateType.instance || otherType == TimestampType.instance;
     }
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.BIGINT;
     }
 
@@ -122,12 +131,14 @@ public class LongType extends NumberType<Long>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 8;
     }
 
     @Override
     protected int toInt(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         throw new UnsupportedOperationException();
     }
 

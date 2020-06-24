@@ -78,6 +78,8 @@ public class SharedExecutorPool
     final ConcurrentSkipListMap<Long, SEPWorker> descheduled = new ConcurrentSkipListMap<>();
 
     volatile boolean shuttingDown = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
 
     public SharedExecutorPool(String poolName)
     {
@@ -110,6 +112,8 @@ public class SharedExecutorPool
 
     public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return newExecutor(maxConcurrency, i -> {}, maxQueuedTasks, jmxPath, name);
     }
 
@@ -122,12 +126,16 @@ public class SharedExecutorPool
 
     public synchronized void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
         shuttingDown = true;
         for (SEPExecutor executor : executors)
             executor.shutdownNow();
 
         terminateWorkers();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         long until = System.nanoTime() + unit.toNanos(timeout);
         for (SEPExecutor executor : executors)
         {

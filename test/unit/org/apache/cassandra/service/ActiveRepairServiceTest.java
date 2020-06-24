@@ -101,6 +101,7 @@ public class ActiveRepairServiceTest
             SchemaLoader.startGossiper();
             initialized = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             LOCAL = FBUtilities.getBroadcastAddressAndPort();
             // generate a fake endpoint for which we can spoof receiving/sending trees
             REMOTE = InetAddressAndPort.getByName("127.0.0.2");
@@ -108,6 +109,7 @@ public class ActiveRepairServiceTest
 
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         StorageService.instance.setTokens(Collections.singleton(tmd.partitioner.getRandomToken()));
         tmd.updateNormalToken(tmd.partitioner.getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
@@ -181,6 +183,7 @@ public class ActiveRepairServiceTest
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
         addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().allReplicas);
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> expected = new HashSet<>();
         for (Replica replica : ars.getAddressReplicas().get(FBUtilities.getBroadcastAddressAndPort()))
         {
@@ -238,6 +241,7 @@ public class ActiveRepairServiceTest
     @Test
     public void testParentRepairStatus() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         ActiveRepairService.instance.recordRepairStatus(1, ActiveRepairService.ParentRepairStatus.COMPLETED, ImmutableList.of("foo", "bar"));
         List<String> res = StorageService.instance.getParentRepairStatus(1);
         assertNotNull(res);
@@ -255,6 +259,7 @@ public class ActiveRepairServiceTest
 
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     Set<InetAddressAndPort> addTokens(int max) throws Throwable
     {
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
@@ -262,6 +267,7 @@ public class ActiveRepairServiceTest
         for (int i = 1; i <= max; i++)
         {
             InetAddressAndPort endpoint = InetAddressAndPort.getByName("127.0.0." + i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             tmd.updateNormalToken(tmd.partitioner.getRandomToken(), endpoint);
             endpoints.add(endpoint);
         }
@@ -274,7 +280,9 @@ public class ActiveRepairServiceTest
         ColumnFamilyStore store = prepareColumnFamilyStore();
         UUID prsId = UUID.randomUUID();
         Set<SSTableReader> original = Sets.newHashSet(store.select(View.select(SSTableSet.CANONICAL, (s) -> !s.isRepaired())).sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
                                                                  ranges, true, System.currentTimeMillis(), true, PreviewKind.NONE);
         store.getRepairManager().snapshot(prsId.toString(), ranges, false);
@@ -287,6 +295,7 @@ public class ActiveRepairServiceTest
                                                                  true, PreviewKind.NONE);
         createSSTables(store, 2);
         store.getRepairManager().snapshot(prsId.toString(), ranges, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         try (Refs<SSTableReader> refs = store.getSnapshotSSTableReaders(prsId.toString()))
         {
             assertEquals(original, Sets.newHashSet(refs.iterator()));
@@ -316,12 +325,14 @@ public class ActiveRepairServiceTest
                 .build()
                 .applyUnsafe();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11696
             cfs.forceBlockingFlush();
         }
     }
 
     private static RepairOption opts(String... params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
         assert params.length % 2 == 0 : "unbalanced key value pairs";
         Map<String, String> opt = new HashMap<>();
         for (int i=0; i<(params.length >> 1); i++)
@@ -344,6 +355,7 @@ public class ActiveRepairServiceTest
     public void repairedAt() throws Exception
     {
         // regular incremental repair
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true)), false));
         // subrange incremental repair
         Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),

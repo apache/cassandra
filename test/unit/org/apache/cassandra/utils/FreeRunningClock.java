@@ -36,6 +36,7 @@ public class FreeRunningClock implements MonotonicClock
     @Override
     public long error()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return 0;
     }
 

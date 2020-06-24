@@ -38,6 +38,7 @@ public class SecondaryIndexOnMapEntriesTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
     }
 

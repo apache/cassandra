@@ -24,6 +24,7 @@ public interface CacheSize
 {
 
     long capacity();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
 
     void setCapacity(long capacity);
 

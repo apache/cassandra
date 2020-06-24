@@ -62,6 +62,7 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
 
     protected void setReverseOrder(boolean isReverseOrder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
         this.isReverseOrder = isReverseOrder;
     }
 
@@ -73,6 +74,7 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
 
         setReverseOrder(partition.isReverseOrder());
         UnfilteredRowIterator purged = Transformation.apply(partition, this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         if (purged.isEmpty())
         {
             onEmptyPartitionPostPurge(purged.partitionKey());

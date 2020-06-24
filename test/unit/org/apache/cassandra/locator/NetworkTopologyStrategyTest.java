@@ -58,6 +58,7 @@ public class NetworkTopologyStrategyTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
@@ -69,6 +70,8 @@ public class NetworkTopologyStrategyTest
         DatabaseDescriptor.setEndpointSnitch(snitch);
         TokenMetadata metadata = new TokenMetadata();
         createDummyTokens(metadata, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1924
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put("DC1", "3");
@@ -91,6 +94,7 @@ public class NetworkTopologyStrategyTest
     public void testPropertiesWithEmptyDC() throws IOException, ConfigurationException
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3881
         DatabaseDescriptor.setEndpointSnitch(snitch);
         TokenMetadata metadata = new TokenMetadata();
         createDummyTokens(metadata, false);
@@ -124,6 +128,7 @@ public class NetworkTopologyStrategyTest
         TokenMetadata metadata = new TokenMetadata();
         Map<String, String> configOptions = new HashMap<String, String>();
         Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         int totalRF = 0;
         for (int dc = 0; dc < dcRacks.length; ++dc)
@@ -135,9 +140,11 @@ public class NetworkTopologyStrategyTest
                 for (int ep = 1; ep <= dcEndpoints[dc]/dcRacks[dc]; ++ep)
                 {
                     byte[] ipBytes = new byte[]{10, (byte)dc, (byte)rack, (byte)ep};
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     InetAddressAndPort address = InetAddressAndPort.getByAddress(ipBytes);
                     StringToken token = new StringToken(String.format("%02x%02x%02x", ep, rack, dc));
                     logger.debug("adding node {} at {}", address, token);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4121
                     tokens.put(address, token);
                 }
             }
@@ -145,6 +152,7 @@ public class NetworkTopologyStrategyTest
         metadata.updateNormalTokens(tokens);
 
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
@@ -168,6 +176,8 @@ public class NetworkTopologyStrategyTest
         tokenFactory(metadata, "789", new byte[]{ 10, 20, 114, 10 });
         tokenFactory(metadata, "890", new byte[]{ 10, 20, 114, 11 });
         //tokens for DC3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1924
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (populateDC3)
         {
             tokenFactory(metadata, "456", new byte[]{ 10, 21, 119, 13 });
@@ -183,6 +193,7 @@ public class NetworkTopologyStrategyTest
     public void tokenFactory(TokenMetadata metadata, String token, byte[] bytes) throws UnknownHostException
     {
         Token token1 = new StringToken(token);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort add1 = InetAddressAndPort.getByAddress(bytes);
         metadata.updateNormalToken(token1, add1);
     }
@@ -190,11 +201,13 @@ public class NetworkTopologyStrategyTest
     @Test
     public void testCalculateEndpoints() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10200
         final int NODES = 100;
         final int VNODES = 64;
         final int RUNS = 10;
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         Map<String, Integer> datacenters = ImmutableMap.of("rf1", 1, "rf3", 3, "rf5_1", 5, "rf5_2", 5, "rf5_3", 5);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> nodes = new ArrayList<>(NODES);
         for (byte i=0; i<NODES; ++i)
             nodes.add(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, i}));
@@ -241,6 +254,7 @@ public class NetworkTopologyStrategyTest
             return false;
         if (!ep1.get(0).equals(ep2.get(0)))
             return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> s1 = new HashSet<>(ep1);
         Set<InetAddressAndPort> s2 = new HashSet<>(ep2);
         return !s1.equals(s2);
@@ -261,6 +275,7 @@ public class NetworkTopologyStrategyTest
                 dcs[pos++] = dce.getKey();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort node : nodes)
         {
             String dc = dcs[rand.nextInt(rf)];
@@ -297,6 +312,7 @@ public class NetworkTopologyStrategyTest
     public static List<InetAddressAndPort> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, Map<String, Integer> datacenters, IEndpointSnitch snitch)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> replicas = new LinkedHashSet<>();
         // replicas we have found in each DC
         Map<String, Set<InetAddressAndPort>> dcReplicas = new HashMap<>(datacenters.size());
@@ -317,6 +333,7 @@ public class NetworkTopologyStrategyTest
 
         // tracks the endpoints that we skipped over while looking for unique racks
         // when we relax the rack uniqueness we can append this to the current result so we don't have to wind back the iterator
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<String, Set<InetAddressAndPort>> skippedDcEndpoints = new HashMap<>(datacenters.size());
         for (Map.Entry<String, Integer> dc : datacenters.entrySet())
             skippedDcEndpoints.put(dc.getKey(), new LinkedHashSet<InetAddressAndPort>());
@@ -352,6 +369,7 @@ public class NetworkTopologyStrategyTest
                     // if we've run out of distinct racks, add the hosts we skipped past already (up to RF)
                     if (seenRacks.get(dc).size() == racks.get(dc).keySet().size())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                         Iterator<InetAddressAndPort> skippedIt = skippedDcEndpoints.get(dc).iterator();
                         while (skippedIt.hasNext() && !hasSufficientReplicas(dc, dcReplicas, allEndpoints, datacenters))
                         {
@@ -364,6 +382,7 @@ public class NetworkTopologyStrategyTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return new ArrayList<InetAddressAndPort>(replicas);
     }
 
@@ -419,7 +438,10 @@ public class NetworkTopologyStrategyTest
         configOptions.put(snitch.getDatacenter((InetAddressAndPort) null), "3/1");
 
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
                                                fullReplica(endpoints.get(1), range(400, 100)),
                                                transientReplica(endpoints.get(2), range(400, 100))),

@@ -144,6 +144,7 @@ public class ViewUpdateGenerator
      */
     public Collection<PartitionUpdate> generateViewUpdates()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         return updates.values().stream().map(PartitionUpdate.Builder::build).collect(Collectors.toList());
     }
 
@@ -152,6 +153,7 @@ public class ViewUpdateGenerator
      */
     public void clear()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12268
         updates.clear();
     }
 
@@ -204,6 +206,7 @@ public class ViewUpdateGenerator
         // If the update didn't modified this column, the cells will be the same object so it's worth checking
         if (before == after)
             return isLive(before) ? UpdateAction.UPDATE_EXISTING : UpdateAction.NONE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12247
 
         if (!isLive(before))
             return isLive(after) ? UpdateAction.NEW_ENTRY : UpdateAction.NONE;
@@ -504,6 +507,7 @@ public class ViewUpdateGenerator
 
         Cell cell = baseRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
         assert isLive(cell) : "We shouldn't have got there if the base row had no associated entry";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12247
 
         return LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime());
     }
@@ -569,6 +573,7 @@ public class ViewUpdateGenerator
         DecoratedKey partitionKey = makeCurrentPartitionKey();
         // We can't really know which columns of the view will be updated nor how many row will be updated for this key
         // so we rely on hopefully sane defaults.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         PartitionUpdate.Builder update = updates.computeIfAbsent(partitionKey,
                                                                  k -> new PartitionUpdate.Builder(viewMetadata,
                                                                                                   partitionKey,

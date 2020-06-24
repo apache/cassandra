@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 /**
  * For specifying multiple grouped sub-options in the form: group(arg1=,arg2,arg3) etc.
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
 abstract class OptionMulti extends Option
 {
 
@@ -38,6 +39,7 @@ abstract class OptionMulti extends Option
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
             if (collectAsMap == null)
                 return OptionMulti.this.options();
 
@@ -95,6 +97,7 @@ abstract class OptionMulti extends Option
         StringBuilder sb = new StringBuilder();
         sb.append(name);
         sb.append("(");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         for (Option option : delegate.options())
         {
             sb.append(option);
@@ -107,10 +110,12 @@ abstract class OptionMulti extends Option
     @Override
     public String shortDisplay()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         return (happy() ? "[" : "") + name + "(?)" + (happy() ? "]" : "");
     }
     public String getOptionAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         StringBuilder sb = new StringBuilder();
         sb.append(name).append(": ");
         sb.append(delegate.getOptionAsString());
@@ -131,6 +136,7 @@ abstract class OptionMulti extends Option
         StringBuilder sb = new StringBuilder();
         sb.append(name);
         sb.append("(");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         for (Option opt : delegate.options())
         {
             sb.append(opt.shortDisplay());
@@ -160,6 +166,7 @@ abstract class OptionMulti extends Option
 
         static final String description = "Extra options";
         Map<String, String> options = new LinkedHashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
 
         boolean accept(String param)
         {
@@ -185,6 +192,7 @@ abstract class OptionMulti extends Option
 
         public String getOptionAsString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, String> entry : options.entrySet())
             {
@@ -211,6 +219,8 @@ abstract class OptionMulti extends Option
 
         boolean present()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             return !options.isEmpty();
         }
     }
@@ -228,6 +238,7 @@ abstract class OptionMulti extends Option
     {
         List<Option> r = new ArrayList<>();
         for (Option option : delegate.options())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             if (!option.setByUser() && option.present())
                 r.add(option);
         return r;
@@ -243,6 +254,7 @@ abstract class OptionMulti extends Option
 
     boolean present()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         for (Option option : delegate.options())
             if (option.present())
                 return true;

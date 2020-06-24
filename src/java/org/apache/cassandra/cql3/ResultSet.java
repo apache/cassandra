@@ -66,12 +66,14 @@ public class ResultSet
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8229
         return size() == 0;
     }
 
     public void addRow(List<ByteBuffer> row)
     {
         assert row.size() == metadata.valueCount();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5226
         rows.add(row);
     }
 
@@ -121,6 +123,7 @@ public class ResultSet
                     }
                     else
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5770
                         sb.append(" | ");
                         if (metadata.flags.contains(Flag.NO_METADATA))
                             sb.append("0x").append(ByteBufferUtil.bytesToHex(v));
@@ -149,6 +152,7 @@ public class ResultSet
          */
         public ResultSet decode(ByteBuf body, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
             ResultMetadata m = ResultMetadata.codec.decode(body, version);
             int rowCount = body.readInt();
             ResultSet rs = new ResultSet(m, new ArrayList<List<ByteBuffer>>(rowCount));
@@ -163,6 +167,7 @@ public class ResultSet
 
         public void encode(ResultSet rs, ByteBuf dest, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
             ResultMetadata.codec.encode(rs.metadata, dest, version);
             dest.writeInt(rs.rows.size());
             for (List<ByteBuffer> row : rs.rows)
@@ -277,13 +282,16 @@ public class ResultSet
         {
             // See comment above. Because columnCount doesn't account the newly added name, it
             // won't be serialized.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             names.addAll(columns);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5770
             return this;
         }
 
         public void setHasMorePages(PagingState pagingState)
         {
             this.pagingState = pagingState;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7787
             if (pagingState == null)
                 flags.remove(Flag.HAS_MORE_PAGES);
             else
@@ -316,6 +324,7 @@ public class ResultSet
         @Override
         public boolean equals(Object other)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (this == other)
                 return true;
 
@@ -341,8 +350,10 @@ public class ResultSet
         {
             StringBuilder sb = new StringBuilder();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5649
             if (names == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5770
                 sb.append("[").append(columnCount).append(" columns]");
             }
             else
@@ -354,6 +365,7 @@ public class ResultSet
                     sb.append(", ").append(name.type).append("]");
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4415
             if (flags.contains(Flag.HAS_MORE_PAGES))
                 sb.append(" (to be continued)");
             return sb.toString();
@@ -381,6 +393,7 @@ public class ResultSet
                 PagingState state = null;
                 if (flags.contains(Flag.HAS_MORE_PAGES))
                     state = PagingState.deserialize(CBUtil.readValueNoCopy(body), version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13789
 
                 if (flags.contains(Flag.NO_METADATA))
                     return new ResultMetadata(null, flags, null, columnCount, state);
@@ -414,6 +427,7 @@ public class ResultSet
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
                 boolean metadataChanged = m.flags.contains(Flag.METADATA_CHANGED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 assert version.isGreaterThan(ProtocolVersion.V1) || (!hasMorePages && !noMetadata)
                     : "version = " + version + ", flags = " + m.flags;
 
@@ -433,6 +447,7 @@ public class ResultSet
                 {
                     if (globalTablesSpec)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                         CBUtil.writeAsciiString(m.names.get(0).ksName, dest);
                         CBUtil.writeAsciiString(m.names.get(0).cfName, dest);
                     }
@@ -469,6 +484,7 @@ public class ResultSet
                 {
                     if (globalTablesSpec)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                         size += CBUtil.sizeOfAsciiString(m.names.get(0).ksName);
                         size += CBUtil.sizeOfAsciiString(m.names.get(0).cfName);
                     }
@@ -482,6 +498,7 @@ public class ResultSet
                             size += CBUtil.sizeOfAsciiString(name.cfName);
                         }
                         size += CBUtil.sizeOfAsciiString(name.name.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                     }
                 }
@@ -503,6 +520,7 @@ public class ResultSet
 
         public PreparedMetadata(List<ColumnSpecification> names, short[] partitionKeyBindIndexes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
             this(EnumSet.noneOf(Flag.class), names, partitionKeyBindIndexes);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
                 flags.add(Flag.GLOBAL_TABLES_SPEC);
@@ -523,6 +541,7 @@ public class ResultSet
         @Override
         public boolean equals(Object other)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (this == other)
                 return true;
 
@@ -538,6 +557,7 @@ public class ResultSet
         @Override
         public int hashCode()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             return Objects.hash(names, flags) + Arrays.hashCode(partitionKeyBindIndexes);
         }
 
@@ -568,6 +588,7 @@ public class ResultSet
 
         public static PreparedMetadata fromPrepared(CQLStatement statement)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return new PreparedMetadata(statement.getBindVariables(), statement.getPartitionKeyBindVariableIndexes());
         }
 
@@ -581,7 +602,9 @@ public class ResultSet
 
                 EnumSet<Flag> flags = Flag.deserialize(iflags);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11717
                 short[] partitionKeyBindIndexes = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     int numPKNames = body.readInt();
@@ -610,6 +633,7 @@ public class ResultSet
                     String ksName = globalTablesSpec ? globalKsName : CBUtil.readString(body);
                     String cfName = globalTablesSpec ? globalCfName : CBUtil.readString(body);
                     ColumnIdentifier colName = new ColumnIdentifier(CBUtil.readString(body), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                     AbstractType type = DataType.toType(DataType.codec.decodeOne(body, version));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
@@ -622,6 +646,7 @@ public class ResultSet
                 dest.writeInt(Flag.serialize(m.flags));
                 dest.writeInt(m.names.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     // there's no point in providing partition key bind indexes if the statements affect multiple tables
@@ -639,6 +664,7 @@ public class ResultSet
 
                 if (globalTablesSpec)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     CBUtil.writeAsciiString(m.names.get(0).ksName, dest);
                     CBUtil.writeAsciiString(m.names.get(0).cfName, dest);
                 }
@@ -647,10 +673,12 @@ public class ResultSet
                 {
                     if (!globalTablesSpec)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                         CBUtil.writeAsciiString(name.ksName, dest);
                         CBUtil.writeAsciiString(name.cfName, dest);
                     }
                     CBUtil.writeAsciiString(name.name.toString(), dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
                     DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                 }
             }
@@ -661,10 +689,12 @@ public class ResultSet
                 int size = 8;
                 if (globalTablesSpec)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     size += CBUtil.sizeOfAsciiString(m.names.get(0).ksName);
                     size += CBUtil.sizeOfAsciiString(m.names.get(0).cfName);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (m.partitionKeyBindIndexes != null && version.isGreaterOrEqualTo(ProtocolVersion.V4))
                     size += 4 + 2 * m.partitionKeyBindIndexes.length;
 
@@ -672,6 +702,8 @@ public class ResultSet
                 {
                     if (!globalTablesSpec)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                         size += CBUtil.sizeOfAsciiString(name.ksName);
                         size += CBUtil.sizeOfAsciiString(name.cfName);
                     }
@@ -720,6 +752,7 @@ public class ResultSet
         // then than as part of the Guava Hasher refactor which is focused on non-client
         // protocol digests
         MessageDigest md = MD5Digest.threadLocalMD5Digest();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
 
         if (columnSpecifications != null)
         {

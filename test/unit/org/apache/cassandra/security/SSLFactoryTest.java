@@ -48,6 +48,7 @@ public class SSLFactoryTest
     static final SelfSignedCertificate ssc;
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
         DatabaseDescriptor.daemonInitialization();
         try
         {
@@ -64,6 +65,7 @@ public class SSLFactoryTest
     @Before
     public void setup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         encryptionOptions = new ServerEncryptionOptions()
                             .withTrustStore("test/conf/cassandra_ssl_test.truststore")
                             .withTrustStorePassword("cassandra")
@@ -95,6 +97,8 @@ public class SSLFactoryTest
         }
 
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, true);
         Assert.assertNotNull(sslContext);
         Assert.assertTrue(sslContext instanceof OpenSslContext);
@@ -104,9 +108,12 @@ public class SSLFactoryTest
     public void getSslContext_JdkSsl() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, false);
         Assert.assertNotNull(sslContext);
         Assert.assertTrue(sslContext instanceof JdkSslContext);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Assert.assertEquals(encryptionOptions.cipher_suites, sslContext.cipherSuites());
     }
 
@@ -138,6 +145,7 @@ public class SSLFactoryTest
     @Test(expected = IOException.class)
     public void buildKeyManagerFactory_NoFile() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         EncryptionOptions options = addKeystoreOptions(encryptionOptions)
                                     .withKeyStore("/this/is/probably/not/a/file/on/your/test/machine");
         SSLFactory.buildKeyManagerFactory(options);
@@ -170,6 +178,10 @@ public class SSLFactoryTest
 
             SSLFactory.initHotReloading(options, options, true);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
                                                                                                            .isAvailable());
             File keystoreFile = new File(options.keystore);
@@ -219,6 +231,7 @@ public class SSLFactoryTest
             SSLFactory.checkCertFilesForHotReloading(options, options);
             keystoreFile.setLastModified(System.currentTimeMillis() + 5000);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             ServerEncryptionOptions modOptions = new ServerEncryptionOptions(options)
                                                  .withKeyStorePassword("bad password");
             SSLFactory.checkCertFilesForHotReloading(modOptions, modOptions);
@@ -273,10 +286,13 @@ public class SSLFactoryTest
     @Test
     public void getSslContext_ParamChanges() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         EncryptionOptions options = addKeystoreOptions(encryptionOptions)
                                     .withEnabled(true)
                                     .withCipherSuites("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         SslContext ctx1 = SSLFactory.getOrCreateSslContext(options, true,
                                                            SSLFactory.SocketType.SERVER, OpenSsl.isAvailable());
 

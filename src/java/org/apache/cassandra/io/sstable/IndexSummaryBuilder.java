@@ -99,9 +99,11 @@ public class IndexSummaryBuilder implements AutoCloseable
      */
     public IndexSummaryBuilder(long expectedKeys, int minIndexInterval, int samplingLevel)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         this.samplingLevel = samplingLevel;
         this.startPoints = Downsampling.getStartPoints(BASE_SAMPLING_LEVEL, samplingLevel);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
         long expectedEntrySize = getEntrySize(defaultExpectedKeySize);
         long maxExpectedEntries = expectedKeys / minIndexInterval;
         long maxExpectedEntriesSize = maxExpectedEntries * expectedEntrySize;
@@ -125,9 +127,12 @@ public class IndexSummaryBuilder implements AutoCloseable
         maxExpectedEntries = Math.max(1, (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL);
         offsets = new SafeMemoryWriter(4 * maxExpectedEntries).order(ByteOrder.nativeOrder());
         entries = new SafeMemoryWriter(expectedEntrySize * maxExpectedEntries).order(ByteOrder.nativeOrder());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
 
         // the summary will always contain the first index entry (downsampling will never remove it)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8993
         nextSamplePosition = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         indexIntervalMatches++;
     }
 
@@ -151,6 +156,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     // the index file has been flushed to the provided position; stash it and use that to recalculate our max readable boundary
     public void markIndexSynced(long upToPosition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8747
         indexSyncPosition = upToPosition;
         refreshReadableBoundary();
     }
@@ -201,6 +207,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     {
         if (keysWritten == nextSamplePosition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12014
             if ((entries.length() + getEntrySize(decoratedKey)) <= Integer.MAX_VALUE)
             {
                 offsets.writeInt((int) entries.length());
@@ -247,6 +254,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     {
         // this method should only be called when we've finished appending records, so we truncate the
         // memory we're using to the exact amount required to represent it before building our summary
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
         entries.trim();
         offsets.trim();
     }
@@ -261,6 +269,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     public IndexSummary build(IPartitioner partitioner, ReadableBoundary boundary)
     {
         assert entries.length() > 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
 
         int count = (int) (offsets.length() / 4);
         long entriesLength = entries.length();
@@ -286,6 +295,7 @@ public class IndexSummaryBuilder implements AutoCloseable
 
     public Throwable close(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         accumulate = entries.close(accumulate);
         accumulate = offsets.close(accumulate);
         return accumulate;
@@ -310,6 +320,7 @@ public class IndexSummaryBuilder implements AutoCloseable
         // newSpaceUsed = (newSamplingLevel / currentSamplingLevel) * currentNumEntries
         // (newSpaceUsed * currentSamplingLevel) / currentNumEntries = newSamplingLevel
         int newSamplingLevel = (int) (targetNumEntries * currentSamplingLevel) / currentNumEntries;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         return Math.min(BASE_SAMPLING_LEVEL, Math.max(effectiveMinSamplingLevel, newSamplingLevel));
     }
 
@@ -332,12 +343,14 @@ public class IndexSummaryBuilder implements AutoCloseable
         int currentSamplingLevel = existing.getSamplingLevel();
         assert currentSamplingLevel > newSamplingLevel;
         assert minIndexInterval == existing.getMinIndexInterval();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
 
         // calculate starting indexes for downsampling rounds
         int[] startPoints = Downsampling.getStartPoints(currentSamplingLevel, newSamplingLevel);
 
         // calculate new off-heap size
         int newKeyCount = existing.size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         long newEntriesLength = existing.getEntriesLength();
         for (int start : startPoints)
         {
@@ -368,6 +381,7 @@ public class IndexSummaryBuilder implements AutoCloseable
             }
 
             // write the position of the actual entry in the index summary (4 bytes)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
             newOffsets.setInt(i * 4, newEntriesOffset);
             i++;
             long start = existing.getPositionInSummary(oldSummaryIndex);

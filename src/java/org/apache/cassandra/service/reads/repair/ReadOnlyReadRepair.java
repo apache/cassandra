@@ -35,6 +35,8 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
  * to replicas. This preserves write atomicity, but doesn't provide monotonic quorum reads
  */
 public class ReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         extends AbstractReadRepair<E, P>
 {
     ReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)

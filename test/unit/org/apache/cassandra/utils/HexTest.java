@@ -43,6 +43,7 @@ public class HexTest
     {
         String[] values = new String[]
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2851
             "00",
             "10",
             "0100",

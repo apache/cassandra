@@ -60,6 +60,7 @@ public class TermIterator extends RangeIterator<Long, Token>
 
                 public Thread newThread(Runnable task)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
                     return NamedThreadFactory.createThread(task, currentThread + "-SEARCH-" + count.incrementAndGet(), true);
                 }
             });
@@ -104,6 +105,7 @@ public class TermIterator extends RangeIterator<Long, Token>
 
             for (final SSTableIndex index : perSSTableIndexes)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
                 if (e.getOp() == Expression.Op.PREFIX &&
                     index.mode() == OnDiskIndexBuilder.Mode.CONTAINS && !index.hasMarkedPartials())
                     throw new UnsupportedOperationException(String.format("The index %s has not yet been upgraded " +
@@ -157,6 +159,7 @@ public class TermIterator extends RangeIterator<Long, Token>
             e.checkpoint();
 
             RangeIterator<Long, Token> ranges = RangeUnionIterator.build(tokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
             return new TermIterator(e, ranges, referencedIndexes);
         }
         catch (Throwable ex)

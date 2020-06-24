@@ -96,8 +96,10 @@ public final class AuthConfig
 
         if (conf.internode_authenticator != null)
             DatabaseDescriptor.setInternodeAuthenticator(FBUtilities.construct(conf.internode_authenticator, "internode_authenticator"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13324
 
         // network authorizer
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         INetworkAuthorizer networkAuthorizer = FBUtilities.newNetworkAuthorizer(conf.network_authorizer);
         DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
         if (networkAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
@@ -112,6 +114,7 @@ public final class AuthConfig
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
         networkAuthorizer.validateConfiguration();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13324
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 }

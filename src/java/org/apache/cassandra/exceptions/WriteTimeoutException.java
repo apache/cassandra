@@ -32,7 +32,9 @@ public class WriteTimeoutException extends RequestTimeoutException
 
     public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor, msg);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4723
         this.writeType = writeType;
     }
 }

@@ -86,6 +86,7 @@ public final class JsonTransformer
         this.currentScanner = currentScanner;
         this.rawTime = rawTime;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13848
         if (isJsonLines)
         {
             MinimalPrettyPrinter minimalPrettyPrinter = new MinimalPrettyPrinter();
@@ -106,6 +107,7 @@ public final class JsonTransformer
     {
         try (JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, StandardCharsets.UTF_8)))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13848
             JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata, false);
             json.writeStartArray();
             partitions.forEach(transformer::serializePartition);
@@ -116,6 +118,7 @@ public final class JsonTransformer
     public static void toJsonLines(ISSTableScanner currentScanner, Stream<UnfilteredRowIterator> partitions, boolean rawTime, TableMetadata metadata, OutputStream out)
             throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
         try (JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, StandardCharsets.UTF_8)))
         {
             JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata, true);
@@ -125,6 +128,8 @@ public final class JsonTransformer
 
     public static void keysToJson(ISSTableScanner currentScanner, Stream<DecoratedKey> keys, boolean rawTime, TableMetadata metadata, OutputStream out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14427
         try (JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, StandardCharsets.UTF_8)))
         {
             JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata, false);
@@ -212,7 +217,9 @@ public final class JsonTransformer
                 serializeDeletion(partition.partitionLevelDeletion());
 
             json.writeEndObject();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13177
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14721
             json.writeFieldName("rows");
             json.writeStartArray();
             updatePosition();
@@ -275,6 +282,7 @@ public final class JsonTransformer
                 objectIndenter.setCompact(true);
                 json.writeStartObject();
                 json.writeFieldName("tstamp");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
                 json.writeString(dateString(TimeUnit.MICROSECONDS, liveInfo.timestamp()));
                 if (liveInfo.isExpiring())
                 {
@@ -291,6 +299,7 @@ public final class JsonTransformer
             // If this is a deletion, indicate that, otherwise write cells.
             if (!row.deletion().isLive())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
                 serializeDeletion(row.deletion().time());
             }
             json.writeFieldName("cells");
@@ -381,6 +390,7 @@ public final class JsonTransformer
         json.writeFieldName("deletion_info");
         objectIndenter.setCompact(true);
         json.writeStartObject();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
         json.writeFieldName("marked_deleted");
         json.writeString(dateString(TimeUnit.MICROSECONDS, deletion.markedForDeleteAt()));
         json.writeFieldName("local_delete_time");
@@ -433,6 +443,7 @@ public final class JsonTransformer
             AbstractType<?> cellType = null;
             json.writeString(cell.column().name.toCQLString());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13573
             if (type.isCollection() && type.isMultiCell()) // non-frozen collection
             {
                 CollectionType ct = (CollectionType) type;
@@ -472,6 +483,7 @@ public final class JsonTransformer
             }
             if (cell.isTombstone())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
                 json.writeFieldName("deletion_info");
                 objectIndenter.setCompact(true);
                 json.writeStartObject();
@@ -488,6 +500,7 @@ public final class JsonTransformer
             if (liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp())
             {
                 json.writeFieldName("tstamp");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
                 json.writeString(dateString(TimeUnit.MICROSECONDS, cell.timestamp()));
             }
             if (cell.isExpiring() && (liveInfo.isEmpty() || cell.ttl() != liveInfo.ttl()))
@@ -499,6 +512,8 @@ public final class JsonTransformer
                 json.writeFieldName("expired");
                 json.writeBoolean(!cell.isLive((int) (System.currentTimeMillis() / 1000)));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12418
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13177
             json.writeEndObject();
             objectIndenter.setCompact(false);
         }
@@ -515,6 +530,7 @@ public final class JsonTransformer
             return Long.toString(time);
         }
         
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
         long secs = from.toSeconds(time);
         long offset = Math.floorMod(from.toNanos(time), 1000_000_000L); // nanos per sec
         return Instant.ofEpochSecond(secs, offset).toString();

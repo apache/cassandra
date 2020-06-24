@@ -36,6 +36,7 @@ public class ProtocolErrorTest {
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -43,6 +44,7 @@ public class ProtocolErrorTest {
     public void testInvalidProtocolVersion() throws Exception
     {
         // test using a protocol 2 version higher than the current version (1 version higher is current beta)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         testInvalidProtocolVersion(ProtocolVersion.CURRENT.asInt() + 2); //
         // test using a protocol version lower than the lowest version
         for (ProtocolVersion version : ProtocolVersion.UNSUPPORTED)
@@ -53,6 +55,7 @@ public class ProtocolErrorTest {
     public void testInvalidProtocolVersion(int version) throws Exception
     {
         Frame.Decoder dec = new Frame.Decoder(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9451
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
@@ -95,6 +98,8 @@ public class ProtocolErrorTest {
             dec.decode(null, buf, results);
             Assert.fail("Expected protocol error");
         } catch (ProtocolException e) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
             Assert.assertTrue(e.getMessage().contains("Invalid or unsupported protocol version"));
         }
     }
@@ -108,6 +113,7 @@ public class ProtocolErrorTest {
         // should generate a protocol exception for using a response frame with
         // a prepare op, ensure that it comes back with stream ID 1
         byte[] frame = new byte[] {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 (byte) RESPONSE.addToVersion(ProtocolVersion.CURRENT.asInt()),  // direction & version
                 0x00,  // flags
                 0x00, 0x01,  // stream ID
@@ -126,6 +132,8 @@ public class ProtocolErrorTest {
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
             Assert.assertEquals(1, e.getStreamId());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
             Assert.assertTrue(e.getMessage().contains("Wrong protocol direction"));
         }
     }
@@ -137,16 +145,22 @@ public class ProtocolErrorTest {
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),  // direction & version
                 0x00,  // flags
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
                 0x00, 0x01,  // stream ID
                 0x09,  // opcode
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
                 0x10, (byte) 0x00, (byte) 0x00, (byte) 0x00,  // body length
         };
         byte[] body = new byte[0x10000000];
         ByteBuf buf = Unpooled.wrappedBuffer(frame, body);
         try {
             dec.decode(null, buf, results);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9451
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9451
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9451
             Assert.fail("Expected protocol error");
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
@@ -164,6 +178,7 @@ public class ProtocolErrorTest {
         int size = ErrorMessage.codec.encodedSize(msg, ProtocolVersion.CURRENT);
         ByteBuf buf = Unpooled.buffer(size);
         ErrorMessage.codec.encode(msg, buf, ProtocolVersion.CURRENT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         ByteBuf expected = Unpooled.wrappedBuffer(new byte[]{
                 0x00, 0x00, 0x00, 0x00,  // int error code
@@ -176,6 +191,7 @@ public class ProtocolErrorTest {
     @Test
     public void testUnsupportedMessage() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
         byte[] incomingFrame = new byte[] {
         (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),  // direction & version
         0x00,  // flags

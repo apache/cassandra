@@ -61,6 +61,7 @@ final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
 {
     public static FrameDecoderLZ4 fast(BufferPoolAllocator allocator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
         return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().safeDecompressor());
     }
 
@@ -142,6 +143,7 @@ final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
             try
             {
                 int sourceLength = end - (begin + HEADER_LENGTH + TRAILER_LENGTH);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15560
                 decompressor.decompress(input, begin + HEADER_LENGTH, sourceLength, out, 0, uncompressedLength);
                 return new IntactFrame(isSelfContained, ShareableBytes.wrap(out));
             }

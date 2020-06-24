@@ -118,6 +118,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
         logger.trace("Index summaries for compacting SSTables are using {} MB of space",
                      (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13873
         List<SSTableReader> newSSTables;
         try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
         {
@@ -129,7 +130,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         total = nonRedistributingOffHeapSize;
         for (SSTableReader sstable : newSSTables)
             total += sstable.getIndexSummaryOffHeapSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
                      FBUtilities.prettyPrintMemory(total));
 
@@ -182,7 +185,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, maxSummarySize);
             double effectiveIndexInterval = sstable.getEffectiveIndexInterval();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
             if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
                              "from level {} ({} entries, {}) " +
                              "to level {} ({} entries, {})",
@@ -256,6 +261,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                          sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15674
             long oldSize = sstable.bytesOnDisk();
             SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
             long newSize = replacement.bytesOnDisk();
@@ -335,6 +341,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
     public boolean isGlobal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         return true;
     }
 

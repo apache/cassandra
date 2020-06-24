@@ -191,6 +191,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                                     null,
                                                                     PreviewKind.NONE);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(),
                                                                        StreamOperation.BOOTSTRAP,
                                                                        Collections.singleton(streamEventHandler),

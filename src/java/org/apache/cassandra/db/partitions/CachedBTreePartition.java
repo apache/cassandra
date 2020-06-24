@@ -45,6 +45,8 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
                                  int cachedLiveRows,
                                  int rowsWithNonExpiringCells)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         super(metadata, partitionKey, holder);
         this.createdAtInSec = createdAtInSec;
         this.cachedLiveRows = cachedLiveRows;
@@ -63,6 +65,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
      */
     public static CachedBTreePartition create(UnfilteredRowIterator iterator, int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return create(iterator, 16, nowInSec);
     }
 
@@ -94,6 +97,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
             boolean hasNonExpiringLiveCell = false;
             for (Cell cell : row.cells())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                 if (!cell.isTombstone() && !cell.isExpiring())
                 {
                     hasNonExpiringLiveCell = true;
@@ -110,6 +114,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
                                         holder,
                                         nowInSec,
                                         cachedLiveRows,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                         rowsWithNonExpiringCells);
     }
 
@@ -147,6 +152,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
         {
             int version = MessagingService.current_version;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             assert partition instanceof CachedBTreePartition;
             CachedBTreePartition p = (CachedBTreePartition)partition;
 
@@ -154,8 +160,10 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
             out.writeInt(p.cachedLiveRows);
             out.writeInt(p.rowsWithNonExpiringCells);
             partition.metadata().id.serialize(out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             try (UnfilteredRowIterator iter = p.unfilteredIterator())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
                 UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, p.rowCount());
             }
         }
@@ -177,9 +185,11 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
 
 
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, DeserializationHelper.Flag.LOCAL);
             assert !header.isReversed && header.rowEstimate >= 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             Holder holder;
             try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, DeserializationHelper.Flag.LOCAL, header))
             {
@@ -192,6 +202,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
                                             createdAtInSec,
                                             cachedLiveRows,
                                             rowsWithNonExpiringCells);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
 
         }
 
@@ -199,6 +210,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
         {
             int version = MessagingService.current_version;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             assert partition instanceof CachedBTreePartition;
             CachedBTreePartition p = (CachedBTreePartition)partition;
 
@@ -208,6 +220,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
                      + TypeSizes.sizeof(p.cachedLiveRows)
                      + TypeSizes.sizeof(p.rowsWithNonExpiringCells)
                      + partition.metadata().id.serializedSize()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, MessagingService.current_version, p.rowCount());
             }
         }

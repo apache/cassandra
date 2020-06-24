@@ -77,8 +77,10 @@ public class ValidatorTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(keyspace,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
         partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
@@ -88,6 +90,7 @@ public class ValidatorTest
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().outboundSink.clear();
         DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
     }
@@ -107,10 +110,14 @@ public class ValidatorTest
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         MerkleTrees tree = new MerkleTrees(partitioner);
         tree.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
         validator.prepare(cfs, tree);
@@ -128,6 +135,7 @@ public class ValidatorTest
         assertNotNull(tree.hash(new Range<>(min, min)));
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         assertEquals(Verb.VALIDATION_RSP, message.verb());
         ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
@@ -141,15 +149,21 @@ public class ValidatorTest
     {
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
         validator.fail();
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         assertEquals(Verb.VALIDATION_RSP, message.verb());
         ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
@@ -209,6 +223,7 @@ public class ValidatorTest
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         assertEquals(Verb.VALIDATION_RSP, message.verb());
         ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
@@ -252,6 +267,7 @@ public class ValidatorTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         UUID repairSessionId = UUIDGen.getTimeUUID();
         final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
                                                      cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                sstable.last.getToken())));
 
@@ -318,17 +334,25 @@ public class ValidatorTest
                                                      cfs.getTableName(), ranges);
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
         ActiveRepairService.instance.registerParentRepairSession(repairSessionId, host,
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  false, PreviewKind.NONE);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
         Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         MerkleTrees trees = ((ValidationResponse) message.payload).trees;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
         // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
         Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
@@ -371,8 +395,10 @@ public class ValidatorTest
 
     private CompletableFuture<Message> registerOutgoingMessageSink()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         final CompletableFuture<Message> future = new CompletableFuture<>();
         MessagingService.instance().outboundSink.add((message, to) -> future.complete(message));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12580
         return future;
     }
 }

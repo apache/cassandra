@@ -24,6 +24,7 @@ public interface IFilter extends SharedCloseable
     interface FilterKey
     {
         /** Places the murmur3 hash of the key in the given long array of size at least two. */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         void filterHash(long[] dest);
     }
 
@@ -36,12 +37,15 @@ public interface IFilter extends SharedCloseable
     long serializedSize();
 
     void close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6912
 
     IFilter sharedCopy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
 
     /**
      * Returns the amount of memory in bytes used off heap.
      * @return the amount of memory in bytes used off heap
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7897
     long offHeapSize();
 }

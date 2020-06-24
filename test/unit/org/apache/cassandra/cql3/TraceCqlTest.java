@@ -70,6 +70,7 @@ public class TraceCqlTest extends CQLTester
             assertEquals(cql, trace.getParameters().get("query"));
 
             assertEquals("1", trace.getParameters().get("bound_var_0_id"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11719
 
             String cql2 = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id IN (?, ?, ?)";
             pstmt = session.prepare(cql2).enableTracing();

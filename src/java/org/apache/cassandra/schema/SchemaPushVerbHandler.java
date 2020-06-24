@@ -42,8 +42,11 @@ public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Muta
     public void doVerb(final Message<Collection<Mutation>> message)
     {
         logger.trace("Received schema push request from {}", message.from());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         Stage.MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(message.payload));
     }
 }

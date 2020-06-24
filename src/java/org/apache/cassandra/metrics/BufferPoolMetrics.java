@@ -36,6 +36,7 @@ public class BufferPoolMetrics
     public BufferPoolMetrics()
     {
         misses = Metrics.meter(factory.createMetricName("Misses"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
 
         size = Metrics.register(factory.createMetricName("Size"), new Gauge<Long>()
         {

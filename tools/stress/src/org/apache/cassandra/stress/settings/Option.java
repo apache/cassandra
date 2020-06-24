@@ -24,17 +24,22 @@ package org.apache.cassandra.stress.settings;
 import java.io.Serializable;
 import java.util.List;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12564
 abstract class Option implements Serializable
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
     abstract boolean accept(String param);
     abstract boolean happy();
     abstract String shortDisplay();
     abstract String longDisplay();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
     abstract String getOptionAsString(); // short and longDisplay print help text getOptionAsString prints value
     abstract List<String> multiLineDisplay();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
     abstract boolean setByUser();
     abstract boolean present();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
 
     public int hashCode()
     {

@@ -52,6 +52,7 @@ public final class DateTieredCompactionStrategyOptions
     public DateTieredCompactionStrategyOptions(Map<String, String> options)
     {
         String optionValue = options.get(TIMESTAMP_RESOLUTION_KEY);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         timestampResolution = optionValue == null ? DEFAULT_TIMESTAMP_RESOLUTION : TimeUnit.valueOf(optionValue);
         if (timestampResolution != DEFAULT_TIMESTAMP_RESOLUTION)
             logger.warn("Using a non-default timestamp_resolution {} - are you really doing inserts with USING TIMESTAMP <non_microsecond_timestamp> (or driver equivalent)?", timestampResolution);
@@ -60,6 +61,7 @@ public final class DateTieredCompactionStrategyOptions
         maxSSTableAge = Math.round(fractionalDays * timestampResolution.convert(1, TimeUnit.DAYS));
         optionValue = options.get(BASE_TIME_KEY);
         baseTime = timestampResolution.convert(optionValue == null ? DEFAULT_BASE_TIME_SECONDS : Long.parseLong(optionValue), TimeUnit.SECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9882
         optionValue = options.get(EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY);
         expiredSSTableCheckFrequency = TimeUnit.MILLISECONDS.convert(optionValue == null ? DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS : Long.parseLong(optionValue), TimeUnit.SECONDS);
         optionValue = options.get(MAX_WINDOW_SIZE_KEY);
@@ -69,6 +71,7 @@ public final class DateTieredCompactionStrategyOptions
     public DateTieredCompactionStrategyOptions()
     {
         maxSSTableAge = Math.round(DEFAULT_MAX_SSTABLE_AGE_DAYS * DEFAULT_TIMESTAMP_RESOLUTION.convert((long) DEFAULT_MAX_SSTABLE_AGE_DAYS, TimeUnit.DAYS));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         timestampResolution = DEFAULT_TIMESTAMP_RESOLUTION;
         baseTime = timestampResolution.convert(DEFAULT_BASE_TIME_SECONDS, TimeUnit.SECONDS);
         expiredSSTableCheckFrequency = TimeUnit.MILLISECONDS.convert(DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS, TimeUnit.SECONDS);
@@ -94,6 +97,7 @@ public final class DateTieredCompactionStrategyOptions
             double maxSStableAge = optionValue == null ? DEFAULT_MAX_SSTABLE_AGE_DAYS : Double.parseDouble(optionValue);
             if (maxSStableAge < 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8406
                 throw new ConfigurationException(String.format("%s must be non-negative: %.2f", MAX_SSTABLE_AGE_KEY, maxSStableAge));
             }
         }
@@ -116,6 +120,7 @@ public final class DateTieredCompactionStrategyOptions
             throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, BASE_TIME_KEY), e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9882
         optionValue = options.get(EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY);
         try
         {
@@ -130,6 +135,7 @@ public final class DateTieredCompactionStrategyOptions
             throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY), e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         optionValue = options.get(MAX_WINDOW_SIZE_KEY);
         try
         {

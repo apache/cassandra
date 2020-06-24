@@ -21,6 +21,7 @@ public class OverloadedException extends RequestExecutionException
 {
     public OverloadedException(String reason)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.OVERLOADED, reason);
     }
 }

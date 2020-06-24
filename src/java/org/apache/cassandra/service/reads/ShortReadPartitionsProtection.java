@@ -87,6 +87,8 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * If we don't apply the transformation *after* extending the partition with MoreRows,
          * applyToRow() method of protection will not be called on the first row of the new extension iterator.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), partition.partitionKey().getToken(), source);
         ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ShortReadRowsProtection protection = new ShortReadRowsProtection(partition.partitionKey(),
@@ -171,6 +173,8 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
 
         ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
     }
 
@@ -180,14 +184,19 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
         ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         if (source.isSelf())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
         }
 

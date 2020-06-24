@@ -43,6 +43,7 @@ public class TableCQLHelper
     {
         List<String> l = new ArrayList<>();
         // Types come first, as table can't be created without them
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14354
         l.addAll(TableCQLHelper.getUserTypesAsCQL(metadata));
         // Record re-create schema statements
         l.add(TableCQLHelper.getTableMetadataAsCQL(metadata, true));
@@ -220,6 +221,7 @@ public class TableCQLHelper
                 resolveUserType((UserType) type, typeSet, types);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<String> typeStrings = new ArrayList<>(types.size());
         for (AbstractType type: types)
             typeStrings.add(toCQL((UserType) type));
@@ -253,6 +255,7 @@ public class TableCQLHelper
     @VisibleForTesting
     public static List<String> getIndexesAsCQL(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<String> indexes = new ArrayList<>(metadata.indexes.size());
         for (IndexMetadata indexMetadata: metadata.indexes)
             indexes.add(toCQL(metadata, indexMetadata));
@@ -313,6 +316,7 @@ public class TableCQLHelper
         builder.append("\n\tAND max_index_interval = ").append(tableParams.maxIndexInterval);
         builder.append("\n\tAND memtable_flush_period_in_ms = ").append(tableParams.memtableFlushPeriodInMs);
         builder.append("\n\tAND speculative_retry = '").append(tableParams.speculativeRetry).append("'");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         builder.append("\n\tAND additional_write_policy = '").append(tableParams.additionalWritePolicy).append("'");
         builder.append("\n\tAND comment = ").append(singleQuote(tableParams.comment));
         builder.append("\n\tAND caching = ").append(toCQL(tableParams.caching.asMap()));
@@ -396,6 +400,7 @@ public class TableCQLHelper
 
     private static String singleQuote(String s)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15033
         return String.format("'%s'", singleQuotePattern.matcher(s).replaceAll("''"));
     }
 

@@ -34,6 +34,7 @@ public class AlterRoleStatement extends AuthenticationStatement
     private final RoleResource role;
     private final RoleOptions opts;
     final DCPermissions dcPermissions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
 
     public AlterRoleStatement(RoleName name, RoleOptions opts)
     {
@@ -42,6 +43,7 @@ public class AlterRoleStatement extends AuthenticationStatement
 
     public AlterRoleStatement(RoleName name, RoleOptions opts, DCPermissions dcPermissions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         this.role = RoleResource.role(name.getName());
         this.opts = opts;
         this.dcPermissions = dcPermissions;
@@ -62,6 +64,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         // validate login here before authorize to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
             throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
     }
 
@@ -70,6 +73,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         AuthenticatedUser user = state.getUser();
         boolean isSuper = user.isSuper();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
         if (opts.getSuperuser().isPresent() && user.getRoles().contains(role))
             throw new UnauthorizedException("You aren't allowed to alter your own superuser " +
                                             "status or that of a role granted to you");
@@ -78,6 +82,7 @@ public class AlterRoleStatement extends AuthenticationStatement
             throw new UnauthorizedException("Only superusers are allowed to alter superuser status");
 
         // superusers can do whatever else they like
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         if (isSuper)
             return;
 
@@ -90,6 +95,7 @@ public class AlterRoleStatement extends AuthenticationStatement
                     throw new UnauthorizedException(String.format("You aren't allowed to alter %s", option));
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         else
         {
             // if not attempting to alter another role, ensure we have ALTER permissions on it
@@ -100,7 +106,9 @@ public class AlterRoleStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         if (!opts.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
             DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         if (dcPermissions != null)
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         return null;
@@ -109,6 +117,7 @@ public class AlterRoleStatement extends AuthenticationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 

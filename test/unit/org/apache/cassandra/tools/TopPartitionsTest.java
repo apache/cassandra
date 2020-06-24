@@ -35,6 +35,7 @@ public class TopPartitionsTest
     @Test
     public void testServiceTopPartitionsNoArg() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         BlockingQueue<Map<String, List<CompositeData>>> q = new ArrayBlockingQueue<>(1);
         ColumnFamilyStore.all();
         Executors.newCachedThreadPool().execute(() ->
@@ -48,6 +49,7 @@ public class TopPartitionsTest
                 e.printStackTrace();
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         Thread.sleep(100);
         SystemKeyspace.persistLocalMetadata();
         Map<String, List<CompositeData>> result = q.poll(5, TimeUnit.SECONDS);

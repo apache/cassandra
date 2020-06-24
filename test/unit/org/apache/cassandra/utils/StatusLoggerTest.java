@@ -71,6 +71,7 @@ public class StatusLoggerTest extends CQLTester
         executorService.submit(StatusLogger::log);
         executorService.submit(StatusLogger::log);
         executorService.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
         Assert.assertTrue(executorService.awaitTermination(1, TimeUnit.MINUTES));
     }
 

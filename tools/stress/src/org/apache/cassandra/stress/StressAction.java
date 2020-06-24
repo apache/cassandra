@@ -55,6 +55,7 @@ public class StressAction implements Runnable
         // creating keyspace and column families
         settings.maybeCreateKeyspaces();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13773
         if (settings.command.count == 0)
         {
             output.println("N=0: SCHEMA CREATED, NOTHING ELSE DONE.");
@@ -65,18 +66,22 @@ public class StressAction implements Runnable
         output.println("Sleeping 2s...");
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         if (!settings.command.noWarmup)
             warmup(settings.command.getFactory(settings));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12695
         if ((settings.command.truncate == SettingsCommand.TruncateWhen.ONCE) ||
             ((settings.rate.threadCount != -1) && (settings.command.truncate == SettingsCommand.TruncateWhen.ALWAYS)))
             settings.command.truncateTables(settings);
 
         // Required for creating a graph from the output file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
         if (settings.rate.threadCount == -1)
             output.println("Thread count was not specified");
 
         // TODO : move this to a new queue wrapper that gates progress based on a poisson (or configurable) distribution
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         UniformRateLimiter rateLimiter = null;
         if (settings.rate.opsPerSecond > 0)
             rateLimiter = new UniformRateLimiter(settings.rate.opsPerSecond);
@@ -87,6 +92,8 @@ public class StressAction implements Runnable
         else
             success = null != run(settings.command.getFactory(settings), settings.rate.threadCount, settings.command.count,
                                   settings.command.duration, rateLimiter, settings.command.durationUnits, output, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
 
         if (success)
             output.println("END");
@@ -95,6 +102,7 @@ public class StressAction implements Runnable
 
         settings.disconnect();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
         if (!success)
             throw new RuntimeException("Failed to execute stress action");
     }
@@ -105,6 +113,7 @@ public class StressAction implements Runnable
     {
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
         int iterations = (settings.command.count >= 0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14616
                           ? Math.min(50000, (int)(settings.command.count * 0.25))
                           : 50000) * settings.node.nodes.size();
         if (iterations <= 0) return;
@@ -140,13 +149,17 @@ public class StressAction implements Runnable
         List<String> runIds = new ArrayList<>();
         do
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7918
             output.println("");
             output.println(String.format("Running with %d threadCount", threadCount));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             if (settings.command.truncate == SettingsCommand.TruncateWhen.ALWAYS)
                 settings.command.truncateTables(settings);
 
             StressMetrics result = run(settings.command.getFactory(settings), threadCount, settings.command.count,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
                                        settings.command.duration, rateLimiter, settings.command.durationUnits, output, false);
             if (result == null)
                 return false;
@@ -183,12 +196,14 @@ public class StressAction implements Runnable
         } while (!auto || (hasAverageImprovement(results, 3, 0) && hasAverageImprovement(results, 5, settings.command.targetUncertainty)));
 
         // summarise all results
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         StressMetrics.summarise(runIds, results, output);
         return true;
     }
 
     private boolean hasAverageImprovement(List<StressMetrics> results, int count, double minImprovement)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6691
         return results.size() < count + 1 || averageImprovement(results, count) >= minImprovement;
     }
 
@@ -208,8 +223,10 @@ public class StressAction implements Runnable
                               int threadCount,
                               long opCount,
                               long duration,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
                               UniformRateLimiter rateLimiter,
                               TimeUnit durationUnits,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
                               ResultLogger output,
                               boolean isWarmup)
     {
@@ -221,18 +238,21 @@ public class StressAction implements Runnable
                                                            : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkManager workManager;
         if (opCount < 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             workManager = new WorkManager.ContinuousWorkManager();
         else
             workManager = new WorkManager.FixedWorkManager(opCount);
 
         final StressMetrics metrics = new StressMetrics(output, settings.log.intervalMillis, settings);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         final CountDownLatch releaseConsumers = new CountDownLatch(1);
         final CountDownLatch done = new CountDownLatch(threadCount);
         final CountDownLatch start = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
             consumers[i] = new Consumer(operations, isWarmup,
                                         done, start, releaseConsumers, workManager, metrics, rateLimiter);
         }
@@ -273,6 +293,7 @@ public class StressAction implements Runnable
                         settings.command.minimumUncertaintyMeasurements,
                         settings.command.maximumUncertaintyMeasurements);
             } catch (InterruptedException e) { }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
             workManager.stop();
         }
 
@@ -304,6 +325,7 @@ public class StressAction implements Runnable
      */
     private static class UniformRateLimiter
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         long start = Long.MIN_VALUE;
         final long intervalNs;
         final AtomicLong opIndex = new AtomicLong();
@@ -382,6 +404,7 @@ public class StressAction implements Runnable
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
             return "OpMeasurement [opType=" + opType + ", intended=" + intended + ", started=" + started + ", ended="
                     + ended + ", rowCnt=" + rowCnt + ", partitionCnt=" + partitionCnt + ", err=" + err + "]";
         }
@@ -409,6 +432,7 @@ public class StressAction implements Runnable
                         StressMetrics metrics,
                         UniformRateLimiter rateLimiter)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
             OpDistribution opDistribution = operations.get(isWarmup, this);
             this.done = done;
             this.start = start;
@@ -429,6 +453,7 @@ public class StressAction implements Runnable
                 JavaDriverClient jclient = null;
                 final ConnectionAPI clientType = settings.mode.api;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12938
                 try
                 {
                     switch (clientType)
@@ -446,6 +471,7 @@ public class StressAction implements Runnable
                 finally
                 {
                     // synchronize the start of all the consumer threads
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
                     start.countDown();
                 }
 
@@ -469,6 +495,7 @@ public class StressAction implements Runnable
                                 op.run(sclient);
                                 break;
                             default:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                                 throw new IllegalStateException();
                         }
                     }
@@ -478,14 +505,17 @@ public class StressAction implements Runnable
                             System.err.println(e.getMessage());
                         else
                             output.printException(e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
 
                         success = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
                         opStream.abort();
                         metrics.cancel();
                         return;
                     }
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
             catch (Exception e)
             {
                 System.err.println(e.getMessage());
@@ -500,6 +530,7 @@ public class StressAction implements Runnable
         @Override
         public void record(String opType, long intended, long started, long ended, long rowCnt, long partitionCnt, boolean err)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
             OpMeasurement opMeasurement = measurementsRecycling.poll();
             if(opMeasurement == null) {
                 opMeasurement = new OpMeasurement();

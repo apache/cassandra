@@ -34,11 +34,14 @@ public class BytesType extends AbstractType<ByteBuffer>
     public static final BytesType instance = new BytesType();
 
     BytesType() {super(ComparisonType.BYTE_ORDER);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public ByteBuffer fromString(String source)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2027
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3299
             return ByteBuffer.wrap(Hex.hexToBytes(source));
         }
         catch (NumberFormatException e)
@@ -50,6 +53,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             String parsedString = (String) parsed;
@@ -75,6 +79,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     {
         // Both asciiType and utf8Type really use bytes comparison and
         // bytesType validate everything, so it is compatible with the former.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3657
         return this == previous || previous == AsciiType.instance || previous == UTF8Type.instance;
     }
 
@@ -82,11 +87,14 @@ public class BytesType extends AbstractType<ByteBuffer>
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
         // BytesType can read anything
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6185
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         return true;
     }
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.BLOB;
     }
 

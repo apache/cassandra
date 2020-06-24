@@ -32,6 +32,7 @@ public class SSTableListChangedNotification implements INotification
     {
         this.removed = removed;
         this.added = added;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
         this.compactionType = compactionType;
     }
 }

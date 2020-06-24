@@ -42,7 +42,9 @@ public class CipherFactoryTest
 {
     // http://www.gutenberg.org/files/4300/4300-h/4300-h.htm
     static final String ULYSSEUS = "Stately, plump Buck Mulligan came from the stairhead, bearing a bowl of lather on which a mirror and a razor lay crossed. " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9945
                                    "A yellow dressinggown, ungirdled, was sustained gently behind him on the mild morning air. He held the bowl aloft and intoned: " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10597
                                    "-Introibo ad altare Dei.";
     TransparentDataEncryptionOptions encryptionOptions;
     CipherFactory cipherFactory;
@@ -51,6 +53,7 @@ public class CipherFactoryTest
     @Before
     public void setup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13370
         try
         {
             secureRandom = SecureRandom.getInstance("SHA1PRNG");

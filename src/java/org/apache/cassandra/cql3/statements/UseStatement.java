@@ -40,6 +40,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
 
     public UseStatement prepare(ClientState state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return this;
     }
 
@@ -62,12 +63,14 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
     {
         // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return execute(state, options, System.nanoTime());
     }
     
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 

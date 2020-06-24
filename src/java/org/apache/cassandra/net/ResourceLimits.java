@@ -48,6 +48,7 @@ public abstract class ResourceLimits
          * @return the old limit
          */
         long setLimit(long newLimit);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
 
         /**
          * @return remaining, unallocated permit amount
@@ -90,6 +91,7 @@ public abstract class ResourceLimits
         private volatile long limit;
         private static final AtomicLongFieldUpdater<Concurrent> limitUpdater =
             AtomicLongFieldUpdater.newUpdater(Concurrent.class, "limit");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
 
         private volatile long using;
         private static final AtomicLongFieldUpdater<Concurrent> usingUpdater =
@@ -107,6 +109,7 @@ public abstract class ResourceLimits
 
         public long setLimit(long newLimit)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
             long oldLimit;
             do {
                 oldLimit = limit;
@@ -180,6 +183,7 @@ public abstract class ResourceLimits
 
         public long setLimit(long newLimit)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
             long oldLimit = limit;
             limit = newLimit;
 

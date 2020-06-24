@@ -52,6 +52,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
 
     protected BTreeSearchIterator<V, V> slice(Dir dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         return BTree.slice(tree, comparator, dir);
     }
 
@@ -101,6 +102,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
     @Override
     public BTreeSearchIterator<V, V> iterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         return slice(Dir.ASC);
     }
 
@@ -362,6 +364,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
         @Override
         protected BTreeSearchIterator<V, V> slice(Dir dir)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9988
             return BTree.slice(tree, comparator, lowerBound, upperBound, dir);
         }
 
@@ -487,6 +490,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
         @Override
         protected BTreeSearchIterator<V, V> slice(Dir dir)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
             return super.slice(dir.invert());
         }
 
@@ -637,6 +641,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
 
     public static <V> BTreeSet<V> of(Comparator<? super V> comparator, V value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
         return new BTreeSet<>(BTree.singleton(value), comparator);
     }
 }

@@ -33,6 +33,7 @@ public abstract class AbstractAllocator
     public ByteBuffer clone(ByteBuffer buffer)
     {
         assert buffer != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         if (buffer.remaining() == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         ByteBuffer cloned = allocate(buffer.remaining());
@@ -47,6 +48,7 @@ public abstract class AbstractAllocator
 
     public Row.Builder cloningBTreeRowBuilder()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         return new CloningBTreeRowBuilder(this);
     }
 
@@ -57,6 +59,7 @@ public abstract class AbstractAllocator
         private CloningBTreeRowBuilder(AbstractAllocator allocator)
         {
             super(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             this.allocator = allocator;
         }
 

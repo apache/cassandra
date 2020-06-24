@@ -34,6 +34,7 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
 
     public void doVerb(Message<TruncateRequest> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         TruncateRequest t = message.payload;
         Tracing.trace("Applying truncation of {}.{}", t.keyspace, t.table);
         try
@@ -50,6 +51,7 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
                 throw FSError.findNested(e);
         }
         Tracing.trace("Enqueuing response to truncate operation to {}", message.from());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         TruncateResponse response = new TruncateResponse(t.keyspace, t.table, true);
         logger.trace("{} applied.  Enqueuing response to {}@{} ", t, message.id(), message.from());

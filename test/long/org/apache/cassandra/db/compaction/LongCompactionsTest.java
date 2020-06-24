@@ -53,6 +53,7 @@ public class LongCompactionsTest
         Map<String, String> compactionOptions = Collections.singletonMap("tombstone_compaction_interval", "1");
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD)
                                                 .compaction(CompactionParams.stcs(compactionOptions)));
@@ -97,12 +98,15 @@ public class LongCompactionsTest
     {
         CompactionManager.instance.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         ArrayList<SSTableReader> sstables = new ArrayList<>();
         for (int k = 0; k < sstableCount; k++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             SortedMap<String, PartitionUpdate> rows = new TreeMap<>();
             for (int j = 0; j < partitionsPerSSTable; j++)
             {
@@ -114,6 +118,7 @@ public class LongCompactionsTest
                     builder.newRow(String.valueOf(i)).add("val", String.valueOf(i));
                 rows.put(key, builder.build());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             Collection<SSTableReader> readers = SSTableUtils.prepare().write(rows);
             sstables.addAll(readers);
             store.addSSTables(readers);
@@ -122,18 +127,23 @@ public class LongCompactionsTest
         // give garbage collection a bit of time to catch up
         Thread.sleep(1000);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         long start = System.nanoTime();
         final int gcBefore = (int) (System.currentTimeMillis() / 1000) - Schema.instance.getTableMetadata(KEYSPACE1, "Standard1").params.gcGraceSeconds;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.COMPACTION))
         {
             assert txn != null : "Cannot markCompacting all sstables";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             new CompactionTask(store, txn, gcBefore).execute(ActiveCompactionsTracker.NOOP);
         }
         System.out.println(String.format("%s: sstables=%d rowsper=%d colsper=%d: %d ms",
                                          this.getClass().getName(),
                                          sstableCount,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                          partitionsPerSSTable,
                                          rowsPerPartition,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
                                          TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)));
     }
 
@@ -141,6 +151,7 @@ public class LongCompactionsTest
     public void testStandardColumnCompactions()
     {
         // this test does enough rows to force multiple block indexes to be used
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         cfs.clearUnsafe();
@@ -159,6 +170,7 @@ public class LongCompactionsTest
                 long timestamp = j * ROWS_PER_SSTABLE + i;
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
                 UpdateBuilder.create(cfs.metadata(), key)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                              .withTimestamp(timestamp)
                              .newRow(String.valueOf(i / 2)).add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                              .apply();
@@ -195,8 +207,10 @@ public class LongCompactionsTest
             FBUtilities.waitOnFutures(compactions);
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         if (cfs.getLiveSSTables().size() > 1)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
             CompactionManager.instance.performMaximal(cfs, false);
         }
     }

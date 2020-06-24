@@ -76,6 +76,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          IndexMetadata index)
     {
         super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -97,6 +98,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata,
                                                     int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                                                     ColumnFilter columnFilter,
                                                     RowFilter rowFilter,
                                                     DataLimits limits,
@@ -132,6 +134,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata,
                                                     int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
                                                     ColumnFilter columnFilter,
                                                     RowFilter rowFilter,
                                                     DataLimits limits,
@@ -161,6 +164,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata,
                                                     int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                                                     DecoratedKey key,
                                                     ColumnFilter columnFilter,
                                                     ClusteringIndexFilter filter)
@@ -179,6 +183,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     public static SinglePartitionReadCommand fullPartitionRead(TableMetadata metadata, int nowInSec, DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         return create(metadata, nowInSec, key, Slices.ALL);
     }
 
@@ -209,6 +214,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, Slice slice)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         return create(metadata, nowInSec, key, Slices.with(metadata.comparator, slice));
     }
 
@@ -258,7 +264,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, NavigableSet<Clustering> names)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         return create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, key, filter);
     }
 
@@ -328,6 +337,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         return new SinglePartitionReadCommand(isDigestQuery(),
                                               digestVersion(),
                                               acceptsTransient(),
@@ -360,6 +370,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public long getTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getReadRpcTimeout(unit);
     }
 
@@ -373,10 +384,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         // We shouldn't have set digest yet when reaching that point
         assert !isDigestQuery();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return create(metadata(),
                       nowInSec(),
                       columnFilter(),
                       rowFilter(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11603
                       limits,
                       partitionKey(),
                       lastReturned == null ? clusteringIndexFilter() : clusteringIndexFilter.forPaging(metadata().comparator, lastReturned, false));
@@ -384,6 +397,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return StorageProxy.read(Group.one(this), consistency, clientState, queryStartNanoTime);
     }
 
@@ -400,6 +414,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         UnfilteredRowIterator partition = cfs.isRowCacheEnabled() && !isTrackingRepairedStatus()
                                         ? getThroughCache(cfs, executionController)
                                         : queryMemtableAndDisk(cfs, executionController);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new SingletonUnfilteredPartitionIterator(partition);
     }
 
@@ -417,6 +432,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         assert !cfs.isIndex(); // CASSANDRA-5732
         assert cfs.isRowCacheEnabled() : String.format("Row cache is not enabled on table [%s]", cfs.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
 
         RowCacheKey key = new RowCacheKey(metadata(), partitionKey());
 
@@ -430,6 +446,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             {
                 // Some other read is trying to cache the value, just do a normal non-caching read
                 Tracing.trace("Row cache miss (race)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 cfs.metric.rowCacheMiss.inc();
                 return queryMemtableAndDisk(cfs, executionController);
             }
@@ -455,6 +472,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         // Note that on tables with no clustering keys, any positive value of
         // rowsToCache implies caching the full partition
         boolean cacheFullPartitions = metadata().clusteringColumns().size() > 0 ?
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
                                       metadata().params.caching.cacheAllRows() :
                                       metadata().params.caching.cacheRows();
 
@@ -588,6 +607,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14879
         Collections.sort(view.sstables, SSTableReader.maxTimestampDescending);
         ClusteringIndexFilter filter = clusteringIndexFilter();
         long minTimestamp = Long.MAX_VALUE;
@@ -631,6 +651,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             int includedDueToTombstones = 0;
 
             SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
 
             if (isTrackingRepairedStatus())
                 Tracing.trace("Collecting data from sstables and tracking repaired status");
@@ -664,6 +685,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 {
                     nonIntersectingSSTables++;
                     // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE, so we can safely skip those entirely
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13366
                     if (sstable.mayHaveTombstones())
                     {
                         // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
@@ -697,6 +719,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             StorageHook.instance.reportRead(cfs.metadata().id, partitionKey());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
             return withSSTablesIterated(inputCollector.finalizeIterators(cfs, nowInSec(), oldestUnrepairedTombstone), cfs.metric, metricsCollector);
         }
         catch (RuntimeException | Error e)
@@ -718,6 +741,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         // If some static columns are queried, we should always include the sstable: the clustering values stats of the sstable
         // don't tell us if the sstable contains static values in particular.
         // TODO: we could record if a sstable contains any static value at all.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10571
         if (!columnFilter().fetchedColumns().statics.isEmpty())
             return true;
 
@@ -753,6 +777,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (!merged.isEmpty())
         {
             DecoratedKey key = merged.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
             metrics.topReadPartitionFrequency.addSample(key.getKey(), 1);
         }
 
@@ -772,6 +797,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         for (ColumnMetadata column : columnFilter().fetchedColumns())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12605
             if (column.type.isMultiCell() || column.type.isCounter())
                 return true;
         }
@@ -806,6 +832,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 if (iter.isEmpty())
                     continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
                 result = add(
                     RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false),
                     result,
@@ -816,9 +843,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         /* add the SSTables on disk */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14879
         Collections.sort(view.sstables, SSTableReader.maxTimestampDescending);
         boolean onlyUnrepaired = true;
         // read sorted sstables
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
         SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
         for (SSTableReader sstable : view.sstables)
         {
@@ -839,6 +868,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 // however: if it is set, it impacts everything and must be included. Getting that top-level partition deletion costs us
                 // some seek in general however (unless the partition is indexed and is in the key cache), so we first check if the sstable
                 // has any tombstone at all as a shortcut.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13366
                 if (!sstable.mayHaveTombstones())
                     continue; // no tombstone at all, we can skip that sstable
 
@@ -853,6 +883,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 {
                     if (!iter.partitionLevelDeletion().isLive())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
                         result = add(
                             UnfilteredRowIterators.noRowsIterator(iter.metadata(),
                                                                   iter.partitionKey(),
@@ -892,6 +923,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 if (sstable.isRepaired())
                     onlyUnrepaired = false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
                 result = add(
                     RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false),
                     result,
@@ -907,10 +939,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);
 
         DecoratedKey key = result.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         cfs.metric.topReadPartitionFrequency.addSample(key.getKey(), 1);
         StorageHook.instance.reportRead(cfs.metadata.id, partitionKey());
 
         // "hoist up" the requested data into a more recent sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
         if (metricsCollector.getMergedSSTables() > cfs.getMinimumCompactionThreshold()
             && onlyUnrepaired
             && !cfs.isAutoCompactionDisabled()
@@ -923,6 +957,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             try (UnfilteredRowIterator iter = result.unfilteredIterator(columnFilter(), Slices.ALL, false))
             {
                 final Mutation mutation = new Mutation(PartitionUpdate.fromIterator(iter, columnFilter()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 Stage.MUTATION.execute(() -> {
                     // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
                     Keyspace.open(mutation.getKeyspaceName()).apply(mutation, false, false);
@@ -930,6 +966,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13050
         return result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
     }
 
@@ -1039,6 +1076,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     public Verb verb()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return Verb.READ_REQ;
     }
 
@@ -1072,11 +1110,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public boolean isLimitedToOnePartition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13595
         return true;
     }
 
     public boolean isRangeRequest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return false;
     }
 
@@ -1087,6 +1127,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         public static Group create(TableMetadata metadata,
                                    int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                    ColumnFilter columnFilter,
                                    RowFilter rowFilter,
                                    DataLimits limits,
@@ -1120,6 +1161,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             return StorageProxy.read(this, consistency, clientState, queryStartNanoTime);
         }
     }
@@ -1159,6 +1201,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         @Override
         public void onSSTableSelected(SSTableReader sstable, RowIndexEntry<?> indexEntry, SelectionReason reason)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
             sstable.incrementReadCount();
             mergedSSTables++;
         }

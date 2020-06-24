@@ -49,6 +49,8 @@ public class GuidGenerator
         ByteBuffer array = guidAsBytes();
 
         StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         for (int j = array.position(); j < array.limit(); ++j)
         {
             int b = array.get(j) & 0xFF;
@@ -61,6 +63,8 @@ public class GuidGenerator
 
     public static String guidToString(byte[] bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-273
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-273
         StringBuilder sb = new StringBuilder();
         for (int j = 0; j < bytes.length; ++j)
         {
@@ -74,7 +78,9 @@ public class GuidGenerator
 
     public static ByteBuffer guidAsBytes(Random random, String hostId, long time)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-273
         StringBuilder sbValueBeforeMD5 = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12812
         long rand = random.nextLong();
         sbValueBeforeMD5.append(hostId)
                         .append(":")
@@ -83,11 +89,13 @@ public class GuidGenerator
                         .append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
         return ByteBuffer.wrap(MD5Digest.threadLocalMD5Digest().digest(valueBeforeMD5.getBytes()));
     }
 
     public static ByteBuffer guidAsBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12812
         return guidAsBytes(myRand, s_id, System.currentTimeMillis());
     }
 
@@ -99,6 +107,7 @@ public class GuidGenerator
     private static String convertToStandardFormat(String valueAfterMD5)
     {
         String raw = valueAfterMD5.toUpperCase();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-273
         StringBuilder sb = new StringBuilder();
         sb.append(raw.substring(0, 8))
           .append("-")

@@ -35,11 +35,13 @@ public class TimeUUIDType extends TemporalType<UUID>
 
     TimeUUIDType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     } // singleton
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
@@ -51,6 +53,7 @@ public class TimeUUIDType extends TemporalType<UUID>
 
         // should we assert exactly 16 bytes (or 0)? seems prudent
         boolean p1 = l1 - s1 == 16, p2 = l2 - s2 == 16;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8730
         if (!(p1 & p2))
         {
             assert p1 | (l1 == s1);
@@ -99,8 +102,10 @@ public class TimeUUIDType extends TemporalType<UUID>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8759
         ByteBuffer parsed = UUIDType.parse(source);
         if (parsed == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5226
             throw new MarshalException(String.format("Unknown timeuuid representation: %s", source));
         if (parsed.remaining() == 16 && UUIDType.version(parsed) != 1)
             throw new MarshalException("TimeUUID supports only version 1 UUIDs");
@@ -110,6 +115,7 @@ public class TimeUUIDType extends TemporalType<UUID>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(fromString((String) parsed));
@@ -123,6 +129,7 @@ public class TimeUUIDType extends TemporalType<UUID>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.TIMEUUID;
     }
 
@@ -134,12 +141,14 @@ public class TimeUUIDType extends TemporalType<UUID>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 16;
     }
 
     @Override
     public long toTimeInMillis(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         return UUIDGen.unixTimestamp(UUIDGen.getUUID(value));
     }
 

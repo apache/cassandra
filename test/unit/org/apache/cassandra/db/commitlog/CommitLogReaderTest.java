@@ -170,6 +170,7 @@ public class CommitLogReaderTest extends CQLTester
         int j = 0;
         while (i + j < handler.seenMutationCount())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             PartitionUpdate pu = handler.seenMutations.get(i + j).getPartitionUpdate(currentTableMetadata());
             if (pu == null)
             {
@@ -234,6 +235,7 @@ public class CommitLogReaderTest extends CQLTester
 
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             if ((metadata == null) || (metadata != null && m.getPartitionUpdate(metadata) != null)) {
                 seenMutations.add(m);
             }

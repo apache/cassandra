@@ -43,6 +43,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         public void serialize(Token token, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             out.write(toByteArray(token));
         }
 
@@ -69,7 +70,9 @@ public abstract class Token implements RingPosition<Token>, Serializable
     {
         public void serialize(Token token, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8268
             IPartitioner p = token.getPartitioner();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             out.writeInt(p.getTokenFactory().byteSize(token));
             p.getTokenFactory().serialize(token, out);
         }
@@ -95,9 +98,11 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8230
 
     /**
      * Returns a measure for the token space covered between this token and next.
@@ -118,6 +123,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
     public Token minValue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return getPartitioner().getMinimumToken();
     }
 
@@ -142,6 +148,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
      */
     public KeyBound minKeyBound()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         return new KeyBound(this, true);
     }
 
@@ -154,7 +161,9 @@ public abstract class Token implements RingPosition<Token>, Serializable
          * simpler to associate the same value for minKeyBound and
          * maxKeyBound for the minimun token.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         if (isMinimum())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
             return minKeyBound();
         return new KeyBound(this, false);
     }
@@ -175,6 +184,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         private KeyBound(Token t, boolean isMinimumBound)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
             this.token = t;
             this.isMinimumBound = isMinimumBound;
         }
@@ -193,6 +203,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             if (cmp != 0)
                 return cmp;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
             if (isMinimumBound)
                 return ((pos instanceof KeyBound) && ((KeyBound)pos).isMinimumBound) ? 0 : -1;
             else
@@ -201,6 +212,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         public IPartitioner getPartitioner()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
             return getToken().getPartitioner();
         }
 
@@ -216,6 +228,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         public PartitionPosition.Kind kind()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return isMinimumBound ? PartitionPosition.Kind.MIN_BOUND : PartitionPosition.Kind.MAX_BOUND;
         }
 
@@ -228,6 +241,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
                 return false;
 
             KeyBound other = (KeyBound)obj;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
             return token.equals(other.token) && isMinimumBound == other.isMinimumBound;
         }
 

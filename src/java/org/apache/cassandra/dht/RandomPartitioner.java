@@ -60,12 +60,15 @@ public class RandomPartitioner implements IPartitioner
         @Override
         protected MessageDigest initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13964
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             return FBUtilities.newMessageDigest("MD5");
         }
 
         @Override
         public MessageDigest get()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
             MessageDigest digest = super.get();
             digest.reset();
             return digest;
@@ -81,6 +84,7 @@ public class RandomPartitioner implements IPartitioner
     {
         public Token tokenForValue(BigInteger value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
             return new BigIntegerToken(value);
         }
 
@@ -92,12 +96,14 @@ public class RandomPartitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return new CachedHashDecoratedKey(getToken(key), key);
     }
 
     public Token midpoint(Token ltoken, Token rtoken)
     {
         // the symbolic MINIMUM token should act as ZERO: the empty bit array
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         BigInteger left = ltoken.equals(MINIMUM) ? ZERO : ((BigIntegerToken)ltoken).token;
         BigInteger right = rtoken.equals(MINIMUM) ? ZERO : ((BigIntegerToken)rtoken).token;
         Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 127);
@@ -107,6 +113,7 @@ public class RandomPartitioner implements IPartitioner
 
     public Token split(Token ltoken, Token rtoken, double ratioToLeft)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         BigDecimal left = ltoken.equals(MINIMUM) ? BigDecimal.ZERO : new BigDecimal(((BigIntegerToken)ltoken).token),
                    right = rtoken.equals(MINIMUM) ? BigDecimal.ZERO : new BigDecimal(((BigIntegerToken)rtoken).token),
                    ratio = BigDecimal.valueOf(ratioToLeft);
@@ -138,6 +145,8 @@ public class RandomPartitioner implements IPartitioner
 
     public BigIntegerToken getRandomToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13964
         BigInteger token = hashToBigInteger(GuidGenerator.guidAsBytes());
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
@@ -146,13 +155,16 @@ public class RandomPartitioner implements IPartitioner
 
     public BigIntegerToken getRandomToken(Random random)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
         BigInteger token = hashToBigInteger(GuidGenerator.guidAsBytes(random, "host/127.0.0.1", 0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
     }
 
     private boolean isValidToken(BigInteger token) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         return token.compareTo(ZERO) >= 0 && token.compareTo(MAXIMUM) <= 0;
     }
 
@@ -160,6 +172,7 @@ public class RandomPartitioner implements IPartitioner
     {
         public ByteBuffer toByteArray(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
             BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
             return ByteBuffer.wrap(bigIntegerToken.token.toByteArray());
         }
@@ -167,6 +180,7 @@ public class RandomPartitioner implements IPartitioner
         @Override
         public void serialize(Token token, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             out.write(((BigIntegerToken) token).token.toByteArray());
         }
 
@@ -184,6 +198,8 @@ public class RandomPartitioner implements IPartitioner
 
         public Token fromByteArray(ByteBuffer bytes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             return new BigIntegerToken(new BigInteger(ByteBufferUtil.getArray(bytes)));
         }
 
@@ -196,13 +212,17 @@ public class RandomPartitioner implements IPartitioner
         public String toString(Token token)
         {
             BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-114
             return bigIntegerToken.token.toString();
         }
 
         public void validate(String token) throws ConfigurationException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2762
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
                 if(!isValidToken(new BigInteger(token)))
                     throw new ConfigurationException("Token must be >= 0 and <= 2**127");
             }
@@ -225,6 +245,7 @@ public class RandomPartitioner implements IPartitioner
 
     public boolean preservesOrder()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-242
         return false;
     }
 
@@ -234,6 +255,7 @@ public class RandomPartitioner implements IPartitioner
 
         public BigIntegerToken(BigInteger token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
             super(token);
         }
 
@@ -258,6 +280,7 @@ public class RandomPartitioner implements IPartitioner
 
         public Token increaseSlightly()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12647
             return new BigIntegerToken(token.add(BigInteger.ONE));
         }
 
@@ -274,12 +297,16 @@ public class RandomPartitioner implements IPartitioner
     {
         if (key.remaining() == 0)
             return MINIMUM;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-242
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13964
         return new BigIntegerToken(hashToBigInteger(key));
     }
 
     public int getMaxTokenSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return MAXIMUM_TOKEN_SIZE;
     }
 
@@ -299,6 +326,7 @@ public class RandomPartitioner implements IPartitioner
         else
         {
             // NOTE: All divisions must take place in BigDecimals, and all modulo operators must take place in BigIntegers.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             final BigInteger ri = MAXIMUM;                                                  //  (used for addition later)
             final BigDecimal r  = new BigDecimal(ri);                                       // The entire range, 2**127
             Token start = i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
@@ -307,6 +335,8 @@ public class RandomPartitioner implements IPartitioner
             {
                 t = i.next(); ti = ((BigIntegerToken)t).token;                                      // The next token and its value
                 float x = new BigDecimal(ti.subtract(tim1).add(ri).mod(ri)).divide(r).floatValue(); // %age = ((T(i) - T(i-1) + R) % R) / R
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2071
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                 ownerships.put(t, x);                                                               // save (T(i) -> %age)
                 tim1 = ti;                                                                          // -> advance loop
             }
@@ -319,26 +349,32 @@ public class RandomPartitioner implements IPartitioner
 
     public Token getMaximumToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         return new BigIntegerToken(MAXIMUM);
     }
 
     public AbstractType<?> getTokenValidator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return IntegerType.instance;
     }
 
     public AbstractType<?> partitionOrdering()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return partitionOrdering;
     }
 
     public Optional<Splitter> splitter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         return Optional.of(splitter);
     }
 
     private static BigInteger hashToBigInteger(ByteBuffer data)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13291
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13964
         MessageDigest messageDigest = localMD5Digest.get();
         if (data.hasArray())
             messageDigest.update(data.array(), data.arrayOffset() + data.position(), data.remaining());

@@ -118,6 +118,7 @@ public class ReadCommandTest
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         TableMetadata.Builder metadata1 = SchemaLoader.standardCFMD(KEYSPACE, CF1);
 
@@ -170,6 +171,7 @@ public class ReadCommandTest
                      .addRegularColumn("b", AsciiType.instance)
                      .caching(CachingParams.CACHE_EVERYTHING);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         TableMetadata.Builder metadata7 =
         TableMetadata.builder(KEYSPACE, CF7)
                      .flags(EnumSet.of(TableMetadata.Flag.COUNTER))
@@ -177,6 +179,7 @@ public class ReadCommandTest
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("c", CounterColumnType.instance);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
         TableMetadata.Builder metadata8 =
         TableMetadata.builder(KEYSPACE, CF8)
                      .addPartitionKeyColumn("key", BytesType.instance)
@@ -185,6 +188,7 @@ public class ReadCommandTest
                      .addRegularColumn("b", AsciiType.instance)
                      .addRegularColumn("c", SetType.getInstance(AsciiType.instance, true));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
         TableMetadata.Builder metadata9 =
         TableMetadata.builder(KEYSPACE, CF9)
                      .addPartitionKeyColumn("key", Int32Type.instance)
@@ -201,6 +205,7 @@ public class ReadCommandTest
                                     metadata5,
                                     metadata6,
                                     metadata7,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
                                     metadata8,
                                     metadata9);
 
@@ -299,6 +304,7 @@ public class ReadCommandTest
     public void testSinglePartitionGroupMerge() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12474
 
         String[][][] groups = new String[][][] {
             new String[][] {
@@ -383,6 +389,7 @@ public class ReadCommandTest
                                                                                                 MessagingService.current_version,
                                                                                                 cfs.metadata(),
                                                                                                 columnFilter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                                                                                 DeserializationHelper.Flag.LOCAL));
             }
         }
@@ -429,6 +436,7 @@ public class ReadCommandTest
     public void testSerializer() throws IOException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
 
         new RowUpdateBuilder(cfs.metadata.get(), 0, ByteBufferUtil.bytes("key"))
         .clustering("dd")
@@ -440,6 +448,7 @@ public class ReadCommandTest
         int messagingVersion = MessagingService.current_version;
         FakeOutputStream out = new FakeOutputStream();
         Tracing.instance.newSession(Tracing.TraceType.QUERY);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<ReadCommand> messageOut = Message.out(Verb.READ_REQ, readCommand);
         long size = messageOut.serializedSize(messagingVersion);
         Message.serializer.serialize(messageOut, new WrappedDataOutputStreamPlus(out), messagingVersion);
@@ -460,6 +469,7 @@ public class ReadCommandTest
     public void testCountDeletedRows() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF4);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14234
 
         String[][][] groups = new String[][][] {
                 new String[][] {
@@ -549,6 +559,7 @@ public class ReadCommandTest
     public void testCountWithNoDeletedRow() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF5);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14234
 
         String[][][] groups = new String[][][] {
                 new String[][] {
@@ -699,6 +710,7 @@ public class ReadCommandTest
         // This clearly has a tradeoff with the efficacy of the digest, without doing
         // so false positive digest mismatches will be reported for scenarios where
         // there is nothing that can be done to "fix" the replicas
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF7);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -716,6 +728,7 @@ public class ReadCommandTest
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
         ByteBuffer digestWithLegacyCounter0 = performReadAndVerifyRepairedInfo(readCommand, 1, 1, true);
         assertFalse(EMPTY_BYTE_BUFFER.equals(digestWithLegacyCounter0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
 
         // truncate, then re-insert the same partition, but this time with a legacy
         // shard having the value 1. The repaired digest should match the previous, as
@@ -745,6 +758,7 @@ public class ReadCommandTest
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
 
         ByteBuffer digestWithCounterCell = performReadAndVerifyRepairedInfo(readCommand, 1, 1, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
         assertFalse(EMPTY_BYTE_BUFFER.equals(digestWithCounterCell));
         assertFalse(digestWithLegacyCounter0.equals(digestWithCounterCell));
         assertFalse(digestWithLegacyCounter1.equals(digestWithCounterCell));
@@ -812,6 +826,7 @@ public class ReadCommandTest
         //Tombstones are now purgable, so won't be in the read results and produce different digests
         for (DecoratedKey key : keys)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15558
             ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec + 60).build();
             cmd.trackRepairedStatus();
             Partition partition = Util.getOnlyPartitionUnfiltered(cmd);
@@ -840,6 +855,7 @@ public class ReadCommandTest
     @Test
     public void testRepairedDataOverreadMetrics()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF9);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -1134,6 +1150,7 @@ public class ReadCommandTest
     @Test (expected = IllegalArgumentException.class)
     public void copyFullAsTransientTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
         readCommand.copyAsTransientQuery(ReplicaUtils.full(FBUtilities.getBroadcastAddressAndPort()));
@@ -1177,6 +1194,8 @@ public class ReadCommandTest
 
     private void testRepairedDataTracking(ColumnFamilyStore cfs, ReadCommand readCommand) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10555
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10555
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
 
@@ -1189,6 +1208,7 @@ public class ReadCommandTest
         cfs.forceBlockingFlush();
 
         new RowUpdateBuilder(cfs.metadata(), 1, ByteBufferUtil.bytes("key"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10555
                 .clustering("dd")
                 .add("a", ByteBufferUtil.bytes("abcd"))
                 .build()
@@ -1209,6 +1229,7 @@ public class ReadCommandTest
         Set<ByteBuffer> digests = new HashSet<>();
         // first time round, nothing has been marked repaired so we expect digest to be an empty buffer and to be marked conclusive
         ByteBuffer digest = performReadAndVerifyRepairedInfo(readCommand, numPartitions, rowsPerPartition, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
         assertEquals(EMPTY_BYTE_BUFFER, digest);
         digests.add(digest);
 
@@ -1249,6 +1270,7 @@ public class ReadCommandTest
                                         .build()).apply();
             digest = performReadAndVerifyRepairedInfo(readCommand, 0, rowsPerPartition, false);
             assertEquals(EMPTY_BYTE_BUFFER, digest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
 
             // now flush so we have an unrepaired table with the deletion and repeat the check
             cfs.forceBlockingFlush();
@@ -1259,6 +1281,7 @@ public class ReadCommandTest
 
     private void mutateRepaired(ColumnFamilyStore cfs, SSTableReader sstable, long repairedAt, UUID pendingSession)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         try
         {
             sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingSession, false);

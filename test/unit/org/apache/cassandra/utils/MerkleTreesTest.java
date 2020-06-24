@@ -62,6 +62,7 @@ public class MerkleTreesTest
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         StorageService.instance.setPartitionerUnsafe(partitioner);
     }
@@ -193,6 +194,7 @@ public class MerkleTreesTest
         Iterator<TreeRange> ranges;
 
         // (zero, zero]
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = mts.rangeIterator();
         assertEquals(new Range<>(tok(-1), tok(-1)), ranges.next());
         assertFalse(ranges.hasNext());
@@ -203,6 +205,7 @@ public class MerkleTreesTest
         mts.split(tok(6));
         mts.split(tok(3));
         mts.split(tok(5));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = mts.rangeIterator();
         assertEquals(new Range<>(tok(6), tok(-1)), ranges.next());
         assertEquals(new Range<>(tok(-1), tok(2)), ranges.next());
@@ -337,6 +340,7 @@ public class MerkleTreesTest
         }
 
         // validate the tree
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         TreeRangeIterator ranges = mts.rangeIterator();
         for (TreeRange range : ranges)
             range.addHash(new RowHash(range.right, new byte[0], 0));
@@ -368,6 +372,7 @@ public class MerkleTreesTest
 
         int seed = 123456789;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Random random1 = new Random(seed);
         ranges = mts.rangeIterator();
         ranges.next().addAll(new HIterator(random1, 2, 4)); // (-1,4]: depth 2
@@ -386,6 +391,7 @@ public class MerkleTreesTest
         mts2.split(tok(9));
         mts2.split(tok(11));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Random random2 = new Random(seed);
         ranges = mts2.rangeIterator();
         ranges.next().addAll(new HIterator(random2, 2)); // (-1,2]
@@ -417,6 +423,7 @@ public class MerkleTreesTest
 
         // populate and validate the tree
         mts.init();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         for (TreeRange range : mts.rangeIterator())
             range.addAll(new HIterator(range.right));
 
@@ -450,6 +457,7 @@ public class MerkleTreesTest
 
         int seed = 123456789;
         // add dummy hashes to both trees
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Random random1 = new Random(seed);
         for (TreeRange range : mts.rangeIterator())
             range.addAll(new HIterator(random1, range.right));
@@ -464,6 +472,7 @@ public class MerkleTreesTest
         mts.maxsize(fullRange(), maxsize + 2); // give some room for splitting
 
         // split the leftmost
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Iterator<TreeRange> ranges = mts.rangeIterator();
         leftmost = ranges.next();
         mts.split(leftmost.right);
@@ -500,6 +509,7 @@ public class MerkleTreesTest
             while (depth.equals(dstack.peek()))
             {
                 // consume the stack
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                 hash = MerkleTree.xor(hstack.pop(), hash);
                 depth = dstack.pop()-1;
             }
@@ -515,6 +525,7 @@ public class MerkleTreesTest
         private final Random random;
         private final Iterator<Token> tokens;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         HIterator(int... tokens)
         {
             this(new Random(), tokens);

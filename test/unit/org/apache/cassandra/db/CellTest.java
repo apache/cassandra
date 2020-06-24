@@ -47,6 +47,7 @@ public class CellTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -84,6 +85,7 @@ public class CellTest
     public void testConflictingTypeEquality()
     {
         boolean[] tf = new boolean[]{ true, false };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8947
         for (boolean lhs : tf)
         {
             for (boolean rhs : tf)
@@ -91,6 +93,7 @@ public class CellTest
                 // don't test equality for both sides native, as this is based on CellName resolution
                 if (lhs && rhs)
                     continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 Cell a = expiring(cfm, "val", "a", 1, 1);
                 Cell b = regular(cfm, "val", "a", 1);
                 Assert.assertNotSame(a, b);
@@ -105,6 +108,8 @@ public class CellTest
 
     private void assertValid(Cell cell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11618
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11618
         try
         {
             cell.validate();
@@ -167,6 +172,7 @@ public class CellTest
     @Test
     public void testValidateNonFrozenUDT()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12916
         FieldIdentifier f1 = field("f1");  // has field position 0
         FieldIdentifier f2 = field("f2");  // has field position 1
         UserType udt = new UserType("ks",
@@ -253,6 +259,7 @@ public class CellTest
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 1));
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13643
     class SimplePurger implements DeletionPurger
     {
         private final int gcBefore;
@@ -331,6 +338,7 @@ public class CellTest
 
     private static ByteBuffer bbs(int s)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12916
         return ByteBufferUtil.bytes((short) s);
     }
 
@@ -356,12 +364,15 @@ public class CellTest
         int now1 = FBUtilities.nowInSeconds();
         long ts1 = now1*1000000L;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13866
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         Cell r1m1 = BufferCell.live(m, ts1, bb(1), CellPath.create(bb(1)));
         Cell r1m2 = BufferCell.live(m, ts1, bb(2), CellPath.create(bb(2)));
         List<Cell> cells1 = Lists.newArrayList(r1m1, r1m2);
 
         int now2 = now1 + 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13866
         long ts2 = now2*1000000L;
         Cell r2m2 = BufferCell.live(m, ts2, bb(1), CellPath.create(bb(2)));
         Cell r2m3 = BufferCell.live(m, ts2, bb(2), CellPath.create(bb(3)));
@@ -383,6 +394,7 @@ public class CellTest
             t2 = t1;
         if (et2 == null)
             et2 = et1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         Cell c1 = expiring(cfm, n1, v1, t1, et1);
         Cell c2 = expiring(cfm, n2, v2, t2, et2);
 
@@ -394,11 +406,13 @@ public class CellTest
     private Cell regular(TableMetadata cfm, String columnName, String value, long timestamp)
     {
         ColumnMetadata cdef = cfm.getColumn(ByteBufferUtil.bytes(columnName));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         return BufferCell.live(cdef, timestamp, ByteBufferUtil.bytes(value));
     }
 
     private Cell expiring(TableMetadata cfm, String columnName, String value, long timestamp, int localExpirationTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13643
         return expiring(cfm, columnName, value, timestamp, 1, localExpirationTime);
     }
 

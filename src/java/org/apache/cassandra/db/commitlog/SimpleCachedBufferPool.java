@@ -79,6 +79,7 @@ public class SimpleCachedBufferPool
 
     public ByteBuffer getThreadLocalReusableBuffer(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
         ByteBuffer result = reusableBufferHolder.get();
         if (result.capacity() < size || BufferType.typeOf(result) != preferredReusableBufferType)
         {

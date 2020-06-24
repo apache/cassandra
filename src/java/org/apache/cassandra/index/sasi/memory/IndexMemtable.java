@@ -53,6 +53,7 @@ public class IndexMemtable
             int size = value.remaining();
             if ((value = TypeUtil.tryUpcast(value, validator)) == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 logger.error("Can't add column {} to index for key: {}, value size {}, validator: {}.",
                              index.columnIndex.getColumnName(),
                              index.columnIndex.keyValidator().getString(key.getKey()),

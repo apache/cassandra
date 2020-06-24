@@ -42,6 +42,7 @@ public class OptionRatioDistribution extends Option
     {
         public RatioDistributionFactory apply(String s)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
             return get(s);
         }
     };
@@ -75,14 +76,17 @@ public class OptionRatioDistribution extends Option
 
     public static RatioDistributionFactory get(String spec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         OptionRatioDistribution opt = new OptionRatioDistribution("", "", "", true);
         if (!opt.accept(spec))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7716
             throw new IllegalArgumentException("Invalid ratio definition: "+spec);
         return opt.get();
     }
 
     public RatioDistributionFactory get()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         if (delegate.setByUser())
             return new DelegateFactory(delegate.get(), divisor);
         if (defaultSpec == null)
@@ -126,6 +130,7 @@ public class OptionRatioDistribution extends Option
 
     boolean present()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
         return delegate.present();
     }
 
@@ -136,6 +141,7 @@ public class OptionRatioDistribution extends Option
     }
     public String getOptionAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         return delegate.getOptionAsString();
     }
 

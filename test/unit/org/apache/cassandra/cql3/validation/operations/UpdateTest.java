@@ -65,6 +65,7 @@ public class UpdateTest extends CQLTester
     @Test
     public void testUpdate() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         testUpdate(false);
         testUpdate(true);
     }
@@ -157,6 +158,7 @@ public class UpdateTest extends CQLTester
                              "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ? AND clustering_1 = ?", 7, 0, 1, 1);
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name value1",
                              "UPDATE %s SET value1 = ? WHERE partitionKey = ? AND clustering_1 = ?", 7, 0, 1);
 
@@ -173,6 +175,7 @@ public class UpdateTest extends CQLTester
         assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
                              "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ?", 7, 0, 1);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ? AND value = ?", 7, 0, 1, 3);
 
@@ -329,6 +332,7 @@ public class UpdateTest extends CQLTester
                              "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND clustering_1 = ?", 7, 0, 1, 1, 1);
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name value1",
                              "UPDATE %s SET value1 = ? WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
@@ -345,6 +349,7 @@ public class UpdateTest extends CQLTester
         assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
                              "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND value = ?", 7, 0, 1, 1, 3);
 
@@ -469,6 +474,7 @@ public class UpdateTest extends CQLTester
     @Test
     public void testUpdateWithDefaultTtl() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         final int secondsPerMinute = 60;
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH default_time_to_live = " + (10 * secondsPerMinute));
 
@@ -493,6 +499,7 @@ public class UpdateTest extends CQLTester
         row = resultSet.one();
         Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12216
         execute("UPDATE %s USING TTL ? SET b = ? WHERE a = ?", null, 3, 3);
         assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 3"), row(new Object[] { null }));
     }

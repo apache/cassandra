@@ -38,6 +38,7 @@ public class EnableAutoCompaction extends NodeToolCmd
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
         for (String keyspace : keyspaces)
         {

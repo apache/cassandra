@@ -64,6 +64,7 @@ final class HintsStore
         this.hintsDirectory = hintsDirectory;
         this.writerParams = writerParams;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         dispatchPositions = new ConcurrentHashMap<>();
         dispatchDequeue = new ConcurrentLinkedDeque<>(descriptors);
         corruptedFiles = new ConcurrentLinkedQueue<>();
@@ -81,9 +82,11 @@ final class HintsStore
     @VisibleForTesting
     int getDispatchQueueSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13740
         return dispatchDequeue.size();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     InetAddressAndPort address()
     {
         return StorageService.instance.getEndpointForHostId(hostId);
@@ -126,6 +129,7 @@ final class HintsStore
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10947
     void delete(HintsDescriptor descriptor)
     {
         File hintsFile = new File(hintsDirectory, descriptor.fileName());
@@ -143,6 +147,7 @@ final class HintsStore
         return !dispatchDequeue.isEmpty();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
     InputPosition getDispatchOffset(HintsDescriptor descriptor)
     {
         return dispatchPositions.get(descriptor);

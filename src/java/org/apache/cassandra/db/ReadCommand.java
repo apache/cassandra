@@ -108,6 +108,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 boolean acceptsTransient,
                                                 TableMetadata metadata,
                                                 int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                                                 ColumnFilter columnFilter,
                                                 RowFilter rowFilter,
                                                 DataLimits limits,
@@ -121,6 +122,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         private final SelectionDeserializer selectionDeserializer;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         Kind(SelectionDeserializer selectionDeserializer)
         {
             this.selectionDeserializer = selectionDeserializer;
@@ -135,10 +137,13 @@ public abstract class ReadCommand extends AbstractReadQuery
                           int nowInSec,
                           ColumnFilter columnFilter,
                           RowFilter rowFilter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                           DataLimits limits,
                           IndexMetadata index)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
         if (acceptsTransient && isDigestQuery)
             throw new IllegalArgumentException("Attempted to issue a digest response to transient replica");
 
@@ -146,6 +151,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         this.index = index;
     }
 
@@ -189,6 +195,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public int digestVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9554
         return digestVersion;
     }
 
@@ -204,6 +211,8 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand setDigestVersion(int digestVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9554
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9554
         this.digestVersion = digestVersion;
         return this;
     }
@@ -314,6 +323,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsTransientQuery(Replica replica)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
         Preconditions.checkArgument(replica.isTransient(),
                                     "Can't make a transient request on a full replica: " + replica);
         return copyAsTransientQuery();
@@ -324,6 +334,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsTransientQuery(Iterable<Replica> replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         if (any(replicas, Replica::isFull))
             throw new IllegalArgumentException("Can't make a transient request on full replicas: " + Iterables.toString(filter(replicas, Replica::isFull)));
         return copyAsTransientQuery();
@@ -346,6 +357,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsDigestQuery(Iterable<Replica> replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         if (any(replicas, Replica::isTransient))
             throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isTransient)));
 
@@ -374,12 +386,15 @@ public abstract class ReadCommand extends AbstractReadQuery
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
 
         return isDigestQuery()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
              ? ReadResponse.createDigestResponse(iterator, this)
              : ReadResponse.createDataResponse(iterator, this);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
     long indexSerializedSize(int version)
     {
         return null != index
@@ -416,7 +431,9 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public void maybeValidateIndex()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11043
         if (null != index)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             IndexRegistry.obtain(metadata()).getIndex(index).validate(this);
     }
 
@@ -448,6 +465,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         if (isTrackingRepairedStatus())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
             final DataLimits.Counter repairedReadCount = limits().newCounter(nowInSec(),
                                                                              false,
                                                                              selectsFullPartition(),
@@ -480,6 +498,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
             // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
             // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
             if (isTrackingRepairedStatus())
             {
                 DataLimits.Counter limit =
@@ -496,6 +515,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
 
             // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
             return RTBoundCloser.close(iterator);
         }
         catch (RuntimeException | Error e)
@@ -518,6 +538,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     private UnfilteredPartitionIterator withMetricsRecording(UnfilteredPartitionIterator iter, final TableMetrics metric, final long startTimeNanos)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class MetricRecording extends Transformation<UnfilteredRowIterator>
         {
             private final int failureThreshold = DatabaseDescriptor.getTombstoneFailureThreshold();
@@ -535,6 +556,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
             {
                 currentKey = iter.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                 return Transformation.apply(iter, this);
             }
 
@@ -584,6 +606,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 {
                     String query = ReadCommand.this.toCQLString();
                     Tracing.trace("Scanned over {} tombstones for query {}; query aborted (see tombstone_failure_threshold)", failureThreshold, query);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
                     metric.tombstoneFailures.inc();
                     throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
@@ -604,6 +627,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                             "Read %d live rows and %d tombstone cells for query %1.512s; token %s (see tombstone_warn_threshold)",
                             liveRows, tombstones, ReadCommand.this.toCQLString(), currentKey.getToken());
                     ClientWarn.instance.warn(msg);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
                     if (tombstones < failureThreshold)
                     {
                         metric.tombstoneWarnings.inc();
@@ -624,9 +648,12 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected class CheckForAbort extends StoppingTransformation<UnfilteredRowIterator>
     {
         long lastChecked = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13050
 
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7392
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10951
             if (maybeAbort())
             {
                 partition.close();
@@ -652,6 +679,7 @@ public abstract class ReadCommand extends AbstractReadQuery
              * {@link org.apache.cassandra.utils.MonotonicClock.SampledClock.CHECK_INTERVAL_MS}, by default 2 millis. Since MonitorableImpl
              * relies on approxTime, we don't need to check unless the approximate time has elapsed.
              */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (lastChecked == approxTime.now())
                 return false;
 
@@ -668,7 +696,9 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         private void maybeDelayForTesting()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             if (!metadata().keyspace.startsWith("system"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13050
                 FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
         }
     }
@@ -683,6 +713,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public Message<ReadCommand> createMessage(boolean trackRepairedData)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return trackRepairedData
              ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
              : Message.outWithFlag (verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
@@ -727,6 +758,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         StringBuilder sb = new StringBuilder();
         sb.append("SELECT ").append(columnFilter());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         sb.append(" FROM ").append(metadata().keyspace).append('.').append(metadata().name);
         appendCQLWhereClause(sb);
 
@@ -744,6 +776,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     @SuppressWarnings("resource") // resultant iterators are closed by their callers
     InputCollector<UnfilteredRowIterator> iteratorsForPartition(ColumnFamilyStore.ViewFragment view)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
         final BiFunction<List<UnfilteredRowIterator>, RepairedDataInfo, UnfilteredRowIterator> merge =
             (unfilteredRowIterators, repairedDataInfo) -> {
                 UnfilteredRowIterator repaired = UnfilteredRowIterators.merge(unfilteredRowIterators);
@@ -789,6 +822,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private final boolean isTrackingRepairedStatus;
         Set<SSTableReader> repairedSSTables;
         BiFunction<List<T>, RepairedDataInfo, T> repairedMerger;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
         Function<T, UnfilteredPartitionIterator> postLimitAdditionalPartitions;
         List<T> repairedIters;
         List<T> unrepairedIters;
@@ -826,6 +860,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 unrepairedIters = new ArrayList<>((view.sstables.size() - repairedSSTables.size()) + Iterables.size(view.memtables) + 1);
             }
             this.repairedMerger = repairedMerger;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
             this.postLimitAdditionalPartitions = postLimitAdditionalPartitions;
         }
 
@@ -849,6 +884,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 return unrepairedIters;
 
             // merge the repaired data before returning, wrapping in a digest generator
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
             repairedDataInfo.prepare(cfs, nowInSec, oldestUnrepairedTombstone);
             T repairedIter = repairedMerger.apply(repairedIters, repairedDataInfo);
             repairedDataInfo.finalize(postLimitAdditionalPartitions.apply(repairedIter));
@@ -938,6 +974,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         private static int indexFlag(boolean hasIndex)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
             return hasIndex ? 0x04 : 0;
         }
 
@@ -955,12 +992,15 @@ public abstract class ReadCommand extends AbstractReadQuery
                     | acceptsTransientFlag(command.acceptsTransient())
             );
             if (command.isDigestQuery())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                 out.writeUnsignedVInt(command.digestVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             command.metadata().id.serialize(out);
             out.writeInt(command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata().comparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
             if (null != command.index)
                 IndexMetadata.serializer.serialize(command.index, out, version);
 
@@ -975,6 +1015,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             boolean acceptsTransient = acceptsTransient(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             if (isForThrift(flags))
                 throw new IllegalStateException("Received a command with the thrift flag set. "
                                               + "This means thrift is in use in a mixed 3.0/3.X and 4.0+ cluster, "
@@ -987,6 +1028,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata.comparator);
             IndexMetadata index = hasIndex ? deserializeIndexMetadata(in, version, metadata) : null;
 
@@ -1006,6 +1048,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                             "being fully propagated. Local read will proceed without using the " +
                             "index. Please wait for schema agreement after index creation.",
                             metadata.keyspace, metadata.name, e.indexId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                 return null;
             }
         }
@@ -1013,12 +1056,15 @@ public abstract class ReadCommand extends AbstractReadQuery
         public long serializedSize(ReadCommand command, int version)
         {
             return 2 // kind + flags
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                    + command.metadata().id.serializedSize()
                    + TypeSizes.sizeof(command.nowInSec())
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)
                    + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata().comparator)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
                    + command.selectionSerializedSize(version)
                    + command.indexSerializedSize(version);
         }

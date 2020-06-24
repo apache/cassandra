@@ -77,6 +77,7 @@ public class StreamingTombstoneHistogramBuilder
     public StreamingTombstoneHistogramBuilder(int maxBinSize, int maxSpoolSize, int roundSeconds)
     {
         assert maxBinSize > 0 && maxSpoolSize >= 0 && roundSeconds > 0: "Invalid arguments: maxBinSize:" + maxBinSize + " maxSpoolSize:" + maxSpoolSize + " delta:" + roundSeconds;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
 
         this.roundSeconds = roundSeconds;
         this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
@@ -127,6 +128,7 @@ public class StreamingTombstoneHistogramBuilder
     private void flushValue(int key, int spoolValue)
     {
         bin.addValue(key, spoolValue);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
 
         if (bin.isFull())
         {
@@ -173,6 +175,7 @@ public class StreamingTombstoneHistogramBuilder
         {
             long key = wrap(point, 0);
             int index = Arrays.binarySearch(data, key);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
             if (index < 0)
                 index = -index - 1;
             if (index >= data.length)
@@ -203,6 +206,7 @@ public class StreamingTombstoneHistogramBuilder
                     System.arraycopy(data, index, data, index + 1, data.length - index - 1);
 
                     data[index] = wrap(point, delta);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
                     return true;
                 }
                 else
@@ -241,6 +245,7 @@ public class StreamingTombstoneHistogramBuilder
                 assert (unwrapPoint(data[index]) == point1) : "Not found in array";
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
             long value1 = unwrapValue(data[index]);
             long value2 = unwrapValue(data[index + 1]);
 
@@ -300,6 +305,7 @@ public class StreamingTombstoneHistogramBuilder
 
         private long wrap(int point, long value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
             assert point >= 0 : "Invalid argument: point:" + point;
             return (((long) point) << 32) | saturatingCastToInt(value);
         }
@@ -410,6 +416,7 @@ public class StreamingTombstoneHistogramBuilder
      */
     static class Spool
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
         final int[] points;
         final int[] values;
 
@@ -449,6 +456,7 @@ public class StreamingTombstoneHistogramBuilder
             }
 
             final int cell = (capacity - 1) & hash(point);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
 
             // We use linear scanning. I think cluster of 100 elements is large enough to give up.
             for (int attempt = 0; attempt < 100; attempt++)
@@ -467,6 +475,7 @@ public class StreamingTombstoneHistogramBuilder
 
         <E extends Exception> void forEach(HistogramDataConsumer<E> consumer) throws E
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14773
             for (int i = 0; i < points.length; i++)
             {
                 if (points[i] != -1)

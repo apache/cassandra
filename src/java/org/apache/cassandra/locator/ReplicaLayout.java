@@ -40,6 +40,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 {
     private final E natural;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
     ReplicaLayout(E natural)
     {
         this.natural = natural;
@@ -279,6 +281,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     static EndpointsForToken resolveWriteConflictsInNatural(EndpointsForToken natural, EndpointsForToken pending)
     {
         EndpointsForToken.Builder resolved = natural.newBuilder(natural.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14759
         for (Replica replica : natural)
         {
             // always prefer the full natural replica, if there is a conflict

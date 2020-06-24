@@ -101,6 +101,7 @@ public class CompactionStrategyManagerTest
     @Before
     public void setUp() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         cfs.truncateBlocking();
     }
@@ -158,6 +159,7 @@ public class CompactionStrategyManagerTest
         final Integer[] boundaries = computeBoundaries(numSSTables, numDisks);
 
         MockBoundaryManager mockBoundaryManager = new MockBoundaryManager(cfs, boundaries);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         logger.debug("Boundaries for {} disks is {}", numDisks, Arrays.toString(boundaries));
         CompactionStrategyManager csm = new CompactionStrategyManager(cfs, mockBoundaryManager::getBoundaries,
                                                                       true);
@@ -175,6 +177,7 @@ public class CompactionStrategyManagerTest
             updateBoundaries(mockBoundaryManager, boundaries, delta);
 
             // Check that SSTables are still assigned to the previous boundary layout
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             logger.debug("Old boundaries: {} New boundaries: {}", Arrays.toString(previousBoundaries), Arrays.toString(boundaries));
             for (SSTableReader reader : cfs.getLiveSSTables())
             {
@@ -203,6 +206,7 @@ public class CompactionStrategyManagerTest
     @Test
     public void testAutomaticUpgradeConcurrency() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(true);
         DatabaseDescriptor.setMaxConcurrentAutoUpgradeTasks(1);
@@ -274,6 +278,7 @@ public class CompactionStrategyManagerTest
 
     private static void assertHolderExclusivity(boolean isRepaired, boolean isPendingRepair, boolean isTransient, Class<? extends AbstractStrategyHolder> expectedType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
 
@@ -460,6 +465,7 @@ public class CompactionStrategyManagerTest
     {
         int index = 0;
         int firstKey = Integer.parseInt(new String(ByteBufferUtil.getArray(reader.first.getKey())));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         while (boundaries[index] <= firstKey)
             index++;
         logger.debug("Index for SSTable {} on boundary {} is {}", reader.descriptor.generation, Arrays.toString(boundaries), index);
@@ -510,6 +516,7 @@ public class CompactionStrategyManagerTest
         .add("val", "val")
         .build()
         .applyUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         Set<SSTableReader> before = cfs.getLiveSSTables();
         cfs.forceBlockingFlush();
         Set<SSTableReader> after = cfs.getLiveSSTables();
@@ -532,6 +539,7 @@ public class CompactionStrategyManagerTest
 
         private MockCFSForCSM(ColumnFamilyStore cfs, CountDownLatch latch, AtomicInteger upgradeTaskCount)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
             super(cfs.keyspace, cfs.name, 10, cfs.metadata, cfs.getDirectories(), true, false, false);
             this.latch = latch;
             this.upgradeTaskCount = upgradeTaskCount;

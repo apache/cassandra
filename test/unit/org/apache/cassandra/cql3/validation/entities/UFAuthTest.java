@@ -76,6 +76,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInSelection() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT k, %s FROM %s WHERE k = 1;",
                                    functionCall(functionName),
@@ -86,6 +87,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInSelectPKRestriction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k = %s",
                                    KEYSPACE + "." + currentTable(),
@@ -96,6 +98,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInSelectClusteringRestriction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k = 0 AND v1 = %s",
                                    KEYSPACE + "." + currentTable(),
@@ -106,6 +109,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInSelectInRestriction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k IN (%s, %s)",
                                    KEYSPACE + "." + currentTable(),
@@ -118,6 +122,7 @@ public class UFAuthTest extends CQLTester
     public void functionInSelectMultiColumnInRestriction() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) IN ((%s, %s))",
                                    KEYSPACE + "." + currentTable(),
@@ -130,6 +135,7 @@ public class UFAuthTest extends CQLTester
     public void functionInSelectMultiColumnEQRestriction() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) = (%s, %s)",
                                    KEYSPACE + "." + currentTable(),
@@ -142,6 +148,7 @@ public class UFAuthTest extends CQLTester
     public void functionInSelectMultiColumnSliceRestriction() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) < (%s, %s)",
                                    KEYSPACE + "." + currentTable(),
@@ -153,6 +160,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInSelectTokenEQRestriction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE token(k) = token(%s)",
                                    KEYSPACE + "." + currentTable(),
@@ -163,6 +171,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInSelectTokenSliceRestriction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE token(k) < token(%s)",
                                    KEYSPACE + "." + currentTable(),
@@ -183,6 +192,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInClusteringValuesForInsert() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (0, %s, 0)",
                                    KEYSPACE + "." + currentTable(),
@@ -193,6 +203,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInPKForDelete() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("DELETE FROM %s WHERE k = %s",
                                    KEYSPACE + "." + currentTable(),
@@ -203,6 +214,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInClusteringValuesForDelete() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("DELETE FROM %s WHERE k = 0 AND v1 = %s",
                                    KEYSPACE + "." + currentTable(),
@@ -217,6 +229,7 @@ public class UFAuthTest extends CQLTester
         List<String> functions = new ArrayList<>();
         for (int i = 0; i < 3; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
             String functionName = createSimpleFunction();
             ModificationStatement stmt =
             (ModificationStatement) getStatement(String.format("INSERT INTO %s (k, v1, v2) " +
@@ -226,6 +239,7 @@ public class UFAuthTest extends CQLTester
             functions.add(functionName);
             statements.add(stmt);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertUnauthorized(batch, functions);
 
@@ -236,15 +250,18 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(batch, functions.subList(2, functions.size()));
 
         grantExecuteOnFunction(functions.get(2));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         batch.authorize(clientState);
     }
 
     @Test
     public void testNestedFunctions() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String innerFunctionName = createSimpleFunction();
         String outerFunctionName = createFunction("int",
                                                   "CREATE FUNCTION %s(input int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                                   " CALLED ON NULL INPUT" +
                                                   " RETURNS int" +
                                                   " LANGUAGE java" +
@@ -257,6 +274,7 @@ public class UFAuthTest extends CQLTester
     {
         setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
         String functionName = createSimpleFunction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s ALLOW FILTERING",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -266,6 +284,7 @@ public class UFAuthTest extends CQLTester
     @Test
     public void functionInRegularCondition() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF v2 = %s",
                                    KEYSPACE + "." + currentTable(),
@@ -287,6 +306,7 @@ public class UFAuthTest extends CQLTester
     public void functionInCollectionLiteralCondition() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val = {%s : %s}",
                                    KEYSPACE + "." + currentTable(),
@@ -299,6 +319,7 @@ public class UFAuthTest extends CQLTester
     public void functionInCollectionElementCondition() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val[%s] = %s",
                                    KEYSPACE + "." + currentTable(),
@@ -311,11 +332,15 @@ public class UFAuthTest extends CQLTester
     public void systemFunctionsRequireNoExplicitPrivileges() throws Throwable
     {
         // with terminal arguments, so evaluated at prepare time
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(0)) and v1 = 0",
                                    KEYSPACE + "." + currentTable());
         getStatement(cql).authorize(clientState);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // with non-terminal arguments, so evaluated at execution
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
         String functionName = createSimpleFunction();
         grantExecuteOnFunction(functionName);
         cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(%s)) and v1 = 0",
@@ -343,6 +368,7 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(aggDef, fFunc, "int");
         grantExecuteOnFunction(fFunc);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         getStatement(aggDef).authorize(clientState);
     }
 
@@ -362,6 +388,7 @@ public class UFAuthTest extends CQLTester
                                    aggregate,
                                    KEYSPACE + "." + currentTable());
         getStatement(cql).authorize(clientState);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // check that revoking EXECUTE permission on any one of the
         // component functions means we lose the ability to execute it
@@ -417,7 +444,11 @@ public class UFAuthTest extends CQLTester
     public void aggregateWrappingFunction() throws Throwable
     {
         String innerFunc = createFunction("int",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
                                           "CREATE FUNCTION %s(input int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                           "CALLED ON NULL INPUT " +
                                           "RETURNS int " +
                                           "LANGUAGE java " +
@@ -442,12 +473,16 @@ public class UFAuthTest extends CQLTester
         assertUnauthorized(cql, innerFunc, "int");
         grantExecuteOnFunction(innerFunc);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         getStatement(cql).authorize(clientState);
     }
 
     @Test
     public void grantAndRevokeSyntaxRequiresExplicitKeyspace() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12925
         setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
         String functionName = shortFunctionName(createSimpleFunction());
         assertRequiresKeyspace(String.format("GRANT EXECUTE ON FUNCTION %s() TO %s",
@@ -484,6 +519,7 @@ public class UFAuthTest extends CQLTester
         grantExecuteOnFunction(innerFunction);
 
         // now execution of both is permitted
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         getStatement(cql).authorize(clientState);
     }
 
@@ -496,6 +532,7 @@ public class UFAuthTest extends CQLTester
     {
         assertUnauthorized(cql, functionName, argTypes);
         grantExecuteOnFunction(functionName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         getStatement(cql).authorize(clientState);
     }
 
@@ -520,6 +557,7 @@ public class UFAuthTest extends CQLTester
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             getStatement(cql).authorize(clientState);
             fail("Expected an UnauthorizedException, but none was thrown");
         }
@@ -592,6 +630,7 @@ public class UFAuthTest extends CQLTester
     {
         return createFunction("int, int",
                               "CREATE FUNCTION %s(a int, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                               "CALLED ON NULL INPUT " +
                               "RETURNS int " +
                               "LANGUAGE java " +
@@ -602,6 +641,7 @@ public class UFAuthTest extends CQLTester
     {
         return createFunction("int",
                               "CREATE FUNCTION %s(a int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                               "CALLED ON NULL INPUT " +
                               "RETURNS int " +
                               "LANGUAGE java " +
@@ -611,7 +651,9 @@ public class UFAuthTest extends CQLTester
     private String createSimpleFunction() throws Throwable
     {
         return createFunction("",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9383
                               "CREATE FUNCTION %s() " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                               "  CALLED ON NULL INPUT " +
                               "  RETURNS int " +
                               "  LANGUAGE java " +
@@ -625,6 +667,7 @@ public class UFAuthTest extends CQLTester
 
     private CQLStatement getStatement(String cql)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return QueryProcessor.getStatement(cql, clientState);
     }
 
@@ -635,6 +678,7 @@ public class UFAuthTest extends CQLTester
         // It is here to avoid having to duplicate the functionality of CqlParser
         // for transforming cql types into AbstractTypes
         FunctionName fn = parseFunctionName(functionName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         Collection<Function> functions = Schema.instance.getFunctions(fn);
         assertEquals(String.format("Expected a single function definition for %s, but found %s",
                                    functionName,

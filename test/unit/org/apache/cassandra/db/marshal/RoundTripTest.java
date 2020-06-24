@@ -40,7 +40,9 @@ public class RoundTripTest
         assert IntegerType.instance.getString(IntegerType.instance.fromString("1")).equals("1");
         assert IntegerType.instance.fromString(IntegerType.instance.getString(ByteBuffer.wrap(bi.toByteArray())))
                 .equals(ByteBuffer.wrap(bi.toByteArray()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         assert IntegerType.instance.compose(ByteBuffer.wrap(bi.toByteArray())).equals(bi);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         assert IntegerSerializer.instance.toString(bi).equals("1");
     }
 
@@ -51,28 +53,35 @@ public class RoundTripTest
         assert LongType.instance.getString(LongType.instance.fromString("1")).equals("1");
         assert LongType.instance.fromString(LongType.instance.getString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         assert LongType.instance.compose(ByteBuffer.wrap(v)) == 1L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         assert LongSerializer.instance.toString(1L).equals("1");
     }
 
     @Test
     public void intLong()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3031
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         byte[] v = new byte[]{0,0,0,1};
         assert Int32Type.instance.getString(Int32Type.instance.fromString("1")).equals("1");
         assert Int32Type.instance.fromString(Int32Type.instance.getString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
         assert Int32Type.instance.compose(ByteBuffer.wrap(v)) == 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         assert Int32Serializer.instance.toString(1).equals("1");
     }
 
     @Test
     public void testAscii() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         byte[] abc = "abc".getBytes(StandardCharsets.US_ASCII);
         assert AsciiType.instance.getString(AsciiType.instance.fromString("abc")).equals("abc");
         assert AsciiType.instance.fromString(AsciiType.instance.getString(ByteBuffer.wrap(abc)))
                 .equals(ByteBuffer.wrap(abc));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         assert AsciiType.instance.compose(ByteBuffer.wrap(abc)).equals("abc");
         assert AsciiSerializer.instance.toString("abc").equals("abc");
     }
@@ -81,6 +90,7 @@ public class RoundTripTest
     public void testBytes()
     {
         byte[] v = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         assert BytesType.instance.compose(ByteBuffer.wrap(v)).equals(ByteBuffer.wrap(v));
         assert BytesSerializer.instance.toString(ByteBuffer.wrap(v)).equals(Hex.bytesToHex(v));
     }
@@ -91,6 +101,7 @@ public class RoundTripTest
         UUID uuid = UUIDGen.getTimeUUID();
         assert LexicalUUIDType.instance.fromString(LexicalUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
         assert UUIDSerializer.instance.toString(uuid).equals(uuid.toString());
     }
@@ -98,14 +109,18 @@ public class RoundTripTest
     @Test
     public void testTimeUUID()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID uuid = UUIDGen.getTimeUUID();
         assert TimeUUIDType.instance.getString(TimeUUIDType.instance.fromString(uuid.toString()))
                 .equals(uuid.toString());
         assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
         assert TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
 
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         assert UUIDSerializer.instance.toString(uuid).equals(uuid.toString());
     }
 
@@ -114,9 +129,11 @@ public class RoundTripTest
     {
         String v = "\u2297\u5432\u2376\u263d\uf543";
         assert UTF8Type.instance.getString(UTF8Type.instance.fromString(v)).equals(v);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         assert UTF8Type.instance.fromString(UTF8Type.instance.getString(ByteBuffer.wrap(v.getBytes(StandardCharsets.UTF_8))))
                 .equals(ByteBuffer.wrap(v.getBytes(StandardCharsets.UTF_8)));
         assert UTF8Type.instance.compose(ByteBuffer.wrap(v.getBytes(StandardCharsets.UTF_8))).equals(v);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         assert UTF8Serializer.instance.toString(v).equals(v);
     }
 }

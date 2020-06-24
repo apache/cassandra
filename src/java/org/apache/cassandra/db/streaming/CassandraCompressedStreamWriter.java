@@ -58,16 +58,20 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     @Override
     public void write(DataOutputStreamPlus output) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingOutputPlus out = (AsyncStreamingOutputPlus) output;
         long totalSize = totalSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10961
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         try (ChannelProxy fc = sstable.getDataChannel().newChannel())
         {
             long progress = 0L;
 
             // we want to send continuous chunks together to minimise reads from disk and network writes
             List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
 
             int sectionIdx = 0;
 
@@ -78,6 +82,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
                 long length = section.end - section.start;
 
                 logger.debug("[Stream #{}] Writing section {} with length {} to stream.", session.planId(), sectionIdx++, length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
                 // tracks write progress
                 long bytesTransferred = 0;
@@ -85,6 +90,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
                 {
                     int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
                     long position = section.start + bytesTransferred;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
 
                     out.writeToChannel(bufferSupplier -> {
                         ByteBuffer outBuffer = bufferSupplier.get(toTransfer);
@@ -95,10 +101,12 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 
                     bytesTransferred += toTransfer;
                     progress += toTransfer;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
                     session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
                 }
             }
             logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                          session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress), FBUtilities.prettyPrintMemory(totalSize));
         }
     }
@@ -116,6 +124,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     // chunks are assumed to be sorted by offset
     private List<Section> fuseAdjacentChunks(CompressionMetadata.Chunk[] chunks)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
         if (chunks.length == 0)
             return Collections.emptyList();
 

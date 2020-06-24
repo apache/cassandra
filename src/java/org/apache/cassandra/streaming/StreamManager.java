@@ -57,6 +57,8 @@ public class StreamManager implements StreamManagerMBean
      */
     public static StreamRateLimiter getRateLimiter(InetAddressAndPort peer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6596
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6596
         return new StreamRateLimiter(peer);
     }
 
@@ -75,6 +77,8 @@ public class StreamManager implements StreamManagerMBean
             double interDCThroughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT;
             mayUpdateThroughput(interDCThroughput, interDCLimiter);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6965
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6596
             if (DatabaseDescriptor.getLocalDataCenter() != null && DatabaseDescriptor.getEndpointSnitch() != null)
                 isLocalDC = DatabaseDescriptor.getLocalDataCenter().equals(
                             DatabaseDescriptor.getEndpointSnitch().getDatacenter(peer));
@@ -111,10 +115,12 @@ public class StreamManager implements StreamManagerMBean
 
     public Set<CompositeData> getCurrentStreams()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatorStreams.values(), followerStreams.values()), new Function<StreamResultFuture, CompositeData>()
         {
             public CompositeData apply(StreamResultFuture input)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5859
                 return StreamStateCompositeData.toCompositeData(input.getCurrentState());
             }
         }));
@@ -128,6 +134,7 @@ public class StreamManager implements StreamManagerMBean
         {
             public void run()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                 initiatorStreams.remove(result.planId);
             }
         }, MoreExecutors.directExecutor());
@@ -137,12 +144,14 @@ public class StreamManager implements StreamManagerMBean
 
     public StreamResultFuture registerFollower(final StreamResultFuture result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5859
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
         result.addListener(new Runnable()
         {
             public void run()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                 followerStreams.remove(result.planId);
             }
         }, MoreExecutors.directExecutor());
@@ -158,6 +167,7 @@ public class StreamManager implements StreamManagerMBean
 
     public void addNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5859
         notifier.addNotificationListener(listener, filter, handback);
     }
 

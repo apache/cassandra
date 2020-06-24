@@ -35,6 +35,7 @@ public class TombstoneOverwhelmingException extends RuntimeException
     private static String makePKString(TableMetadata metadata, ByteBuffer partitionKey, ClusteringPrefix clustering)
     {
         StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         if (clustering.size() > 0)
             sb.append("(");

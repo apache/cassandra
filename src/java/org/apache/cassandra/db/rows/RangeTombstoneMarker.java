@@ -122,6 +122,7 @@ public interface RangeTombstoneMarker extends Unfiltered
                 return null;
 
             boolean isBeforeClustering = bound.kind().comparedToClustering < 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             if (reversed)
                 isBeforeClustering = !isBeforeClustering;
 
@@ -151,6 +152,7 @@ public interface RangeTombstoneMarker extends Unfiltered
 
         public RangeTombstoneMarker[] mergedMarkers()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return markers;
         }
 
@@ -161,6 +163,7 @@ public interface RangeTombstoneMarker extends Unfiltered
 
             DeletionTime biggestDeletionTime = openMarkers[biggestOpenMarker];
             // it's only open in the merged iterator if it's not shadowed by the partition level deletion
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return partitionDeletion.supersedes(biggestDeletionTime) ? DeletionTime.LIVE : biggestDeletionTime;
         }
 
@@ -175,6 +178,7 @@ public interface RangeTombstoneMarker extends Unfiltered
                 // Note that we can have boundaries that are both open and close, but in that case all we care about
                 // is what it the open deletion after the marker, so we favor the opening part in this case.
                 if (marker.isOpen(reversed))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                     openMarkers[i] = marker.openDeletionTime(reversed);
                 else
                     openMarkers[i] = null;

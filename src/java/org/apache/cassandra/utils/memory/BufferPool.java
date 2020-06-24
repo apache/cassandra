@@ -94,12 +94,14 @@ public class BufferPool
 
         protected void onRemoval(LocalPool value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             value.release();
         }
     };
 
     public static ByteBuffer get(int size, BufferType bufferType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         if (bufferType == BufferType.ON_HEAP)
             return allocate(size, bufferType);
         else
@@ -127,6 +129,7 @@ public class BufferPool
 
     private static ByteBuffer allocate(int size, BufferType bufferType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         return bufferType == BufferType.ON_HEAP
                ? ByteBuffer.allocate(size)
                : ByteBuffer.allocateDirect(size);
@@ -142,6 +145,7 @@ public class BufferPool
     {
         if (isExactlyDirect(buffer))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             LocalPool pool = localPool.get();
             if (buffer.limit() > 0)
                 pool.putUnusedPortion(buffer);
@@ -162,6 +166,7 @@ public class BufferPool
 
     interface Debug
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         void registerNormal(Chunk chunk);
         void recycleNormal(Chunk oldVersion, Chunk newVersion);
     }
@@ -190,10 +195,12 @@ public class BufferPool
 
         static
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             assert Integer.bitCount(NORMAL_CHUNK_SIZE) == 1; // must be a power of 2
             assert Integer.bitCount(MACRO_CHUNK_SIZE) == 1; // must be a power of 2
             assert MACRO_CHUNK_SIZE % NORMAL_CHUNK_SIZE == 0; // must be a multiple
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             logger.info("Global buffer pool limit is {}",
                             prettyPrintMemory(MEMORY_USAGE_THRESHOLD));
         }
@@ -206,6 +213,7 @@ public class BufferPool
         /** Return a chunk, the caller will take owership of the parent chunk. */
         public Chunk get()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14832
             Chunk chunk = chunks.poll();
             if (chunk != null)
                 return chunk;
@@ -229,12 +237,15 @@ public class BufferPool
                 long cur = memoryUsage.get();
                 if (cur + MACRO_CHUNK_SIZE > MEMORY_USAGE_THRESHOLD)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
                     if (MEMORY_USAGE_THRESHOLD > 0)
                     {
                         noSpamLogger.info("Maximum memory usage reached ({}), cannot allocate chunk of {}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                           prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
                                           prettyPrintMemory(MACRO_CHUNK_SIZE));
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14832
                     return null;
                 }
                 if (memoryUsage.compareAndSet(cur, cur + MACRO_CHUNK_SIZE))
@@ -245,6 +256,7 @@ public class BufferPool
             Chunk chunk;
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 chunk = new Chunk(null, allocateDirectAligned(MACRO_CHUNK_SIZE));
             }
             catch (OutOfMemoryError oom)
@@ -289,6 +301,7 @@ public class BufferPool
 
         /** This is not thread safe and should only be used for unit testing. */
         @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         void unsafeFree()
         {
             while (!chunks.isEmpty())
@@ -317,6 +330,7 @@ public class BufferPool
         // add a new chunk, if necessary evicting the chunk with the least available memory (returning the evicted chunk)
         private Chunk add(Chunk chunk)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             switch (count)
             {
                 case 0:
@@ -442,6 +456,7 @@ public class BufferPool
             // because, with current buffer release from another thread, "chunk#release()" may eventually come back to
             // "removeIf" causing NPE as null chunks are not at the back of the queue.
             Chunk toRelease0 = null, toRelease1 = null, toRelease2 = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15726
 
             try
             {
@@ -632,6 +647,7 @@ public class BufferPool
 
         public ByteBuffer get(int size)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             return get(size, false);
         }
 
@@ -660,6 +676,7 @@ public class BufferPool
             }
 
             metrics.misses.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             return allocate(size, BufferType.OFF_HEAP);
         }
 
@@ -745,6 +762,7 @@ public class BufferPool
         private void addChunk(Chunk chunk)
         {
             chunk.acquire(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Chunk evict = chunks.add(chunk);
             if (evict != null)
             {
@@ -790,6 +808,7 @@ public class BufferPool
 
         public void release()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             chunks.release();
         }
     }
@@ -801,6 +820,7 @@ public class BufferPool
 
     private static void cleanupOneReference() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         Object obj = localPoolRefQueue.remove(100);
         if (obj instanceof LocalPoolRef)
         {
@@ -866,6 +886,7 @@ public class BufferPool
 
         @VisibleForTesting
         Object debugAttachment;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         Chunk(Chunk recycle)
         {
@@ -874,11 +895,13 @@ public class BufferPool
             this.baseAddress = recycle.baseAddress;
             this.shift = recycle.shift;
             this.freeSlots = -1L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             this.recycler = recycle.recycler;
         }
 
         Chunk(Recycler recycler, ByteBuffer slab)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             assert MemoryUtil.isExactlyDirect(slab);
             this.recycler = recycler;
             this.slab = slab;
@@ -922,6 +945,7 @@ public class BufferPool
         void recycle()
         {
             assert freeSlots == 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             recycler.recycle(this);
         }
 
@@ -943,6 +967,7 @@ public class BufferPool
             return null;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         void setAttachment(ByteBuffer buffer)
         {
             if (Ref.DEBUG_ENABLED)
@@ -957,6 +982,7 @@ public class BufferPool
             if (attachment == null)
                 return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (Ref.DEBUG_ENABLED)
                 ((Ref<Chunk>) attachment).release();
 
@@ -994,6 +1020,7 @@ public class BufferPool
 
         int freeSlotCount()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return Long.bitCount(freeSlots);
         }
 
@@ -1076,6 +1103,7 @@ public class BufferPool
                         // make sure no other thread has cleared the candidate bits
                         assert ((candidate & cur) == candidate);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     return set(index << shift, size, into);
                 }
             }
@@ -1110,6 +1138,7 @@ public class BufferPool
                 return 1L;
 
             int size = roundUp(buffer.capacity());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long address = MemoryUtil.getAddress(buffer);
             assert (address >= baseAddress) & (address + size <= baseAddress + capacity());
 
@@ -1132,6 +1161,7 @@ public class BufferPool
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         void freeUnusedPortion(ByteBuffer buffer)
         {
             int size = roundUp(buffer.limit());

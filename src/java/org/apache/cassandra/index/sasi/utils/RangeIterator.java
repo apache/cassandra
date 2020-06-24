@@ -42,6 +42,7 @@ public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedV
 
     public RangeIterator(K min, K max, long count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
         if (min == null || max == null || count == 0)
             assert min == null && max == null && (count == 0 || count == -1);
 
@@ -151,6 +152,7 @@ public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedV
 
         public Builder<K, D> add(RangeIterator<K, D> range)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
             if (range == null)
                 return this;
 
@@ -172,6 +174,7 @@ public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedV
 
         public final RangeIterator<K, D> build()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
             if (rangeCount() == 0)
                 return new EmptyRangeIterator<>();
             else
@@ -222,6 +225,7 @@ public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedV
                 switch (iteratorType)
                 {
                     case UNION:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
                         min = nullSafeMin(min, range.getMinimum());
                         max = nullSafeMax(max, range.getMaximum());
                         break;
@@ -295,6 +299,7 @@ public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedV
     @VisibleForTesting
     protected static <K extends Comparable<K>, D extends CombinedValue<K>> boolean isOverlapping(K min, K max, RangeIterator<K, D> b)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
         return (min != null && max != null) &&
                b.getCount() != 0 &&
                (min.compareTo(b.getMaximum()) <= 0 && b.getCurrent().compareTo(max) <= 0);

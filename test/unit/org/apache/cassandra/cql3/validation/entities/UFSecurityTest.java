@@ -57,6 +57,7 @@ public class UFSecurityTest extends CQLTester
             assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         String[] cfnSources =
         { "try { Class.forName(\"" + UDHelper.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
           "try { Class.forName(\"sun.misc.Unsafe\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;" };

@@ -57,6 +57,7 @@ public class SchemaKeyspaceTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
@@ -64,6 +65,7 @@ public class SchemaKeyspaceTest
     @Test
     public void testConversionsInverses() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
@@ -101,6 +103,7 @@ public class SchemaKeyspaceTest
     @Test
     public void testReadRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
         createTable("ks", "CREATE TABLE tbl (a text primary key, b int, c int) WITH read_repair='none'");
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
         Assert.assertEquals(ReadRepairStrategy.NONE, metadata.params.readRepair);
@@ -110,6 +113,7 @@ public class SchemaKeyspaceTest
     private static void updateTable(String keyspace, TableMetadata oldTable, TableMetadata newTable)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceInstance(keyspace).getMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros()).build();
         Schema.instance.merge(Collections.singleton(mutation));
     }
@@ -119,6 +123,7 @@ public class SchemaKeyspaceTest
         TableMetadata table = CreateTableStatement.parse(cql, keyspace).build();
 
         KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         Mutation mutation = SchemaKeyspace.makeCreateTableMutation(ksm, table, FBUtilities.timestampMicros()).build();
         Schema.instance.merge(Collections.singleton(mutation));
     }
@@ -150,6 +155,7 @@ public class SchemaKeyspaceTest
     @Test(expected = SchemaKeyspace.MissingColumns.class)
     public void testSchemaNoPartition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14379
         String testKS = "test_schema_no_partition";
         String testTable = "invalid_table";
         SchemaLoader.createKeyspace(testKS,

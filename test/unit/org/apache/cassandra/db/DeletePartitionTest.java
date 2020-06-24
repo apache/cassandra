@@ -43,6 +43,7 @@ public class DeletePartitionTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
@@ -78,6 +79,7 @@ public class DeletePartitionTest
             store.forceBlockingFlush();
 
         // delete the partition
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         new Mutation.PartitionUpdateCollector(KEYSPACE1, key)
                 .add(PartitionUpdate.fullPartitionDelete(store.metadata(), key, 0, FBUtilities.nowInSeconds()))
                 .build()
@@ -87,6 +89,7 @@ public class DeletePartitionTest
             store.forceBlockingFlush();
 
         // validate removal
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition partitionUnfiltered = Util.getOnlyPartitionUnfiltered(Util.cmd(store, key).build());
         assertFalse(partitionUnfiltered.partitionLevelDeletion().isLive());
         assertFalse(partitionUnfiltered.iterator().hasNext());

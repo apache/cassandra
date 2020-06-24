@@ -111,6 +111,9 @@ public class Directories
      */
     public static boolean verifyFullPermissions(File dir, String dataDir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5818
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5818
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
         if (!dir.isDirectory())
         {
             logger.error("Not a directory {}", dataDir);
@@ -187,6 +190,7 @@ public class Directories
 
     public Directories(final TableMetadata metadata, Collection<DataDirectory> paths)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         this(metadata, paths.toArray(new DataDirectory[paths.size()]));
     }
 
@@ -243,6 +247,7 @@ public class Directories
 
         for (File dir : dataPaths)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4847
             try
             {
                 FileUtils.createDirectory(dir);
@@ -250,12 +255,14 @@ public class Directories
             catch (FSError e)
             {
                 // don't just let the default exception handler do this, we need the create loop to continue
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5196
                 logger.error("Failed to create {} directory", dir);
                 FileUtils.handleFSError(e);
             }
         }
 
         // if index, move existing older versioned SSTable files to new directory
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9687
         if (indexNameWithDot != null)
         {
             for (File dataPath : dataPaths)
@@ -276,6 +283,7 @@ public class Directories
                 for (File indexFile : indexFiles)
                 {
                     File destFile = new File(dataPath, indexFile.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("Moving index file {} to {}", indexFile, destFile);
                     FileUtils.renameWithConfirm(indexFile, destFile);
                 }
@@ -292,13 +300,16 @@ public class Directories
      */
     public File getLocationForDisk(DataDirectory dataDirectory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7386
         if (dataDirectory != null)
             for (File dir : dataPaths)
             {
                 // Note that we must compare absolute paths (not canonical) here since keyspace directories might be symlinks
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13974
                 Path dirPath = Paths.get(dir.getAbsolutePath());
                 Path locationPath = Paths.get(dataDirectory.location.getAbsolutePath());
                 if (dirPath.startsWith(locationPath))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4292
                     return dir;
             }
         return null;
@@ -313,8 +324,10 @@ public class Directories
 
     public Descriptor find(String filename)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9687
         for (File dir : dataPaths)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             File file = new File(dir, filename);
             if (file.exists())
                 return Descriptor.fromFilename(file);
@@ -358,6 +371,7 @@ public class Directories
      */
     public File getWriteableLocationToLoadFile(final File sourceFile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6719
         try
         {
             final FileStore srcFileStore = Files.getFileStore(sourceFile.toPath());
@@ -391,6 +405,7 @@ public class Directories
      */
     public File getTemporaryWriteableDirectoryAsFile(long writeSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
         File location = getLocationForDisk(getWriteableLocation(writeSize));
         if (location == null)
             return null;
@@ -444,6 +459,7 @@ public class Directories
 
         if (candidates.isEmpty())
             if (tooBig)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12385
                 throw new FSDiskFullWriteError(new IOException("Insufficient disk space to write " + writeSize + " bytes"), "");
             else
                 throw new FSWriteError(new IOException("All configured data directories have been disallowed as unwritable for erroring out"), "");
@@ -486,12 +502,16 @@ public class Directories
 
     public boolean hasAvailableDiskSpace(long estimatedSSTables, long expectedTotalWriteSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8562
         long writeSize = expectedTotalWriteSize / estimatedSSTables;
         long totalAvailable = 0L;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         for (DataDirectory dataDir : paths)
         {
             if (DisallowedDirectories.isUnwritable(getLocationForDisk(dataDir)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
                   continue;
             DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
             // exclude directory if its total writeSize does not fit to data directory
@@ -505,6 +525,7 @@ public class Directories
     public DataDirectory[] getWriteableLocations()
     {
         List<DataDirectory> allowedDirs = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11647
         for (DataDirectory dir : paths)
         {
             if (!DisallowedDirectories.isUnwritable(dir.location))
@@ -524,6 +545,7 @@ public class Directories
 
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6962
         return getSnapshotDirectory(desc.directory, snapshotName);
     }
 
@@ -552,12 +574,15 @@ public class Directories
 
     public File getSnapshotManifestFile(String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9687
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
         return new File(snapshotDir, "manifest.json");
     }
 
     public File getSnapshotSchemaFile(String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
         return new File(snapshotDir, "schema.cql");
     }
@@ -575,6 +600,7 @@ public class Directories
 
     public static File getBackupsDirectory(Descriptor desc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6962
         return getBackupsDirectory(desc.directory);
     }
 
@@ -608,6 +634,7 @@ public class Directories
         @Override
         public boolean equals(Object o)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
@@ -624,6 +651,7 @@ public class Directories
 
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
             return "DataDirectory{" +
                    "location=" + location +
                    '}';
@@ -632,6 +660,7 @@ public class Directories
 
     static final class DataDirectoryCandidate implements Comparable<DataDirectoryCandidate>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7386
         final DataDirectory dataDirectory;
         final long availableSpace;
         double perc;
@@ -673,6 +702,7 @@ public class Directories
         TEMPORARY,
 
         /** A transaction log file (contains information on final and temporary files). */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         TXN_LOG;
     }
 
@@ -691,6 +721,7 @@ public class Directories
 
     public SSTableLister sstableLister(OnTxnErr onTxnErr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6719
         return new SSTableLister(this.dataPaths, this.metadata, onTxnErr);
     }
 
@@ -714,6 +745,7 @@ public class Directories
 
         private SSTableLister(File[] dataPaths, TableMetadata metadata, OnTxnErr onTxnErr)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6719
             this.dataPaths = dataPaths;
             this.metadata = metadata;
             this.onTxnErr = onTxnErr;
@@ -737,6 +769,7 @@ public class Directories
 
         public SSTableLister onlyBackups(boolean b)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3735
             if (filtered)
                 throw new IllegalStateException("list() has already been called");
             onlyBackups = b;
@@ -746,6 +779,8 @@ public class Directories
 
         public SSTableLister snapshots(String sn)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3721
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3721
             if (filtered)
                 throw new IllegalStateException("list() has already been called");
             snapshotName = sn;
@@ -761,6 +796,7 @@ public class Directories
         public List<File> listFiles()
         {
             filter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5202
             List<File> l = new ArrayList<>(nbFiles);
             for (Map.Entry<Descriptor, Set<Component>> entry : components.entrySet())
             {
@@ -777,11 +813,14 @@ public class Directories
             if (filtered)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
             for (File location : dataPaths)
             {
                 if (DisallowedDirectories.isUnreadable(location))
                     continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3721
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3721
                 if (snapshotName != null)
                 {
                     LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(), onTxnErr);
@@ -812,6 +851,7 @@ public class Directories
                             return false;
 
                     case FINAL:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                         Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file);
                         if (pair == null)
                             return false;
@@ -823,6 +863,7 @@ public class Directories
                         Set<Component> previous = components.get(pair.left);
                         if (previous == null)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5202
                             previous = new HashSet<>();
                             components.put(pair.left, previous);
                         }
@@ -845,6 +886,7 @@ public class Directories
     public Map<String, SnapshotSizeDetails> getSnapshotDetails()
     {
         List<File> snapshots = listSnapshots();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         final Map<String, SnapshotSizeDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
         for (File snapshot : snapshots)
         {
@@ -874,6 +916,7 @@ public class Directories
     private List<File> listSnapshots()
     {
         final List<File> snapshots = new LinkedList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
         for (final File dir : dataPaths)
         {
             File snapshotDir = dir.getName().startsWith(SECONDARY_INDEX_NAME_SEPARATOR) ?
@@ -900,6 +943,7 @@ public class Directories
     {
         for (File dir : dataPaths)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9687
             File snapshotDir;
             if (dir.getName().startsWith(SECONDARY_INDEX_NAME_SEPARATOR))
             {
@@ -919,11 +963,13 @@ public class Directories
     {
         // If snapshotName is empty or null, we will delete the entire snapshot directory
         String tag = snapshotName == null ? "" : snapshotName;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6418
         for (File dir : snapshotDirectories)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, tag));
             if (snapshotDir.exists())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 logger.trace("Removing snapshot directory {}", snapshotDir);
                 try
                 {
@@ -931,7 +977,10 @@ public class Directories
                 }
                 catch (FSWriteError e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
                     if (FBUtilities.isWindows)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10222
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10222
                         SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
                     else
                         throw e;
@@ -943,9 +992,13 @@ public class Directories
     // The snapshot must exist
     public long snapshotCreationTime(String snapshotName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
         for (File dir : dataPaths)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9687
             File snapshotDir = getSnapshotDirectory(dir, snapshotName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4905
             if (snapshotDir.exists())
                 return snapshotDir.lastModified();
         }
@@ -957,7 +1010,12 @@ public class Directories
      */
     public long trueSnapshotsSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6231
         long result = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
         for (File dir : dataPaths)
         {
             File snapshotDir = dir.getName().startsWith(SECONDARY_INDEX_NAME_SEPARATOR) ?
@@ -974,6 +1032,7 @@ public class Directories
     public long getRawDiretoriesSize()
     {
         long totalAllocatedSize = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
 
         for (File path : dataPaths)
             totalAllocatedSize += FileUtils.folderSize(path);
@@ -986,6 +1045,7 @@ public class Directories
         if (!input.isDirectory())
             return 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
         SSTableSizeSummer visitor = new SSTableSizeSummer(input, sstableLister(Directories.OnTxnErr.THROW).listFiles());
         try
         {
@@ -993,6 +1053,7 @@ public class Directories
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13723
             logger.error("Could not calculate the size of {}. {}", input, e.getMessage());
         }
 
@@ -1002,15 +1063,18 @@ public class Directories
     public static List<File> getKSChildDirectories(String ksName)
     {
         return getKSChildDirectories(ksName, dataDirectories);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11705
 
     }
 
     // Recursively finds all the sub directories in the KS directory.
     public static List<File> getKSChildDirectories(String ksName, DataDirectory[] directories)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5202
         List<File> result = new ArrayList<>();
         for (DataDirectory dataDirectory : directories)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6418
             File ksDir = new File(dataDirectory.location, ksName);
             File[] cfDirs = ksDir.listFiles();
             if (cfDirs == null)
@@ -1026,7 +1090,9 @@ public class Directories
 
     public List<File> getCFDirectories()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5202
         List<File> result = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
         for (File dataDirectory : dataPaths)
         {
             if (dataDirectory.isDirectory())
@@ -1041,8 +1107,10 @@ public class Directories
         if (dir.exists())
         {
             if (!dir.isDirectory())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                 throw new AssertionError(String.format("Invalid directory path %s: path exists but is not a directory", dir));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6459
         else if (!dir.mkdirs() && !(dir.exists() && dir.isDirectory()))
         {
             throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
@@ -1058,6 +1126,7 @@ public class Directories
     @VisibleForTesting
     static void overrideDataDirectoriesForTest(String loc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6357
         for (int i = 0; i < dataDirectories.length; ++i)
             dataDirectories[i] = new DataDirectory(new File(loc));
     }
@@ -1073,6 +1142,7 @@ public class Directories
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
         private final HashSet<File> toSkip;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
         SSTableSizeSummer(File path, List<File> files)
         {
             super(path);
@@ -1093,6 +1163,7 @@ public class Directories
 
     public static class SnapshotSizeDetails
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         final long sizeOnDiskBytes;
         final long dataSizeBytes;
 

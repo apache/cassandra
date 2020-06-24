@@ -151,6 +151,7 @@ public class RepairOption
         RepairParallelism parallelism = RepairParallelism.fromName(options.get(PARALLELISM_KEY));
         boolean primaryRange = Boolean.parseBoolean(options.get(PRIMARY_RANGE_KEY));
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         PreviewKind previewKind = PreviewKind.valueOf(options.getOrDefault(PREVIEW, PreviewKind.NONE.toString()));
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
         boolean force = Boolean.parseBoolean(options.get(FORCE_REPAIR_KEY));
@@ -235,10 +236,13 @@ public class RepairOption
         {
             throw new IllegalArgumentException("Too many job threads. Max is " + MAX_JOB_THREADS);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         if (!dataCenters.isEmpty() && !hosts.isEmpty())
         {
             throw new IllegalArgumentException("Cannot combine -dc and -hosts options.");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12522
         if (primaryRange && ((!dataCenters.isEmpty() && !option.isInLocalDCOnly()) || !hosts.isEmpty()))
         {
             throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
@@ -276,6 +280,7 @@ public class RepairOption
 
     public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
             parallelism == RepairParallelism.SEQUENTIAL)
@@ -291,9 +296,13 @@ public class RepairOption
         this.trace = trace;
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10422
         this.isSubrangeRepair = isSubrangeRepair;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         this.pullRepair = pullRepair;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
         this.forceRepair = forceRepair;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         this.previewKind = previewKind;
         this.optimiseStreams = optimiseStreams;
     }
@@ -315,16 +324,19 @@ public class RepairOption
 
     public boolean isTraced()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         return trace;
     }
 
     public boolean isPullRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         return pullRepair;
     }
 
     public boolean isForcedRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
         return forceRepair;
     }
 
@@ -355,16 +367,20 @@ public class RepairOption
 
     public boolean isGlobal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9142
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
         return dataCenters.isEmpty() && hosts.isEmpty();
     }
 
     public boolean isSubrangeRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10422
         return isSubrangeRepair;
     }
 
     public PreviewKind getPreviewKind()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         return previewKind;
     }
 
@@ -387,6 +403,7 @@ public class RepairOption
     public String toString()
     {
         return "repair options (" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                "parallelism: " + parallelism +
                ", primary range: " + primaryRange +
                ", incremental: " + incremental +
@@ -396,7 +413,9 @@ public class RepairOption
                ", hosts: " + hosts +
                ", previewKind: " + previewKind +
                ", # of ranges: " + ranges.size() +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
                ", pull repair: " + pullRepair +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
                ", force repair: " + forceRepair +
                ", optimise streams: "+ optimiseStreams +
                ')';
@@ -404,6 +423,7 @@ public class RepairOption
 
     public Map<String, String> asMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11244
         Map<String, String> options = new HashMap<>();
         options.put(PARALLELISM_KEY, parallelism.toString());
         options.put(PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
@@ -415,8 +435,11 @@ public class RepairOption
         options.put(SUB_RANGE_REPAIR_KEY, Boolean.toString(isSubrangeRepair));
         options.put(TRACE_KEY, Boolean.toString(trace));
         options.put(RANGES_KEY, Joiner.on(",").join(ranges));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         options.put(PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
         options.put(FORCE_REPAIR_KEY, Boolean.toString(forceRepair));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         options.put(PREVIEW, previewKind.toString());
         options.put(OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
         return options;

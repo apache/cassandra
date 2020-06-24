@@ -32,6 +32,7 @@ public interface IPartitioner
 {
     static IPartitioner global()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return StorageService.instance.getTokenMetadata().partitioner;
     }
 
@@ -82,6 +83,7 @@ public interface IPartitioner
      *
      * Not implemented for the ordered partitioners
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
     default Token getMaximumToken()
     {
         throw new UnsupportedOperationException("If you are using a splitting partitioner, getMaximumToken has to be implemented");
@@ -131,11 +133,13 @@ public interface IPartitioner
      */
     public AbstractType<?> partitionOrdering();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
     default Optional<Splitter> splitter()
     {
         return Optional.empty();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
     default public int getMaxTokenSize()
     {
         return Integer.MIN_VALUE;

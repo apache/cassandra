@@ -139,6 +139,7 @@ final class MapSelector extends Selector
             @Override
             boolean areAllFetchedColumnsKnown()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 for (Pair<Factory, Factory> entry : factories)
                 {
                     if (!entry.left.areAllFetchedColumnsKnown() || !entry.right.areAllFetchedColumnsKnown())

@@ -73,6 +73,7 @@ public class ProgressInfo implements Serializable
      */
     public boolean isCompleted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         return currentBytes >= totalBytes;
     }
 
@@ -90,6 +91,7 @@ public class ProgressInfo implements Serializable
         if (totalBytes != that.totalBytes) return false;
         if (direction != that.direction) return false;
         if (!fileName.equals(that.fileName)) return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         if (sessionIndex != that.sessionIndex) return false;
         return peer.equals(that.peer);
     }
@@ -103,6 +105,7 @@ public class ProgressInfo implements Serializable
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return toString(false);
     }
 
@@ -113,6 +116,7 @@ public class ProgressInfo implements Serializable
         sb.append("/").append(totalBytes).append(" bytes");
         sb.append("(").append(currentBytes*100/totalBytes).append("%) ");
         sb.append(direction == Direction.OUT ? "sent to " : "received from ");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         sb.append("idx:").append(sessionIndex);
         sb.append(peer.toString(withPorts));
         return sb.toString();

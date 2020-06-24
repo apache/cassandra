@@ -35,6 +35,7 @@ public class NetStats extends NodeToolCmd
 {
     @Option(title = "human_readable",
             name = {"-H", "--human-readable"},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
@@ -86,6 +87,7 @@ public class NetStats extends NodeToolCmd
         {
             System.out.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
             MessagingServiceMBean ms = probe.getMessagingServiceProxy();
             System.out.printf("%-25s", "Pool Name");
             System.out.printf("%10s", "Active");
@@ -119,6 +121,7 @@ public class NetStats extends NodeToolCmd
                 dropped += n;
             System.out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9237
             pending = 0;
             for (int n : ms.getGossipMessagePendingTasks().values())
                 pending += n;

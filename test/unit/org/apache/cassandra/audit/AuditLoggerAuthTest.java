@@ -71,6 +71,7 @@ public class AuditLoggerAuthTest
             config.role_manager = "CassandraRoleManager";
             config.authorizer = "CassandraAuthorizer";
             config.audit_logging_options.enabled = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
             config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         });
         CQLTester.prepareServer();
@@ -252,6 +253,7 @@ public class AuditLoggerAuthTest
 
     private static Queue<AuditLogEntry> getInMemAuditLogger()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         return ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue;
     }
 

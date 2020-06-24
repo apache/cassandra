@@ -39,6 +39,7 @@ public class BufferCell extends AbstractCell
 
     public BufferCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         super(column);
         assert !column.isPrimaryKeyColumn();
         assert column.isComplex() == (path != null);
@@ -107,6 +108,7 @@ public class BufferCell extends AbstractCell
 
     public Cell withUpdatedColumn(ColumnMetadata newColumn)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         return new BufferCell(newColumn, timestamp, ttl, localDeletionTime, value, path);
     }
 

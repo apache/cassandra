@@ -43,6 +43,7 @@ public class PstmtPersistenceTest extends CQLTester
     @Before
     public void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
         QueryProcessor.clearPreparedStatements(false);
     }
  
@@ -63,6 +64,7 @@ public class PstmtPersistenceTest extends CQLTester
 
         List<MD5Digest> stmtIds = new ArrayList<>();
         // #0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
         stmtIds.add(prepareStatement("SELECT * FROM %s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES, clientState));
         // #1
         stmtIds.add(prepareStatement("SELECT * FROM %s WHERE pk = ?", clientState));
@@ -94,15 +96,19 @@ public class PstmtPersistenceTest extends CQLTester
 
 
         // validate that the prepared statements are in the system table
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
         String queryAll = "SELECT * FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS;
         for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(queryAll))
         {
             MD5Digest digest = MD5Digest.wrap(ByteBufferUtil.getArray(row.getBytes("prepared_id")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             QueryProcessor.Prepared prepared = QueryProcessor.instance.getPrepared(digest);
             Assert.assertNotNull(prepared);
         }
 
         // add anther prepared statement and sync it to table
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
         prepareStatement("SELECT * FROM %s WHERE key = ?", "foo", "bar", clientState);
         assertEquals(6, numberOfStatementsInMemory());
         assertEquals(6, numberOfStatementsOnDisk());
@@ -127,8 +133,10 @@ public class PstmtPersistenceTest extends CQLTester
 
     private static void validatePstmt(QueryHandler handler, MD5Digest stmtId, QueryOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         QueryProcessor.Prepared prepared = handler.getPrepared(stmtId);
         Assert.assertNotNull(prepared);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         handler.processPrepared(prepared.statement, QueryState.forInternalCalls(), options, Collections.emptyMap(), System.nanoTime());
     }
 
@@ -136,6 +144,7 @@ public class PstmtPersistenceTest extends CQLTester
     public void testPstmtInvalidation() throws Throwable
     {
         ClientState clientState = ClientState.forInternalCalls();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
 
         createTable("CREATE TABLE %s (key int primary key, val int)");
 

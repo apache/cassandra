@@ -48,6 +48,7 @@ public class MmapFileTest
         Assert.assertEquals("# of mapped buffers should be 0", Long.valueOf(0L), mmapCount);
         Assert.assertEquals("amount of mapped memory should be 0", Long.valueOf(0L), mmapMemoryUsed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f1 = FileUtils.createTempFile("MmapFileTest1", ".bin");
         File f2 = FileUtils.createTempFile("MmapFileTest2", ".bin");
         File f3 = FileUtils.createTempFile("MmapFileTest2", ".bin");
@@ -140,6 +141,9 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
                 FileUtils.clean(buffer);
             }
 

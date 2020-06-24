@@ -96,6 +96,7 @@ public class BTreeRow extends AbstractRow
         int minDeletionTime = Math.min(minDeletionTime(primaryKeyLivenessInfo), minDeletionTime(deletion.time()));
         if (minDeletionTime != Integer.MIN_VALUE)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             long result = BTree.<ColumnData>accumulate(btree, (cd, l) -> Math.min(l, minDeletionTime(cd)) , minDeletionTime);
             minDeletionTime = Ints.checkedCast(result);
         }
@@ -176,6 +177,7 @@ public class BTreeRow extends AbstractRow
 
     public void apply(Consumer<ColumnData> function)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         BTree.apply(btree, function);
     }
 
@@ -226,11 +228,13 @@ public class BTreeRow extends AbstractRow
 
     public Collection<ColumnMetadata> columns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         return Collections2.transform(columnData(), ColumnData::column);
     }
 
     public int columnCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         return BTree.size(btree);
     }
 
@@ -241,6 +245,7 @@ public class BTreeRow extends AbstractRow
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9926
         return primaryKeyLivenessInfo().isEmpty()
                && deletion().isLive()
                && BTree.isEmpty(btree);
@@ -275,6 +280,7 @@ public class BTreeRow extends AbstractRow
     @Override
     public Collection<ColumnData> columnData()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         return new AbstractCollection<ColumnData>()
         {
             @Override public Iterator<ColumnData> iterator() { return BTreeRow.this.iterator(); }
@@ -284,6 +290,7 @@ public class BTreeRow extends AbstractRow
 
     public Iterator<ColumnData> iterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         return searchIterator();
     }
 
@@ -366,6 +373,7 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasComplex()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         if (BTree.isEmpty(btree))
             return false;
 
@@ -383,6 +391,7 @@ public class BTreeRow extends AbstractRow
 
     public Row markCounterLocalToBeCleared()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13573
         return transformAndFilter(primaryKeyLivenessInfo, deletion, (cd) -> cd.column().isCounterColumn()
                                                                             ? cd.markCounterLocalToBeCleared()
                                                                             : cd);
@@ -395,6 +404,7 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasInvalidDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         if (primaryKeyLivenessInfo().isExpiring() && (primaryKeyLivenessInfo().ttl() < 0 || primaryKeyLivenessInfo().localExpirationTime() < 0))
             return true;
         if (!deletion().time().validate())
@@ -427,6 +437,7 @@ public class BTreeRow extends AbstractRow
         //    the row, and so in particular it can't shadow the row deletion. So if there is a
         //    already a row deletion we have nothing to do.
         //  - we set the minLocalDeletionTime to MIN_VALUE because we know the deletion is live
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         return newDeletion.isLive() || !deletion.isLive()
              ? this
              : new BTreeRow(clustering, primaryKeyLivenessInfo, Deletion.regular(newDeletion), btree, Integer.MIN_VALUE);
@@ -467,6 +478,7 @@ public class BTreeRow extends AbstractRow
                      + primaryKeyLivenessInfo.dataSize()
                      + deletion.dataSize();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         return Ints.checkedCast(accumulate((cd, v) -> v + cd.dataSize(), dataSize));
     }
 
@@ -476,6 +488,7 @@ public class BTreeRow extends AbstractRow
                       + clustering.unsharedHeapSizeExcludingData()
                       + BTree.sizeOfStructureOnHeap(btree);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         return accumulate((cd, v) -> v + cd.unsharedHeapSizeExcludingData(), heapSize);
     }
 
@@ -553,6 +566,7 @@ public class BTreeRow extends AbstractRow
             this.reversed = reversed;
 
             // copy btree into array for simple separate iteration of simple and complex columns
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
             this.data = new Object[BTree.size(btree)];
             BTree.toArray(btree, data, 0);
 
@@ -575,6 +589,7 @@ public class BTreeRow extends AbstractRow
 
         private int getComplexIdx()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10468
             return reversed ? data.length + firstComplexIdx - complexIdx - 1 : complexIdx;
         }
 
@@ -659,6 +674,7 @@ public class BTreeRow extends AbstractRow
                 // Note that in almost all cases we'll at most one of those fake cell, but the contract of {{Row.Builder.addComplexDeletion}}
                 // does not forbid it being called twice (especially in the unsorted case) and this can actually happen when reading
                 // legacy sstables (see #10743).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10743
                 while (lb < ub)
                 {
                     cell = (Cell) cells[lb];
@@ -708,6 +724,7 @@ public class BTreeRow extends AbstractRow
 
         protected Builder(boolean isSorted)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             cells_ = null;
             this.isSorted = isSorted;
         }
@@ -759,6 +776,7 @@ public class BTreeRow extends AbstractRow
             this.clustering = null;
             this.primaryKeyLivenessInfo = LivenessInfo.EMPTY;
             this.deletion = Deletion.LIVE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
             this.cells_.reuse();
             this.hasComplex = false;
         }
@@ -766,6 +784,7 @@ public class BTreeRow extends AbstractRow
         public void addPrimaryKeyLivenessInfo(LivenessInfo info)
         {
             // The check is only required for unsorted builders, but it's worth the extra safety to have it unconditional
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
             if (!deletion.deletes(info))
                 this.primaryKeyLivenessInfo = info;
         }
@@ -786,6 +805,7 @@ public class BTreeRow extends AbstractRow
             if (deletion.deletes(cell))
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             getCells().add(cell);
             hasComplex |= cell.column.isComplex();
         }

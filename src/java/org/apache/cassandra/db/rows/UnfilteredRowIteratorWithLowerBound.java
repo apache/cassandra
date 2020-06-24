@@ -76,6 +76,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         // The partition index lower bound is more accurate than the sstable metadata lower bound but it is only
         // present if the iterator has already been initialized, which we only do when there are tombstones since in
         // this case we cannot use the sstable metadata clustering values
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBound ret = getPartitionIndexLowerBound();
         return ret != null ? makeBound(ret) : makeBound(getMetadataLowerBound());
     }
@@ -154,6 +155,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     public DeletionTime partitionLevelDeletion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13366
         if (!sstable.mayHaveTombstones())
             return DeletionTime.LIVE;
 
@@ -196,6 +198,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
                           lowerBoundPrefix.getRawValues().length,
                           metadata().comparator.size(),
                           sstable.getFilename());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             return ClusteringBound.inclusiveOpen(filter.isReversed(), lowerBoundPrefix.getRawValues());
         }
         catch (IOException e)
@@ -251,6 +254,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
                       vals.size(),
                       metadata().comparator.size(),
                       sstable.getFilename());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return  ClusteringBound.inclusiveOpen(filter.isReversed(), vals.toArray(new ByteBuffer[vals.size()]));
     }
 }

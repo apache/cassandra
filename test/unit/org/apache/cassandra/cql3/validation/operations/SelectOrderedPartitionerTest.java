@@ -41,6 +41,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
     }
 
@@ -86,6 +87,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testFilteringOnPartitionKeyWithToken() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
         createIndex("CREATE INDEX ON %s(d)");
 
@@ -124,6 +126,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     public void testTokenAndCollections() throws Throwable
     {
         createTable("CREATE TABLE %s (a frozen<map<int, int>>, b int, c int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
 
         for (int i = 0; i < 10; i++)
         {
@@ -233,6 +236,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE token(a) < token(?) AND token(a) >= token(?) AND a IN (?, ?);",
                            1, 3, 1, 3),
                    row(3, 3));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE token(a) > token(?) AND token(a) <= token(?) AND a > ?;", 1, 3, 1);
 
@@ -309,6 +313,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE b IN (?, ?) AND token(a, b) = token(?, ?) AND a = ?;",
                             0, 1, 0, 0, 1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE token(a, b) > token(?, ?) AND a = ?;", 0, 0, 1);
     }
@@ -555,6 +560,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     public void testTruncateWithCaching() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int) WITH CACHING = { 'keys': 'ALL', 'rows_per_partition': 'ALL' };");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         for (int i = 0; i < 3; i++)
             execute("INSERT INTO %s (k, v1, v2) VALUES (?, ?, ?)", i, i, i * 2);
@@ -593,6 +599,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     public void testTokenFunctionWithInvalidColumnNames() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE token(a, e) = token(0, 0)");
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE token(a, e) > token(0, 1)");
         assertInvalidMessage("Undefined column name e", "SELECT b AS e FROM %s WHERE token(a, e) = token(0, 0)");

@@ -44,6 +44,8 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     V3(3, "v3", false),
     V4(4, "v4", false),
     V5(5, "v5-beta", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14211
 
     /** The version number */
     private final int num;
@@ -86,6 +88,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
 
     public static List<ProtocolVersion> supportedVersionsStartingWith(ProtocolVersion smallestVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
         ArrayList<ProtocolVersion> versions = new ArrayList<>(SUPPORTED_VERSIONS.length);
         for (ProtocolVersion version : SUPPORTED_VERSIONS)
             if (version.isGreaterOrEqualTo(smallestVersion))
@@ -114,6 +117,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
             throw new ProtocolException(invalidVersionMessage(versionNum), MAX_SUPPORTED_VERSION);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
         if (!allowOlderProtocols && ret.isSmallerThan(CURRENT))
             throw new ProtocolException(String.format("Rejecting Protocol Version %s < %s.", ret, ProtocolVersion.CURRENT));
 
@@ -138,6 +142,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
 
     public boolean supportsChecksums()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         return num >= V5.asInt();
     }
 

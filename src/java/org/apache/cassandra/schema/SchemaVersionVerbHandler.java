@@ -35,6 +35,7 @@ public final class SchemaVersionVerbHandler implements IVerbHandler<NoPayload>
 
     public void doVerb(Message<NoPayload> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         logger.trace("Received schema version request from {}", message.from());
         Message<UUID> response = message.responseWith(Schema.instance.getVersion());
         MessagingService.instance().send(response, message.from());

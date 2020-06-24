@@ -65,6 +65,7 @@ public class StreamCompressionSerializerTest
     {
         if (input != null)
             FileUtils.clean(input);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (compressed != null)
             FileUtils.clean(compressed);
         if (output != null && output.refCnt() > 0)
@@ -75,6 +76,7 @@ public class StreamCompressionSerializerTest
     public void roundTrip_HappyPath_NotReadabaleByteBuffer() throws IOException
     {
         populateInput();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         StreamCompressionSerializer.serialize(compressor, input, VERSION).write(size -> compressed = ByteBuffer.allocateDirect(size));
         input.flip();
         output = serializer.deserialize(decompressor, new DataInputBuffer(compressed, false), VERSION);
@@ -101,6 +103,7 @@ public class StreamCompressionSerializerTest
     public void roundTrip_HappyPath_ReadabaleByteBuffer() throws IOException
     {
         populateInput();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         StreamCompressionSerializer.serialize(compressor, input, VERSION)
                                    .write(size -> {
                                        if (compressed != null)

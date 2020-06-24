@@ -46,6 +46,7 @@ public class ClearSnapshot extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13391
         if(snapshotName.isEmpty() && !clearAllSnapshots)
             throw new RuntimeException("Specify snapshot name or --all");
 
@@ -61,6 +62,7 @@ public class ClearSnapshot extends NodeToolCmd
         else
             sb.append("[").append(join(keyspaces, ", ")).append("]");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13391
         if (snapshotName.isEmpty())
             sb.append(" with [all snapshots]");
         else

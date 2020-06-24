@@ -38,6 +38,7 @@ public class GossipDigestAck2
     public static final IVersionedSerializer<GossipDigestAck2> serializer = new GossipDigestAck2Serializer();
 
     final Map<InetAddressAndPort, EndpointState> epStateMap;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
     GossipDigestAck2(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
@@ -58,6 +59,7 @@ class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : ack2.epStateMap.entrySet())
         {
             InetAddressAndPort ep = entry.getKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(ep, out, version);
             EndpointState.serializer.serialize(entry.getValue(), out, version);
         }
@@ -70,6 +72,7 @@ class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck
 
         for (int i = 0; i < size; ++i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort ep = inetAddressAndPortSerializer.deserialize(in, version);
             EndpointState epState = EndpointState.serializer.deserialize(in, version);
             epStateMap.put(ep, epState);
@@ -79,8 +82,10 @@ class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck
 
     public long serializedSize(GossipDigestAck2 ack2, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         long size = TypeSizes.sizeof(ack2.epStateMap.size());
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : ack2.epStateMap.entrySet())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(entry.getKey(), version)
                     + EndpointState.serializer.serializedSize(entry.getValue(), version);
         return size;

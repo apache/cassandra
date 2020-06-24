@@ -37,6 +37,8 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 {
     public interface Factory
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
         ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime);
     }
@@ -51,6 +53,8 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * Used by DataResolver to generate corrections as the partition iterator is consumed
      */
     UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
     /**
      * Called when the digests from the initial read don't match. Reads may block on the
@@ -93,5 +97,6 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * Repairs a partition _after_ receiving data responses. This method receives replica list, since
      * we will block repair only on the replicas that have responded.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
     void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForTokenWrite writePlan);
 }

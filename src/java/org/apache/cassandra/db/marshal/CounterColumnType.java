@@ -33,9 +33,11 @@ public class CounterColumnType extends NumberType<Long>
     public static final CounterColumnType instance = new CounterColumnType();
 
     CounterColumnType() {super(ComparisonType.NOT_COMPARABLE);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
@@ -59,6 +61,7 @@ public class CounterColumnType extends NumberType<Long>
     @Override
     public void validateCellValue(ByteBuffer cellValue) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         CounterContext.instance().validateContext(cellValue);
     }
 
@@ -69,12 +72,14 @@ public class CounterColumnType extends NumberType<Long>
 
     public ByteBuffer fromString(String source)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2093
         return ByteBufferUtil.hexToBytes(source);
     }
 
     @Override
     public Term fromJSONObject(Object parsed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         throw new UnsupportedOperationException();
     }
 
@@ -86,17 +91,20 @@ public class CounterColumnType extends NumberType<Long>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.COUNTER;
     }
 
     public TypeSerializer<Long> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         return CounterSerializer.instance;
     }
 
     @Override
     protected long toLong(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return ByteBufferUtil.toLong(value);
     }
 

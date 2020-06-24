@@ -48,10 +48,12 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
 
     protected EncryptedChecksummedDataInput(ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         super(channel);
         this.cipher = cipher;
         this.compressor = compressor;
         readChannel = new EncryptionUtils.ChannelProxyReadChannel(channel, filePosition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         this.sourcePosition = filePosition;
         assert cipher != null;
         assert compressor != null;
@@ -63,6 +65,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
      */
     public boolean isEOF()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         return readChannel.getCurrentPosition() == channel.size() && buffer.remaining() == 0;
     }
 
@@ -138,6 +141,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15407
         ChannelProxy channel = new ChannelProxy(input.getPath());
         try
         {

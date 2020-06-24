@@ -77,6 +77,7 @@ public interface IAuthenticator
      * @return org.apache.cassandra.auth.IAuthenticator.SaslNegotiator implementation
      * (see {@link org.apache.cassandra.auth.PasswordAuthenticator.PlainTextSaslAuthenticator})
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14652
     default SaslNegotiator newSaslNegotiator(InetAddress clientAddress, X509Certificate[] certificates)
     {
         return newSaslNegotiator(clientAddress);
@@ -96,6 +97,7 @@ public interface IAuthenticator
      * @throws AuthenticationException
      */
     AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
 
     /**
      * Performs the actual SASL negotiation for a single authentication attempt.

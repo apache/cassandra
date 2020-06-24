@@ -34,6 +34,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
 
     public LocalStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         super(keyspaceName, tokenMetadata, snitch, configOptions);
         replicas = EndpointsForRange.of(
                 new Replica(FBUtilities.getBroadcastAddressAndPort(),
@@ -72,6 +73,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public Collection<String> recognizedOptions()
     {
         // LocalStrategy doesn't expect any options.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         return Collections.<String>emptySet();
     }
 }

@@ -70,6 +70,7 @@ public class MonitoringTaskTest
     {
         private final String name;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12791
         TestMonitor(String name, long timestamp, boolean isCrossNode, long timeout, long slow)
         {
             this.name = name;
@@ -95,6 +96,7 @@ public class MonitoringTaskTest
 
     private static void waitForOperationsToComplete(List<Monitorable> operations) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long timeout = operations.stream().map(Monitorable::timeoutNanos).reduce(0L, Long::max);
         Thread.sleep(NANOSECONDS.toMillis(timeout * 2 + approxTime.error()));
 
@@ -114,6 +116,7 @@ public class MonitoringTaskTest
 
     private static void waitForOperationsToBeReportedAsSlow(List<Monitorable> operations) throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long timeout = operations.stream().map(Monitorable::slowTimeoutNanos).reduce(0L, Long::max);
         Thread.sleep(NANOSECONDS.toMillis(timeout * 2 + approxTime.error()));
 
@@ -140,6 +143,8 @@ public class MonitoringTaskTest
     @Test
     public void testAbortIdemPotent() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Monitorable operation = new TestMonitor("Test abort", System.nanoTime(), false, timeout, slowTimeout);
         waitForOperationsToComplete(operation);
 
@@ -153,6 +158,7 @@ public class MonitoringTaskTest
     @Test
     public void testAbortCrossNode() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Monitorable operation = new TestMonitor("Test for cross node", System.nanoTime(), true, timeout, slowTimeout);
         waitForOperationsToComplete(operation);
 
@@ -176,6 +182,8 @@ public class MonitoringTaskTest
     @Test
     public void testCompleteIdemPotent() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Monitorable operation = new TestMonitor("Test complete", System.nanoTime(), false, timeout, slowTimeout);
         operation.complete();
         waitForOperationsToComplete(operation);
@@ -190,6 +198,7 @@ public class MonitoringTaskTest
     @Test
     public void testReportSlow() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Monitorable operation = new TestMonitor("Test report slow", System.nanoTime(), false, timeout, slowTimeout);
         waitForOperationsToBeReportedAsSlow(operation);
 
@@ -204,6 +213,7 @@ public class MonitoringTaskTest
     public void testNoReportSlowIfZeroSlowTimeout() throws InterruptedException
     {
         // when the slow timeout is set to zero then operation won't be reported as slow
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Monitorable operation = new TestMonitor("Test report slow disabled", System.nanoTime(), false, timeout, 0);
         waitForOperationsToBeReportedAsSlow(operation);
 
@@ -217,6 +227,7 @@ public class MonitoringTaskTest
     @Test
     public void testReport() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Monitorable operation = new TestMonitor("Test report", System.nanoTime(), false, timeout, slowTimeout);
         waitForOperationsToComplete(operation);
 
@@ -225,6 +236,7 @@ public class MonitoringTaskTest
         assertFalse(operation.isCompleted());
 
         // aborted operations are not logged as slow
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         assertFalse(MonitoringTask.instance.logSlowOperations(approxTime.now()));
         assertEquals(0, MonitoringTask.instance.getSlowOperations().size());
 
@@ -238,6 +250,7 @@ public class MonitoringTaskTest
         MonitoringTask.instance = MonitoringTask.make(10, -1);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Monitorable operation1 = new TestMonitor("Test report 1", System.nanoTime(), false, timeout, slowTimeout);
             waitForOperationsToComplete(operation1);
 
@@ -271,11 +284,13 @@ public class MonitoringTaskTest
         for (int i = 0; i < opCount; i++)
         {
             executorService.submit(() ->
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 operations.add(new TestMonitor(UUID.randomUUID().toString(), System.nanoTime(), false, timeout, slowTimeout))
             );
         }
 
         executorService.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
         assertTrue(executorService.awaitTermination(1, TimeUnit.MINUTES));
         assertEquals(opCount, operations.size());
 
@@ -316,6 +331,7 @@ public class MonitoringTaskTest
                         for (int j = 0; j < numTimes; j++)
                         {
                             Monitorable operation1 = new TestMonitor(operationName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                                                      System.nanoTime(),
                                                                      false,
                                                                      timeout,
@@ -441,6 +457,9 @@ public class MonitoringTaskTest
                 try
                 {
                     Monitorable operation = new TestMonitor("Test thread " + Thread.currentThread().getName(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                                             System.nanoTime(),
                                                             false,
                                                             timeout,

@@ -127,6 +127,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         this.options = options;
         this.keyspace = keyspace;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         this.tag = "repair:" + cmd;
         // get valid column families, calculate neighbors, validation, prepare for repair + number of ranges to repair
         this.totalProgress = 4 + options.getRanges().size();
@@ -155,6 +156,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     public void notification(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         logger.info(msg);
         fireProgressEvent(new ProgressEvent(ProgressEventType.NOTIFICATION, progressCounter.get(), totalProgress, msg));
     }
@@ -180,6 +182,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             return;
         logger.error("Repair {} failed:", parentSession, error);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13387
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13387
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13387
         StorageMetrics.repairExceptions.inc();
         String errorMessage = String.format("Repair command #%d failed with error %s", cmd, error.getMessage());
         fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCounter.get(), totalProgress, errorMessage));
@@ -213,7 +218,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCounter.get(), totalProgress, msg));
         logger.info(options.getPreviewKind().logPrefix(parentSession) + msg);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13359
         ActiveRepairService.instance.removeParentRepairSession(parentSession);
         TraceState localState = traceState;
         if (options.isTraced() && localState != null)
@@ -277,6 +284,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         progressCounter.incrementAndGet();
 
         if (Iterables.isEmpty(validColumnFamilies))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
             throw new SkipRepairException(String.format("%s Empty keyspace, skipping repair: %s", parentSession, keyspace));
         return Lists.newArrayList(validColumnFamilies);
     }
@@ -304,6 +312,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private void notifyStarting()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12532
         String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
                                        options);
         logger.info(message);
@@ -313,12 +322,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private NeighborsAndRanges getNeighborsAndRanges()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
 
         //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
         Iterable<Range<Token>> keyspaceLocalRanges = storageService.getLocalReplicas(keyspace).ranges();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
 
         for (Range<Token> range : options.getRanges())
         {
@@ -334,25 +346,30 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         boolean force = options.isForcedRepair();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         if (force && options.isIncremental())
         {
             Set<InetAddressAndPort> actualNeighbors = Sets.newHashSet(Iterables.filter(allNeighbors, FailureDetector.instance::isAlive));
             force = !allNeighbors.equals(actualNeighbors);
             allNeighbors = actualNeighbors;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         return new NeighborsAndRanges(force, allNeighbors, commonRanges);
     }
 
     private void maybeStoreParentRepairStart(String[] cfnames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         if (!options.isPreview())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11244
             SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options);
         }
     }
 
     private void maybeStoreParentRepairSuccess(Collection<Range<Token>> successfulRanges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         if (!options.isPreview())
         {
             SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
@@ -405,11 +422,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         // Setting the repairedAt time to UNREPAIRED_SSTABLE causes the repairedAt times to be preserved across streamed sstables
         final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
 
         // After all repair sessions completes(successful or not),
         // run anticompaction if necessary and send finish notice back to client
         final Collection<Range<Token>> successfulRanges = new ArrayList<>();
         final AtomicBoolean hasFailure = new AtomicBoolean();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13997
         ListenableFuture repairResult = Futures.transformAsync(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
         {
             @SuppressWarnings("unchecked")
@@ -418,12 +437,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 // filter out null(=failed) results and get successful ranges
                 for (RepairSessionResult sessionResult : results)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
                     logger.debug("Repair result: {}", results);
                     if (sessionResult != null)
                     {
                         // don't record successful repair if we had to skip ranges
                         if (!sessionResult.skippedReplicas)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
                             successfulRanges.addAll(sessionResult.ranges);
                         }
                     }
@@ -434,6 +455,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 }
                 return Futures.immediateFuture(null);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13997
         }, MoreExecutors.directExecutor());
         Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, successfulRanges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
     }
@@ -444,6 +466,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     @VisibleForTesting
     static List<CommonRange> filterCommonRanges(List<CommonRange> commonRanges, Set<InetAddressAndPort> liveEndpoints, boolean force)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
         if (!force)
         {
             return commonRanges;
@@ -452,8 +475,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             List<CommonRange> filtered = new ArrayList<>(commonRanges.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
             for (CommonRange commonRange : commonRanges)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, liveEndpoints::contains));
                 Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, liveEndpoints::contains));
                 Preconditions.checkState(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
@@ -479,6 +504,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                                                   .addAll(allNeighbors)
                                                   .add(FBUtilities.getBroadcastAddressAndPort())
                                                   .build();
@@ -495,6 +522,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             ranges.addAll(range);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
     }
 
@@ -516,6 +544,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             {
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                     if (results == null || results.stream().anyMatch(s -> s == null))
                     {
                         // something failed
@@ -534,7 +563,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     else
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                         message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15654
                         RepairMetrics.previewFailures.inc();
                         if (previewKind == PreviewKind.REPAIRED)
                             maybeSnapshotReplicas(parentSession, keyspace, results);
@@ -560,6 +591,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 fail("Error completing preview repair: " + t.getMessage());
                 executor.shutdownNow();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         }, MoreExecutors.directExecutor());
     }
 
@@ -622,6 +654,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private ListenableFuture<List<RepairSessionResult>> submitRepairSessions(UUID parentSession,
                                                                              boolean isIncremental,
                                                                              ListeningExecutorService executor,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
                                                                              List<CommonRange> commonRanges,
                                                                              String... cfnames)
     {
@@ -638,14 +671,17 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                                                                      keyspace,
                                                                                      options.getParallelism(),
                                                                                      isIncremental,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
                                                                                      options.isPullRepair(),
                                                                                      force,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                                                                                      options.getPreviewKind(),
                                                                                      options.optimiseStreams(),
                                                                                      executor,
                                                                                      cfnames);
             if (session == null)
                 continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
             Futures.addCallback(session, new RepairSessionCallback(session), MoreExecutors.directExecutor());
             futures.add(session);
         }
@@ -654,6 +690,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private ListeningExecutorService createExecutor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return MoreExecutors.listeningDecorator(new JMXEnabledThreadPoolExecutor(options.getJobThreads(),
                                                                                  Integer.MAX_VALUE,
                                                                                  TimeUnit.SECONDS,
@@ -677,6 +715,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                            session.ranges().toString());
             logger.info(message);
             fireProgressEvent(new ProgressEvent(ProgressEventType.PROGRESS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                                                 progressCounter.incrementAndGet(),
                                                 totalProgress,
                                                 message));
@@ -716,6 +755,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         public void onSuccess(Object result)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
             maybeStoreParentRepairSuccess(successfulRanges);
             if (hasFailure.get())
             {
@@ -741,6 +781,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         Set<InetAddressAndPort> endpoints = neighbors.endpoints();
         Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isTransient).endpoints();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         for (CommonRange commonRange : neighborRangeList)
         {
             if (commonRange.matchesEndpoints(endpoints, transEndpoints))
@@ -757,6 +798,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private Thread createQueryThread(final int cmd, final UUID sessionId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         return NamedThreadFactory.createThread(new WrappedRunnable()
         {
             // Query events within a time interval that overlaps the last by one second. Ignore duplicates. Ignore local traces.
@@ -767,13 +810,18 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 if (state == null)
                     throw new Exception("no tracestate");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14225
                 String format = "select event_id, source, source_port, activity from %s.%s where session_id = ? and event_id > ? and event_id < ?;";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                 String query = String.format(format, SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.EVENTS);
                 SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare(ClientState.forInternalCalls());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
                 ByteBuffer sessionIdBytes = ByteBufferUtil.bytes(sessionId);
                 InetAddressAndPort source = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                 HashSet<UUID>[] seen = new HashSet[]{ new HashSet<>(), new HashSet<>() };
                 int si = 0;
                 UUID uuid;
@@ -803,12 +851,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                     ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 
                     for (UntypedResultSet.Row r : result)
                     {
                         int port = DatabaseDescriptor.getStoragePort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14225
                         if (r.has("source_port"))
                             port = r.getInt("source_port");
                         InetAddressAndPort eventNode = InetAddressAndPort.getByAddressOverrideDefaults(r.getInetAddress("source"), port);
@@ -819,6 +869,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                         if (seen[si == 0 ? 1 : 0].contains(uuid))
                             continue;
                         String message = String.format("%s: %s", r.getInetAddress("source"), r.getString("activity"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                         notification(message);
                     }
                     tlast = tcur;
@@ -827,11 +878,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     seen[si].clear();
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         }, "Repair-Runnable-" + threadCounter.incrementAndGet());
     }
 
     private static final class SkipRepairException extends RuntimeException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         SkipRepairException(String message)
         {
             super(message);

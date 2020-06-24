@@ -119,6 +119,7 @@ public class UnfilteredSerializer
     public void serialize(Unfiltered unfiltered, SerializationHelper helper, DataOutputPlus out, int version)
     throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         assert !helper.header.isForSSTable();
         serialize(unfiltered, helper, out, 0, version);
     }
@@ -161,6 +162,7 @@ public class UnfilteredSerializer
         if (isStatic)
             extendedFlags |= IS_STATIC;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (!pkLiveness.isEmpty())
             flags |= HAS_TIMESTAMP;
         if (pkLiveness.isExpiring())
@@ -173,6 +175,7 @@ public class UnfilteredSerializer
         }
         if (hasComplexDeletion)
             flags |= HAS_COMPLEX_DELETION;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         if (hasAllColumns)
             flags |= HAS_ALL_COLUMNS;
 
@@ -186,21 +189,26 @@ public class UnfilteredSerializer
         if (!isStatic)
             Clustering.serializer.serialize(row.clustering(), out, version, header.clusteringTypes());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         if (header.isForSSTable())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
             try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
             {
                 serializeRowBody(row, flags, helper, dob);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
                 out.writeUnsignedVInt(dob.position() + TypeSizes.sizeofUnsignedVInt(previousUnfilteredSize));
                 // We write the size of the previous unfiltered to make reverse queries more efficient (and simpler).
                 // This is currently not used however and using it is tbd.
                 out.writeUnsignedVInt(previousUnfilteredSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
                 out.write(dob.getData(), 0, dob.getLength());
             }
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             serializeRowBody(row, flags, helper, out);
         }
     }
@@ -226,11 +234,13 @@ public class UnfilteredSerializer
         if ((flags & HAS_DELETION) != 0)
             header.writeDeletionTime(deletion.time(), out);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
         if ((flags & HAS_ALL_COLUMNS) == 0)
             Columns.serializer.serializeSubset(row.columns(), headerColumns, out);
 
         SearchIterator<ColumnMetadata, ColumnMetadata> si = helper.iterator(isStatic);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
         try
         {
             row.apply(cd -> {
@@ -272,16 +282,20 @@ public class UnfilteredSerializer
 
         out.writeUnsignedVInt(data.cellsCount());
         for (Cell cell : data)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
             Cell.serializer.serialize(cell, column, out, rowLiveness, header);
     }
 
     private void serialize(RangeTombstoneMarker marker, SerializationHelper helper, DataOutputPlus out, long previousUnfilteredSize, int version)
     throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         SerializationHeader header = helper.header;
         out.writeByte((byte)IS_MARKER);
         ClusteringBoundOrBoundary.serializer.serialize(marker.clustering(), out, version, header.clusteringTypes());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         if (header.isForSSTable())
         {
             out.writeUnsignedVInt(serializedMarkerBodySize(marker, header, previousUnfilteredSize, version));
@@ -291,6 +305,7 @@ public class UnfilteredSerializer
         if (marker.isBoundary())
         {
             RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
             header.writeDeletionTime(bm.endDeletionTime(), out);
             header.writeDeletionTime(bm.startDeletionTime(), out);
         }
@@ -302,6 +317,7 @@ public class UnfilteredSerializer
 
     public long serializedSize(Unfiltered unfiltered, SerializationHelper helper, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         assert !helper.header.isForSSTable();
         return serializedSize(unfiltered, helper, 0, version);
     }
@@ -322,6 +338,7 @@ public class UnfilteredSerializer
 
         if (!row.isStatic())
             size += Clustering.serializer.serializedSize(row.clustering(), version, helper.header.clusteringTypes());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         return size + serializedRowBodySize(row, helper, previousUnfilteredSize, version);
     }
@@ -353,7 +370,10 @@ public class UnfilteredSerializer
 
         if (!hasAllColumns)
             size += Columns.serializer.serializedSubsetSize(row.columns(), header.columns(isStatic));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         SearchIterator<ColumnMetadata, ColumnMetadata> si = helper.iterator(isStatic);
         return row.accumulate((data, v) -> {
             ColumnMetadata column = si.next(data.column());
@@ -376,12 +396,14 @@ public class UnfilteredSerializer
         size += TypeSizes.sizeofUnsignedVInt(data.cellsCount());
         for (Cell cell : data)
             size += Cell.serializer.serializedSize(cell, column, rowLiveness, header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
 
         return size;
     }
 
     private long serializedSize(RangeTombstoneMarker marker, SerializationHelper helper, long previousUnfilteredSize, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         assert !helper.header.isForSSTable();
         return 1 // flags
              + ClusteringBoundOrBoundary.serializer.serializedSize(marker.clustering(), version, helper.header.clusteringTypes())
@@ -397,6 +419,7 @@ public class UnfilteredSerializer
         if (marker.isBoundary())
         {
             RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
             size += header.deletionTimeSerializedSize(bm.endDeletionTime());
             size += header.deletionTimeSerializedSize(bm.startDeletionTime());
         }
@@ -481,6 +504,7 @@ public class UnfilteredSerializer
     }
 
     public Unfiltered deserializeTombstonesOnly(FileDataInput in, SerializationHeader header, DeserializationHelper helper)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
     throws IOException
     {
         while (true)
@@ -493,6 +517,7 @@ public class UnfilteredSerializer
 
             if (kind(flags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBoundOrBoundary bound = ClusteringBoundOrBoundary.serializer.deserialize(in, helper.version, header.clusteringTypes());
                 return deserializeMarkerBody(in, header, bound);
             }
@@ -538,6 +563,7 @@ public class UnfilteredSerializer
         int flags = in.readUnsignedByte();
         assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isExtended(flags) : flags;
         int extendedFlags = in.readUnsignedByte();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         Row.Builder builder = BTreeRow.sortedBuilder();
         builder.newRow(Clustering.STATIC_CLUSTERING);
         return deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
@@ -546,6 +572,7 @@ public class UnfilteredSerializer
     public RangeTombstoneMarker deserializeMarkerBody(DataInputPlus in, SerializationHeader header, ClusteringBoundOrBoundary bound)
     throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         if (header.isForSSTable())
         {
             in.readUnsignedVInt(); // marker size
@@ -553,6 +580,7 @@ public class UnfilteredSerializer
         }
 
         if (bound.isBoundary())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             return new RangeTombstoneBoundaryMarker((ClusteringBoundary) bound, header.readDeletionTime(in), header.readDeletionTime(in));
         else
             return new RangeTombstoneBoundMarker((ClusteringBound) bound, header.readDeletionTime(in));
@@ -560,6 +588,7 @@ public class UnfilteredSerializer
 
     public Row deserializeRowBody(DataInputPlus in,
                                   SerializationHeader header,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                   DeserializationHelper helper,
                                   int flags,
                                   int extendedFlags,
@@ -576,7 +605,10 @@ public class UnfilteredSerializer
             boolean hasComplexDeletion = (flags & HAS_COMPLEX_DELETION) != 0;
             boolean hasAllColumns = (flags & HAS_ALL_COLUMNS) != 0;
             Columns headerColumns = header.columns(isStatic);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
             if (header.isForSSTable())
             {
                 in.readUnsignedVInt(); // Skip row size
@@ -589,6 +621,7 @@ public class UnfilteredSerializer
                 long timestamp = header.readTimestamp(in);
                 int ttl = hasTTL ? header.readTTL(in) : LivenessInfo.NO_TTL;
                 int localDeletionTime = hasTTL ? header.readLocalDeletionTime(in) : LivenessInfo.NO_EXPIRATION_TIME;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                 rowLiveness = LivenessInfo.withExpirationTime(timestamp, ttl, localDeletionTime);
             }
 
@@ -596,8 +629,10 @@ public class UnfilteredSerializer
             builder.addRowDeletion(hasDeletion ? new Row.Deletion(header.readDeletionTime(in), deletionIsShadowable) : Row.Deletion.LIVE);
 
             Columns columns = hasAllColumns ? headerColumns : Columns.serializer.deserializeSubset(headerColumns, in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
 
             final LivenessInfo livenessInfo = rowLiveness;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
 
             try
             {
@@ -613,6 +648,8 @@ public class UnfilteredSerializer
                     {
                         throw new WrappedException(e);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                 });
             }
             catch (WrappedException e)
@@ -658,12 +695,14 @@ public class UnfilteredSerializer
             helper.startOfComplexColumn(column);
             if (hasComplexDeletion)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                 DeletionTime complexDeletion = header.readDeletionTime(in);
                 if (!helper.isDroppedComplexDeletion(complexDeletion))
                     builder.addComplexDeletion(column, complexDeletion);
             }
 
             int count = (int) in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
             while (--count >= 0)
             {
                 Cell cell = Cell.serializer.deserialize(in, rowLiveness, column, header, helper);
@@ -682,6 +721,7 @@ public class UnfilteredSerializer
     public void skipRowBody(DataInputPlus in) throws IOException
     {
         int rowSize = (int)in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         in.skipBytesFully(rowSize);
     }
 
@@ -691,6 +731,7 @@ public class UnfilteredSerializer
         assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isExtended(flags) : "Flags is " + flags;
         int extendedFlags = in.readUnsignedByte();
         assert isStatic(extendedFlags);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         skipRowBody(in);
     }
 
@@ -705,8 +746,10 @@ public class UnfilteredSerializer
     {
         if (hasComplexDeletion)
             header.skipDeletionTime(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
         int count = (int) in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         while (--count >= 0)
             Cell.serializer.skip(in, column, header);
     }
@@ -733,6 +776,7 @@ public class UnfilteredSerializer
 
     public static int readExtendedFlags(DataInputPlus in, int flags) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         return isExtended(flags) ? in.readUnsignedByte() : 0;
     }
 

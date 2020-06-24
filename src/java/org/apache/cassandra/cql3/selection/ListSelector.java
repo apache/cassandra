@@ -64,6 +64,7 @@ final class ListSelector extends Selector
     @Override
     public void addFetchedColumns(Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         for (int i = 0, m = elements.size(); i < m; i++)
             elements.get(i).addFetchedColumns(builder);
     }

@@ -31,6 +31,7 @@ public class Inets extends Generator<InetAddress>
     final byte[] buf;
     public Inets(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(InetAddressType.instance, config, name, InetAddress.class);
         buf = new byte[4];
     }

@@ -65,9 +65,11 @@ public class CommitLogSegmentBackpressureTest
 
     @Test
     @BMRules(rules = {@BMRule(name = "Acquire Semaphore before sync",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14108
                               targetClass = "AbstractCommitLogService$SyncRunnable",
                               targetMethod = "sync",
                               targetLocation = "AT INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean)",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13123
                               action = "org.apache.cassandra.db.commitlog.CommitLogSegmentBackpressureTest.allowSync.acquire()"),
                       @BMRule(name = "Release Semaphore after sync",
                               targetClass = "AbstractCommitLogService$SyncRunnable",
@@ -96,6 +98,7 @@ public class CommitLogSegmentBackpressureTest
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
         final Mutation m = new RowUpdateBuilder(cfs1.metadata(), 0, "k").clustering("bytes")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12283
                                                                       .add("val", ByteBuffer.wrap(entropy))
                                                                       .build();
 

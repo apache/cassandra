@@ -28,6 +28,7 @@ public class ReadRepairVerbHandler implements IVerbHandler<Mutation>
     public void doVerb(Message<Mutation> message)
     {
         message.payload.apply();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }
 }

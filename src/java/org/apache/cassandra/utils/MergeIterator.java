@@ -33,6 +33,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
     @SuppressWarnings("resource")
     public static <In, Out> MergeIterator<In, Out> get(List<? extends Iterator<In>> sources,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                        Comparator<? super In> comparator,
                                                        Reducer<In, Out> reducer)
     {
@@ -52,20 +53,24 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
         for (int i=0, isize=iterators.size(); i<isize; i++)
         {
             Iterator<In> iterator = iterators.get(i);
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 if (iterator instanceof AutoCloseable)
                     ((AutoCloseable)iterator).close();
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                 throw new RuntimeException(e);
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3711
         reducer.close();
     }
 
@@ -144,6 +149,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             this.heap = heap;
             size = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             for (int i = 0; i < iters.size(); i++)
             {
                 Candidate<In> candidate = new Candidate<>(i, iters.get(i), comp);
@@ -360,6 +366,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         {
             this.iter = iter;
             this.comp = comp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             this.idx = idx;
             this.lowerBound = iter instanceof IteratorWithLowerBound ? ((IteratorWithLowerBound<In>)iter).lowerBound() : null;
         }
@@ -426,6 +433,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
          */
         public boolean trivialReduceIsTrivial()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             return false;
         }
 
@@ -456,6 +464,8 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
         public OneToOne(List<? extends Iterator<In>> sources, Reducer<In, Out> reducer)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3234
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             super(sources, reducer);
             source = sources.get(0);
         }
@@ -465,6 +475,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             if (!source.hasNext())
                 return endOfData();
             reducer.onKeyChange();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             reducer.reduce(0, source.next());
             return reducer.getReduced();
         }
@@ -476,6 +487,8 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
         public TrivialOneToOne(List<? extends Iterator<In>> sources, Reducer<In, Out> reducer)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3234
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             super(sources, reducer);
             source = sources.get(0);
         }

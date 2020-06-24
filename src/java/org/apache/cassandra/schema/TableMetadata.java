@@ -87,6 +87,7 @@ public final class TableMetadata
 
     public enum Kind
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         REGULAR, INDEX, VIEW, VIRTUAL
     }
 
@@ -148,6 +149,7 @@ public final class TableMetadata
         id = builder.id;
 
         partitioner = builder.partitioner;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         kind = builder.kind;
         params = builder.params.build();
 
@@ -191,6 +193,7 @@ public final class TableMetadata
     {
         return builder(keyspace, name, id)
                .partitioner(partitioner)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                .kind(kind)
                .params(params)
                .flags(flags)
@@ -207,6 +210,7 @@ public final class TableMetadata
 
     public TableMetadata withSwapped(TableParams params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return unbuild().params(params).build();
     }
 
@@ -434,6 +438,7 @@ public final class TableMetadata
         indexes.validate(this);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     void validateCompatibility(TableMetadata previous)
     {
         if (isIndex())
@@ -508,6 +513,7 @@ public final class TableMetadata
      * This method should only be called for superColumn tables and "static
      * compact" ones. For any other table, all column names are UTF8.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     AbstractType<?> staticCompactOrSuperTableColumnNameType()
     {
         if (isSuper())
@@ -571,6 +577,7 @@ public final class TableMetadata
     public TableMetadata updateIndexTableMetadata(TableParams baseTableParams)
     {
         TableParams.Builder builder = baseTableParams.unbuild().gcGraceSeconds(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13910
 
         // Depends on parent's cache setting, turn on its index table's cache.
         // Row caching is never enabled; see CASSANDRA-5732
@@ -581,6 +588,7 @@ public final class TableMetadata
 
     boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return any(columns(), c -> c.type.referencesUserType(name));
     }
 
@@ -597,6 +605,7 @@ public final class TableMetadata
 
     private void except(String format, Object... args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         throw new ConfigurationException(keyspace + "." + name + ": " + format(format, args));
     }
 
@@ -611,6 +620,7 @@ public final class TableMetadata
 
         TableMetadata tm = (TableMetadata) o;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return equalsWithoutColumns(tm) && columns.equals(tm.columns);
     }
 
@@ -620,6 +630,7 @@ public final class TableMetadata
             && name.equals(tm.name)
             && id.equals(tm.id)
             && partitioner.equals(tm.partitioner)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             && kind == tm.kind
             && params.equals(tm.params)
             && flags.equals(tm.flags)
@@ -628,6 +639,7 @@ public final class TableMetadata
             && triggers.equals(tm.triggers);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     Optional<Difference> compare(TableMetadata other)
     {
         return equalsWithoutColumns(other)
@@ -666,6 +678,7 @@ public final class TableMetadata
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return Objects.hash(keyspace, name, id, partitioner, kind, params, flags, columns, droppedColumns, indexes, triggers);
     }
 
@@ -682,6 +695,7 @@ public final class TableMetadata
                           .add("table", name)
                           .add("id", id)
                           .add("partitioner", partitioner)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                           .add("kind", kind)
                           .add("params", params)
                           .add("flags", flags)
@@ -752,6 +766,7 @@ public final class TableMetadata
 
         public Builder kind(Kind val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             kind = val;
             return this;
         }
@@ -836,6 +851,7 @@ public final class TableMetadata
 
         public Builder additionalWritePolicy(SpeculativeRetryPolicy val)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
             params.additionalWritePolicy(val);
             return this;
         }
@@ -955,6 +971,7 @@ public final class TableMetadata
             return this;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Builder addColumns(Iterable<ColumnMetadata> columns)
         {
             columns.forEach(this::addColumn);
@@ -981,6 +998,7 @@ public final class TableMetadata
 
         public Builder recordColumnDrop(ColumnMetadata column, long timeMicros)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             droppedColumns.put(column.name.bytes, new DroppedColumn(column.withNewType(column.type.expandUserTypes()), timeMicros));
             return this;
         }
@@ -1047,6 +1065,7 @@ public final class TableMetadata
             return this;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Builder alterColumnType(ColumnIdentifier name, AbstractType<?> type)
         {
             ColumnMetadata column = columns.get(name.bytes);
@@ -1088,6 +1107,7 @@ public final class TableMetadata
      */
     public boolean enforceStrictLiveness()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return isView() && Keyspace.open(keyspace).viewManager.getByName(name).enforceStrictLiveness();
     }
 }
