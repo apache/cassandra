@@ -320,14 +320,19 @@ pipeline {
         }
     stage('Summary') {
       steps {
+          sh "rm -fR cassandra-builds"
           sh "git clone https://gitbox.apache.org/repos/asf/cassandra-builds.git"
           sh "./cassandra-builds/build-scripts/cassandra-test-report.sh"
-          junit '**/build/test/**/TEST*.xml,**/cqlshlib.xml,**/nosetests.xml'
+          junit testResults: '**/build/test/**/TEST*.xml,**/cqlshlib.xml,**/nosetests.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
 
           // the following should fail on any installation other than builds.apache.org
           //  TODO: keep jenkins infrastructure related settings in `cassandra_job_dsl_seed.groovy`
           warnError('cannot send notifications') {
-              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. ${env.GIT_COMMIT}\n${currentBuild.changeSets}"
+              script {
+                changes = formatChanges(currentBuild.changeSets)
+                echo "changes: ${changes}"
+              }
+              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. ${env.GIT_COMMIT}\n${changes}"
               emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${env.GIT_COMMIT}", body: '''
 -------------------------------------------------------------------------------
 Build ${ENV,var="JOB_NAME"} #${BUILD_NUMBER} ${BUILD_STATUS}
@@ -343,6 +348,11 @@ ${FILE,path="cassandra-test-report.txt"}
 '''
           }
       }
+      post {
+          always {
+              archiveArtifacts artifacts: 'cassandra-test-report.txt', fingerprint: true
+          }
+      }
     }
   }
 }
@@ -354,4 +364,16 @@ def copyTestResults(target) {
             fingerprintArtifacts: true,
             selector: [$class: 'StatusBuildSelector', stable: false],
             target: target]);
+}
+
+def formatChanges(changeLogSets) {
+    def result = ''
+    for (int i = 0; i < changeLogSets.size(); i++) {
+        def entries = changeLogSets[i].items
+        for (int j = 0; j < entries.length; j++) {
+            def entry = entries[j]
+            result = result + "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}\n"
+        }
+    }
+    return result
 }
