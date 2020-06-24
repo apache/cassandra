@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Close channel and reduce buffer allocation during entire sstable streaming with SSL (CASSANDRA-15900)
  * Prune expired messages less frequently in internode messaging (CASSANDRA-15700)
  * Fix Ec2Snitch handling of legacy mode for dc names matching both formats, eg "us-west-2" (CASSANDRA-15878)
  * Add support for server side DESCRIBE statements (CASSANDRA-14825)

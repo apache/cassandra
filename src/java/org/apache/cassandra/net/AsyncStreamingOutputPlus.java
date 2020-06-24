@@ -23,11 +23,13 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.FileRegion;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.io.compress.BufferType;
@@ -161,51 +163,65 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
     }
 
     /**
+     * Writes all data in file channel to stream: <br>
+     * * For zero-copy-streaming, 1MiB at a time, with at most 2MiB in flight at once. <br>
+     * * For streaming with SSL, 64kb at a time, with at most 32+64kb (default low water mark + batch size) in flight. <br>
      * <p>
-     * Writes all data in file channel to stream, 1MiB at a time, with at most 2MiB in flight at once.
-     * This method takes ownership of the provided {@code FileChannel}.
+     * This method takes ownership of the provided {@link FileChannel}.
      * <p>
      * WARNING: this method blocks only for permission to write to the netty channel; it exits before
-     * the write is flushed to the network.
+     * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
      */
     public long writeFileToChannel(FileChannel file, StreamRateLimiter limiter) throws IOException
     {
-        // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
-        // the data is never brought in process and is gated by the wire anyway
         if (channel.pipeline().get(SslHandler.class) != null)
-            return writeFileToChannel(file, limiter, 1 << 20, 1 << 20, 2 << 20);
+            // each batch is loaded into ByteBuffer, 64kb is more BufferPool friendly.
+            return writeFileToChannel(file, limiter, 1 << 16);
         else
+            // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
+            // the data is never brought in process and is gated by the wire anyway
             return writeFileToChannelZeroCopy(file, limiter, 1 << 20, 1 << 20, 2 << 20);
     }
 
-    public long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    @VisibleForTesting
+    long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize) throws IOException
     {
         final long length = fc.size();
         long bytesTransferred = 0;
-        while (bytesTransferred < length)
+
+        try
         {
-            int toWrite = (int) min(batchSize, length - bytesTransferred);
-            final long position = bytesTransferred;
+            while (bytesTransferred < length)
+            {
+                int toWrite = (int) min(batchSize, length - bytesTransferred);
+                final long position = bytesTransferred;
 
-            writeToChannel(bufferSupplier -> {
-                ByteBuffer outBuffer = bufferSupplier.get(toWrite);
-                long read = fc.read(outBuffer, position);
-                if (read != toWrite)
-                    throw new IOException(String.format("could not read required number of bytes from " +
-                                                        "file to be streamed: read %d bytes, wanted %d bytes",
-                                                        read, toWrite));
-                outBuffer.flip();
-            }, limiter);
+                writeToChannel(bufferSupplier -> {
+                    ByteBuffer outBuffer = bufferSupplier.get(toWrite);
+                    long read = fc.read(outBuffer, position);
+                    if (read != toWrite)
+                        throw new IOException(String.format("could not read required number of bytes from " +
+                                                            "file to be streamed: read %d bytes, wanted %d bytes",
+                                                            read, toWrite));
+                    outBuffer.flip();
+                }, limiter);
 
-            if (logger.isTraceEnabled())
-                logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
-            bytesTransferred += toWrite;
+                if (logger.isTraceEnabled())
+                    logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
+                bytesTransferred += toWrite;
+            }
+        }
+        finally
+        {
+            // we don't need to wait until byte buffer is flushed by netty
+            fc.close();
         }
 
         return bytesTransferred;
     }
 
-    public long writeFileToChannelZeroCopy(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    @VisibleForTesting
+    long writeFileToChannelZeroCopy(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
         final long length = file.size();
         long bytesTransferred = 0;
