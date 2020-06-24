@@ -64,6 +64,7 @@ public class View
     {
         this.baseCfs = baseCfs;
         this.name = definition.name();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         updateDefinition(definition);
     }
@@ -155,6 +156,7 @@ public class View
      * Returns the SelectStatement used to populate and filter this view.  Internal users should access the select
      * statement this way to ensure it has been prepared.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     SelectStatement getSelectStatement()
     {
         if (null == select)
@@ -207,6 +209,7 @@ public class View
 
     public synchronized void build()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         stopBuild();
         builder = new ViewBuilder(baseCfs, this);
         builder.start();
@@ -219,6 +222,8 @@ public class View
     {
         if (builder != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13405
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13405
             logger.debug("Stopping current view builder due to schema change");
             builder.stop();
             builder = null;

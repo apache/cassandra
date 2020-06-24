@@ -118,6 +118,7 @@ public class RepairMessageSerializationsTest
     @Test
     public void validationCompleteMessage_NoMerkleTree() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         ValidationResponse deserialized = validationCompleteMessage(null);
         Assert.assertNull(deserialized.trees);
     }
@@ -128,6 +129,7 @@ public class RepairMessageSerializationsTest
         MerkleTrees trees = new MerkleTrees(Murmur3Partitioner.instance);
         trees.addMerkleTree(256, new Range<>(new LongToken(1000), new LongToken(1001)));
         ValidationResponse deserialized = validationCompleteMessage(trees);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
         // a simple check to make sure we got some merkle trees back.
         Assert.assertEquals(trees.size(), deserialized.trees.size());
@@ -146,10 +148,12 @@ public class RepairMessageSerializationsTest
     @Test
     public void syncRequestMessage() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort initiator = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort src = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort dst = InetAddressAndPort.getByName("127.0.0.3");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         SyncRequest msg = new SyncRequest(buildRepairJobDesc(), initiator, src, dst, buildTokenRanges(), PreviewKind.NONE);
         serializeRoundTrip(msg, SyncRequest.serializer);
     }
@@ -157,13 +161,16 @@ public class RepairMessageSerializationsTest
     @Test
     public void syncCompleteMessage() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort src = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort dst = InetAddressAndPort.getByName("127.0.0.3");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dst,
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 5, 100)),
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 500, 10))
         ));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         SyncResponse msg = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries);
         serializeRoundTrip(msg, SyncResponse.serializer);
     }
@@ -172,6 +179,7 @@ public class RepairMessageSerializationsTest
     public void prepareMessage() throws IOException
     {
         PrepareMessage msg = new PrepareMessage(UUID.randomUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                                                 buildTokenRanges(), true, 100000L, false,
                                                 PreviewKind.NONE);
         serializeRoundTrip(msg, PrepareMessage.serializer);

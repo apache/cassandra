@@ -55,10 +55,12 @@ public class ExecuteMessage extends Message.Request
         public void encode(ExecuteMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeBytes(msg.statementId.bytes, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
 
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 CBUtil.writeBytes(msg.resultMetadataId.bytes, dest);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version == ProtocolVersion.V1)
             {
                 CBUtil.writeValueList(msg.options.getValues(), dest);
@@ -78,6 +80,7 @@ public class ExecuteMessage extends Message.Request
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 size += CBUtil.sizeOfBytes(msg.resultMetadataId.bytes);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version == ProtocolVersion.V1)
             {
                 size += CBUtil.sizeOfValueList(msg.options.getValues());
@@ -112,17 +115,21 @@ public class ExecuteMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         QueryHandler.Prepared prepared = null;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8553
             QueryHandler handler = ClientState.getCQLQueryHandler();
             prepared = handler.getPrepared(statementId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7454
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
             CQLStatement statement = prepared.statement;
             options.prepare(statement.getBindVariables());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5797
             if (options.getPageSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
 
@@ -132,10 +139,13 @@ public class ExecuteMessage extends Message.Request
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
             long requestStartTime = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
 
             QueryEvents.instance.notifyExecuteSuccess(prepared.statement, prepared.rawCQLStatement, options, state, requestStartTime, response);
 
@@ -173,7 +183,9 @@ public class ExecuteMessage extends Message.Request
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
@@ -190,6 +202,7 @@ public class ExecuteMessage extends Message.Request
             builder.put("serial_consistency_level", options.getSerialConsistency().name());
 
         builder.put("query", prepared.rawCQLStatement);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11425
 
         for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
         {
@@ -204,6 +217,7 @@ public class ExecuteMessage extends Message.Request
             builder.put("bound_var_" + i + '_' + boundName, boundValue);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
         Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
     }
 

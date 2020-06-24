@@ -72,6 +72,7 @@ public abstract class MultiCBuilder
      */
     public static MultiCBuilder create(ClusteringComparator comparator, boolean forMultipleValues)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
         return forMultipleValues
              ? new MultiClusteringBuilder(comparator)
              : new OneClusteringBuilder(comparator);
@@ -115,6 +116,7 @@ public abstract class MultiCBuilder
 
     protected void checkUpdateable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
         if (!hasRemaining() || built)
             throw new IllegalStateException("this builder cannot be updated anymore");
     }
@@ -210,6 +212,7 @@ public abstract class MultiCBuilder
 
         public OneClusteringBuilder(ClusteringComparator comparator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10409
             super(comparator);
             this.elements = new ByteBuffer[comparator.size()];
         }
@@ -280,6 +283,7 @@ public abstract class MultiCBuilder
 
             if (size == 0)
                 return BTreeSet.of(comparator, isStart ? ClusteringBound.BOTTOM : ClusteringBound.TOP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
             ByteBuffer[] newValues = size == elements.length
                                    ? elements
@@ -435,6 +439,7 @@ public abstract class MultiCBuilder
 
             // Use a TreeSet to sort and eliminate duplicates
             BTreeSet.Builder<ClusteringBound> set = BTreeSet.builder(comparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
             // The first column of the slice might not be the first clustering column (e.g. clustering_0 = ? AND (clustering_1, clustering_2) >= (?, ?)
             int offset = columnDefs.get(0).position();
@@ -483,6 +488,7 @@ public abstract class MultiCBuilder
 
             // Use a TreeSet to sort and eliminate duplicates
             BTreeSet.Builder<ClusteringBound> set = BTreeSet.builder(comparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
             for (int i = 0, m = elementsList.size(); i < m; i++)
             {

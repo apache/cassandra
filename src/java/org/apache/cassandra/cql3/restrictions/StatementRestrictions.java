@@ -49,6 +49,8 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 public final class StatementRestrictions
 {
     public static final String REQUIRES_ALLOW_FILTERING_MESSAGE =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             "Cannot execute this query as it might involve data filtering and " +
             "thus may have unpredictable performance. If you want to execute " +
             "this query despite the performance unpredictability, use ALLOW FILTERING";
@@ -120,6 +122,7 @@ public final class StatementRestrictions
         this.partitionKeyRestrictions = new PartitionKeySingleRestrictionSet(table.partitionKeyAsClusteringComparator());
         this.clusteringColumnsRestrictions = new ClusteringColumnRestrictions(table, allowFiltering);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         this.notNullColumns = new HashSet<>();
     }
 
@@ -131,6 +134,7 @@ public final class StatementRestrictions
                                  boolean allowFiltering,
                                  boolean forView)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this(type, table, whereClause, boundNames, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
     }
 
@@ -140,6 +144,7 @@ public final class StatementRestrictions
      */
     public StatementRestrictions(StatementType type,
                                  TableMetadata table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
@@ -149,6 +154,7 @@ public final class StatementRestrictions
     {
         this(type, table, allowFiltering);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         IndexRegistry indexRegistry = null;
         if (type.allowUseOfSecondaryIndices())
             indexRegistry = IndexRegistry.obtain(table);
@@ -162,6 +168,7 @@ public final class StatementRestrictions
          *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value
          *     in CQL so far)
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
         for (Relation relation : whereClause.relations)
         {
             if (relation.operator() == Operator.IS_NOT)
@@ -169,13 +176,16 @@ public final class StatementRestrictions
                 if (!forView)
                     throw new InvalidRequestException("Unsupported restriction: " + relation);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 this.notNullColumns.addAll(relation.toRestriction(table, boundNames).getColumnDefs());
             }
             else if (relation.isLIKE())
             {
                 Restriction restriction = relation.toRestriction(table, boundNames);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                 if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
                     throw new InvalidRequestException(String.format("LIKE restriction is only supported on properly " +
                                                                     "indexed columns. %s is not valid.",
                                                                     relation.toString()));
@@ -193,10 +203,12 @@ public final class StatementRestrictions
         boolean hasQueriableClusteringColumnIndex = false;
         boolean hasQueriableIndex = false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         if (allowUseOfSecondaryIndices)
         {
             if (whereClause.containsCustomExpressions())
                 processCustomIndexExpressions(whereClause.expressions, boundNames, indexRegistry);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
             hasQueriableClusteringColumnIndex = clusteringColumnsRestrictions.hasSupportingIndex(indexRegistry);
             hasQueriableIndex = !filterRestrictions.getCustomIndexExpressions().isEmpty()
@@ -213,6 +225,7 @@ public final class StatementRestrictions
         if (usesSecondaryIndexing || partitionKeyRestrictions.needFiltering(table))
             filterRestrictions.add(partitionKeyRestrictions);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
         if (selectsOnlyStaticColumns && hasClusteringColumnsRestrictions())
         {
             // If the only updated/deleted columns are static, then we don't need clustering columns.
@@ -225,6 +238,7 @@ public final class StatementRestrictions
             //   UPDATE t SET s = 3 WHERE k = 0 AND v = 1
             //   DELETE v FROM t WHERE k = 0 AND v = 1
             // sounds like you don't really understand what your are doing.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
             if (type.isDelete() || type.isUpdate())
                 throw invalidRequest("Invalid restrictions on clustering columns since the %s statement modifies only static columns",
                                      type);
@@ -260,6 +274,7 @@ public final class StatementRestrictions
                 usesSecondaryIndexing = true;
             else if (!allowFiltering)
                 throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
         }
@@ -271,6 +286,7 @@ public final class StatementRestrictions
     private void addRestriction(Restriction restriction)
     {
         ColumnMetadata def = restriction.getFirstColumn();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         if (def.isPartitionKey())
             partitionKeyRestrictions = partitionKeyRestrictions.mergeWith(restriction);
         else if (def.isClusteringColumn())
@@ -281,6 +297,7 @@ public final class StatementRestrictions
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         partitionKeyRestrictions.addFunctionsTo(functions);
         clusteringColumnsRestrictions.addFunctionsTo(functions);
         nonPrimaryKeyRestrictions.addFunctionsTo(functions);
@@ -335,6 +352,7 @@ public final class StatementRestrictions
         if (notNullColumns.contains(column))
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         return getRestrictions(column.kind).getColumnDefs().contains(column);
     }
 
@@ -346,6 +364,7 @@ public final class StatementRestrictions
      */
     public boolean keyIsInRelation()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         return partitionKeyRestrictions.hasIN();
     }
 
@@ -368,6 +387,7 @@ public final class StatementRestrictions
      */
     public boolean isColumnRestrictedByEq(ColumnMetadata columnDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         Set<Restriction> restrictions = getRestrictions(columnDef.kind).getRestrictions(columnDef);
         return restrictions.stream()
                            .filter(SingleRestriction.class::isInstance)
@@ -402,6 +422,7 @@ public final class StatementRestrictions
 
     private void processPartitionKeyRestrictions(boolean hasQueriableIndex, boolean allowFiltering, boolean forView)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         if (!type.allowPartitionKeyRanges())
         {
             checkFalse(partitionKeyRestrictions.isOnToken(),
@@ -412,6 +433,7 @@ public final class StatementRestrictions
                                      Joiner.on(", ").join(getPartitionKeyUnrestrictedComponents()));
 
             // slice query
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
             checkFalse(partitionKeyRestrictions.hasSlice(),
                     "Only EQ and IN relation are supported on the partition key (unless you use the token() function)"
                             + " for %s statements", type);
@@ -436,6 +458,7 @@ public final class StatementRestrictions
             // components must have a EQ. Only the last partition key component can be in IN relation.
             if (partitionKeyRestrictions.needFiltering(table))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
                 if (!allowFiltering && !forView && !hasQueriableIndex)
                     throw new InvalidRequestException(REQUIRES_ALLOW_FILTERING_MESSAGE);
 
@@ -450,6 +473,7 @@ public final class StatementRestrictions
 
     public boolean hasPartitionKeyRestrictions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9737
         return !partitionKeyRestrictions.isEmpty();
     }
 
@@ -459,6 +483,8 @@ public final class StatementRestrictions
      */
     public boolean hasNonPrimaryKeyRestrictions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11339
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11339
         return !nonPrimaryKeyRestrictions.isEmpty();
     }
 
@@ -507,6 +533,7 @@ public final class StatementRestrictions
                                                       boolean forView,
                                                       boolean allowFiltering)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.hasSlice(),
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
 
@@ -522,6 +549,7 @@ public final class StatementRestrictions
             checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex && !allowFiltering,
                        "Clustering columns can only be restricted with CONTAINS with a secondary index or filtering");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
             if (hasClusteringColumnsRestrictions() && clusteringColumnsRestrictions.needFiltering())
             {
                 if (hasQueriableIndex || forView)
@@ -559,6 +587,7 @@ public final class StatementRestrictions
     private Collection<ColumnIdentifier> getUnrestrictedClusteringColumns()
     {
         List<ColumnMetadata> missingClusteringColumns = new ArrayList<>(table.clusteringColumns());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         missingClusteringColumns.removeAll(new LinkedList<>(clusteringColumnsRestrictions.getColumnDefs()));
         return ColumnMetadata.toIdentifiers(missingClusteringColumns);
     }
@@ -574,6 +603,7 @@ public final class StatementRestrictions
 
     private void processCustomIndexExpressions(List<CustomIndexExpression> expressions,
                                                VariableSpecifications boundNames,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                                IndexRegistry indexRegistry)
     {
         if (expressions.size() > 1)
@@ -582,6 +612,7 @@ public final class StatementRestrictions
         CustomIndexExpression expression = expressions.get(0);
 
         QualifiedName name = expression.targetIndex;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         if (name.hasKeyspace() && !name.getKeyspace().equals(table.keyspace))
             throw IndexRestrictions.invalidIndex(expression.targetIndex, table);
@@ -610,6 +641,7 @@ public final class StatementRestrictions
         RowFilter filter = RowFilter.create();
         for (Restrictions restrictions : filterRestrictions.getRestrictions())
             restrictions.addRowFilterTo(filter, indexRegistry, options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         for (CustomIndexExpression expression : filterRestrictions.getCustomIndexExpressions())
             expression.addToRowFilter(filter, table, options);
@@ -660,16 +692,19 @@ public final class StatementRestrictions
     }
 
     private AbstractBounds<PartitionPosition> getPartitionKeyBounds(IPartitioner p,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
                                                                     QueryOptions options)
     {
         // Deal with unrestricted partition key components (special-casing is required to deal with 2i queries on the
         // first component of a composite partition key) queries that filter on the partition key.
         if (partitionKeyRestrictions.needFiltering(table))
             return new Range<>(p.getMinimumToken().minKeyBound(), p.getMinimumToken().maxKeyBound());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12666
 
         ByteBuffer startKeyBytes = getPartitionKeyBound(Bound.START, options);
         ByteBuffer finishKeyBytes = getPartitionKeyBound(Bound.END, options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         PartitionPosition startKey = PartitionPosition.ForKey.get(startKeyBytes, p);
         PartitionPosition finishKey = PartitionPosition.ForKey.get(finishKeyBytes, p);
 
@@ -689,6 +724,7 @@ public final class StatementRestrictions
     }
 
     private AbstractBounds<PartitionPosition> getPartitionKeyBoundsForTokenRestrictions(IPartitioner p,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
                                                                                         QueryOptions options)
     {
         Token startToken = getTokenBound(Bound.START, options, p);
@@ -712,6 +748,7 @@ public final class StatementRestrictions
                 && (cmp > 0 || (cmp == 0 && (!includeStart || !includeEnd))))
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         PartitionPosition start = includeStart ? startToken.minKeyBound() : startToken.maxKeyBound();
         PartitionPosition end = includeEnd ? endToken.maxKeyBound() : endToken.minKeyBound();
 
@@ -781,6 +818,7 @@ public final class StatementRestrictions
         int numberOfClusteringColumns = table.isStaticCompactTable() ? 0 : table.clusteringColumns().size();
         // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ or IN.
         return clusteringColumnsRestrictions.size() < numberOfClusteringColumns
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
             || !clusteringColumnsRestrictions.hasOnlyEqualityRestrictions();
     }
 
@@ -814,8 +852,10 @@ public final class StatementRestrictions
      */
     public boolean hasAllPKColumnsRestrictedByEqualities()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         return !isPartitionKeyRestrictionsOnToken()
                 && !partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(table)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
                 && (partitionKeyRestrictions.hasOnlyEqualityRestrictions())
                 && !hasUnrestrictedClusteringColumns()
                 && (clusteringColumnsRestrictions.hasOnlyEqualityRestrictions());
@@ -827,12 +867,14 @@ public final class StatementRestrictions
      */
     public boolean hasRegularColumnsRestrictions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
         return hasRegularColumnsRestrictions;
     }
     
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

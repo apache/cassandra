@@ -32,6 +32,7 @@ public class FinalizeCommit extends RepairMessage
 
     public FinalizeCommit(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         assert sessionID != null;
         this.sessionID = sessionID;

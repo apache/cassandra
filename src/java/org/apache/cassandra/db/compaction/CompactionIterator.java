@@ -99,6 +99,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             bytes += scanner.getLengthInBytes();
         this.totalBytes = bytes;
         this.mergeCounters = new long[scanners.size()];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         this.activeCompactions = activeCompactions == null ? ActiveCompactionsTracker.NOOP : activeCompactions;
         this.activeCompactions.beginCompaction(this); // note that CompactionTask also calls this, but CT only creates CompactionIterator with a NOOP ActiveCompactions
 
@@ -106,9 +107,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                            ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
                                            : UnfilteredPartitionIterators.merge(scanners, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14397
         merged = Transformation.apply(merged, new Purger(controller, nowInSec));
         merged = DuplicateRowChecker.duringCompaction(merged, type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15002
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         sstables = scanners.stream().map(ISSTableScanner::getBackingSSTables).flatMap(Collection::stream).collect(ImmutableSet.toImmutableSet());
     }
 
@@ -123,12 +127,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   type,
                                   bytesRead,
                                   totalBytes,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                   compactionId,
                                   sstables);
     }
 
     public boolean isGlobal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
         return false;
     }
 
@@ -145,6 +151,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     public long getTotalSourceCQLRows()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12080
         return totalSourceCQLRows;
     }
 
@@ -155,6 +162,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
             {
                 int merged = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
                 for (int i=0, isize=versions.size(); i<isize; i++)
                 {
                     @SuppressWarnings("resource")
@@ -170,8 +178,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 if (type != OperationType.COMPACTION || !controller.cfs.indexManager.hasIndexes())
                     return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 Columns statics = Columns.NONE;
                 Columns regulars = Columns.NONE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15394
                 for (int i=0, isize=versions.size(); i<isize; i++)
                 {
                     @SuppressWarnings("resource")
@@ -240,6 +250,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     public boolean hasNext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return compacted.hasNext();
     }
 
@@ -257,16 +268,19 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             compacted.close();
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             activeCompactions.finishCompaction(this);
         }
     }
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2191
         return this.getCompactionInfo().toString();
     }
 
@@ -297,6 +311,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected void onNewPartition(DecoratedKey key)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             currentKey = key;
             purgeEvaluator = null;
         }
@@ -304,6 +319,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected void updateProgress()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12080
             totalSourceCQLRows++;
             if ((++compactedUnfiltered) % UNFILTERED_TO_UPDATE_PROGRESS == 0)
                 updateBytesRead();
@@ -332,6 +348,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      */
     private static class GarbageSkippingUnfilteredRowIterator extends WrappingUnfilteredRowIterator
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         final UnfilteredRowIterator tombSource;
         final DeletionTime partitionLevelDeletion;
         final Row staticRow;
@@ -523,6 +540,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      */
     private static class GarbageSkipper extends Transformation<UnfilteredRowIterator>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15286
         final AbstractCompactionController controller;
         final boolean cellLevelGC;
 
@@ -559,6 +577,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         private AbortableUnfilteredPartitionTransformation(CompactionIterator iter)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14397
             this.abortableIter = new AbortableUnfilteredRowTransformation(iter);
         }
 

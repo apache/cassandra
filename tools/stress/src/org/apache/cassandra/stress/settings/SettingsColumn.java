@@ -53,6 +53,7 @@ public class SettingsColumn implements Serializable
 
     public SettingsColumn(GroupedOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         this((Options) options,
                 options instanceof NameOptions ? (NameOptions) options : null,
                 options instanceof CountOptions ? (CountOptions) options : null
@@ -149,6 +150,7 @@ public class SettingsColumn implements Serializable
     {
         final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "0", "Number of super columns to use (no super columns used if not specified)", false);
         final OptionSimple comparator = new OptionSimple("comparator=", "TimeUUIDType|AsciiType|UTF8Type", "AsciiType", "Column Comparator to use", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         final OptionSimple slice = new OptionSimple("slice", "", null, "If set, range slices will be used for reads, otherwise a names query will be", false);
         final OptionSimple timestamp = new OptionSimple("timestamp=", "[0-9]+", null, "If set, all columns will be written with the given timestamp", false);
         final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)", "Cell size distribution");
@@ -179,6 +181,7 @@ public class SettingsColumn implements Serializable
     // CLI Utility Methods
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  Max Columns Per Key: %d%n",maxColumnsPerKey);
         out.printf("  Column Names: %s%n",namestrs);
         out.printf("  Comparator: %s%n", comparator);
@@ -234,6 +237,7 @@ public class SettingsColumn implements Serializable
 
     private void writeObject(ObjectOutputStream oos) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7608
         oos.defaultWriteObject();
         ArrayList<byte[]> namesBytes = new ArrayList<>();
         for (ByteBuffer buffer : this.names)

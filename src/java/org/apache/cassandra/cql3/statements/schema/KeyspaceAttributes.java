@@ -34,6 +34,7 @@ public final class KeyspaceAttributes extends PropertyDefinitions
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         ImmutableSet.Builder<String> validBuilder = ImmutableSet.builder();
         for (Option option : Option.values())
             validBuilder.add(option.toString());
@@ -63,6 +64,7 @@ public final class KeyspaceAttributes extends PropertyDefinitions
              : replication;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     KeyspaceParams asNewKeyspaceParams()
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), KeyspaceParams.DEFAULT_DURABLE_WRITES);

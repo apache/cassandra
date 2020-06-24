@@ -147,6 +147,7 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
      * @param suite the test suite
      */
     public void endTestSuite(JUnitTest suite) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9528
         StringBuffer sb = new StringBuffer("Testsuite: ");
         String n = suite.getName();
         if (n != null && !tag.isEmpty())
@@ -167,6 +168,7 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
         sb.append(StringUtils.LINE_SEP);
 
         // append the err and output streams to the log
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9528
         if (!keepBriefBrief && systemOutput != null && systemOutput.length() > 0) {
             sb.append("------------- Standard Output ---------------")
                     .append(StringUtils.LINE_SEP)
@@ -175,6 +177,7 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
                     .append(StringUtils.LINE_SEP);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9528
         if (!keepBriefBrief && systemError != null && systemError.length() > 0) {
             sb.append("------------- Standard Error -----------------")
                     .append(StringUtils.LINE_SEP)

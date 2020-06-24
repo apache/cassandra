@@ -45,6 +45,7 @@ public class HintedHandOffMetricsTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -55,6 +56,7 @@ public class HintedHandOffMetricsTest
         DatabaseDescriptor.getHintsDirectory().mkdirs();
 
         for (int i = 0; i < 99; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             HintsService.instance.metrics.incrPastWindow(InetAddressAndPort.getLocalHost());
         HintsService.instance.metrics.log();
 

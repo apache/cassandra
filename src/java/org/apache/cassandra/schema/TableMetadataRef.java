@@ -66,6 +66,7 @@ public final class TableMetadataRef
      */
     void set(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         metadata.validateCompatibility(get());
         this.metadata = metadata;
     }

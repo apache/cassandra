@@ -56,11 +56,13 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         if (intervals == null || intervals.isEmpty())
             return emptyTree();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
         return new IntervalTree<C, D, I>(intervals);
     }
 
     public static <C extends Comparable<? super C>, D, I extends Interval<C, D>> Serializer<C, D, I> serializer(ISerializer<C> pointSerializer, ISerializer<D> dataSerializer, Constructor<I> constructor)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         return new Serializer<>(pointSerializer, dataSerializer, constructor);
     }
 
@@ -185,6 +187,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
                 }
 
                 Collections.sort(allEndpoints);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
 
                 low = allEndpoints.get(0);
                 center = allEndpoints.get(toBisect.size());
@@ -197,6 +200,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
                 for (I candidate : toBisect)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
                     if (candidate.max.compareTo(center) < 0)
                         leftSegment.add(candidate);
                     else if (candidate.min.compareTo(center) > 0)
@@ -220,6 +224,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
         void searchInternal(Interval<C, D> searchInterval, List<D> results)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
             if (center.compareTo(searchInterval.min) < 0)
             {
                 int i = Interval.<C, D>maxOrdering().binarySearchAsymmetric(intersectsRight, searchInterval.min, Op.CEIL);
@@ -272,6 +277,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
         protected I computeNext()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             while (true)
             {
                 if (current != null && current.hasNext())
@@ -340,6 +346,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
             try
             {
                 int count = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
                 List<I> intervals = new ArrayList<I>(count);
                 for (int i = 0; i < count; i++)
                 {
@@ -348,6 +355,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
                     D data = dataSerializer.deserialize(in);
                     intervals.add(constructor.newInstance(min, max, data));
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
                 return new IntervalTree<C, D, I>(intervals);
             }
             catch (InstantiationException | InvocationTargetException | IllegalAccessException e)
@@ -358,6 +366,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
         public long serializedSize(IntervalTree<C, D, I> it, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             long size = TypeSizes.sizeof(0);
             for (Interval<C, D> interval : it)
             {

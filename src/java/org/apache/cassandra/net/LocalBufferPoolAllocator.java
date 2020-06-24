@@ -45,6 +45,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
     {
         if (!eventLoop.inEventLoop())
             throw new IllegalStateException("get() called from outside of owning event loop");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         return pool.get(size);
     }
 
@@ -53,6 +54,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
     {
         if (!eventLoop.inEventLoop())
             throw new IllegalStateException("getAtLeast() called from outside of owning event loop");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         return pool.getAtLeast(size);
     }
 

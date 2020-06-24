@@ -39,6 +39,7 @@ public class AuthResponse extends Message.Request
     {
         public AuthResponse decode(ByteBuf body, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version == ProtocolVersion.V1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
 
@@ -64,6 +65,7 @@ public class AuthResponse extends Message.Request
     public AuthResponse(byte[] token)
     {
         super(Message.Type.AUTH_RESPONSE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         assert token != null;
         this.token = token;
     }
@@ -79,7 +81,9 @@ public class AuthResponse extends Message.Request
             {
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
                 ClientMetrics.instance.markAuthSuccess();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
                 AuthEvents.instance.notifyAuthSuccess(queryState);
                 // authentication is complete, send a ready message to the client
                 return new AuthSuccess(challenge);
@@ -91,7 +95,9 @@ public class AuthResponse extends Message.Request
         }
         catch (AuthenticationException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
             ClientMetrics.instance.markAuthFailure();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             AuthEvents.instance.notifyAuthFailure(queryState, e);
             return ErrorMessage.fromException(e);
         }

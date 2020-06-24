@@ -61,6 +61,7 @@ public class OptionsMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         List<String> cqlVersions = new ArrayList<>();
         cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
@@ -69,11 +70,13 @@ public class OptionsMessage extends Message.Request
             compressions.add("snappy");
         // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
         compressions.add("lz4");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5765
 
         Map<String, List<String>> supported = new HashMap<>();
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);
         supported.put(StartupMessage.COMPRESSION, compressions);
         supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         if (connection.getVersion().supportsChecksums())
         {

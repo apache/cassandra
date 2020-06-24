@@ -51,6 +51,7 @@ public class MmappedRegionsTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -67,9 +68,11 @@ public class MmappedRegionsTest
 
     private static File writeFile(String fileName, ByteBuffer buffer) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File ret = FileUtils.createTempFile(fileName, "1");
         ret.deleteOnExit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new SequentialWriter(ret))
         {
             writer.write(buffer);
@@ -117,6 +120,8 @@ public class MmappedRegionsTest
                 assertNotNull(region);
                 if (i < 1024)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
                     assertEquals(0, region.offset());
                     assertEquals(1024, region.end());
                 }
@@ -216,6 +221,9 @@ public class MmappedRegionsTest
         {
             MmappedRegions.Region region = snapshot.floor(i);
             assertNotNull(region);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
             assertEquals(SIZE * (i / SIZE), region.offset());
             assertEquals(SIZE + (SIZE * (i / SIZE)), region.end());
 
@@ -274,6 +282,7 @@ public class MmappedRegionsTest
             {
                 MmappedRegions.Region region = regions.floor(i);
                 assertNotNull(region);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
                 assertEquals(0, region.offset());
                 assertEquals(4096, region.end());
             }
@@ -298,6 +307,7 @@ public class MmappedRegionsTest
         MmappedRegions.MAX_SEGMENT_SIZE = 1024;
 
         ByteBuffer buffer = allocateBuffer(128 * 1024);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("testMapForCompressionMetadata", "1");
         f.deleteOnExit();
 
@@ -305,6 +315,7 @@ public class MmappedRegionsTest
         cf.deleteOnExit();
 
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try(SequentialWriter writer = new CompressedSequentialWriter(f, cf.getAbsolutePath(),
                                                                      null, SequentialWriterOption.DEFAULT,
                                                                      CompressionParams.snappy(), sstableMetadataCollector))
@@ -331,6 +342,7 @@ public class MmappedRegionsTest
                 assertNotNull(compressedChunk);
                 assertEquals(chunk.length + 4, compressedChunk.capacity());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
                 assertEquals(chunk.offset, region.offset());
                 assertEquals(chunk.offset + chunk.length + 4, region.end());
 

@@ -50,6 +50,7 @@ public interface SSTableFormat
 
         public static Type current()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             return BIG;
         }
 
@@ -58,6 +59,7 @@ public interface SSTableFormat
             //Since format comes right after generation
             //we disallow formats with numeric names
             assert !CharMatcher.digit().matchesAllOf(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
 
             this.name = name;
             this.info = info;

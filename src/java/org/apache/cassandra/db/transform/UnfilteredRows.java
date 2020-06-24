@@ -26,6 +26,7 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 final class UnfilteredRows extends BaseRows<Unfiltered, UnfilteredRowIterator> implements UnfilteredRowIterator
 {
     private RegularAndStaticColumns regularAndStaticColumns;

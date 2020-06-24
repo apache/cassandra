@@ -64,6 +64,7 @@ public class HintsBufferPoolTest
         blocked.start();
 
         Util.spinAssertEquals(true, () -> blockedOnBackpressure, 60);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12894
 
         while (blocked.isAlive())
             if (!returnedBuffers.isEmpty())

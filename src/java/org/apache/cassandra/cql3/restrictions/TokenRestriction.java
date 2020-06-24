@@ -70,6 +70,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     @Override
     public Set<Restriction> getRestrictions(ColumnMetadata columnDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         return Collections.singleton(this);
     }
 
@@ -82,6 +83,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     @Override
     public boolean needFiltering(TableMetadata table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         return false;
     }
 
@@ -118,6 +120,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     @Override
     public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         return false;
     }
 
@@ -130,6 +133,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     @Override
     public final boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         return getColumnDefs().isEmpty();
     }
 
@@ -154,6 +158,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     {
         if (!otherRestriction.isOnToken())
             return new TokenFilter(toPartitionKeyRestrictions(otherRestriction), this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
 
         return doMergeWith((TokenRestriction) otherRestriction);
     }
@@ -173,6 +178,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
      */
     private PartitionKeyRestrictions toPartitionKeyRestrictions(Restriction restriction) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
         if (restriction instanceof PartitionKeyRestrictions)
             return (PartitionKeyRestrictions) restriction;
 
@@ -192,6 +198,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             value.addFunctionsTo(functions);
         }
 
@@ -205,6 +212,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         @Override
         public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
             return values(options);
         }
 
@@ -228,6 +236,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
 
         public boolean hasContains()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
             return false;
         }
     }
@@ -244,6 +253,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
 
         public boolean hasContains()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
             return false;
         }
 
@@ -274,6 +284,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             slice.addFunctionsTo(functions);
         }
 
@@ -287,11 +298,13 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         protected PartitionKeyRestrictions doMergeWith(TokenRestriction otherRestriction)
         throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
             if (!(otherRestriction instanceof SliceRestriction))
                 throw invalidRequest("Columns \"%s\" cannot be restricted by both an equality and an inequality relation",
                                      getColumnNamesAsString());
 
             TokenRestriction.SliceRestriction otherSlice = (TokenRestriction.SliceRestriction) otherRestriction;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             if (hasBound(Bound.START) && otherSlice.hasBound(Bound.START))
                 throw invalidRequest("More than one restriction was found for the start bound on %s",

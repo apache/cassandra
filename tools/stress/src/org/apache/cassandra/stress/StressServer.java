@@ -85,6 +85,7 @@ public class StressServer
 
         public StressThread(Socket client)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
             this.socket = client;
         }
 
@@ -95,8 +96,10 @@ public class StressServer
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
                 PrintStream out = new PrintStream(socket.getOutputStream());
                 ResultLogger log = new MultiResultLogger(out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
 
                 StressAction action = new StressAction((StressSettings) in.readObject(), log);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
                 Thread actionThread = NamedThreadFactory.createThread(action, "stress-" + threadCounter.incrementAndGet());
                 actionThread.start();
 

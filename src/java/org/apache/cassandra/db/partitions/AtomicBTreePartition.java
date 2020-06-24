@@ -50,6 +50,7 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
 public final class AtomicBTreePartition extends AbstractBTreePartition
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new AtomicBTreePartition(null,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                                                                                        DatabaseDescriptor.getPartitioner().decorateKey(ByteBuffer.allocate(1)),
                                                                                        null));
 
@@ -110,10 +111,12 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
 
     private long[] addAllWithSizeDeltaInternal(RowUpdater updater, PartitionUpdate update, UpdateTransaction indexer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14607
         Holder current = ref;
         updater.ref = current;
         updater.reset();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10343
         if (!update.deletionInfo().getPartitionDeletion().isLive())
             indexer.onPartitionDeletion(update.deletionInfo().getPartitionDeletion());
 
@@ -136,12 +139,16 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
 
         RegularAndStaticColumns columns = update.columns().mergeTo(current.columns);
         Row newStatic = update.staticRow();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         Row staticRow = newStatic.isEmpty()
                         ? current.staticRow
                         : (current.staticRow.isEmpty() ? updater.apply(newStatic) : updater.apply(current.staticRow, newStatic));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         Object[] tree = BTree.update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
         EncodingStats newStats = current.stats.mergeWith(update.stats());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         if (tree != null && refUpdater.compareAndSet(this, current, new Holder(columns, tree, deletionInfo, staticRow, newStats)))
         {
             updater.finish();
@@ -168,6 +175,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
 
             while (true)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14607
                 if (shouldLock)
                 {
                     synchronized (this)
@@ -189,6 +197,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             indexer.commit();
         }
     }
@@ -255,6 +264,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
 
     private boolean shouldLock(OpOrder.Group writeOp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15367
         if (!useLock())
             return false;
 
@@ -334,8 +344,10 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         final AtomicBTreePartition updating;
         final MemtableAllocator allocator;
         final OpOrder.Group writeOp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         final UpdateTransaction indexer;
         Holder ref;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         Row.Builder regularBuilder;
         long dataSize;
         long heapSize;
@@ -343,6 +355,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         List<Row> inserted; // TODO: replace with walk of aborted BTree
 
         DeletionInfo inputDeletionInfoCopy = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14607
 
         private RowUpdater(AtomicBTreePartition updating, MemtableAllocator allocator, OpOrder.Group writeOp, UpdateTransaction indexer)
         {
@@ -358,6 +371,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             // We know we only insert/update one static per PartitionUpdate, so no point in saving the builder
             if (isStatic)
                 return allocator.rowBuilder(writeOp);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
 
             if (regularBuilder == null)
                 regularBuilder = allocator.rowBuilder(writeOp);
@@ -368,6 +382,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         {
             Row data = Rows.copy(insert, builder(insert.clustering())).build();
             indexer.onInserted(insert);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
 
             this.dataSize += data.dataSize();
             this.heapSize += data.unsharedHeapSizeExcludingData();

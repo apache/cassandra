@@ -51,6 +51,7 @@ public class MerkleTreeTest
 
     static byte[] digest(String string)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         return Digest.forValidator()
                      .update(string.getBytes(), 0, string.getBytes().length)
                      .digest();
@@ -67,18 +68,22 @@ public class MerkleTreeTest
 
     private Range<Token> fullRange()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         return new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
     }
 
     @Before
     public void setup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         DatabaseDescriptor.clientInitialization();
         DatabaseDescriptor.useOffheapMerkleTrees(false);
 
         TOKEN_SCALE = new BigInteger("8");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         partitioner = RandomPartitioner.instance;
         // TODO need to trickle TokenSerializer
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DatabaseDescriptor.setPartitionerUnsafe(partitioner);
         mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, Integer.MAX_VALUE);
     }
@@ -90,6 +95,8 @@ public class MerkleTreeTest
 
     public static void assertHashEquals(String message, final byte[] left, final byte[] right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3299
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         String lstring = left == null ? "null" : Hex.bytesToHex(left);
         String rstring = right == null ? "null" : Hex.bytesToHex(right);
         assertEquals(message, lstring, rstring);
@@ -102,6 +109,7 @@ public class MerkleTreeTest
      */
     public static Token tok(int i)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         if (i == -1)
             return new BigIntegerToken(new BigInteger("-1"));
         BigInteger bint = RandomPartitioner.MAXIMUM.divide(TOKEN_SCALE).multiply(new BigInteger("" + i));
@@ -118,6 +126,7 @@ public class MerkleTreeTest
         mt.split(tok(7));
 
         assertEquals(4, mt.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assertEquals(new Range<>(tok(7), tok(-1)), mt.get(tok(-1)));
         assertEquals(new Range<>(tok(-1), tok(4)), mt.get(tok(3)));
         assertEquals(new Range<>(tok(-1), tok(4)), mt.get(tok(4)));
@@ -153,6 +162,7 @@ public class MerkleTreeTest
         // should fail to split below hashdepth
         assertFalse(mt.split(tok(1)));
         assertEquals(3, mt.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assertEquals(new Range<>(tok(4), tok(-1)), mt.get(tok(-1)));
         assertEquals(new Range<>(tok(-1), tok(2)), mt.get(tok(2)));
         assertEquals(new Range<>(tok(2), tok(4)), mt.get(tok(4)));
@@ -162,6 +172,7 @@ public class MerkleTreeTest
     public void testSplitLimitSize()
     {
         mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2324
 
         assertTrue(mt.split(tok(4)));
         assertEquals(2, mt.size());
@@ -169,6 +180,7 @@ public class MerkleTreeTest
         // should fail to split above maxsize
         assertFalse(mt.split(tok(2)));
         assertEquals(2, mt.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assertEquals(new Range<>(tok(4), tok(-1)), mt.get(tok(-1)));
         assertEquals(new Range<>(tok(-1), tok(4)), mt.get(tok(4)));
     }
@@ -179,7 +191,9 @@ public class MerkleTreeTest
         Iterator<TreeRange> ranges;
 
         // (zero, zero]
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = mt.rangeIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assertEquals(new Range<>(tok(-1), tok(-1)), ranges.next());
         assertFalse(ranges.hasNext());
 
@@ -189,7 +203,9 @@ public class MerkleTreeTest
         mt.split(tok(6));
         mt.split(tok(3));
         mt.split(tok(5));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = mt.rangeIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assertEquals(new Range<>(tok(6), tok(-1)), ranges.next());
         assertEquals(new Range<>(tok(-1), tok(2)), ranges.next());
         assertEquals(new Range<>(tok(2), tok(3)), ranges.next());
@@ -206,9 +222,11 @@ public class MerkleTreeTest
     {
         byte[] val = DUMMY;
         Range<Token> range = new Range<>(tok(-1), tok(-1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
 
         // (zero, zero]
         assertFalse(mt.hashesRange(range));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
         // validate the range
         mt.get(tok(-1)).hash(val);
@@ -222,6 +240,7 @@ public class MerkleTreeTest
         byte[] val = DUMMY;
         byte[] leftval = hashed(val, 1, 1);
         byte[] partialval = hashed(val, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         Range<Token> left = new Range<>(tok(-1), tok(4));
         Range<Token> partial = new Range<>(tok(2), tok(4));
         Range<Token> right = new Range<>(tok(4), tok(-1));
@@ -232,6 +251,7 @@ public class MerkleTreeTest
         mt.split(tok(4));
         mt.split(tok(2));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         assertFalse(mt.hashesRange(left));
         assertFalse(mt.hashesRange(partial));
         assertFalse(mt.hashesRange(right));
@@ -242,10 +262,12 @@ public class MerkleTreeTest
         mt.get(tok(2)).hash(val);
         mt.get(tok(4)).hash(val);
         mt.get(tok(-1)).hash(val);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         assertHashEquals(leftval, mt.hash(left));
         assertHashEquals(partialval, mt.hash(partial));
         assertHashEquals(val, mt.hash(right));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         assertFalse(mt.hashesRange(linvalid));
         assertFalse(mt.hashesRange(rinvalid));
     }
@@ -257,6 +279,7 @@ public class MerkleTreeTest
         byte[] lchildval = hashed(val, 3, 3, 2);
         byte[] rchildval = hashed(val, 2, 2);
         byte[] fullval = hashed(val, 3, 3, 2, 2, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         Range<Token> full = new Range<>(tok(-1), tok(-1));
         Range<Token> lchild = new Range<>(tok(-1), tok(4));
         Range<Token> rchild = new Range<>(tok(4), tok(-1));
@@ -274,7 +297,9 @@ public class MerkleTreeTest
         mt.get(tok(4)).hash(val);
         mt.get(tok(6)).hash(val);
         mt.get(tok(-1)).hash(val);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         assertTrue(mt.hashesRange(full));
         assertTrue(mt.hashesRange(lchild));
         assertTrue(mt.hashesRange(rchild));
@@ -293,10 +318,12 @@ public class MerkleTreeTest
         byte[] val = DUMMY;
         byte[] childfullval = hashed(val, 5, 5, 4);
         byte[] fullval = hashed(val, 5, 5, 4, 3, 2, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         Range<Token> childfull = new Range<>(tok(-1), tok(4));
         Range<Token> full = new Range<>(tok(-1), tok(-1));
         Range<Token> invalid = new Range<>(tok(4), tok(-1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2324
         mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, Integer.MAX_VALUE);
         mt.split(tok(16));
         mt.split(tok(8));
@@ -311,7 +338,9 @@ public class MerkleTreeTest
         mt.get(tok(8)).hash(val);
         mt.get(tok(16)).hash(val);
         mt.get(tok(-1)).hash(val);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         assertTrue(mt.hashesRange(full));
         assertTrue(mt.hashesRange(childfull));
         assertFalse(mt.hashesRange(invalid));
@@ -326,6 +355,7 @@ public class MerkleTreeTest
         int max = 1000000;
         TOKEN_SCALE = new BigInteger("" + max);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2324
         mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, 32);
         Random random = new Random();
         while (true)
@@ -335,10 +365,13 @@ public class MerkleTreeTest
         }
 
         // validate the tree
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         TreeRangeIterator ranges = mt.rangeIterator();
         for (TreeRange range : ranges)
             range.addHash(new RowHash(range.right, new byte[0], 0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2698
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assert mt.hash(new Range<>(tok(-1), tok(-1))) != null :
             "Could not hash tree " + mt;
     }
@@ -354,9 +387,11 @@ public class MerkleTreeTest
     {
         TOKEN_SCALE = new BigInteger("16"); // this test needs slightly more resolution
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         Range<Token> full = new Range<>(tok(-1), tok(-1));
         Iterator<TreeRange> ranges;
         MerkleTree mt2 = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, Integer.MAX_VALUE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2324
 
         mt.split(tok(8));
         mt.split(tok(4));
@@ -364,7 +399,9 @@ public class MerkleTreeTest
         mt.split(tok(6));
         mt.split(tok(10));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = mt.rangeIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         ranges.next().addAll(new HIterator(2, 4)); // (-1,4]: depth 2
         ranges.next().addAll(new HIterator(6)); // (4,6]
         ranges.next().addAll(new HIterator(8)); // (6,8]
@@ -381,7 +418,9 @@ public class MerkleTreeTest
         mt2.split(tok(9));
         mt2.split(tok(11));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         ranges = mt2.rangeIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         ranges.next().addAll(new HIterator(2)); // (-1,2]
         ranges.next().addAll(new HIterator(4)); // (2,4]
         ranges.next().addAll(new HIterator(6, 8)); // (4,8]: depth 2
@@ -400,15 +439,18 @@ public class MerkleTreeTest
     public void testSerialization() throws Exception
     {
         Range<Token> full = new Range<>(tok(-1), tok(-1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
 
         // populate and validate the tree
         mt.maxsize(256);
         mt.init();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         for (TreeRange range : mt.rangeIterator())
             range.addAll(new HIterator(range.right));
 
         byte[] initialhash = mt.hash(full);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         DataOutputBuffer out = new DataOutputBuffer();
         mt.serialize(out, MessagingService.current_version);
         byte[] serialized = out.toByteArray();
@@ -443,6 +485,7 @@ public class MerkleTreeTest
         mt2.init();
 
         // add dummy hashes to both trees
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         for (TreeRange range : mt.rangeIterator())
             range.addAll(new HIterator(range.right));
         for (TreeRange range : mt2.rangeIterator())
@@ -454,6 +497,7 @@ public class MerkleTreeTest
         mt.maxsize(maxsize + 2); // give some room for splitting
 
         // split the leftmost
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Iterator<TreeRange> ranges = mt.rangeIterator();
         leftmost = ranges.next();
         mt.split(leftmost.right);
@@ -464,8 +508,10 @@ public class MerkleTreeTest
         mt.get(partitioner.midpoint(leftmost.left, leftmost.right)).hash(digest("even more arbitrary!"));
 
         // trees should disagree for (leftmost.left, middle.right]
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-520
         List<TreeRange> diffs = MerkleTree.difference(mt, mt2);
         assertEquals(diffs + " contains wrong number of differences:", 1, diffs.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         assertTrue(diffs.contains(new Range<>(leftmost.left, middle.right)));
     }
 
@@ -484,6 +530,7 @@ public class MerkleTreeTest
         MerkleTree rtree = new MerkleTree(partitioner, range, RECOMMENDED_DEPTH, 16);
         rtree.init();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         byte[] h1 = digest("asdf");
         byte[] h2 = digest("hjkl");
 
@@ -509,6 +556,7 @@ public class MerkleTreeTest
     @Test
     public void matchingSmallRange()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13603
         Token start = new BigIntegerToken("9");
         Token end = new BigIntegerToken("10");
         Range<Token> range = new Range<>(start, end);
@@ -518,6 +566,7 @@ public class MerkleTreeTest
         MerkleTree rtree = new MerkleTree(partitioner, range, RECOMMENDED_DEPTH, 16);
         rtree.init();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         byte[] h1 = digest("asdf");
         byte[] h2 = digest("asdf");
 
@@ -557,6 +606,7 @@ public class MerkleTreeTest
             while (depth.equals(dstack.peek()))
             {
                 // consume the stack
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                 hash = MerkleTree.xor(hstack.pop(), hash);
                 depth = dstack.pop() - 1;
             }
@@ -587,6 +637,7 @@ public class MerkleTreeTest
         public RowHash computeNext()
         {
             if (tokens.hasNext())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2698
                 return new RowHash(tokens.next(), DUMMY, DUMMY.length);
             return endOfData();
         }
@@ -672,6 +723,7 @@ public class MerkleTreeTest
     public void testEqualTreesSameDepth() throws IOException
     {
         int seed = makeSeed();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Trees trees = Trees.make(seed, seed, 3, 3);
         testDifferences(trees, Collections.emptyList());
     }

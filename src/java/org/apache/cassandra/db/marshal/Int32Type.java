@@ -34,16 +34,19 @@ public class Int32Type extends NumberType<Integer>
 
     Int32Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     } // singleton
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -68,6 +71,7 @@ public class Int32Type extends NumberType<Integer>
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             throw new MarshalException(String.format("Unable to make int from '%s'", source), e);
         }
 
@@ -114,12 +118,14 @@ public class Int32Type extends NumberType<Integer>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 4;
     }
 
     @Override
     protected int toInt(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return ByteBufferUtil.toInt(value);
     }
 

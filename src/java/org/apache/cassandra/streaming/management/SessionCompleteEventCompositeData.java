@@ -29,6 +29,7 @@ public class SessionCompleteEventCompositeData
 {
     private static final String[] ITEM_NAMES = new String[]{"planId",
                                                             "peer",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                             "peer storage port",
                                                             "success"};
     private static final String[] ITEM_DESCS = new String[]{"Plan ID",
@@ -61,6 +62,7 @@ public class SessionCompleteEventCompositeData
     {
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], event.planId.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         valueMap.put(ITEM_NAMES[1], event.peer.address.getHostAddress());
         valueMap.put(ITEM_NAMES[2], event.peer.port);
         valueMap.put(ITEM_NAMES[3], event.success);

@@ -281,11 +281,14 @@ public class KeyCacheTest
 
         assertKeyCacheSize(2, KEYSPACE1, cf);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Set<SSTableReader> readers = cfs.getLiveSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
         Refs<SSTableReader> refs = Refs.tryRef(readers);
         if (refs == null)
             throw new IllegalStateException();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6008
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         boolean noEarlyOpen = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB() < 0;
 
@@ -295,8 +298,10 @@ public class KeyCacheTest
         assertKeyCacheSize(noEarlyOpen ? 2 : 4, KEYSPACE1, cf);
 
         refs.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
 
         LifecycleTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         // after releasing the reference this should drop to 2
         assertKeyCacheSize(2, KEYSPACE1, cf);
@@ -319,6 +324,8 @@ public class KeyCacheTest
     private void assertKeyCacheSize(int expected, String keyspace, String columnFamily)
     {
         int size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         for (Iterator<KeyCacheKey> iter = CacheService.instance.keyCache.keyIterator();
              iter.hasNext();)
         {

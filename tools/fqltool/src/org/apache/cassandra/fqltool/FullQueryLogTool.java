@@ -43,6 +43,7 @@ public class FullQueryLogTool
 {
     public static void main(String... args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         DatabaseDescriptor.clientInitialization();
         List<Class<? extends Runnable>> commands = newArrayList(
                 Help.class,

@@ -40,6 +40,7 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
     private RTBoundValidator(Stage stage, boolean enforceIsClosed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         this.stage = stage;
         this.enforceIsClosed = enforceIsClosed;
     }

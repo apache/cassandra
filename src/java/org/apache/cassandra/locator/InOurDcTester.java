@@ -43,6 +43,7 @@ public class InOurDcTester
                 // this final clause checks if somehow the snitch/localDc have got out of whack;
                 // presently, this is possible but very unlikely, but this check will also help
                 // resolve races on these global fields as well
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                 || !dc.equals(snitch.getLocalDatacenter());
     }
 

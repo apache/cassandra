@@ -109,6 +109,7 @@ public class CompactionControllerTest extends SchemaLoader
         try (CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12792
 
             applyMutation(cfs.metadata(), key, timestamp3);
 
@@ -125,6 +126,7 @@ public class CompactionControllerTest extends SchemaLoader
             applyMutation(cfs.metadata(), key, timestamp2);
             applyMutation(cfs.metadata(), key, timestamp3);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12792
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3); //memtable only
         }
 
@@ -137,6 +139,7 @@ public class CompactionControllerTest extends SchemaLoader
             applyMutation(cfs.metadata(), key, timestamp2);
             applyMutation(cfs.metadata(), key, timestamp1);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12792
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3);
         }
     }

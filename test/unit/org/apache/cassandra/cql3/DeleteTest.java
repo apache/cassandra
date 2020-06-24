@@ -42,6 +42,7 @@ public class DeleteTest extends CQLTester
     {
         // Schema.instance.clear();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10656
         Session session = sessionNet();
         session.getCluster().getConfiguration().getQueryOptions().setConsistencyLevel(ConsistencyLevel.ONE);
 
@@ -97,6 +98,7 @@ public class DeleteTest extends CQLTester
     public void lostDeletesTest()
     {
         Session session = sessionNet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10656
 
         for (int i = 0; i < 500; i++)
         {
@@ -134,6 +136,7 @@ public class DeleteTest extends CQLTester
 
     private ResultSetFuture[] load() {
         Session session = sessionNet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10656
 
         return new ResultSetFuture[]{
                 session.executeAsync(pstmt1.bind(1, 1)),

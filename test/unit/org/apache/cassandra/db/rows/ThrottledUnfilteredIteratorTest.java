@@ -94,6 +94,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
                                 .addClusteringColumn("ck2", Int32Type.instance)
                                 .addRegularColumn("v1", Int32Type.instance)
                                 .addRegularColumn("v2", Int32Type.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
                                 .addStaticColumn("s1", Int32Type.instance)
                                 .build();
         v1Metadata = metadata.regularAndStaticColumns().columns(false).getSimple(0);
@@ -369,6 +370,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
             origin = rows(metadata.regularAndStaticColumns(),
                           1,
                           new DeletionTime(0, 100),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
                           createStaticRow(createCell(staticMetadata, 160)),
                           rows.toArray(new Row[0]));
             throttledIterator = new ThrottledUnfilteredIterator(origin, throttle);
@@ -416,6 +418,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
         {
             origin = partitions(metadata.regularAndStaticColumns(),
                                 new DeletionTime(0, 100),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
                                 createStaticRow(createCell(staticMetadata, 160)),
                                 partitions);
             throttledIterator = ThrottledUnfilteredIterator.throttle(origin, throttle);
@@ -437,6 +440,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
                 UnfilteredRowIterator current = rows(metadata.regularAndStaticColumns(),
                                                      currentPartition,
                                                      new DeletionTime(0, 100),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
                                                      createStaticRow(createCell(staticMetadata, 160)),
                                                      partitions.get(currentPartition).toArray(new Row[0]));
                 assertMetadata(current, splitted, currentSplit == 1);
@@ -583,6 +587,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
 
     private static Row createStaticRow(Cell... columns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14315
         Row.Builder builder = new BTreeRow.Builder(true);
         builder.newRow(Clustering.STATIC_CLUSTERING);
         for (Cell cell : columns)

@@ -90,6 +90,7 @@ public final class AuthKeyspace
               + "PRIMARY KEY(resource, role))");
 
     private static final TableMetadata NetworkPermissions =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         parse(NETWORK_PERMISSIONS,
               "user network permissions",
               "CREATE TABLE %s ("
@@ -110,6 +111,7 @@ public final class AuthKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
                                        KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
                                        Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex, NetworkPermissions));
     }
 }

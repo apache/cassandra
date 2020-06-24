@@ -60,6 +60,7 @@ public class PartitionTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_TENCOL, 10, AsciiType.instance),
@@ -81,6 +82,7 @@ public class PartitionTest
         CachedPartition.cacheSerializer.serialize(partition, bufOut);
 
         CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
 
         assert deserialized != null;
         assert deserialized.metadata().name.equals(CF_STANDARD1);
@@ -101,12 +103,16 @@ public class PartitionTest
         PartitionUpdate update = builder.buildUpdate();
 
         CachedBTreePartition partition = CachedBTreePartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
 
         DataOutputBuffer bufOut = new DataOutputBuffer();
         CachedPartition.cacheSerializer.serialize(partition, bufOut);
 
         CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         assertEquals(partition.columns().regulars.size(), deserialized.columns().regulars.size());
         assertTrue(deserialized.columns().regulars.getSimple(1).equals(partition.columns().regulars.getSimple(1)));
         assertTrue(deserialized.columns().regulars.getSimple(5).equals(partition.columns().regulars.getSimple(5)));
@@ -140,6 +146,7 @@ public class PartitionTest
             ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(cmd1);
             ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(cmd2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             byte[] digest1 = getDigest(p1.unfilteredIterator(), version);
             byte[] digest2 = getDigest(p2.unfilteredIterator(), version);
             assertFalse(Arrays.equals(digest1, digest2));
@@ -165,6 +172,7 @@ public class PartitionTest
 
     private byte[] getDigest(UnfilteredRowIterator partition, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest digest = Digest.forReadResponse();
         UnfilteredRowIterators.digest(partition, digest, version);
         return digest.digest();
@@ -183,7 +191,9 @@ public class PartitionTest
         builder.build().applyUnsafe();
 
         RowUpdateBuilder.deleteRowAt(cfs.metadata(), 10L, localDeletionTime, "key1", "c").applyUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
         EncodingStats stats = partition.stats();
         assertEquals(localDeletionTime, stats.minLocalDeletionTime);
     }

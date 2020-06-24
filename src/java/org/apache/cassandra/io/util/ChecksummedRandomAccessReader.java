@@ -27,6 +27,7 @@ public final class ChecksummedRandomAccessReader
     @SuppressWarnings("resource") // The Rebufferer owns both the channel and the validator and handles closing both.
     public static RandomAccessReader open(File file, File crcFile) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         ChannelProxy channel = new ChannelProxy(file);
         try
         {

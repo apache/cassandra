@@ -71,6 +71,7 @@ public class StreamingInboundHandlerTest
     {
         handler = new StreamingInboundHandler(REMOTE_ADDR, VERSION, null);
         channel = new EmbeddedChannel(handler);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         buffers = new AsyncStreamingInputPlus(channel);
         handler.setPendingBuffers(buffers);
     }
@@ -90,6 +91,7 @@ public class StreamingInboundHandlerTest
     @Test
     public void channelRead_Normal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Assert.assertEquals(0, buffers.unsafeAvailable());
         int size = 8;
         buf = channel.alloc().buffer(size);
@@ -108,6 +110,7 @@ public class StreamingInboundHandlerTest
         buf.writerIndex(size);
         handler.close();
         channel.writeInbound(buf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Assert.assertEquals(0, buffers.unsafeAvailable());
         Assert.assertEquals(0, buf.refCnt());
         Assert.assertFalse(channel.releaseInbound());
@@ -124,6 +127,7 @@ public class StreamingInboundHandlerTest
     @Test
     public void StreamDeserializingTask_deriveSession_StreamInitMessage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         StreamInitMessage msg = new StreamInitMessage(REMOTE_ADDR, 0, UUID.randomUUID(), StreamOperation.REPAIR, UUID.randomUUID(), PreviewKind.ALL);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(null, channel);
         StreamSession session = task.deriveSession(msg);
@@ -158,6 +162,7 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deserialize_ISM_HasSession()
     {
         UUID planId = UUID.randomUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, UUID.randomUUID(), PreviewKind.ALL);
         StreamManager.instance.registerFollower(future);
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, false,

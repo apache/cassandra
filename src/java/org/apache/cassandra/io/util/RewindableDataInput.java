@@ -23,6 +23,7 @@ import java.io.IOException;
 public interface RewindableDataInput extends DataInputPlus
 {
     DataPosition mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
 
     void reset(DataPosition mark) throws IOException;
 

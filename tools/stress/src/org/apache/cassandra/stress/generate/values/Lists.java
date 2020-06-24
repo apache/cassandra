@@ -28,12 +28,14 @@ import org.apache.cassandra.db.marshal.ListType;
 
 public class Lists<T> extends Generator<List<T>>
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10807
     final Generator<T> valueType;
     final T[] buffer;
 
     @SuppressWarnings("unchecked")
     public Lists(String name, Generator<T> valueType, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         super(ListType.getInstance(valueType.type, true), config, name, List.class);
         this.valueType = valueType;
         buffer = (T[]) new Object[(int) sizeDistribution.maxValue()];

@@ -30,14 +30,17 @@ import static org.apache.cassandra.utils.Throwables.merge;
 public abstract class WrappedSharedCloseable extends SharedCloseableImpl
 {
     final AutoCloseable[] wrapped;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
 
     public WrappedSharedCloseable(final AutoCloseable closeable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
         this(new AutoCloseable[] {closeable});
     }
 
     public WrappedSharedCloseable(final AutoCloseable[] closeable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         super(new Tidy(closeable));
         wrapped = closeable;
     }

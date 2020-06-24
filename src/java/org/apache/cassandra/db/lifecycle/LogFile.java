@@ -53,6 +53,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  *
  * @see LogTransaction
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11594
 final class LogFile implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(LogFile.class);
@@ -84,6 +85,7 @@ final class LogFile implements AutoCloseable
         Matcher matcher = LogFile.FILE_REGEX.matcher(fileName);
         boolean matched = matcher.matches();
         assert matched && matcher.groupCount() == 3;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10522
 
         // For now we don't need this but it is there in case we need to change
         // file format later on, the version is the sstable version as defined in BigFormat
@@ -95,6 +97,7 @@ final class LogFile implements AutoCloseable
         return new LogFile(operationType, id, logReplicas);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     Throwable syncDirectory(Throwable accumulate)
     {
         return replicas.syncDirectory(accumulate);
@@ -125,6 +128,7 @@ final class LogFile implements AutoCloseable
             // we sync the parent directories between contents and log deletion
             // to ensure there is a happens before edge between them
             Throwables.maybeFail(syncDirectory(accumulate));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
 
             accumulate = replicas.delete(accumulate);
         }
@@ -155,13 +159,16 @@ final class LogFile implements AutoCloseable
 
     boolean verify()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11156
         records.clear();
         if (!replicas.readRecords(records))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             logger.error("Failed to read records for transaction log {}", this);
             return false;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         Set<String> absolutePaths = new HashSet<>();
         for (LogRecord record : records)
             record.absolutePath.ifPresent(absolutePaths::add);
@@ -193,9 +200,11 @@ final class LogFile implements AutoCloseable
         if (records.stream()
                    .filter((r) -> r != failedOn)
                    .filter(LogRecord::isInvalid)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                    .map(this::setErrorInReplicas)
                    .findFirst().isPresent())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             setErrorInReplicas(failedOn);
             return false;
         }
@@ -208,6 +217,7 @@ final class LogFile implements AutoCloseable
         return true;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     LogRecord setErrorInReplicas(LogRecord record)
     {
         replicas.setErrorInReplicas(record);
@@ -218,6 +228,7 @@ final class LogFile implements AutoCloseable
     {
         if (record.checksum != record.computeChecksum())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             record.setError(String.format("Invalid checksum for sstable [%s]: [%d] should have been [%d]",
                                           record.fileName(),
                                           record.checksum,
@@ -234,9 +245,11 @@ final class LogFile implements AutoCloseable
         // file that obsoleted the very same files. So we check the latest update time and make sure
         // it matches. Because we delete files from oldest to newest, the latest update time should
         // always match.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         record.status.onDiskRecord = record.withExistingFiles(existingFiles);
         if (record.updateTime != record.status.onDiskRecord.updateTime && record.status.onDiskRecord.updateTime > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             record.setError(String.format("Unexpected files detected for sstable [%s]: " +
                                           "last update time [%tT] should have been [%tT]",
                                           record.fileName(),
@@ -251,6 +264,7 @@ final class LogFile implements AutoCloseable
         if (record.type == Type.REMOVE && record.status.onDiskRecord.numFiles < record.numFiles)
         { // if we found a corruption in the last record, then we continue only
           // if the number of files matches exactly for all previous records.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
             record.setError(String.format("Incomplete fileset detected for sstable [%s]: " +
                                           "number of files [%d] should have been [%d].",
                                           record.fileName(),
@@ -292,6 +306,7 @@ final class LogFile implements AutoCloseable
         return committed() || aborted();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
     void add(SSTable table)
     {
         addRecord(makeAddRecord(table));
@@ -321,6 +336,7 @@ final class LogFile implements AutoCloseable
         File directory = table.descriptor.directory;
         String fileName = StringUtils.join(directory, File.separator, getFileName());
         replicas.maybeCreateReplica(directory, fileName, records);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         return LogRecord.make(Type.ADD, table);
     }
 
@@ -332,7 +348,9 @@ final class LogFile implements AutoCloseable
     private LogRecord makeRecord(Type type, SSTable table, LogRecord record)
     {
         assert type == Type.ADD || type == Type.REMOVE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
         File directory = table.descriptor.directory;
         String fileName = StringUtils.join(directory, File.separator, getFileName());
         replicas.maybeCreateReplica(directory, fileName, records);
@@ -352,6 +370,7 @@ final class LogFile implements AutoCloseable
             throw new IllegalStateException("Failed to add record");
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
     void remove(SSTable table)
     {
         LogRecord record = makeAddRecord(table);
@@ -363,6 +382,7 @@ final class LogFile implements AutoCloseable
 
     boolean contains(Type type, SSTable sstable, LogRecord record)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
         return contains(makeRecord(type, sstable, record));
     }
 
@@ -373,6 +393,7 @@ final class LogFile implements AutoCloseable
 
     void deleteFilesForRecordsOfType(Type type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         assert type == Type.REMOVE || type == Type.ADD;
         Set<String> absolutePaths = new HashSet<>();
         for (LogRecord record : records)
@@ -409,6 +430,7 @@ final class LogFile implements AutoCloseable
      *
      * @return a map linking each mapped record to its files, where the files where passed in as parameters.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11470
     Map<LogRecord, Set<File>> getFilesOfType(Path folder, NavigableSet<File> files, Type type)
     {
         Map<LogRecord, Set<File>> ret = new HashMap<>();
@@ -446,6 +468,7 @@ final class LogFile implements AutoCloseable
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
         return toString(false);
     }
 
@@ -481,6 +504,7 @@ final class LogFile implements AutoCloseable
 
     private String getFileName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
         return StringUtils.join(BigFormat.latestVersion,
                                 LogFile.SEP,
                                 "txn",
@@ -493,6 +517,7 @@ final class LogFile implements AutoCloseable
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13909
         return records.isEmpty();
     }
 }

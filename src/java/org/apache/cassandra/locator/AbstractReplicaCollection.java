@@ -71,6 +71,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     protected static class ReplicaList implements Iterable<Replica>
     {
         private static final Replica[] EMPTY = new Replica[0];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         Replica[] contents;
         int begin, size;
 
@@ -285,6 +286,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             // 8*0.65 => RF=5; 16*0.65 ==> RF=10
             // use list capacity if empty, otherwise use actual list size
             this.toKey = toKey;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
             this.map = new ObjectIntHashMap<>(list.size == 0 ? list.contents.length : list.size, 0.65f);
             this.list = list;
             for (int i = list.begin ; i < list.begin + list.size ; ++i)
@@ -400,6 +402,8 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     public int count(Predicate<Replica> predicate)
     {
         int count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         for (int i = 0 ; i < list.size() ; ++i)
             if (predicate.test(list.get(i)))
                 ++count;
@@ -418,6 +422,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         if (isEmpty())
             return snapshot();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         ReplicaList copy = null;
         int beginRun = -1, endRun = -1;
         int i = 0;
@@ -432,6 +437,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
                     beginRun = i;
                 else if (endRun > 0)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                     copy = new ReplicaList(Math.min(limit, (list.size() - i) + (endRun - beginRun)));
                     for (int j = beginRun ; j < endRun ; ++j)
                         copy.add(list.get(j));
@@ -459,6 +465,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     /** see {@link ReplicaCollection#filterLazily(Predicate)}*/
     public final Iterable<Replica> filterLazily(Predicate<Replica> predicate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return filterLazily(predicate, Integer.MAX_VALUE);
     }
 
@@ -509,6 +516,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
      */
     public final boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         throw new UnsupportedOperationException("AbstractReplicaCollection equals unsupported");
     }
 
@@ -530,6 +538,7 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
     @Override
     public final String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return Iterables.toString(list);
     }
 

@@ -55,6 +55,7 @@ public class CounterContextTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -62,6 +63,7 @@ public class CounterContextTest
     @Test
     public void testAllocate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState allGlobal = ContextState.allocate(3, 0, 0);
         assertEquals(headerSizeLength + 3 * headerEltLength + 3 * stepLength, allGlobal.context.remaining());
 
@@ -91,6 +93,7 @@ public class CounterContextTest
         assertEquals(Relationship.EQUAL, cc.diff(left.context, right.context));
 
         // greater than: left has superset of nodes (counts equal)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3),  3L, 0L);
         left.writeRemote(CounterId.fromInt(6),  2L, 0L);
@@ -105,6 +108,7 @@ public class CounterContextTest
         assertEquals(Relationship.GREATER_THAN, cc.diff(left.context, right.context));
 
         // less than: left has subset of nodes (counts equal)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
@@ -119,6 +123,7 @@ public class CounterContextTest
         assertEquals(Relationship.LESS_THAN, cc.diff(left.context, right.context));
 
         // greater than: equal nodes, but left has higher counts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
@@ -132,6 +137,7 @@ public class CounterContextTest
         assertEquals(Relationship.GREATER_THAN, cc.diff(left.context, right.context));
 
         // less than: equal nodes, but right has higher counts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
@@ -145,6 +151,7 @@ public class CounterContextTest
         assertEquals(Relationship.LESS_THAN, cc.diff(left.context, right.context));
 
         // disjoint: right and left have disjoint node sets
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 1L, 0L);
         left.writeRemote(CounterId.fromInt(4), 1L, 0L);
@@ -170,6 +177,7 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: equal nodes, but right and left have higher counts in differing nodes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 1L, 0L);
         left.writeRemote(CounterId.fromInt(6), 3L, 0L);
@@ -195,6 +203,7 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: left has more nodes, but lower counts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3),  2L, 0L);
         left.writeRemote(CounterId.fromInt(6),  3L, 0L);
@@ -209,6 +218,7 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: left has less nodes, but higher counts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 5L, 0L);
         left.writeRemote(CounterId.fromInt(6), 3L, 0L);
@@ -223,6 +233,7 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: mixed nodes and counts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 5L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
@@ -236,6 +247,7 @@ public class CounterContextTest
 
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3), 5L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
@@ -254,7 +266,9 @@ public class CounterContextTest
     public void testMerge()
     {
         // note: local counts aggregated; remote counts are reconciled (i.e. take max)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState left = ContextState.allocate(0, 1, 3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
         left.writeRemote(CounterId.fromInt(1), 1L, 1L);
         left.writeRemote(CounterId.fromInt(2), 2L, 2L);
         left.writeRemote(CounterId.fromInt(4), 6L, 3L);
@@ -294,6 +308,7 @@ public class CounterContextTest
         //
         // Test merging two exclusively global contexts
         //
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(3, 0, 0);
         left.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         left.writeGlobal(CounterId.fromInt(2), 2L, 2L);
@@ -330,6 +345,7 @@ public class CounterContextTest
         //
         // Test merging two global contexts w/ 'invalid shards'
         //
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(1, 0, 0);
         left.writeGlobal(CounterId.fromInt(1), 10L, 20L);
 
@@ -349,6 +365,7 @@ public class CounterContextTest
         //
         // Test merging global w/ mixed contexts
         //
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         left = ContextState.allocate(2, 0, 0);
         left.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         left.writeGlobal(CounterId.fromInt(2), 1L, 1L);
@@ -374,7 +391,9 @@ public class CounterContextTest
     @Test
     public void testTotal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState mixed = ContextState.allocate(0, 1, 4);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6505
         mixed.writeRemote(CounterId.fromInt(1), 1L, 1L);
         mixed.writeRemote(CounterId.fromInt(2), 2L, 2L);
         mixed.writeRemote(CounterId.fromInt(4), 4L, 4L);
@@ -382,6 +401,7 @@ public class CounterContextTest
         mixed.writeLocal(CounterId.getLocalId(), 12L, 12L);
         assertEquals(24L, cc.total(mixed.context));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         ContextState global = ContextState.allocate(3, 0, 0);
         global.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         global.writeGlobal(CounterId.fromInt(2), 2L, 2L);
@@ -397,6 +417,7 @@ public class CounterContextTest
         ByteBuffer cleared;
 
         // mark/clear for remote-only contexts is a no-op
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         state = ContextState.allocate(0, 0, 1);
         state.writeRemote(CounterId.fromInt(1), 1L, 1L);
 
@@ -409,6 +430,7 @@ public class CounterContextTest
         assertSame(cleared, marked); // shouldn't alter anything either
 
         // a single local shard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         state = ContextState.allocate(0, 1, 0);
         state.writeLocal(CounterId.fromInt(1), 1L, 1L);
 
@@ -423,6 +445,7 @@ public class CounterContextTest
         assertEquals(0, cleared.getShort(cleared.position()));
 
         // 2 global + 1 local shard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         state = ContextState.allocate(2, 1, 0);
         state.writeLocal(CounterId.fromInt(1), 1L, 1L);
         state.writeGlobal(CounterId.fromInt(2), 2L, 2L);
@@ -471,6 +494,7 @@ public class CounterContextTest
         assertEquals(3L, cleared.getLong(cleared.position() + headerLength + 2 * stepLength + idLength + clockLength));
 
         // a single global shard - no-op
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         state = ContextState.allocate(1, 0, 0);
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
 
@@ -519,6 +543,8 @@ public class CounterContextTest
     public void testGetGlockAndCountOf()
     {
         ContextState state = ContextState.allocate(3, 3, 3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
 
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         state.writeRemote(CounterId.fromInt(2), 2L, 2L);

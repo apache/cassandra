@@ -60,6 +60,7 @@ final class LastEventIdBroadcaster extends NotificationBroadcasterSupport implem
 
         summary.put("last_updated_at", 0L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, "org.apache.cassandra.diag:type=LastEventIdBroadcaster");
     }
 

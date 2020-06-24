@@ -45,6 +45,7 @@ public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRan
         @Override
         protected EndpointsForRange.Builder newBuilder(Replica replica)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             return new EndpointsForRange.Builder(replica.range());
         }
 

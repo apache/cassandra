@@ -468,6 +468,7 @@ public class Message<T>
          */
         public Builder<T> withTracingParams()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15499
             if (Tracing.isTracing())
                 Tracing.instance.addTraceHeaders(params);
             return this;

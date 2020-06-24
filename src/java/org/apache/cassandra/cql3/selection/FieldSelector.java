@@ -39,6 +39,7 @@ final class FieldSelector extends Selector
         {
             protected String getColumnName()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 return String.format("%s.%s", factory.getColumnName(), type.fieldName(field));
             }
 
@@ -54,6 +55,7 @@ final class FieldSelector extends Selector
 
             public Selector newInstance(QueryOptions options) throws InvalidRequestException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 return new FieldSelector(type, field, factory.newInstance(options));
             }
 
@@ -64,6 +66,7 @@ final class FieldSelector extends Selector
 
             public boolean areAllFetchedColumnsKnown()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 return factory.areAllFetchedColumnsKnown();
             }
 
@@ -106,6 +109,7 @@ final class FieldSelector extends Selector
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         return String.format("%s.%s", selected, type.fieldName(field));
     }
 

@@ -43,6 +43,7 @@ public final class RTBoundCloser extends Transformation<UnfilteredRowIterator>
 
     public static UnfilteredPartitionIterator close(UnfilteredPartitionIterator partitions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         return Transformation.apply(partitions, new RTBoundCloser());
     }
 

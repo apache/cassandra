@@ -89,6 +89,7 @@ public class RepairJobTest
     private static final Range<Token> RANGE_3 = range(4, 5);
     private static final RepairJobDesc JOB_DESC = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE, CF, Collections.emptyList());
     private static final List<Range<Token>> FULL_RANGE = Collections.singletonList(new Range<>(MURMUR3_PARTITIONER.getMinimumToken(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
                                                                                                MURMUR3_PARTITIONER.getMaximumToken()));
     private static InetAddressAndPort addr1;
     private static InetAddressAndPort addr2;
@@ -163,6 +164,7 @@ public class RepairJobTest
 
         UUID parentRepairSession = UUID.randomUUID();
         ActiveRepairService.instance.registerParentRepairSession(parentRepairSession, FBUtilities.getBroadcastAddressAndPort(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
                                                                  Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(CF)), FULL_RANGE, false,
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
 
@@ -183,6 +185,7 @@ public class RepairJobTest
     public void reset()
     {
         ActiveRepairService.instance.terminateSessions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
         FBUtilities.reset();
@@ -195,6 +198,7 @@ public class RepairJobTest
     public void testEndToEndNoDifferences() throws InterruptedException, ExecutionException, TimeoutException
     {
         Map<InetAddressAndPort, MerkleTrees> mockTrees = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         mockTrees.put(addr1, createInitialTree(false));
         mockTrees.put(addr2, createInitialTree(false));
         mockTrees.put(addr3, createInitialTree(false));
@@ -208,6 +212,7 @@ public class RepairJobTest
 
         // Since there are no differences, there should be nothing to sync.
         assertThat(result.stats).hasSize(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
 
         // RepairJob should send out SNAPSHOTS -> VALIDATIONS -> done
         List<Verb> expectedTypes = new ArrayList<>();
@@ -216,6 +221,7 @@ public class RepairJobTest
         for (int i = 0; i < 3; i++)
             expectedTypes.add(Verb.VALIDATION_REQ);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         assertThat(observedMessages).extracting(Message::verb).containsExactlyElementsOf(expectedTypes);
     }
 
@@ -234,6 +240,7 @@ public class RepairJobTest
         List<TreeResponse> mockTreeResponses = mockTrees.entrySet().stream()
                                                         .map(e -> new TreeResponse(e.getKey(), e.getValue()))
                                                         .collect(Collectors.toList());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         List<Message<?>> messages = new ArrayList<>();
         interceptRepairMessages(mockTrees, messages);
 
@@ -250,6 +257,7 @@ public class RepairJobTest
 
         // SyncTasks themselves should not contain significant memory
         SyncTaskListAssert.assertThat(syncTasks).hasSizeLessThan(0.2 * singleTreeSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
 
         // block syncComplete execution until test has verified session still retains the trees
         CompletableFuture<?> future = new CompletableFuture<>();
@@ -273,6 +281,7 @@ public class RepairJobTest
         }
 
         assertThat(millisUntilFreed).isLessThan(TEST_TIMEOUT_S * 1000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
 
         List<SyncStat> results = syncResults.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
 
@@ -304,6 +313,7 @@ public class RepairJobTest
 
     public static void testCreateStandardSyncTasks(boolean pullRepair)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"),
                                                          treeResponse(addr3, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"));
@@ -341,6 +351,7 @@ public class RepairJobTest
 
     public void testStandardSyncTransient(boolean pullRepair)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
 
@@ -353,6 +364,7 @@ public class RepairJobTest
                                                                                     PreviewKind.ALL));
 
         assertThat(tasks).hasSize(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
 
         assertThat(tasks.get(pair(addr1, addr2)))
             .isLocal()
@@ -371,6 +383,7 @@ public class RepairJobTest
 
     public void testStandardSyncLocalTransient(boolean pullRepair)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
 
@@ -384,6 +397,7 @@ public class RepairJobTest
 
         if (pullRepair)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
             assertThat(tasks).isEmpty();
             return;
         }
@@ -431,6 +445,7 @@ public class RepairJobTest
 
     public void testEmptyDifference(InetAddressAndPort local, Predicate<InetAddressAndPort> isTransient, boolean pullRepair)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"));
 
@@ -442,6 +457,7 @@ public class RepairJobTest
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         assertThat(tasks).isEmpty();
     }
 
@@ -461,6 +477,7 @@ public class RepairJobTest
                                                                                     PreviewKind.ALL));
 
         assertThat(tasks).hasSize(3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
 
         assertThat(tasks.get(pair(addr1, addr2)))
             .isLocal()
@@ -505,6 +522,7 @@ public class RepairJobTest
         {
             SyncTask task = tasks.get(pair);
             // Local only if addr1 is a coordinator
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
             assertThat(task)
                 .hasLocal(pair.coordinator.equals(addr1))
                 // All ranges to be synchronised
@@ -543,6 +561,7 @@ public class RepairJobTest
 
     public static void testLocalSyncWithTransient(InetAddressAndPort local, boolean pullRepair)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "three", RANGE_3, "three"),
@@ -558,6 +577,7 @@ public class RepairJobTest
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         assertThat(tasks).hasSize(9);
         for (InetAddressAndPort addr : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
@@ -593,6 +613,7 @@ public class RepairJobTest
     private static void testLocalAndRemoteTransient(boolean pullRepair)
     {
         FBUtilities.setBroadcastInetAddress(addr4.address);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "three", RANGE_3, "three"),
@@ -607,6 +628,7 @@ public class RepairJobTest
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         assertThat(tasks.get(pair(addr4, addr5))).isNull();
     }
 
@@ -632,6 +654,7 @@ public class RepairJobTest
                                                      pair(addr3, addr1),
                                                      pair(addr3, addr2) })
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
             assertThat(tasks.get(pair)).hasRanges(RANGE_1, RANGE_2, RANGE_3);
         }
     }
@@ -652,6 +675,7 @@ public class RepairJobTest
                                                                                             PreviewKind.ALL));
 
         assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
 
         assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).containsExactly(RANGE_1);
         // addr1 can get range2 from either addr2 or addr3 but not from both
@@ -682,6 +706,7 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         assertThat(tasks).hasSize(3);
         SyncTask task = tasks.get(pair(addr1, addr2));
 
@@ -713,6 +738,7 @@ public class RepairJobTest
         }
 
         SyncTask task = tasks.get(pair(target, streamsFrom));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         assertThat(task).isInstanceOf(AsymmetricRemoteSyncTask.class);
         assertThat(task.rangesToSync).containsOnly(range);
         assertDoesntStreamRangeFrom(range, tasks.get(pair(target, doesntStreamFrom)));
@@ -757,6 +783,7 @@ public class RepairJobTest
 
     public static Map<SyncNodePair, SyncTask> toMap(List<SyncTask> tasks)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         ImmutableMap.Builder<SyncNodePair, SyncTask> map = ImmutableMap.builder();
         tasks.forEach(t -> map.put(t.nodePair, t));
         return map.build();
@@ -779,6 +806,7 @@ public class RepairJobTest
     private MerkleTrees createInitialTree(boolean invalidate)
     {
         MerkleTrees tree = new MerkleTrees(MURMUR3_PARTITIONER);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
         tree.addMerkleTrees((int) Math.pow(2, 15), FULL_RANGE);
         tree.init();
 
@@ -802,11 +830,13 @@ public class RepairJobTest
                 return false;
 
             // So different Thread's messages don't overwrite each other.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15631
             synchronized (MESSAGE_LOCK)
             {
                 messageCapture.add(message);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             switch (message.verb())
             {
                 case SNAPSHOT_MSG:

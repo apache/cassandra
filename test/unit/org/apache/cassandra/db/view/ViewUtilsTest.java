@@ -47,6 +47,7 @@ public class ViewUtilsTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
@@ -102,6 +103,7 @@ public class ViewUtilsTest
 
         Map<String, String> replicationMap = new HashMap<>();
         replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         replicationMap.put("DC1", "2");
         replicationMap.put("DC2", "2");
@@ -125,6 +127,9 @@ public class ViewUtilsTest
         metadata.clearUnsafe();
 
         // DC1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
         metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.2"));
 
@@ -134,6 +139,7 @@ public class ViewUtilsTest
 
         Map<String, String> replicationMap = new HashMap<>();
         replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         replicationMap.put("DC1", "1");
         replicationMap.put("DC2", "1");

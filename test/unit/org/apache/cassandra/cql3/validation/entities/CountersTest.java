@@ -32,6 +32,7 @@ public class CountersTest extends CQLTester
     @Test
     public void testRegularCounters() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertInvalidThrowMessage("Cannot mix counter and non counter columns in the same table",
                                   InvalidRequestException.class,
                                   String.format("CREATE TABLE %s.%s (id bigint PRIMARY KEY, count counter, things set<text>)", KEYSPACE, createTableName()));
@@ -160,7 +161,9 @@ public class CountersTest extends CQLTester
     @Test
     public void testProhibitReversedCounterAsPartOfPrimaryKey() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidThrowMessage("counter type is not supported for PRIMARY KEY column 'a'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9395
                                   InvalidRequestException.class, String.format("CREATE TABLE %s.%s (a counter, b int, PRIMARY KEY (b, a)) WITH CLUSTERING ORDER BY (a desc);", KEYSPACE, createTableName()));
     }
 
@@ -171,8 +174,10 @@ public class CountersTest extends CQLTester
     public void testCounterBatch() throws Throwable
     {
         createTable("CREATE TABLE %s (userid int, url text, total counter, PRIMARY KEY (userid, url))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15747
 
         // Ensure we handle updates to the same CQL row in the same partition properly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13846
         execute("BEGIN UNLOGGED BATCH " +
                 "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
                 "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +

@@ -48,6 +48,7 @@ public class DatabaseDescriptorTest
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -56,6 +57,7 @@ public class DatabaseDescriptorTest
     public void testConfigurationLoader() throws Exception
     {
         // By default, we should load from the yaml
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5045
         Config config = DatabaseDescriptor.loadConfig();
         assertEquals("Test Cluster", config.cluster_name);
         Keyspace.setInitialized();
@@ -73,6 +75,7 @@ public class DatabaseDescriptorTest
         public Config loadConfig() throws ConfigurationException
         {
             Config testConfig = new Config();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
             testConfig.cluster_name = "ConfigurationLoader Test";
             return testConfig;
         }
@@ -88,6 +91,7 @@ public class DatabaseDescriptorTest
      */
     @BeforeClass
     public static void selectSuitableInterface() throws Exception {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8839
         Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
         while(interfaces.hasMoreElements()) {
             NetworkInterface intf = interfaces.nextElement();
@@ -210,6 +214,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testInvalidPartition() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15591
         Config testConfig = DatabaseDescriptor.loadConfig();
         testConfig.partitioner = "ThisDoesNotExist";
 
@@ -271,6 +276,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testTokensFromString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         assertTrue(DatabaseDescriptor.tokensFromString(null).isEmpty());
         Collection<String> tokens = DatabaseDescriptor.tokensFromString(" a,b ,c , d, f,g,h");
         assertEquals(7, tokens.size());
@@ -279,6 +285,7 @@ public class DatabaseDescriptorTest
 
     @Test
     public void testExceptionsForInvalidConfigValues() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(-1);
@@ -444,6 +451,7 @@ public class DatabaseDescriptorTest
         int denominator = 3;
         int spaceInBytes = 999 * 1024 * 1024;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15688
         assertEquals(666, // total size is less than preferred, so return lower limit
                      DatabaseDescriptor.calculateDefaultSpaceInMB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
 

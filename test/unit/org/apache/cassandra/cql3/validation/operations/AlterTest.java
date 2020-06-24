@@ -46,6 +46,7 @@ public class AlterTest extends CQLTester
     public void testDropColumnAsPreparedStatement() throws Throwable
     {
         String table = createTable("CREATE TABLE %s (key int PRIMARY KEY, value int);");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         PreparedStatement prepared = sessionNet().prepare("ALTER TABLE " + KEYSPACE + "." + table + " DROP value;");
 
@@ -83,6 +84,7 @@ public class AlterTest extends CQLTester
     public void testAddMap() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s ADD myCollection map<text, text>;");
         execute("INSERT INTO %s (id, content , myCollection) VALUES ('test', 'first test', { '1' : 'first element'});");
 
@@ -95,6 +97,8 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (id text PRIMARY KEY, content text, myCollection map<text, text>);");
         execute("INSERT INTO %s (id, content , myCollection) VALUES ('test', 'first test', { '1' : 'first element'});");
         alterTable("ALTER TABLE %s DROP myCollection;");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertRows(execute("SELECT * FROM %s;"), row("test", "first test"));
     }
@@ -104,6 +108,7 @@ public class AlterTest extends CQLTester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, content text, myCollection list<text>);");
         execute("INSERT INTO %s (id, content , myCollection) VALUES ('test', 'first test', ['first element']);");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s DROP myCollection;");
         alterTable("ALTER TABLE %s ADD myCollection list<text>;");
         assertRows(execute("SELECT * FROM %s;"), row("test", "first test", null));
@@ -117,6 +122,7 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (id text PRIMARY KEY, content text, myCollection list<text>);");
         execute("INSERT INTO %s (id, content , myCollection) VALUES ('test', 'first test', ['first element']);");
         alterTable("ALTER TABLE %s DROP myCollection;");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertInvalid("ALTER TABLE %s ADD myCollection map<int, int>;");
     }
@@ -124,6 +130,8 @@ public class AlterTest extends CQLTester
     @Test
     public void testDropWithTimestamp() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7190
         createTable("CREATE TABLE %s (id int, c1 int, v1 int, todrop int, PRIMARY KEY (id, c1));");
         for (int i = 0; i < 5; i++)
             execute("INSERT INTO %s (id, c1, v1, todrop) VALUES (?, ?, ?, ?) USING TIMESTAMP ?", 1, i, i, i, 10000L * i);
@@ -131,6 +139,7 @@ public class AlterTest extends CQLTester
         // flush is necessary since otherwise the values of `todrop` will get discarded during
         // alter statement
         flush(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s DROP todrop USING TIMESTAMP 20000;");
         alterTable("ALTER TABLE %s ADD todrop int;");
         execute("INSERT INTO %s (id, c1, v1, todrop) VALUES (?, ?, ?, ?) USING TIMESTAMP ?", 1, 100, 100, 100, 30000L);
@@ -147,7 +156,9 @@ public class AlterTest extends CQLTester
     public void testDropAddWithDifferentKind() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int static, PRIMARY KEY (a, b));");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14913
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s DROP c;");
         alterTable("ALTER TABLE %s DROP d;");
 
@@ -168,6 +179,7 @@ public class AlterTest extends CQLTester
         // flush is necessary since otherwise the values of `todrop` will get discarded during
         // alter statement
         flush(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s DROP todrop USING TIMESTAMP 20000;");
         alterTable("ALTER TABLE %s ADD todrop int static;");
         execute("INSERT INTO %s (id, c1, v1, todrop) VALUES (?, ?, ?, ?) USING TIMESTAMP ?", 1, 100, 100, 100, 30000L);
@@ -191,6 +203,7 @@ public class AlterTest extends CQLTester
         // flush is necessary since otherwise the values of `todrop1` and `todrop2` will get discarded during
         // alter statement
         flush(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s DROP (todrop1, todrop2) USING TIMESTAMP 20000;");
         alterTable("ALTER TABLE %s ADD todrop1 int;");
         alterTable("ALTER TABLE %s ADD todrop2 int;");
@@ -240,6 +253,7 @@ public class AlterTest extends CQLTester
         assertInvalidThrow(SyntaxException.class, "CREATE KEYSPACE ks1");
         assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE ks1 WITH replication= { 'replication_factor' : 1 }");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11820
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
         String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 } AND durable_writes=false");
 
@@ -264,6 +278,7 @@ public class AlterTest extends CQLTester
 
         execute("CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 7 }");
         assertRows(execute("SELECT table_name, compaction FROM system_schema.tables WHERE keyspace_name='" + ks1 + "'"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                    row("cf1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy",
                                   "min_threshold", "7",
                                   "max_threshold", "32")));
@@ -323,6 +338,7 @@ public class AlterTest extends CQLTester
     public void testCreateSimpleAlterNTSDefaults() throws Throwable
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         metadata.clearUnsafe();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
@@ -371,6 +387,7 @@ public class AlterTest extends CQLTester
         assertInvalidThrow(ConfigurationException.class, "ALTER KEYSPACE testXYZ WITH replication={ 'class' : 'SimpleStrategy' }");
 
         // Make sure that the alter works as expected
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER KEYSPACE testABC WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 }");
         alterTable("ALTER KEYSPACE testXYZ WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 2 }");
 
@@ -387,6 +404,7 @@ public class AlterTest extends CQLTester
     {
         // Create a keyspace with expected DC name.
         createKeyspace("CREATE KEYSPACE %s WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 }");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         // try modifying the keyspace
         assertAlterKeyspaceThrowsException(ConfigurationException.class,
@@ -425,6 +443,7 @@ public class AlterTest extends CQLTester
 
         execute("UPDATE %s SET t = '111' WHERE id = 1");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s ADD l list<text>");
         assertRows(execute("SELECT * FROM %s"),
                    row(1, null, "111"));
@@ -444,6 +463,7 @@ public class AlterTest extends CQLTester
         createTable("create table %s (k int primary key, v set<text>)");
         execute("insert into %s (k, v) VALUES (0, {'f'})");
         flush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("alter table %s drop v");
         alterTable("alter table %s add v1 int");
     }
@@ -452,10 +472,12 @@ public class AlterTest extends CQLTester
     // tests CASSANDRA-9565
     public void testDoubleWith() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         String[] stmts = { "ALTER KEYSPACE WITH WITH DURABLE_WRITES = true",
                            "ALTER KEYSPACE ks WITH WITH DURABLE_WRITES = true" };
 
         for (String stmt : stmts) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
             assertAlterTableThrowsException(SyntaxException.class, "no viable alternative at input 'WITH'", stmt);
         }
     }
@@ -465,6 +487,7 @@ public class AlterTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
@@ -482,6 +505,7 @@ public class AlterTest extends CQLTester
                    row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 64 };");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -491,6 +515,7 @@ public class AlterTest extends CQLTester
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -498,8 +523,10 @@ public class AlterTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "2.0")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 1 };");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -507,8 +534,10 @@ public class AlterTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "1.0")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -516,17 +545,27 @@ public class AlterTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
         alterTable("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("enabled", "false")));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "Missing sub-option 'class' for the 'compression' option.",
                                         "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");
@@ -599,6 +638,7 @@ public class AlterTest extends CQLTester
         flush();
 
         alterTable("ALTER TABLE %s DROP x");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         compact();
 
@@ -628,6 +668,7 @@ public class AlterTest extends CQLTester
             flush();
 
         alterTable("ALTER TABLE %s DROP x");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
 
         assertEmpty(execute("SELECT * FROM %s"));
     }

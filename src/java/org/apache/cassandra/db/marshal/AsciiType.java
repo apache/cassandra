@@ -40,12 +40,14 @@ public class AsciiType extends AbstractType<String>
     public static final AsciiType instance = new AsciiType();
 
     AsciiType() {super(ComparisonType.BYTE_ORDER);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     private final FastThreadLocal<CharsetEncoder> encoder = new FastThreadLocal<CharsetEncoder>()
     {
         @Override
         protected CharsetEncoder initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
             return StandardCharsets.US_ASCII.newEncoder();
         }
     };
@@ -69,6 +71,7 @@ public class AsciiType extends AbstractType<String>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(fromString((String) parsed));
@@ -85,6 +88,7 @@ public class AsciiType extends AbstractType<String>
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13104
             return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.US_ASCII)) + '"';
         }
         catch (CharacterCodingException exc)
@@ -95,6 +99,7 @@ public class AsciiType extends AbstractType<String>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.ASCII;
     }
 

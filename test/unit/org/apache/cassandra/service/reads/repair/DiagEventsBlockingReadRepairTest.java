@@ -82,6 +82,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica2, repair2);
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
         DiagnosticPartitionReadRepairHandler handler = createRepairHandler(repairs, writePlan);
 
@@ -101,6 +102,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         Assert.assertEquals(resolved.toString(), handler.updatesByEp.get(target3));
 
         // check repairs stop blocking after receiving 2 acks
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1);
         Assert.assertFalse(getCurrentRepairStatus(handler));
@@ -120,6 +122,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
     private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return new DiagnosticPartitionReadRepairHandler(key, repairs, writePlan);
     }
 
@@ -128,6 +131,8 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)
         {
             super(command, replicaPlan, queryStartNanoTime);
@@ -142,6 +147,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
             Assert.assertNotNull(e.toMap());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
         void sendReadCommand(Replica to, ReadCallback callback, boolean speculative)
         {
             assert readCallback == null || readCallback == callback;
@@ -165,16 +171,19 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     private static class DiagnosticPartitionReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
             extends BlockingPartitionRepair
     {
         private final Map<InetAddressAndPort, String> updatesByEp = new HashMap<>();
 
         private static Predicate<InetAddressAndPort> isLocal()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
             List<InetAddressAndPort> candidates = targets;
             return e -> candidates.contains(e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
         {
             super(key, repairs, writePlan, isLocal());

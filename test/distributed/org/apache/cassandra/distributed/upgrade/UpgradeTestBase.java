@@ -44,6 +44,7 @@ public class UpgradeTestBase extends DistributedTestBase
     @After
     public void afterEach()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15708
         System.runFinalization();
         System.gc();
     }
@@ -144,6 +145,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
         public TestCase withConfig(Consumer<IInstanceConfig> config)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15501
             this.configConsumer = config;
             return this;
         }
@@ -160,18 +162,22 @@ public class UpgradeTestBase extends DistributedTestBase
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
                 runAfterNodeUpgrade = (c, n) -> {};
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15363
             if (nodesToUpgrade.isEmpty())
                 for (int n = 1; n <= nodeCount; n++)
                     nodesToUpgrade.add(n);
 
             for (TestVersions upgrade : this.upgrade)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15501
                 try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer)))
                 {
                     setup.run(cluster);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15078
 
                     for (Version version : upgrade.upgrade)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15363
                         for (int n : nodesToUpgrade)
                         {
                             cluster.get(n).shutdown().get();
@@ -188,6 +194,7 @@ public class UpgradeTestBase extends DistributedTestBase
         }
         public TestCase nodesToUpgrade(int ... nodes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15363
             for (int n : nodes)
             {
                 nodesToUpgrade.add(n);

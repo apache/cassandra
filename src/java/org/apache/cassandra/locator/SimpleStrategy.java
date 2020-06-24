@@ -43,7 +43,9 @@ public class SimpleStrategy extends AbstractReplicationStrategy
 
     public SimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         super(keyspaceName, tokenMetadata, snitch, configOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15007
         validateOptionsInternal(configOptions);
         this.rf = ReplicationFactor.fromString(this.configOptions.get(REPLICATION_FACTOR));
     }
@@ -70,6 +72,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.fullReplicas));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14862
         return replicas.build();
     }
 
@@ -80,6 +83,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
 
     private final static void validateOptionsInternal(Map<String, String> configOptions) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15007
         if (configOptions.get(REPLICATION_FACTOR) == null)
             throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
     }

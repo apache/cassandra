@@ -27,6 +27,7 @@ public class ReloadSslCertificates extends NodeTool.NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
         try
         {
             probe.reloadSslCerts();

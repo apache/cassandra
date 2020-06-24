@@ -98,8 +98,11 @@ public class CQLSSTableWriter implements Closeable
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         DatabaseDescriptor.clientInitialization(false);
         // Partitioner is not set in client mode.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12677
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
@@ -114,6 +117,7 @@ public class CQLSSTableWriter implements Closeable
         this.writer = writer;
         this.insert = insert;
         this.boundNames = boundNames;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11646
         this.typeCodecs = boundNames.stream().map(bn ->  UDHelper.codecFor(UDHelper.driverType(bn.type)))
                                              .collect(Collectors.toList());
     }
@@ -202,6 +206,8 @@ public class CQLSSTableWriter implements Closeable
         {
             ColumnSpecification spec = boundNames.get(i);
             Object value = values.get(spec.name.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11911
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11911
             rawValues.add(serialize(value, typeCodecs.get(i)));
         }
         return rawAddRow(rawValues);
@@ -238,11 +244,14 @@ public class CQLSSTableWriter implements Closeable
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
         SortedSet<Clustering> clusterings = insert.createClustering(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         long now = System.currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(insert.metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                                                        insert.updatedColumns(),
                                                        options,
                                                        insert.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
@@ -254,7 +263,9 @@ public class CQLSSTableWriter implements Closeable
         {
             for (ByteBuffer key : keys)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
                 for (Clustering clustering : clusterings)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
             }
             return this;
@@ -305,6 +316,7 @@ public class CQLSSTableWriter implements Closeable
     public UserType getUDType(String dataType)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(insert.keyspace());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
         org.apache.cassandra.db.marshal.UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
         return (UserType) UDHelper.driverType(userType);
     }
@@ -322,9 +334,11 @@ public class CQLSSTableWriter implements Closeable
 
     private ByteBuffer serialize(Object value, TypeCodec codec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11911
         if (value == null || value == UNSET_VALUE)
             return (ByteBuffer) value;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
         return codec.serialize(value, ProtocolVersion.CURRENT);
     }
     /**
@@ -380,13 +394,17 @@ public class CQLSSTableWriter implements Closeable
             if (!directory.canWrite())
                 throw new IllegalArgumentException(directory + " exists but is not writable");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
             this.directory = directory;
             return this;
         }
 
         public Builder withType(String typeDefinition) throws SyntaxException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             typeStatements.add(QueryProcessor.parseStatement(typeDefinition, CreateTypeStatement.Raw.class, "CREATE TYPE"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10624
             return this;
         }
 
@@ -406,6 +424,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder forTable(String schema)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             this.schemaStatement = QueryProcessor.parseStatement(schema, CreateTableStatement.Raw.class, "CREATE TABLE");
             return this;
         }
@@ -422,6 +441,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder withPartitioner(IPartitioner partitioner)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10624
             this.partitioner = partitioner;
             return this;
         }
@@ -444,6 +464,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder using(String insert)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12450
             this.insertStatement = QueryProcessor.parseStatement(insert, ModificationStatement.Parsed.class, "INSERT/UPDATE");
             return this;
         }
@@ -521,6 +542,7 @@ public class CQLSSTableWriter implements Closeable
 
                 KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 TableMetadata tableMetadata = ksm.tables.getNullable(schemaStatement.table());
                 if (tableMetadata == null)
                 {
@@ -530,12 +552,14 @@ public class CQLSSTableWriter implements Closeable
                 }
 
                 UpdateStatement preparedInsert = prepareInsert();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
                 TableMetadataRef ref = TableMetadataRef.forOfflineTools(tableMetadata);
                 AbstractSSTableSimpleWriter writer = sorted
                                                    ? new SSTableSimpleWriter(directory, ref, preparedInsert.updatedColumns())
                                                    : new SSTableSimpleUnsortedWriter(directory, ref, preparedInsert.updatedColumns(), bufferSizeInMB);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
                 if (formatType != null)
                     writer.setSSTableFormatType(formatType);
 
@@ -558,6 +582,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private TableMetadata createTable(Types types)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             ClientState state = ClientState.forInternalCalls();
             CreateTableStatement statement = schemaStatement.prepare(state);
             statement.validate(ClientState.forInternalCalls());
@@ -576,6 +601,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private UpdateStatement prepareInsert()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             ClientState state = ClientState.forInternalCalls();
             UpdateStatement insert = (UpdateStatement) insertStatement.prepare(state);
             insert.validate(state);

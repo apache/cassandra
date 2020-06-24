@@ -76,8 +76,10 @@ public class TrackerTest
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9514
         MockSchema.cleanup();
     }
 
@@ -85,6 +87,7 @@ public class TrackerTest
     public void testTryModify()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         Tracker tracker = new Tracker(null, false);
         List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, true, cfs), MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         tracker.addInitialSSTables(copyOf(readers));
@@ -107,6 +110,7 @@ public class TrackerTest
     @Test
     public void testApply()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         final ColumnFamilyStore cfs = MockSchema.newCFS();
         final Tracker tracker = new Tracker(null, false);
         final View resultView = ViewTest.fakeView(0, 0, cfs);
@@ -117,6 +121,7 @@ public class TrackerTest
             {
                 // confound the CAS by swapping the view, and check we retry
                 if (count.incrementAndGet() < 3)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
                     tracker.view.set(ViewTest.fakeView(0, 0, cfs));
                 return true;
             }
@@ -150,6 +155,7 @@ public class TrackerTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS(metadata -> metadata.caching(CachingParams.CACHE_KEYS));
         Tracker tracker = cfs.getTracker();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17, cfs),
                                                        MockSchema.sstable(1, 121, cfs),
                                                        MockSchema.sstable(2, 9, cfs));
@@ -168,10 +174,13 @@ public class TrackerTest
     {
         boolean backups = DatabaseDescriptor.isIncrementalBackupsEnabled();
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         ColumnFamilyStore cfs = MockSchema.newCFS(metadata -> metadata.caching(CachingParams.CACHE_KEYS));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         Tracker tracker = cfs.getTracker();
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17, cfs),
                                                        MockSchema.sstable(1, 121, cfs),
                                                        MockSchema.sstable(2, 9, cfs));
@@ -181,8 +190,12 @@ public class TrackerTest
 
         for (SSTableReader reader : readers)
             Assert.assertTrue(reader.isKeyCacheEnabled());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9514
         Assert.assertEquals(17 + 121 + 9, cfs.metric.liveDiskSpaceUsed.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         Assert.assertEquals(1, listener.senders.size());
         Assert.assertEquals(tracker, listener.senders.get(0));
         Assert.assertTrue(listener.received.get(0) instanceof SSTableAddedNotification);
@@ -193,6 +206,7 @@ public class TrackerTest
     public void testDropSSTables()
     {
         testDropSSTables(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LogTransaction.waitForDeletions();
         testDropSSTables(true);
         LogTransaction.waitForDeletions();
@@ -204,6 +218,7 @@ public class TrackerTest
         Tracker tracker = cfs.getTracker();
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         final List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 9, true, cfs),
                                                              MockSchema.sstable(1, 15, true, cfs),
                                                              MockSchema.sstable(2, 71, true, cfs));
@@ -218,6 +233,7 @@ public class TrackerTest
             else
             {
                 tracker.dropSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
                 LogTransaction.waitForDeletions();
             }
             Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
@@ -265,11 +281,15 @@ public class TrackerTest
     {
         boolean backups = DatabaseDescriptor.isIncrementalBackupsEnabled();
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         ColumnFamilyStore cfs = MockSchema.newCFS(metadata -> metadata.caching(CachingParams.CACHE_KEYS));
         MockListener listener = new MockListener(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8616
         Tracker tracker = cfs.getTracker();
         tracker.subscribe(listener);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         Memtable prev1 = tracker.switchMemtable(true, new Memtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()), cfs));
         OpOrder.Group write1 = cfs.keyspace.writeOrder.getCurrent();
         OpOrder.Barrier barrier1 = cfs.keyspace.writeOrder.newBarrier();
@@ -285,6 +305,7 @@ public class TrackerTest
         Assert.assertEquals(prev1, tracker.getMemtableFor(write1, CommitLogPosition.NONE));
         Assert.assertEquals(prev2, tracker.getMemtableFor(write2, CommitLogPosition.NONE));
         Assert.assertEquals(cur, tracker.getMemtableFor(writecur, CommitLogPosition.NONE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11178
         Assert.assertEquals(2, listener.received.size());
         Assert.assertTrue(listener.received.get(0) instanceof MemtableRenewedNotification);
         Assert.assertTrue(listener.received.get(1) instanceof MemtableSwitchedNotification);
@@ -303,6 +324,7 @@ public class TrackerTest
         Assert.assertTrue(tracker.getView().flushingMemtables.contains(prev2));
 
         SSTableReader reader = MockSchema.sstable(0, 10, false, cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         tracker.replaceFlushed(prev2, singleton(reader));
         Assert.assertEquals(1, tracker.getView().sstables.size());
         Assert.assertEquals(2, listener.received.size());
@@ -310,6 +332,7 @@ public class TrackerTest
         Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(1)).added);
         Assert.assertEquals(Optional.of(prev2), ((SSTableAddedNotification) listener.received.get(1)).memtable());
         listener.received.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         Assert.assertTrue(reader.isKeyCacheEnabled());
         Assert.assertEquals(10, cfs.metric.liveDiskSpaceUsed.getCount());
 
@@ -318,6 +341,7 @@ public class TrackerTest
         tracker = cfs.getTracker();
         listener = new MockListener(false);
         tracker.subscribe(listener);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         prev1 = tracker.switchMemtable(false, new Memtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()), cfs));
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
@@ -339,11 +363,13 @@ public class TrackerTest
     @Test
     public void testNotifications()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         SSTableReader r1 = MockSchema.sstable(0, cfs), r2 = MockSchema.sstable(1, cfs);
         Tracker tracker = new Tracker(null, false);
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         tracker.notifyAdded(singleton(r1));
         Assert.assertEquals(singleton(r1), ((SSTableAddedNotification) listener.received.get(0)).added);
         listener.received.clear();
@@ -355,12 +381,15 @@ public class TrackerTest
         Assert.assertEquals(singleton(r2), ((SSTableListChangedNotification) listener.received.get(0)).added);
         listener.received.clear();
         tracker.notifySSTableRepairedStatusChanged(singleton(r1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         Assert.assertEquals(singleton(r1), ((SSTableRepairStatusChanged) listener.received.get(0)).sstables);
         listener.received.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         Memtable memtable = MockSchema.memtable(cfs);
         tracker.notifyRenewed(memtable);
         Assert.assertEquals(memtable, ((MemtableRenewedNotification) listener.received.get(0)).renewed);
         listener.received.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         tracker.notifySSTableMetadataChanged(r1, r1.getSSTableMetadata());
         Assert.assertEquals(((SSTableMetadataChanged)listener.received.get(0)).sstable, r1);
         Assert.assertEquals(r1.getSSTableMetadata(), ((SSTableMetadataChanged)listener.received.get(0)).oldMetadata);

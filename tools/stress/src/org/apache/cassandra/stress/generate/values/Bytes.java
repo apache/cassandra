@@ -33,6 +33,7 @@ public class Bytes extends Generator<ByteBuffer>
 
     public Bytes(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(BytesType.instance, config, name, ByteBuffer.class);
         bytes = new byte[(int) sizeDistribution.maxValue()];
     }
@@ -45,6 +46,7 @@ public class Bytes extends Generator<ByteBuffer>
         rand.setSeed(~seed);
         int size = (int) sizeDistribution.next();
         for (int i = 0; i < size; )
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
             for (long v = rand.nextLong(),
                  n = Math.min(size - i, Long.SIZE/Byte.SIZE);
                  n-- > 0; v >>= Byte.SIZE)

@@ -207,6 +207,7 @@ public class CQL3TypeLiteralTest
         }
         addNativeValue("null", CQL3Type.Native.TIME, null);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         for (int i = 0; i < 100; i++)
         {
             Duration duration = Duration.newInstance(Math.abs(randInt()), Math.abs(randInt()), Math.abs(randLong()));
@@ -270,6 +271,7 @@ public class CQL3TypeLiteralTest
         // test each native type against each supported protocol version (although it doesn't make sense to
         // iterate through all protocol versions as of C* 3.0).
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
         {
             for (Map.Entry<CQL3Type.Native, List<Value>> entry : nativeTypeValues.entrySet())
@@ -305,6 +307,7 @@ public class CQL3TypeLiteralTest
         // supported anymore and so the size of a collection is always on 4 bytes).
         ByteBuffer emptyCollection = ByteBufferUtil.bytes(0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
         {
             for (boolean frozen : Arrays.asList(true, false))
@@ -365,6 +368,10 @@ public class CQL3TypeLiteralTest
         // like 'tuple<map, list<user>, tuple, user>' or 'map<tuple<int, text>, set<inet>>' with
         // random types  against each supported protocol version.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
         {
             for (int n = 0; n < 100; n++)
@@ -636,6 +643,7 @@ public class CQL3TypeLiteralTest
     static UserType randomUserType(int level)
     {
         int typeCount = 2 + randInt(5);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         List<FieldIdentifier> names = new ArrayList<>();
         List<AbstractType<?>> types = new ArrayList<>();
         for (int i = 0; i < typeCount; i++)

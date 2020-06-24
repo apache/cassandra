@@ -55,6 +55,7 @@ public class CompressedInputStreamTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -114,12 +115,15 @@ public class CompressedInputStreamTest
         assert valuesToCheck != null && valuesToCheck.length > 0;
 
         // write compressed data file of longs
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14791
         File parentDir = tempFolder.newFolder();
         Descriptor desc = new Descriptor(parentDir, "ks", "cf", 1);
         File tmp = new File(desc.filenameFor(Component.DATA));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         CompressionParams param = CompressionParams.snappy(32, minCompressRatio);
         Map<Long, Long> index = new HashMap<Long, Long>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp,
                                                                                 desc.filenameFor(Component.COMPRESSION_INFO),
                                                                                 null,
@@ -128,13 +132,17 @@ public class CompressedInputStreamTest
         {
             for (long l = 0L; l < 1000; l++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
                 index.put(l, writer.position());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
                 writer.writeLong(l);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             writer.finish();
         }
 
         CompressionMetadata comp = CompressionMetadata.create(tmp.getAbsolutePath());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         List<SSTableReader.PartitionPositionBounds> sections = new ArrayList<>();
         for (long l : valuesToCheck)
         {
@@ -164,6 +172,7 @@ public class CompressedInputStreamTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7664
         if (testTruncate)
         {
             byte [] actuallyRead = new byte[50];
@@ -180,11 +189,13 @@ public class CompressedInputStreamTest
             return;
         }
         CompressedInputStream input = new CompressedInputStream(new DataInputStreamPlus(new ByteArrayInputStream(toRead)), info, ChecksumType.CRC32, () -> 1.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
 
         try (DataInputStream in = new DataInputStream(input))
         {
             for (int i = 0; i < sections.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
                 input.position(sections.get(i).lowerPosition);
                 long readValue = in.readLong();
                 assertEquals("expected " + valuesToCheck[i] + " but was " + readValue, valuesToCheck[i], readValue);
@@ -201,6 +212,7 @@ public class CompressedInputStreamTest
             for (int i = 0; i < sections.size(); i++)
             {
                 try {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
                     input.position(sections.get(i).lowerPosition);
                     in.readLong();
                     fail("Should have thrown IOException");

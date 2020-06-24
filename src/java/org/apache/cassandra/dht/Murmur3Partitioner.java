@@ -56,6 +56,7 @@ public class Murmur3Partitioner implements IPartitioner
     {
         public Token tokenForValue(BigInteger value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
             return new LongToken(value.longValue());
         }
 
@@ -67,6 +68,7 @@ public class Murmur3Partitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         long[] hash = getHash(key);
         return new PreHashedDecoratedKey(getToken(key, hash), key, hash[0], hash[1]);
     }
@@ -86,6 +88,7 @@ public class Murmur3Partitioner implements IPartitioner
         else // wrapping case
         {
             BigInteger max = BigInteger.valueOf(MAXIMUM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4621
             BigInteger min = BigInteger.valueOf(MINIMUM.token);
             // length of range we're bisecting is (R - min) + (max - L)
             // so we add that to L giving
@@ -100,6 +103,7 @@ public class Murmur3Partitioner implements IPartitioner
 
     public Token split(Token lToken, Token rToken, double ratioToLeft)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         BigDecimal l = BigDecimal.valueOf(((LongToken) lToken).token),
                    r = BigDecimal.valueOf(((LongToken) rToken).token),
                    ratio = BigDecimal.valueOf(ratioToLeft);
@@ -144,6 +148,7 @@ public class Murmur3Partitioner implements IPartitioner
         static final long serialVersionUID = -5833580143318243006L;
 
         final long token;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         public LongToken(long token)
         {
@@ -217,6 +222,7 @@ public class Murmur3Partitioner implements IPartitioner
      */
     public LongToken getToken(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return getToken(key, getHash(key));
     }
 
@@ -230,6 +236,7 @@ public class Murmur3Partitioner implements IPartitioner
 
     public int getMaxTokenSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return MAXIMUM_TOKEN_SIZE;
     }
 
@@ -253,6 +260,7 @@ public class Murmur3Partitioner implements IPartitioner
     private long normalize(long v)
     {
         // We exclude the MINIMUM value; see getToken()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4621
         return v == Long.MIN_VALUE ? Long.MAX_VALUE : v;
     }
 
@@ -265,6 +273,7 @@ public class Murmur3Partitioner implements IPartitioner
     {
         Map<Token, Float> ownerships = new HashMap<Token, Float>();
         Iterator<Token> i = sortedTokens.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
 
         // 0-case
         if (!i.hasNext())
@@ -277,6 +286,7 @@ public class Murmur3Partitioner implements IPartitioner
         {
             final BigInteger ri = BigInteger.valueOf(MAXIMUM).subtract(BigInteger.valueOf(MINIMUM.token + 1));  //  (used for addition later)
             final BigDecimal r  = new BigDecimal(ri);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
             Token start = i.next();BigInteger ti = BigInteger.valueOf(((LongToken)start).token);  // The first token and its value
             Token t; BigInteger tim1 = ti;                                                                // The last token and its value (after loop)
 
@@ -305,6 +315,7 @@ public class Murmur3Partitioner implements IPartitioner
     {
         public ByteBuffer toByteArray(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
             LongToken longToken = (LongToken) token;
             return ByteBufferUtil.bytes(longToken.token);
         }
@@ -312,6 +323,7 @@ public class Murmur3Partitioner implements IPartitioner
         @Override
         public void serialize(Token token, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             out.writeLong(((LongToken) token).token);
         }
 
@@ -329,6 +341,7 @@ public class Murmur3Partitioner implements IPartitioner
 
         public Token fromByteArray(ByteBuffer bytes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5226
             return new LongToken(ByteBufferUtil.toLong(bytes));
         }
 
@@ -340,6 +353,7 @@ public class Murmur3Partitioner implements IPartitioner
 
         public String toString(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8230
             return token.toString();
         }
 
@@ -347,6 +361,7 @@ public class Murmur3Partitioner implements IPartitioner
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9348
                 fromString(token);
             }
             catch (NumberFormatException e)
@@ -370,16 +385,19 @@ public class Murmur3Partitioner implements IPartitioner
 
     public AbstractType<?> getTokenValidator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return LongType.instance;
     }
 
     public Token getMaximumToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         return new LongToken(Long.MAX_VALUE);
     }
 
     public AbstractType<?> partitionOrdering()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return partitionOrdering;
     }
 

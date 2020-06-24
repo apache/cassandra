@@ -28,6 +28,7 @@ import org.apache.cassandra.db.rows.*;
 import static org.apache.cassandra.utils.Throwables.merge;
 
 public abstract class BaseRows<R extends Unfiltered, I extends BaseRowIterator<? extends Unfiltered>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 extends BaseIterator<Unfiltered, I, R>
 implements BaseRowIterator<R>
 {
@@ -72,6 +73,7 @@ implements BaseRowIterator<R>
 
     public Row staticRow()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11988
         return staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
     }
 
@@ -105,6 +107,8 @@ implements BaseRowIterator<R>
         super.add(transformation);
 
         // transform any existing data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12336
         if (staticRow != null)
             staticRow = transformation.applyToStatic(staticRow);
         next = applyOne(next, transformation);

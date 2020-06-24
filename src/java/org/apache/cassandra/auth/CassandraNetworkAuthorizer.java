@@ -46,6 +46,7 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
         String query = String.format("SELECT dcs FROM %s.%s WHERE role = ?",
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.NETWORK_PERMISSIONS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         authorizeUserStatement = (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
     }
 
@@ -78,6 +79,7 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
 
     public DCPermissions authorize(RoleResource role)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15089
         if (!Roles.canLogin(role))
         {
             return DCPermissions.none();

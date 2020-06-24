@@ -41,6 +41,7 @@ public class StreamFromOptionsTest
     public void addAllDiffingTest() throws UnknownHostException
     {
         StreamFromOptions sfo = new StreamFromOptions(new MockDiffs(true), range(0, 10));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> toAdd = new HashSet<>();
         toAdd.add(InetAddressAndPort.getByName("127.0.0.1"));
         toAdd.add(InetAddressAndPort.getByName("127.0.0.2"));
@@ -62,6 +63,7 @@ public class StreamFromOptionsTest
     public void addAllMatchingTest() throws UnknownHostException
     {
         StreamFromOptions sfo = new StreamFromOptions(new MockDiffs(false), range(0, 10));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> toAdd = new HashSet<>();
         toAdd.add(InetAddressAndPort.getByName("127.0.0.1"));
         toAdd.add(InetAddressAndPort.getByName("127.0.0.2"));
@@ -83,6 +85,7 @@ public class StreamFromOptionsTest
     private void splitTestHelper(boolean diffing) throws UnknownHostException
     {
         StreamFromOptions sfo = new StreamFromOptions(new MockDiffs(diffing), range(0, 10));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> toAdd = new HashSet<>();
         toAdd.add(InetAddressAndPort.getByName("127.0.0.1"));
         toAdd.add(InetAddressAndPort.getByName("127.0.0.2"));
@@ -95,6 +98,7 @@ public class StreamFromOptionsTest
         assertEquals(range(5, 10), sfo2.range);
         assertTrue(Iterables.elementsEqual(sfo1.allStreams(), sfo2.allStreams()));
         // verify the backing set is not shared between the copies:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         sfo1.add(InetAddressAndPort.getByName("127.0.0.4"));
         sfo2.add(InetAddressAndPort.getByName("127.0.0.5"));
         assertFalse(Iterables.elementsEqual(sfo1.allStreams(), sfo2.allStreams()));

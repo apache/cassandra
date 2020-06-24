@@ -112,6 +112,7 @@ public class SigarLibrary
     private boolean hasAcceptableAddressSpace()
     {
         // Check is invalid on Windows
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             return true;
 
@@ -158,6 +159,7 @@ public class SigarLibrary
 
     public long getPid()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7925
         return initialized ? sigar.getPid() : -1;
     }
 

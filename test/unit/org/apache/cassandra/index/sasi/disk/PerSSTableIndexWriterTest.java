@@ -83,6 +83,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(cfs.name + "_age");
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         Descriptor descriptor = cfs.newSSTableDescriptor(directory);
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 
@@ -93,6 +94,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
             ByteBuffer key = ByteBufferUtil.bytes(String.format(keyFormat, i));
             expectedKeys.put(cfs.metadata().partitioner.decorateKey(key),
                              BTreeRow.singleCellRow(Clustering.EMPTY,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                                                     BufferCell.live(column, timestamp, Int32Type.instance.decompose(i))));
         }
 
@@ -175,6 +177,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(cfs.name + "_" + columnName);
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         Descriptor descriptor = cfs.newSSTableDescriptor(directory);
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 

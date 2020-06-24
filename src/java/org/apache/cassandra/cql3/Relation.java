@@ -109,9 +109,11 @@ public abstract class Relation
 
     public final boolean isLIKE()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return relationType == Operator.LIKE_PREFIX
                 || relationType == Operator.LIKE_SUFFIX
                 || relationType == Operator.LIKE_CONTAINS
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
                 || relationType == Operator.LIKE_MATCHES
                 || relationType == Operator.LIKE;
     }
@@ -153,7 +155,9 @@ public abstract class Relation
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
             case LIKE_CONTAINS:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
             case LIKE_MATCHES:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11456
             case LIKE:
                 return newLikeRestriction(table, boundNames, relationType);
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
@@ -243,6 +247,7 @@ public abstract class Relation
         if (raws == null)
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<Term> terms = new ArrayList<>(raws.size());
         for (int i = 0, m = raws.size(); i < m; i++)
             terms.add(toTerm(receivers, raws.get(i), keyspace, boundNames));

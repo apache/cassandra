@@ -34,6 +34,7 @@ public abstract class AuthorizationStatement extends CQLStatement.Raw implements
 {
     public AuthorizationStatement prepare(ClientState state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return this;
     }
 
@@ -53,6 +54,7 @@ public abstract class AuthorizationStatement extends CQLStatement.Raw implements
 
     public static IResource maybeCorrectResource(IResource resource, ClientState state) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         if (DataResource.class.isInstance(resource))
         {
             DataResource dataResource = (DataResource) resource;
@@ -65,6 +67,7 @@ public abstract class AuthorizationStatement extends CQLStatement.Raw implements
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

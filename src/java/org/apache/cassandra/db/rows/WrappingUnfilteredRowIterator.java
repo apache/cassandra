@@ -72,6 +72,7 @@ public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator
 
     public EncodingStats stats()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return wrapped.stats();
     }
 

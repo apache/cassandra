@@ -147,6 +147,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
      */
     public void release()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         merkleTrees.values().forEach(MerkleTree::release);
         merkleTrees.clear();
     }
@@ -180,6 +181,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
     @VisibleForTesting
     public void invalidate(Token t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         getMerkleTree(t).unsafeInvalidate(t);
     }
 
@@ -226,6 +228,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
                 return merkleTrees.get(range);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         throw new AssertionError("Expected tree for token " + t);
     }
 
@@ -294,6 +297,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
     @VisibleForTesting
     public byte[] hash(Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream())
         {
             boolean hashed = false;
@@ -354,6 +358,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
             if (it.hasNext())
             {
                 current = it.next().rangeIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
 
                 return current.next();
             }
@@ -372,6 +377,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
      */
     public MerkleTrees tryMoveOffHeap() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Map<Range<Token>, MerkleTree> movedTrees = new TreeMap<>(new TokenRangeComparator());
         for (Map.Entry<Range<Token>, MerkleTree> entry : merkleTrees.entrySet())
             movedTrees.put(entry.getKey(), entry.getValue().tryMoveOffHeap());
@@ -400,6 +406,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
             out.writeInt(trees.merkleTrees.size());
             for (MerkleTree tree : trees.merkleTrees.values())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                 tree.serialize(out, version);
             }
         }
@@ -413,6 +420,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
             {
                 for (int i = 0; i < nTrees; i++)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                     MerkleTree tree = MerkleTree.deserialize(in, version);
                     trees.add(tree);
 
@@ -433,6 +441,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
             long size = TypeSizes.sizeof(trees.merkleTrees.size());
             for (MerkleTree tree : trees.merkleTrees.values())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
                 size += tree.serializedSize(version);
             }
             return size;

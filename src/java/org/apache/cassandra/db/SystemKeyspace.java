@@ -119,9 +119,11 @@ public final class SystemKeyspace
 
     public static final TableMetadata Batches =
         parse(BATCHES,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
               "batches awaiting replay",
               "CREATE TABLE %s ("
               + "id timeuuid,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
               + "mutations list<blob>,"
               + "version int,"
               + "PRIMARY KEY ((id)))")
@@ -138,6 +140,7 @@ public final class SystemKeyspace
                 + "in_progress_ballot timeuuid,"
                 + "most_recent_commit blob,"
                 + "most_recent_commit_at timeuuid,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 + "most_recent_commit_version int,"
                 + "proposal blob,"
                 + "proposal_ballot timeuuid,"
@@ -158,6 +161,7 @@ public final class SystemKeyspace
 
     private static final TableMetadata Local =
         parse(LOCAL,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 "information about the local node",
                 "CREATE TABLE %s ("
                 + "key text,"
@@ -257,6 +261,7 @@ public final class SystemKeyspace
     private static final TableMetadata TableEstimates =
         parse(TABLE_ESTIMATES,
               "per-table range size estimates",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
               "CREATE TABLE %s ("
                + "keyspace_name text,"
                + "table_name text,"
@@ -291,6 +296,7 @@ public final class SystemKeyspace
                 .build();
 
     private static final TableMetadata ViewBuildsInProgress =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         parse(VIEW_BUILDS_IN_PROGRESS,
               "views builds current progress",
               "CREATE TABLE %s ("
@@ -305,10 +311,12 @@ public final class SystemKeyspace
 
     private static final TableMetadata BuiltViews =
         parse(BUILT_VIEWS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 "built views",
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "view_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
                 + "status_replicated boolean,"
                 + "PRIMARY KEY ((keyspace_name), view_name))")
                 .build();
@@ -324,6 +332,7 @@ public final class SystemKeyspace
                 .build();
 
     private static final TableMetadata Repairs =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         parse(REPAIRS,
           "repairs",
           "CREATE TABLE %s ("
@@ -406,9 +415,11 @@ public final class SystemKeyspace
     private static Tables tables()
     {
         return Tables.of(BuiltIndexes,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7237
                          Batches,
                          Paxos,
                          Local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                          PeersV2,
                          LegacyPeers,
                          PeerEventsV2,
@@ -421,20 +432,26 @@ public final class SystemKeyspace
                          LegacyAvailableRanges,
                          TransferredRangesV2,
                          LegacyTransferredRanges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
                          ViewBuildsInProgress,
                          BuiltViews,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                          PreparedStatements,
                          Repairs);
     }
 
     private static Functions functions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         return Functions.builder()
                         .add(UuidFcts.all())
                         .add(TimeFcts.all())
                         .add(BytesConversionFcts.all())
                         .add(AggregateFcts.all())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
                         .add(CastFcts.all())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
                         .add(OperationFcts.all())
                         .build();
     }
@@ -443,14 +460,17 @@ public final class SystemKeyspace
 
     public enum BootstrapState
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4460
         NEEDS_BOOTSTRAP,
         COMPLETED,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8801
         IN_PROGRESS,
         DECOMMISSIONED
     }
 
     public static void finishStartup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         SchemaKeyspace.saveSystemKeyspacesSchema();
     }
 
@@ -466,6 +486,7 @@ public final class SystemKeyspace
                      "rack," +
                      "partitioner," +
                      "rpc_address," +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                      "rpc_port," +
                      "broadcast_address," +
                      "broadcast_port," +
@@ -478,7 +499,9 @@ public final class SystemKeyspace
                             DatabaseDescriptor.getClusterName(),
                             FBUtilities.getReleaseVersionString(),
                             QueryProcessor.CQL_VERSION.toString(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                             String.valueOf(ProtocolVersion.CURRENT.asInt()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                             snitch.getLocalDatacenter(),
                             snitch.getLocalRack(),
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
@@ -502,6 +525,7 @@ public final class SystemKeyspace
             return;
         String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) VALUES (?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                         UUIDGen.getTimeUUID(),
                         ksname,
                         cfname,
@@ -526,6 +550,7 @@ public final class SystemKeyspace
 
     public static boolean isViewStatusReplicated(String keyspaceName, String viewName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         String req = "SELECT status_replicated FROM %s.\"%s\" WHERE keyspace_name=? AND view_name=?";
         UntypedResultSet result = executeInternal(format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_VIEWS), keyspaceName, viewName);
 
@@ -537,6 +562,7 @@ public final class SystemKeyspace
 
     public static void setViewBuilt(String keyspaceName, String viewName, boolean replicated)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13031
         if (isViewBuilt(keyspaceName, viewName) && isViewStatusReplicated(keyspaceName, viewName) == replicated)
             return;
 
@@ -552,6 +578,7 @@ public final class SystemKeyspace
 
         String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
         executeInternal(String.format(builtReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_VIEWS), keyspaceName, viewName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         forceBlockingFlush(VIEW_BUILDS_IN_PROGRESS, BUILT_VIEWS);
     }
 
@@ -562,7 +589,9 @@ public final class SystemKeyspace
         // If we flush the delete first, we'll have to restart from the beginning.
         // Also, if writing to the built_view succeeds, but the view_builds_in_progress deletion fails, we will be able
         // to skip the view build next boot.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         setViewBuilt(ksname, viewName, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?", VIEW_BUILDS_IN_PROGRESS), ksname, viewName);
         forceBlockingFlush(VIEW_BUILDS_IN_PROGRESS);
     }
@@ -574,6 +603,7 @@ public final class SystemKeyspace
 
     public static void updateViewBuildStatus(String ksname, String viewName, Range<Token> range, Token lastToken, long keysBuilt)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         String req = "INSERT INTO system.%s (keyspace_name, view_name, start_token, end_token, last_token, keys_built) VALUES (?, ?, ?, ?, ?, ?)";
         Token.TokenFactory factory = ViewBuildsInProgress.partitioner.getTokenFactory();
         executeInternal(format(req, VIEW_BUILDS_IN_PROGRESS),
@@ -634,8 +664,10 @@ public final class SystemKeyspace
 
     private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
         try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             CommitLogPosition.serializer.serialize(position, out);
             out.writeLong(truncatedAt);
             return singletonMap(cfs.metadata.id.asUUID(), out.asNewBuffer());
@@ -683,8 +715,10 @@ public final class SystemKeyspace
 
     private static Pair<CommitLogPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
         try (RebufferingInputStream in = new DataInputBuffer(bytes, true))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             return Pair.create(CommitLogPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
         }
         catch (IOException e)
@@ -698,6 +732,7 @@ public final class SystemKeyspace
      */
     public static synchronized void updateTokens(InetAddressAndPort ep, Collection<Token> tokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return;
 
@@ -709,6 +744,7 @@ public final class SystemKeyspace
 
     public static synchronized boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (preferred_ip.equals(getPreferredIP(ep)))
             return false;
 
@@ -765,6 +801,7 @@ public final class SystemKeyspace
 
     private static Set<String> tokensAsSet(Collection<Token> tokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         if (tokens.isEmpty())
             return Collections.emptySet();
         Token.TokenFactory factory = StorageService.instance.getTokenFactory();
@@ -776,7 +813,9 @@ public final class SystemKeyspace
 
     private static Collection<Token> deserializeTokens(Collection<String> tokensStrings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         Token.TokenFactory factory = StorageService.instance.getTokenFactory();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8261
         List<Token> tokens = new ArrayList<>(tokensStrings.size());
         for (String tk : tokensStrings)
             tokens.add(factory.fromString(tk));
@@ -789,6 +828,7 @@ public final class SystemKeyspace
     public static synchronized void removeEndpoint(InetAddressAndPort ep)
     {
         String req = "DELETE FROM system.%s WHERE peer = ?";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         executeInternal(String.format(req, LEGACY_PEERS), ep.address);
         req = String.format("DELETE FROM system.%s WHERE peer = ? AND peer_port = ?", PEERS_V2);
         executeInternal(req, ep.address, ep.port);
@@ -801,7 +841,9 @@ public final class SystemKeyspace
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
         assert !tokens.isEmpty() : "removeEndpoint should be used instead";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5167
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13031
         Collection<Token> savedTokens = getSavedTokens();
         if (tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
             return;
@@ -813,9 +855,11 @@ public final class SystemKeyspace
 
     public static void forceBlockingFlush(String ...cfnames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         if (!DatabaseDescriptor.isUnsafeSystem())
         {
             List<ListenableFuture<CommitLogPosition>> futures = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
             for (String cfname : cfnames)
             {
@@ -838,6 +882,7 @@ public final class SystemKeyspace
             Integer port = row.getInt("peer_port");
             InetAddressAndPort peer = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
             if (row.has("tokens"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4351
                 tokenMap.putAll(peer, deserializeTokens(row.getSet("tokens", UTF8Type.instance)));
         }
 
@@ -850,6 +895,7 @@ public final class SystemKeyspace
      */
     public static Map<InetAddressAndPort, UUID> loadHostIds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, UUID> hostIdMap = new HashMap<>();
         for (UntypedResultSet.Row row : executeInternal("SELECT peer, peer_port, host_id FROM system." + PEERS_V2))
         {
@@ -872,6 +918,7 @@ public final class SystemKeyspace
      */
     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         String req = "SELECT preferred_ip, preferred_port FROM system.%s WHERE peer=? AND peer_port = ?";
         UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
         if (!result.isEmpty() && result.one().has("preferred_ip"))
@@ -879,6 +926,7 @@ public final class SystemKeyspace
             UntypedResultSet.Row row = result.one();
             return InetAddressAndPort.getByAddressOverrideDefaults(row.getInetAddress("preferred_ip"), row.getInt("preferred_port"));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8084
         return ep;
     }
 
@@ -893,6 +941,7 @@ public final class SystemKeyspace
             InetAddress address = row.getInetAddress("peer");
             Integer port = row.getInt("peer_port");
             InetAddressAndPort peer = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5211
             if (row.has("data_center") && row.has("rack"))
             {
                 Map<String, String> dcRack = new HashMap<>();
@@ -913,8 +962,10 @@ public final class SystemKeyspace
      */
     public static CassandraVersion getReleaseVersion(InetAddressAndPort ep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9097
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
             {
                 return new CassandraVersion(FBUtilities.getReleaseVersionString());
@@ -947,6 +998,7 @@ public final class SystemKeyspace
         Keyspace keyspace;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             keyspace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         }
         catch (AssertionError err)
@@ -964,8 +1016,10 @@ public final class SystemKeyspace
         if (result.isEmpty() || !result.one().has("cluster_name"))
         {
             // this is a brand new node
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             if (!cfs.getLiveSSTables().isEmpty())
                 throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
             // no system files.  this is a new node.
             return;
@@ -1001,7 +1055,10 @@ public final class SystemKeyspace
         else
         {
             // Other nodes will ignore gossip messages about a node that have a lower generation than previously seen.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4329
             final int storedGeneration = result.one().getInt("gossip_generation") + 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             final int now = (int) (System.currentTimeMillis() / 1000);
             if (storedGeneration >= now)
             {
@@ -1030,6 +1087,7 @@ public final class SystemKeyspace
         if (result.isEmpty() || !result.one().has("bootstrapped"))
             return BootstrapState.NEEDS_BOOTSTRAP;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4460
         return BootstrapState.valueOf(result.one().getString("bootstrapped"));
     }
 
@@ -1045,11 +1103,13 @@ public final class SystemKeyspace
 
     public static boolean wasDecommissioned()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8801
         return getBootstrapState() == BootstrapState.DECOMMISSIONED;
     }
 
     public static void setBootstrapState(BootstrapState state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13031
         if (getBootstrapState() == state)
             return;
 
@@ -1067,6 +1127,7 @@ public final class SystemKeyspace
 
     public static void setIndexBuilt(String keyspaceName, String indexName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12969
         String req = "INSERT INTO %s.\"%s\" (table_name, index_name) VALUES (?, ?) IF NOT EXISTS;";
         executeInternal(String.format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_INDEXES), keyspaceName, indexName);
         forceBlockingFlush(BUILT_INDEXES);
@@ -1074,6 +1135,7 @@ public final class SystemKeyspace
 
     public static void setIndexRemoved(String keyspaceName, String indexName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13031
         String req = "DELETE FROM %s.\"%s\" WHERE table_name = ? AND index_name = ? IF EXISTS";
         executeInternal(String.format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_INDEXES), keyspaceName, indexName);
         forceBlockingFlush(BUILT_INDEXES);
@@ -1081,6 +1143,7 @@ public final class SystemKeyspace
 
     public static List<String> getBuiltIndexes(String keyspaceName, Set<String> indexNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         List<String> names = new ArrayList<>(indexNames);
         String req = "SELECT index_name from %s.\"%s\" WHERE table_name=? AND index_name IN ?";
         UntypedResultSet results = executeInternal(format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_INDEXES), keyspaceName, names);
@@ -1103,6 +1166,7 @@ public final class SystemKeyspace
             return result.one().getUUID("host_id");
 
         // ID not found, generate a new one, persist, and then return it.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7366
         UUID hostId = UUID.randomUUID();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
@@ -1157,6 +1221,7 @@ public final class SystemKeyspace
         UntypedResultSet.Row row = results.one();
 
         Commit promised = row.has("in_progress_ballot")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                         ? new Commit(row.getUUID("in_progress_ballot"), new PartitionUpdate.Builder(metadata, key, metadata.regularAndStaticColumns(), 1).build())
                         : Commit.emptyCommit(key, metadata);
         // either we have both a recently accepted ballot and update or we have neither
@@ -1198,6 +1263,7 @@ public final class SystemKeyspace
     public static int paxosTtlSec(TableMetadata metadata)
     {
         // keep paxos state around for at least 3h
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         return Math.max(3 * 3600, metadata.params.gcGraceSeconds);
     }
 
@@ -1243,6 +1309,7 @@ public final class SystemKeyspace
     public static void persistSSTableReadMeter(String keyspace, String table, int generation, RestorableMeter meter)
     {
         // Store values with a one-day TTL to handle corner cases where cleanup might not occur
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
         String cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
         executeInternal(format(cql, SSTABLE_ACTIVITY),
                         keyspace,
@@ -1304,12 +1371,14 @@ public final class SystemKeyspace
             Range<Token> range = entry.getKey();
             Pair<Long, Long> values = entry.getValue();
             update.add(Rows.simpleBuilder(TableEstimates, table, type, range.left.toString(), range.right.toString())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
                            .timestamp(timestamp)
                            .add("partitions_count", values.left)
                            .add("mean_partition_size", values.right)
                            .build());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         new Mutation(update.build()).apply();
     }
 
@@ -1355,6 +1424,7 @@ public final class SystemKeyspace
         String query = "SELECT * FROM system.%s WHERE keyspace_name=?";
         UntypedResultSet rs = executeInternal(format(query, AVAILABLE_RANGES_V2), keyspace);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         ImmutableSet.Builder<Range<Token>> full = new ImmutableSet.Builder<>();
         ImmutableSet.Builder<Range<Token>> trans = new ImmutableSet.Builder<>();
         for (UntypedResultSet.Row row : rs)
@@ -1390,6 +1460,7 @@ public final class SystemKeyspace
     }
 
     public static synchronized void updateTransferredRanges(StreamOperation streamOperation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                          InetAddressAndPort peer,
                                                          String keyspace,
                                                          Collection<Range<Token>> streamedRanges)
@@ -1400,6 +1471,7 @@ public final class SystemKeyspace
         {
             rangesToUpdate.add(rangeToBytes(range));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         executeInternal(format(cql, LEGACY_TRANSFERRED_RANGES), rangesToUpdate, streamOperation.getDescription(), peer.address, keyspace);
         cql = "UPDATE system.%s SET ranges = ranges + ? WHERE operation = ? AND peer = ? AND peer_port = ? AND keyspace_name = ?";
         executeInternal(String.format(cql, TRANSFERRED_RANGES_V2), rangesToUpdate, streamOperation.getDescription(), peer.address, peer.port, keyspace);
@@ -1435,15 +1507,18 @@ public final class SystemKeyspace
      */
     public static void snapshotOnVersionChange() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
         String previous = getPreviousVersionString();
         String next = FBUtilities.getReleaseVersionString();
 
         FBUtilities.setPreviousReleaseVersionString(previous);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
 
         // if we're restarting after an upgrade, snapshot the system and schema keyspaces
         if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
 
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14412
             logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
             String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
                                                                              previous,
@@ -1474,10 +1549,12 @@ public final class SystemKeyspace
             // the current version is. If we couldn't read a previous version from system.local we check for
             // the existence of the legacy system.Versions table. We don't actually attempt to read a version
             // from there, but it informs us that this isn't a completely new node.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             for (File dataDirectory : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             {
                 if (dataDirectory.getName().equals("Versions") && dataDirectory.listFiles().length > 0)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
                     return UNREADABLE_VERSION.toString();
                 }
@@ -1498,6 +1575,7 @@ public final class SystemKeyspace
 
     static ByteBuffer rangeToBytes(Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             // The format with which token ranges are serialized in the system tables is the pre-3.0 serialization
@@ -1506,7 +1584,9 @@ public final class SystemKeyspace
             // pass 0 as the version to trigger that legacy code.
             // In the future, it might be worth switching to a stable text format for the ranges to 1) save that and 2)
             // be more user friendly (the serialization format we currently use is pretty custom).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             Range.tokenSerializer.serialize(range, out, 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             return out.buffer();
         }
         catch (IOException e)
@@ -1518,11 +1598,13 @@ public final class SystemKeyspace
     @SuppressWarnings("unchecked")
     private static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-483
         try
         {
             // See rangeToBytes above for why version is 0.
             return (Range<Token>) Range.tokenSerializer.deserialize(ByteStreams.newDataInput(ByteBufferUtil.getArray(rawRange)),
                                                                     partitioner,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                                                                     0);
         }
         catch (IOException e)
@@ -1547,6 +1629,7 @@ public final class SystemKeyspace
 
     public static void resetPreparedStatements()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13641
         ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(PREPARED_STATEMENTS);
         availableRanges.truncateBlocking();
     }

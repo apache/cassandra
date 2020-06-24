@@ -38,6 +38,7 @@ public class GroupMakerTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 

@@ -46,9 +46,12 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
                                               long queryStartNanoTime)
     {
         // Response is been managed by the map so make it 1 for the superclass.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         super(replicaPlan, callback, writeType, queryStartNanoTime);
         assert replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15791
         if (replicaPlan.keyspace().getReplicationStrategy() instanceof NetworkTopologyStrategy)
         {
             NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicaPlan.keyspace().getReplicationStrategy();
@@ -65,30 +68,39 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
 
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         for (Replica pending : replicaPlan.pending())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5354
             responses.get(snitch.getDatacenter(pending)).incrementAndGet();
         }
     }
 
     public void onResponse(Message<T> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         try
         {
             String dataCenter = message == null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
                                 ? DatabaseDescriptor.getLocalDataCenter()
                                 : snitch.getDatacenter(message.from());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
             responses.get(dataCenter).getAndDecrement();
             acks.incrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5354
 
             for (AtomicInteger i : responses.values())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4414
                 if (i.get() > 0)
                     return;
             }
 
             // all the quorum conditions are met
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4578
             signal();
         }
         finally
@@ -100,6 +112,7 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
 
     protected int ackCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5354
         return acks.get();
     }
 }

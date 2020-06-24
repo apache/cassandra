@@ -25,6 +25,7 @@ public class DistributionFixed extends Distribution
 {
 
     final long key;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
 
     public DistributionFixed(long key)
     {

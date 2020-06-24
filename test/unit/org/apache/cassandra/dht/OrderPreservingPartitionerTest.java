@@ -36,17 +36,20 @@ public class OrderPreservingPartitionerTest extends PartitionerTestCase
 
     public void initPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         partitioner = OrderPreservingPartitioner.instance;
     }
 
     protected boolean shouldStopRecursion(Token left, Token right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12858
         return false;
     }
 
     @Test
     public void testCompare()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
         assert tok("").compareTo(tok("asdf")) < 0;
         assert tok("asdf").compareTo(tok("")) > 0;
         assert tok("").compareTo(tok("")) == 0;

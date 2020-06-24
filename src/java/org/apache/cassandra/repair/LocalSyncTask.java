@@ -72,10 +72,12 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
     StreamPlan createStreamPlan()
     {
         InetAddressAndPort remote =  nodePair.peer;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null);
@@ -83,6 +85,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         if (requestRanges)
         {
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
             plan.requestRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToSync),
                                RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily);
         }
@@ -91,6 +94,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         {
             // send ranges to the remote node if we are not performing a pull repair
             // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
             plan.transferRanges(remote, desc.keyspace, RangesAtEndpoint.toDummyList(rangesToSync), desc.columnFamily);
         }
 
@@ -110,6 +114,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         createStreamPlan().execute();
     }
 
@@ -121,6 +126,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     public void handleStreamEvent(StreamEvent event)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
         if (state == null)
             return;
         switch (event.eventType)
@@ -135,6 +141,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
                 break;
             case FILE_PROGRESS:
                 ProgressInfo pi = ((StreamEvent.ProgressEvent) event).progress;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 state.trace("{}/{} ({}%) {} idx:{}{}",
                             new Object[] { FBUtilities.prettyPrintMemory(pi.currentBytes),
                                            FBUtilities.prettyPrintMemory(pi.totalBytes),
@@ -147,10 +154,14 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     public void onSuccess(StreamState result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         set(stat.withSummaries(result.createSummaries()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
         finished();
     }
 
@@ -163,6 +174,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         return "LocalSyncTask{" +
                "requestRanges=" + requestRanges +
                ", transferRanges=" + transferRanges +

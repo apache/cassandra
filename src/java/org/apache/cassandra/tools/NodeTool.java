@@ -72,6 +72,7 @@ public class NodeTool
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         FBUtilities.preventIllegalAccessWarnings();
     }
 
@@ -81,6 +82,7 @@ public class NodeTool
 
     public static void main(String... args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
         System.exit(new NodeTool(new NodeProbeFactory()).execute(args));
     }
 
@@ -97,17 +99,22 @@ public class NodeTool
                 Ring.class,
                 NetStats.class,
                 CfStats.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8872
                 TableStats.class,
                 CfHistograms.class,
                 TableHistograms.class,
                 Cleanup.class,
                 ClearSnapshot.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13665
                 ClientStats.class,
                 Compact.class,
                 Scrub.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
                 Verify.class,
                 Flush.class,
                 UpgradeSSTable.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                 GarbageCollect.class,
                 DisableAutoCompaction.class,
                 EnableAutoCompaction.class,
@@ -123,19 +130,28 @@ public class NodeTool
                 EnableFullQueryLog.class,
                 DisableFullQueryLog.class,
                 GcStats.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
                 GetBatchlogReplayTrottle.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 GetConcurrency.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10953
                 GetTimeout.class,
                 GetStreamThroughput.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10234
                 GetTraceProbability.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
                 GetInterDCStreamThroughput.class,
                 GetEndpoints.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
                 GetSeeds.class,
                 GetSSTables.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11720
                 GetMaxHintWindow.class,
                 GossipInfo.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6719
                 Import.class,
                 InvalidateKeyCache.class,
                 InvalidateRowCache.class,
@@ -144,40 +160,60 @@ public class NodeTool
                 Move.class,
                 PauseHandoff.class,
                 ResumeHandoff.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
                 ProfileLoad.class,
                 ProxyHistograms.class,
                 Rebuild.class,
                 Refresh.class,
                 RemoveNode.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7935
                 Assassinate.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
                 ReloadSeeds.class,
                 ResetFullQueryLog.class,
                 Repair.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                 RepairAdmin.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9547
                 ReplayBatchlog.class,
                 SetCacheCapacity.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 SetConcurrency.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7635
                 SetHintedHandoffThrottleInKB.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
                 SetBatchlogReplayThrottle.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12248
                 GetConcurrentCompactors.class,
                 SetConcurrentCompactors.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
                 GetConcurrentViewBuilders.class,
                 SetConcurrentViewBuilders.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 SetConcurrency.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10953
                 SetTimeout.class,
                 SetStreamThroughput.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
                 SetInterDCStreamThroughput.class,
                 SetTraceProbability.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11720
                 SetMaxHintWindow.class,
                 Snapshot.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5742
                 ListSnapshots.class,
                 Status.class,
                 StatusBinary.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8125
                 StatusGossip.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8912
                 StatusBackup.class,
                 StatusHandoff.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8727
                 StatusAutoCompaction.class,
                 Stop.class,
                 StopDaemon.class,
@@ -188,6 +224,7 @@ public class NodeTool
                 EnableBackup.class,
                 DisableBackup.class,
                 ResetLocalSchema.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13954
                 ReloadLocalSchema.class,
                 ReloadTriggers.class,
                 SetCacheKeysToSave.class,
@@ -195,9 +232,11 @@ public class NodeTool
                 Drain.class,
                 TruncateHints.class,
                 TpStats.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7974
                 TopPartitions.class,
                 SetLoggingLevel.class,
                 GetLoggingLevels.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12197
                 Sjk.class,
                 DisableHintsForDC.class,
                 EnableHintsForDC.class,
@@ -207,12 +246,14 @@ public class NodeTool
                 ViewBuildStatus.class,
                 ReloadSslCertificates.class,
                 EnableAuditLog.class,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14659
                 DisableAuditLog.class,
                 EnableOldProtocolVersions.class,
                 DisableOldProtocolVersions.class
         );
 
         Cli.CliBuilder<Consumer<INodeProbeFactory>> builder = Cli.builder("nodetool");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
 
         builder.withDescription("Manage your Cassandra cluster")
                  .withDefaultCommand(CassHelp.class)
@@ -250,6 +291,7 @@ public class NodeTool
             status = 2;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
         return status;
     }
 
@@ -267,6 +309,7 @@ public class NodeTool
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
             writer.append(sdf.format(new Date())).append(": ").append(cmdLine).append(System.lineSeparator());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6449
         catch (IOException | IOError ioe)
         {
             //quietly ignore any errors about not being able to write out history
@@ -290,6 +333,7 @@ public class NodeTool
     {
         public void accept(INodeProbeFactory nodeProbeFactory)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
             run();
         }
     }
@@ -319,12 +363,14 @@ public class NodeTool
 
         public void accept(INodeProbeFactory nodeProbeFactory)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
             this.nodeProbeFactory = nodeProbeFactory;
             run();
         }
 
         public void run()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6660
             if (isNotEmpty(username)) {
                 if (isNotEmpty(passwordFilePath))
                     password = readUserPasswordFromFile(username, passwordFilePath);
@@ -336,6 +382,7 @@ public class NodeTool
             try (NodeProbe probe = connect())
             {
                 execute(probe);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9569
                 if (probe.isFailed())
                     throw new RuntimeException("nodetool failed, check server logs");
             }
@@ -348,6 +395,7 @@ public class NodeTool
 
         private String readUserPasswordFromFile(String username, String passwordFilePath) {
             String password = EMPTY;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6660
 
             File passwordFile = new File(passwordFilePath);
             try (Scanner scanner = new Scanner(passwordFile).useDelimiter("\\s+"))
@@ -393,13 +441,16 @@ public class NodeTool
             try
             {
                 if (username.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15429
                     nodeClient = nodeProbeFactory.create(host, parseInt(port));
                 else
                     nodeClient = nodeProbeFactory.create(host, parseInt(port), username, password);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
             } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
                 System.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8776
                 System.exit(1);
             }
 
@@ -408,11 +459,13 @@ public class NodeTool
 
         protected enum KeyspaceSet
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
             ALL, NON_SYSTEM, NON_LOCAL_STRATEGY
         }
 
         protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13410
             return parseOptionalKeyspace(cmdArgs, nodeProbe, KeyspaceSet.ALL);
         }
 
@@ -474,6 +527,7 @@ public class NodeTool
     }
 
     public static SortedMap<String, SetHostStatWithPort> getOwnershipByDcWithPort(NodeProbe probe, boolean resolveIp,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                   Map<String, String> tokenToEndpoint,
                                                                   Map<String, Float> ownerships)
     {

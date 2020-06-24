@@ -51,6 +51,7 @@ public class ColumnsTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -60,6 +61,7 @@ public class ColumnsTest
     @Test
     public void testDeserializeCorruption() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14591
         ColumnsCheck check = randomSmall(1, 0, 3, 0);
         Columns superset = check.columns;
         List<ColumnMetadata> minus1 = new ArrayList<>(check.definitions);
@@ -87,6 +89,7 @@ public class ColumnsTest
     @Test
     public void testContainsWithoutAndMergeTo()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
         for (ColumnsCheck randomColumns : randomSmall(true))
             testContainsWithoutAndMergeTo(randomColumns);
     }
@@ -120,6 +123,7 @@ public class ColumnsTest
 
     private void assertSubset(Columns superset, Columns subset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         Assert.assertTrue(superset.containsAll(superset));
         Assert.assertTrue(superset.containsAll(subset));
         Assert.assertFalse(subset.containsAll(superset));
@@ -128,6 +132,7 @@ public class ColumnsTest
     @Test
     public void testSerialize() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
         testSerialize(Columns.NONE, Collections.emptyList());
         for (ColumnsCheck randomColumns : randomSmall(false))
             testSerialize(randomColumns.columns, randomColumns.definitions);
@@ -166,6 +171,7 @@ public class ColumnsTest
         List<String> names = new ArrayList<>();
         for (int i = 0; i < 50; i++)
             names.add("regular_" + i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14638
 
         List<ColumnMetadata> defs = new ArrayList<>();
         addRegular(names, defs);
@@ -177,6 +183,7 @@ public class ColumnsTest
 
         Columns subset = Columns.from(new HashSet<>(defs));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         Assert.assertTrue(columns.containsAll(subset));
     }
 
@@ -281,6 +288,7 @@ public class ColumnsTest
             {
                 hasSimple = true;
                 Assert.assertEquals(i, columns.simpleIdx(def));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
                 Assert.assertEquals(def, columns.getSimple(i));
                 Assert.assertEquals(def, simple.next());
                 ++firstComplexIdx;
@@ -290,6 +298,7 @@ public class ColumnsTest
                 Assert.assertFalse(simple.hasNext());
                 hasComplex = true;
                 Assert.assertEquals(i - firstComplexIdx, columns.complexIdx(def));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
                 Assert.assertEquals(def, columns.getComplex(i - firstComplexIdx));
                 Assert.assertEquals(def, complex.next());
             }
@@ -303,6 +312,7 @@ public class ColumnsTest
         Assert.assertEquals(hasComplex, columns.hasComplex());
 
         // check select order
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
         if (!columns.hasSimple() || !columns.getSimple(0).kind.isPrimaryKeyKind())
         {
             List<ColumnMetadata> selectOrderDefs = new ArrayList<>(defs);
@@ -353,6 +363,7 @@ public class ColumnsTest
 
         private ColumnsCheck(Columns columns, List<ColumnMetadata> definitions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
             this.columns = columns;
             this.definitions = definitions;
         }
@@ -368,6 +379,7 @@ public class ColumnsTest
             Columns subset = columns;
             for (ColumnMetadata def : remove)
                 subset = subset.without(def);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
             Assert.assertEquals(columns.size() - remove.size(), subset.size());
             List<ColumnMetadata> remainingDefs = Lists.newArrayList(columns);
             remainingDefs.removeAll(remove);

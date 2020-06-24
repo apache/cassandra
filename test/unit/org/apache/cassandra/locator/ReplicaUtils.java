@@ -50,6 +50,7 @@ public class ReplicaUtils
 
     public static Replica full(InetAddressAndPort endpoint, Token token)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
         return fullReplica(endpoint, new Range<>(token, token));
     }
 
@@ -65,6 +66,7 @@ public class ReplicaUtils
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
         try
         {
             EP1 = InetAddressAndPort.getByName("127.0.0.1");

@@ -72,6 +72,7 @@ public class CoordinatorSession extends ConsistentSession
     public CoordinatorSession(Builder builder)
     {
         super(builder);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : participants)
         {
             participantStates.put(participant, State.PREPARING);
@@ -94,11 +95,13 @@ public class CoordinatorSession extends ConsistentSession
 
     public void setState(State state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
         logger.trace("Setting coordinator state to {} for repair {}", state, sessionID);
         super.setState(state);
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
     synchronized State getParticipantState(InetAddressAndPort participant)
     {
         return participantStates.get(participant);
@@ -124,6 +127,7 @@ public class CoordinatorSession extends ConsistentSession
 
     synchronized void setAll(State state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : participants)
         {
             setParticipantState(participant, state);
@@ -142,6 +146,7 @@ public class CoordinatorSession extends ConsistentSession
 
     protected void sendMessage(InetAddressAndPort destination, Message<RepairMessage> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         logger.trace("Sending {} to {}", message.payload, destination);
         MessagingService.instance().send(message, destination);
     }
@@ -150,11 +155,15 @@ public class CoordinatorSession extends ConsistentSession
     {
         Preconditions.checkArgument(allStates(State.PREPARING));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Beginning prepare phase of incremental repair session {}", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         Message<RepairMessage> message =
             Message.out(Verb.PREPARE_CONSISTENT_REQ, new PrepareConsistentRequest(sessionID, coordinator, participants));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (final InetAddressAndPort participant : participants)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
             sendMessage(participant, message);
         }
         return prepareFuture;
@@ -162,8 +171,10 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         if (!success)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.warn("{} failed the prepare phase for incremental repair session {}", participant, sessionID);
             sendFailureMessageToParticipants();
             setParticipantState(participant, State.FAILED);
@@ -198,10 +209,14 @@ public class CoordinatorSession extends ConsistentSession
     public synchronized ListenableFuture<Boolean> finalizePropose()
     {
         Preconditions.checkArgument(allStates(State.REPAIRING));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Proposing finalization of repair session {}", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         Message<RepairMessage> message = Message.out(Verb.FINALIZE_PROPOSE_MSG, new FinalizePropose(sessionID));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (final InetAddressAndPort participant : participants)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
             sendMessage(participant, message);
         }
         return finalizeProposeFuture;
@@ -215,6 +230,7 @@ public class CoordinatorSession extends ConsistentSession
         }
         else if (!success)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.warn("Finalization proposal of session {} rejected by {}. Aborting session", sessionID, participant);
             fail();
             finalizeProposeFuture.set(false);
@@ -225,6 +241,7 @@ public class CoordinatorSession extends ConsistentSession
             setParticipantState(participant, State.FINALIZE_PROMISED);
             if (getState() == State.FINALIZE_PROMISED)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
                 logger.info("Finalization proposal for repair session {} accepted by all participants.", sessionID);
                 finalizeProposeFuture.set(true);
             }
@@ -234,10 +251,13 @@ public class CoordinatorSession extends ConsistentSession
     public synchronized void finalizeCommit()
     {
         Preconditions.checkArgument(allStates(State.FINALIZE_PROMISED));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Committing finalization of repair session {}", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         Message<RepairMessage> message = Message.out(Verb.FINALIZE_COMMIT_MSG, new FinalizeCommit(sessionID));
         for (final InetAddressAndPort participant : participants)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
             sendMessage(participant, message);
         }
         setAll(State.FINALIZED);
@@ -246,11 +266,15 @@ public class CoordinatorSession extends ConsistentSession
 
     private void sendFailureMessageToParticipants()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         Message<RepairMessage> message = Message.out(Verb.FAILED_SESSION_MSG, new FailSession(sessionID));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (final InetAddressAndPort participant : participants)
         {
             if (participantStates.get(participant) != State.FAILED)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
                 sendMessage(participant, message);
             }
         }
@@ -258,10 +282,13 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void fail()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         logger.info("Incremental repair session {} failed", sessionID);
         sendFailureMessageToParticipants();
         setAll(State.FAILED);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13672
         String exceptionMsg = String.format("Incremental repair session %s has failed", sessionID);
         finalizeProposeFuture.setException(new RuntimeException(exceptionMsg));
         prepareFuture.setException(new RuntimeException(exceptionMsg));
@@ -269,6 +296,7 @@ public class CoordinatorSession extends ConsistentSession
 
     private static String formatDuration(long then, long now)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13498
         if (then == Long.MIN_VALUE || now == Long.MIN_VALUE)
         {
             // if neither of the times were initially set, don't return a non-sensical answer
@@ -283,17 +311,22 @@ public class CoordinatorSession extends ConsistentSession
     public ListenableFuture execute(Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSubmitter, AtomicBoolean hasFailure)
     {
         logger.info("Beginning coordination of incremental repair session {}", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13498
         sessionStart = System.currentTimeMillis();
         ListenableFuture<Boolean> prepareResult = prepare();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
 
         // run repair sessions normally
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13997
         ListenableFuture<List<RepairSessionResult>> repairSessionResults = Futures.transformAsync(prepareResult, new AsyncFunction<Boolean, List<RepairSessionResult>>()
         {
             public ListenableFuture<List<RepairSessionResult>> apply(Boolean success) throws Exception
             {
                 if (success)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13498
                     repairStart = System.currentTimeMillis();
                     if (logger.isDebugEnabled())
                     {
@@ -309,6 +342,7 @@ public class CoordinatorSession extends ConsistentSession
 
             }
         }, MoreExecutors.directExecutor());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13997
 
         // mark propose finalization
         ListenableFuture<Boolean> proposeFuture = Futures.transformAsync(repairSessionResults, new AsyncFunction<List<RepairSessionResult>, Boolean>()
@@ -317,23 +351,28 @@ public class CoordinatorSession extends ConsistentSession
             {
                 if (results == null || results.isEmpty() || Iterables.any(results, r -> r == null))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13498
                     finalizeStart = System.currentTimeMillis();
                     if (logger.isDebugEnabled())
                     {
                         logger.debug("Incremental repair {} validation/stream phase completed in {}", sessionID, formatDuration(repairStart, finalizeStart));
 
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
                     return Futures.immediateFailedFuture(SomeRepairFailedException.INSTANCE);
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
                     return finalizePropose();
                 }
             }
         }, MoreExecutors.directExecutor());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13997
 
         // return execution result as set by following callback
         SettableFuture<Boolean> resultFuture = SettableFuture.create();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
 
         // commit repaired data
         Futures.addCallback(proposeFuture, new FutureCallback<Boolean>()
@@ -344,10 +383,12 @@ public class CoordinatorSession extends ConsistentSession
                 {
                     if (result != null && result)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13498
                         if (logger.isDebugEnabled())
                         {
                             logger.debug("Incremental repair {} finalization phase completed in {}", sessionID, formatDuration(finalizeStart, System.currentTimeMillis()));
                         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
                         finalizeCommit();
                         if (logger.isDebugEnabled())
                         {
@@ -371,11 +412,14 @@ public class CoordinatorSession extends ConsistentSession
             {
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13498
                     if (logger.isDebugEnabled())
                     {
                         logger.debug("Incremental repair {} phase failed in {}", sessionID, formatDuration(sessionStart, System.currentTimeMillis()));
                     }
                     hasFailure.set(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13673
                     fail();
                 }
                 finally
@@ -384,6 +428,7 @@ public class CoordinatorSession extends ConsistentSession
                 }
             }
         }, MoreExecutors.directExecutor());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
 
         return resultFuture;
     }

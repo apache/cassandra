@@ -59,6 +59,7 @@ final class LogAwareFileLister
     NavigableMap<File, Directories.FileType> files = new TreeMap<>();
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
     LogAwareFileLister(Path folder, BiPredicate<File, FileType> filter, OnTxnErr onTxnErr)
     {
         this.folder = folder;
@@ -96,6 +97,7 @@ final class LogAwareFileLister
 
         // Finally we apply the user filter before returning our result
         return files.entrySet().stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
                     .filter((e) -> filter.test(e.getKey(), e.getValue()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
@@ -122,6 +124,7 @@ final class LogAwareFileLister
      */
     void classifyFiles(File txnFile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11594
         try (LogFile txn = LogFile.make(txnFile))
         {
             readTxnLog(txn);
@@ -138,6 +141,7 @@ final class LogAwareFileLister
 
     void classifyFiles(LogFile txnFile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11470
         Map<LogRecord, Set<File>> oldFiles = txnFile.getFilesOfType(folder, files.navigableKeySet(), LogRecord.Type.REMOVE);
         Map<LogRecord, Set<File>> newFiles = txnFile.getFilesOfType(folder, files.navigableKeySet(), LogRecord.Type.ADD);
 
@@ -147,6 +151,7 @@ final class LogAwareFileLister
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11470
         if (allFilesPresent(oldFiles))
         {  // all old files present, transaction is in progress, this will filter as aborted
             setTemporary(txnFile, oldFiles.values(), newFiles.values());
@@ -169,6 +174,7 @@ final class LogAwareFileLister
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11470
         logger.error("Failed to classify files in {}\n" +
                      "Some old files are missing but the txn log is still there and not completed\n" +
                      "Files in folder:\n{}\nTxn: {}",

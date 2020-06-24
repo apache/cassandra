@@ -133,6 +133,7 @@ public class Operation extends RangeIterator<Long, Token>
 
         if (expressions == null || expressions.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
             sideL =  left != null &&  left.satisfiedBy(currentCluster, staticRow, allowMissingColumns);
             sideR = right != null && right.satisfiedBy(currentCluster, staticRow, allowMissingColumns);
 
@@ -144,6 +145,7 @@ public class Operation extends RangeIterator<Long, Token>
         else
         {
             sideL = localSatisfiedBy(currentCluster, staticRow, allowMissingColumns);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
             // if there is no right it means that this expression
             // is last in the sequence, we can just return result from local expressions
@@ -201,6 +203,7 @@ public class Operation extends RangeIterator<Long, Token>
      */
     private boolean localSatisfiedBy(Unfiltered currentCluster, Row staticRow, boolean allowMissingColumns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
         if (currentCluster == null || !currentCluster.isRow())
             return false;
 
@@ -213,6 +216,7 @@ public class Operation extends RangeIterator<Long, Token>
             if (column.kind == Kind.PARTITION_KEY)
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
             ByteBuffer value = ColumnIndex.getValueOf(column, column.kind == Kind.STATIC ? staticRow : (Row) currentCluster, now);
             boolean isMissingColumn = value == null;
 
@@ -231,6 +235,7 @@ public class Operation extends RangeIterator<Long, Token>
             for (int i = filters.size() - 1; i >= 0; i--)
             {
                 Expression expression = filters.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                 isMatch = !isMissingColumn && expression.isSatisfiedBy(value);
                 if (expression.getOp() == Op.NOT_EQ)
                 {
@@ -287,6 +292,7 @@ public class Operation extends RangeIterator<Long, Token>
 
             AbstractAnalyzer analyzer = columnIndex.getAnalyzer();
             analyzer.reset(e.getIndexValue().duplicate());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13512
 
             // EQ/LIKE_*/NOT_EQ can have multiple expressions e.g. text = "Hello World",
             // becomes text = "Hello" OR text = "World" because "space" is always interpreted as a split point (by analyzer),
@@ -295,9 +301,11 @@ public class Operation extends RangeIterator<Long, Token>
             // in such case we know exactly that there would be no more EQ/RANGE expressions for given column
             // since NOT_EQ has the lowest priority.
             boolean isMultiExpression = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             switch (e.operator())
             {
                 case EQ:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                     isMultiExpression = false;
                     break;
 
@@ -347,10 +355,12 @@ public class Operation extends RangeIterator<Long, Token>
         {
             case EQ:
                 return 5;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
             case LIKE_CONTAINS:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
             case LIKE_MATCHES:
                 return 4;
 

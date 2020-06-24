@@ -61,8 +61,10 @@ public class LogReplicaSet implements AutoCloseable
 
     void addReplica(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
         File directory = file.getParentFile();
         assert !replicasByFile.containsKey(directory);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
         try
         {
             replicasByFile.put(directory, LogReplica.open(file));
@@ -116,6 +118,7 @@ public class LogReplicaSet implements AutoCloseable
 
     boolean readRecords(Set<LogRecord> records)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
         Map<LogReplica, List<String>> linesByReplica = replicas().stream()
                                                                  .collect(Collectors.toMap(Function.<LogReplica>identity(),
                                                                                            LogReplica::readLines,
@@ -167,6 +170,9 @@ public class LogReplicaSet implements AutoCloseable
                     else
                     {   // mismatched entry file has more lines, giving up
                         logger.error("Mismatched line in file {}: got '{}' expected '{}', giving up",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                                      entry.getKey().getFileName(),
                                      currentLine,
                                      firstLine);
@@ -180,6 +186,7 @@ public class LogReplicaSet implements AutoCloseable
             if (records.contains(record))
             { // duplicate records
                 logger.error("Found duplicate record {} for {}, giving up", record, record.fileName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                 setError(record, "Duplicated record");
                 return false;
             }
@@ -192,6 +199,7 @@ public class LogReplicaSet implements AutoCloseable
             if (record.isFinal() && i != (maxNumLines - 1))
             { // too many final records
                 logger.error("Found too many lines for {}, giving up", record.fileName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                 setError(record, "This record should have been the last one in all replicas");
                 return false;
             }
@@ -200,6 +208,7 @@ public class LogReplicaSet implements AutoCloseable
         return true;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     void setError(LogRecord record, String error)
     {
         record.setError(error);
@@ -254,6 +263,7 @@ public class LogReplicaSet implements AutoCloseable
                : "[-]";
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
     String getDirectories()
     {
         return String.join(", ", replicas().stream().map(LogReplica::getDirectory).collect(Collectors.toList()));

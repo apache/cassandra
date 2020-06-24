@@ -61,6 +61,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
         this.permissions = permissions;
         this.resource = resource;
         this.recursive = recursive;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         this.grantee = grantee.hasName()? RoleResource.role(grantee.getName()) : null;
     }
 
@@ -68,6 +69,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
     {
         // a check to ensure the existence of the user isn't being leaked by user existence check.
         state.ensureNotAnonymous();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4898
 
         if (resource != null)
         {
@@ -76,6 +78,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
                 throw new InvalidRequestException(String.format("%s doesn't exist", resource));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         if ((grantee != null) && !DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
    }
@@ -105,8 +108,11 @@ public class ListPermissionsStatement extends AuthorizationStatement
     }
 
     private Set<PermissionDetails> list(ClientState state, IResource resource)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4898
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
     throws RequestValidationException, RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7216
         try
         {
             return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, grantee);
@@ -126,6 +132,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
         ResultSet result = new ResultSet(resultMetadata);
         for (PermissionDetails pd : details)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
             result.addColumnValue(UTF8Type.instance.decompose(pd.grantee));
             result.addColumnValue(UTF8Type.instance.decompose(pd.grantee));
             result.addColumnValue(UTF8Type.instance.decompose(pd.resource.toString()));
@@ -137,6 +144,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 

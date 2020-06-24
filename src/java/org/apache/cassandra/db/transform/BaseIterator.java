@@ -29,6 +29,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 abstract class BaseIterator<V, I extends CloseableIterator<? extends V>, O extends V> extends Stack implements AutoCloseable, Iterator<O>
 {
     I input;

@@ -88,6 +88,7 @@ public class FullQueryLogger implements QueryEvents.Listener
     public static final FullQueryLogger instance = new FullQueryLogger();
 
     volatile BinLog binLog;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
     public synchronized void enable(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
@@ -119,6 +120,7 @@ public class FullQueryLogger implements QueryEvents.Listener
 
     public synchronized void stop()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         try
         {
             BinLog binLog = this.binLog;
@@ -249,7 +251,9 @@ public class FullQueryLogger implements QueryEvents.Listener
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         Batch wrappedBatch = new Batch(type, queries, values, queryOptions, queryState, batchTimeMillis);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         binLog.logRecord(wrappedBatch);
     }
 
@@ -262,6 +266,7 @@ public class FullQueryLogger implements QueryEvents.Listener
      * @param response the response from this query
      */
     public void querySuccess(CQLStatement statement,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
                              String query,
                              QueryOptions queryOptions,
                              QueryState queryState,
@@ -278,7 +283,9 @@ public class FullQueryLogger implements QueryEvents.Listener
         if (binLog == null)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         Query wrappedQuery = new Query(query, queryOptions, queryState, queryTimeMillis);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         binLog.logRecord(wrappedQuery);
     }
 
@@ -306,6 +313,7 @@ public class FullQueryLogger implements QueryEvents.Listener
         @Override
         public void writeMarshallablePayload(WireOut wire)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             super.writeMarshallablePayload(wire);
             wire.write(QUERY).text(query);
         }
@@ -366,6 +374,7 @@ public class FullQueryLogger implements QueryEvents.Listener
         @Override
         public void writeMarshallablePayload(WireOut wire)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             super.writeMarshallablePayload(wire);
             wire.write(BATCH_TYPE).text(batchType.name());
             ValueOut valueOut = wire.write(QUERIES);
@@ -404,6 +413,7 @@ public class FullQueryLogger implements QueryEvents.Listener
         @Nullable
         private final String keyspace;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         AbstractLogEntry(QueryOptions queryOptions, QueryState queryState, long queryStartTime)
         {
             this.queryStartTime = queryStartTime;
@@ -415,6 +425,7 @@ public class FullQueryLogger implements QueryEvents.Listener
             this.generatedTimestamp = queryState.generatedTimestamp();
             this.generatedNowInSeconds = queryState.generatedNowInSeconds();
             this.keyspace = queryState.getClientState().getRawKeyspace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
 
             /*
              * Struggled with what tradeoff to make in terms of query options which is potentially large and complicated
@@ -442,6 +453,7 @@ public class FullQueryLogger implements QueryEvents.Listener
         @Override
         protected long version()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             return CURRENT_VERSION;
         }
 
@@ -455,6 +467,7 @@ public class FullQueryLogger implements QueryEvents.Listener
             wire.write(GENERATED_TIMESTAMP).int64(generatedTimestamp);
             wire.write(GENERATED_NOW_IN_SECONDS).int32(generatedNowInSeconds);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
             wire.write(KEYSPACE).text(keyspace);
         }
 
@@ -472,6 +485,7 @@ public class FullQueryLogger implements QueryEvents.Listener
                  + 4                                                  // protocolVersion
                  + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
                  + 8                                                  // generatedTimestamp
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
                  + 4                                                  // generatedNowInSeconds
                  + (keyspace != null
                     ? Ints.checkedCast(ObjectSizes.sizeOf(keyspace))  // keyspace

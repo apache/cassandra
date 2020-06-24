@@ -39,6 +39,7 @@ public class SettingsErrors implements Serializable
     {
         ignore = options.ignore.setByUser();
         this.tries = Math.max(1, Integer.parseInt(options.retries.value()) + 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13722
         skipReadValidation = options.skipReadValidation.setByUser();
     }
 
@@ -48,6 +49,7 @@ public class SettingsErrors implements Serializable
     {
         final OptionSimple retries = new OptionSimple("retries=", "[0-9]+", "9", "Number of tries to perform for each operation before failing", false);
         final OptionSimple ignore = new OptionSimple("ignore", "", null, "Do not fail on errors", false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13722
         final OptionSimple skipReadValidation = new OptionSimple("skip-read-validation", "", null, "Skip read validation and message output", false);
         @Override
         public List<? extends Option> options()
@@ -59,6 +61,7 @@ public class SettingsErrors implements Serializable
     // CLI Utility Methods
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  Ignore: %b%n", ignore);
         out.printf("  Tries: %d%n", tries);
     }

@@ -127,6 +127,7 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
     @Override
     public boolean isCompatibleWith(AbstractType<?> validator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
         return VALID_ANALYZABLE_TYPES.contains(validator);
     }
 }

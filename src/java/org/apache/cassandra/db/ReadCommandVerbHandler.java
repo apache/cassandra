@@ -41,6 +41,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     public void doVerb(Message<ReadCommand> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         if (StorageService.instance.isBootstrapMode())
         {
             throw new RuntimeException("Cannot service reads while bootstrapping!");
@@ -48,7 +49,9 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         ReadCommand command = message.payload;
         validateTransientStatus(message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long timeout = message.expiresAtNanos() - message.createdAtNanos();
         command.setMonitoringTime(message.createdAtNanos(), message.isCrossNode(), timeout, DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
@@ -59,11 +62,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         try (ReadExecutionController executionController = command.executionController();
              UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
             response = command.createResponse(iterator);
         }
 
         if (!command.complete())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Tracing.trace("Discarding partial response to {} (timed out)", message.from());
             MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
             return;
@@ -76,9 +81,12 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     private void validateTransientStatus(Message<ReadCommand> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3617
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         ReadCommand command = message.payload;
         Token token;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14959
         if (command instanceof SinglePartitionReadCommand)
             token = ((SinglePartitionReadCommand) command).partitionKey().getToken();
         else
@@ -91,6 +99,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         if (replica == null)
         {
             logger.warn("Received a read request from {} for a range that is not owned by the current replica {}.",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         message.from(),
                         command);
             return;

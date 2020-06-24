@@ -92,6 +92,7 @@ public class MultiColumnRelation extends Relation
      */
     public static MultiColumnRelation createInRelation(List<ColumnMetadata.Raw> entities, List<? extends Term.MultiColumnRaw> inValues)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8147
         return new MultiColumnRelation(entities, Operator.IN, null, inValues, null);
     }
 
@@ -104,6 +105,7 @@ public class MultiColumnRelation extends Relation
      */
     public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnMetadata.Raw> entities, Tuples.INRaw inMarker)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8147
         return new MultiColumnRelation(entities, Operator.IN, null, null, inMarker);
     }
 
@@ -123,6 +125,7 @@ public class MultiColumnRelation extends Relation
 
     public List<? extends Term.Raw> getInValues()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         assert relationType == Operator.IN;
         return inValues;
     }
@@ -138,6 +141,7 @@ public class MultiColumnRelation extends Relation
     {
         List<ColumnMetadata> receivers = receivers(table);
         Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new MultiColumnRestriction.EQRestriction(receivers, term);
     }
 
@@ -149,9 +153,11 @@ public class MultiColumnRelation extends Relation
         if (terms == null)
         {
             Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return new MultiColumnRestriction.InRestrictionWithMarker(receivers, (AbstractMarker) term);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         if (terms.size() == 1)
             return new MultiColumnRestriction.EQRestriction(receivers, terms.get(0));
 
@@ -163,6 +169,7 @@ public class MultiColumnRelation extends Relation
     {
         List<ColumnMetadata> receivers = receivers(table);
         Term term = toTerm(receivers(table), getValue(), table.keyspace, boundNames);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new MultiColumnRestriction.SliceRestriction(receivers, bound, inclusive, term);
     }
 
@@ -182,6 +189,7 @@ public class MultiColumnRelation extends Relation
     @Override
     protected Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         throw invalidRequest("%s cannot be used for multi-column relations", operator());
     }
 
@@ -245,6 +253,7 @@ public class MultiColumnRelation extends Relation
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Objects.hash(relationType, entities, valuesOrMarker, inValues, inMarker);
     }
 
@@ -259,6 +268,7 @@ public class MultiColumnRelation extends Relation
 
         MultiColumnRelation mcr = (MultiColumnRelation) o;
         return Objects.equals(entities, mcr.entities)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
             && Objects.equals(relationType, mcr.relationType)
             && Objects.equals(valuesOrMarker, mcr.valuesOrMarker)
             && Objects.equals(inValues, mcr.inValues)

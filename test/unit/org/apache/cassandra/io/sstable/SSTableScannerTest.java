@@ -64,6 +64,7 @@ public class SSTableScannerTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, TABLE));
     }
@@ -77,6 +78,7 @@ public class SSTableScannerTest
     private static Iterable<DataRange> dataRanges(TableMetadata metadata, int start, int end)
     {
         if (end < start)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return dataRanges(metadata, start, end, false, true);
         return Iterables.concat(dataRanges(metadata, start, end, false, false),
                                 dataRanges(metadata, start, end, false, true),
@@ -145,6 +147,7 @@ public class SSTableScannerTest
 
     private static DataRange dataRange(TableMetadata metadata, PartitionPosition start, boolean startInclusive, PartitionPosition end, boolean endInclusive)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Slices.Builder sb = new Slices.Builder(metadata.comparator);
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(sb.build(), false);
 
@@ -186,6 +189,7 @@ public class SSTableScannerTest
                                                              range,
                                                              SSTableReadsListener.NOOP_LISTENER))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
                 for (int b = 0; b < boundaries.length; b += 2)
                     for (int i = boundaries[b]; i <= boundaries[b + 1]; i++)
                         assertEquals(toKey(i), new String(scanner.next().partitionKey().getKey().array()));
@@ -221,11 +225,13 @@ public class SSTableScannerTest
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
         ISSTableScanner scanner = sstable.getScanner();
         for (int i = 2; i < 10; i++)
             assertEquals(toKey(i), new String(scanner.next().partitionKey().getKey().array()));
 
         scanner.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
 
         // a simple read of a chunk in the middle
         assertScanMatches(sstable, 3, 6, 3, 6);
@@ -250,6 +256,7 @@ public class SSTableScannerTest
         assertScanEmpty(sstable, 10, 11);
 
         // wrapping, starts in middle
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8946
         assertScanMatches(sstable, 5, 3, 2, 3, 5, 9);
         assertScanMatches(sstable, 5, 2, 2, 2, 5, 9);
         assertScanMatches(sstable, 5, 1, 5, 9);
@@ -301,10 +308,12 @@ public class SSTableScannerTest
             for (int expected = rangeStart; expected <= rangeEnd; expected++)
             {
                 assertTrue(String.format("Expected to see key %03d", expected), scanner.hasNext());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 assertEquals(toKey(expected), new String(scanner.next().partitionKey().getKey().array()));
             }
         }
         assertFalse(scanner.hasNext());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
         scanner.close();
     }
 
@@ -327,6 +336,7 @@ public class SSTableScannerTest
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
         ISSTableScanner fullScanner = sstable.getScanner();
         assertScanContainsRanges(fullScanner,
                                  2, 9,
@@ -345,6 +355,7 @@ public class SSTableScannerTest
 
         // skip the first range
         scanner = sstable.getScanner(makeRanges(101, 109,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 201, 209));
         assertScanContainsRanges(scanner,
                                  102, 109,
@@ -360,6 +371,7 @@ public class SSTableScannerTest
 
         // skip the last range
         scanner = sstable.getScanner(makeRanges(1, 9,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 101, 109));
         assertScanContainsRanges(scanner,
                                  2, 9,
@@ -377,6 +389,9 @@ public class SSTableScannerTest
         // the first scanned range requests data beyond actual data in the first range
         scanner = sstable.getScanner(makeRanges(1, 20,
                                                 101, 109,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 201, 209));
         assertScanContainsRanges(scanner,
                                  2, 9,
@@ -387,6 +402,7 @@ public class SSTableScannerTest
         // the middle scan range splits the outside two data ranges
         scanner = sstable.getScanner(makeRanges(1, 5,
                                                 6, 205,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 206, 209));
         assertScanContainsRanges(scanner,
                                  2, 5,
@@ -401,6 +417,7 @@ public class SSTableScannerTest
                                                 101, 109,
                                                 150, 159,
                                                 201, 209,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 1000, 1001));
         assertScanContainsRanges(scanner,
                                  3, 9,
@@ -413,6 +430,7 @@ public class SSTableScannerTest
                                                 201, 209,
                                                 101, 109,
                                                 1000, 1001,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 150, 159));
         assertScanContainsRanges(scanner,
                                  2, 9,
@@ -422,6 +440,7 @@ public class SSTableScannerTest
         // only empty ranges
         scanner = sstable.getScanner(makeRanges(0, 1,
                                                 150, 159,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                                                 250, 259));
         assertFalse(scanner.hasNext());
 
@@ -443,10 +462,14 @@ public class SSTableScannerTest
         insertRowWithKey(store.metadata(), 205);
         store.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
         ISSTableScanner fullScanner = sstable.getScanner();
         assertScanContainsRanges(fullScanner, 205, 205);
 

@@ -44,6 +44,8 @@ public class JMXEnabledSingleThreadExecutor extends JMXEnabledThreadPoolExecutor
     @Override
     public void setMaximumPoolSize(int newMaximumPoolSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         setMaximumThreads(newMaximumPoolSize);
     }
 

@@ -33,6 +33,7 @@ public abstract class Event
 {
     public enum Type
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         TOPOLOGY_CHANGE(ProtocolVersion.V3),
         STATUS_CHANGE(ProtocolVersion.V3),
         SCHEMA_CHANGE(ProtocolVersion.V3),
@@ -56,6 +57,7 @@ public abstract class Event
     public static Event deserialize(ByteBuf cb, ProtocolVersion version)
     {
         Type eventType = CBUtil.readEnumValue(Type.class, cb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (eventType.minimumVersion.isGreaterThan(version))
             throw new ProtocolException("Event " + eventType.name() + " not valid for protocol version " + version);
         switch (eventType)
@@ -72,6 +74,7 @@ public abstract class Event
 
     public void serialize(ByteBuf dest, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         if (type.minimumVersion.isGreaterThan(version))
             throw new ProtocolException("Event " + type.name() + " not valid for protocol version " + version);
         CBUtil.writeEnumValue(type, dest);
@@ -116,6 +119,7 @@ public abstract class Event
 
         public static TopologyChange newNode(InetAddressAndPort address)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new TopologyChange(Change.NEW_NODE, new InetSocketAddress(address.address, address.port));
         }
 
@@ -157,6 +161,7 @@ public abstract class Event
         @Override
         public int hashCode()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             return Objects.hashCode(change, node);
         }
 
@@ -187,6 +192,7 @@ public abstract class Event
 
         public static StatusChange nodeUp(InetAddressAndPort address)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new StatusChange(Status.UP, new InetSocketAddress(address.address, address.port));
         }
 
@@ -255,6 +261,7 @@ public abstract class Event
             this.change = change;
             this.target = target;
             this.keyspace = keyspace;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
             this.name = name;
             if (target != Target.KEYSPACE)
                 assert this.name != null : "Table, type, function or aggregate name should be set for non-keyspace schema change events";
@@ -273,6 +280,7 @@ public abstract class Event
 
         public static SchemaChange forFunction(Change change, UDFunction function)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return new SchemaChange(change, Target.FUNCTION, function.name().keyspace, function.name().name, function.argumentsList());
         }
 
@@ -285,11 +293,13 @@ public abstract class Event
         public static SchemaChange deserializeEvent(ByteBuf cb, ProtocolVersion version)
         {
             Change change = CBUtil.readEnumValue(Change.class, cb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 Target target = CBUtil.readEnumValue(Target.class, cb);
                 String keyspace = CBUtil.readString(cb);
                 String tableOrType = target == Target.KEYSPACE ? null : CBUtil.readString(cb);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
                 List<String> argTypes = null;
                 if (target == Target.FUNCTION || target == Target.AGGREGATE)
                     argTypes = CBUtil.readStringList(cb);
@@ -308,11 +318,13 @@ public abstract class Event
         {
             if (target == Target.FUNCTION || target == Target.AGGREGATE)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     // available since protocol version 4
                     CBUtil.writeEnumValue(change, dest);
                     CBUtil.writeEnumValue(target, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     CBUtil.writeAsciiString(keyspace, dest);
                     CBUtil.writeAsciiString(name, dest);
                     CBUtil.writeStringList(argTypes, dest);
@@ -321,18 +333,22 @@ public abstract class Event
                 {
                     // not available in protocol versions < 4 - just say the keyspace was updated.
                     CBUtil.writeEnumValue(Change.UPDATED, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                     if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
                         CBUtil.writeEnumValue(Target.KEYSPACE, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     CBUtil.writeAsciiString(keyspace, dest);
                     CBUtil.writeAsciiString("", dest);
                 }
                 return;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 CBUtil.writeEnumValue(change, dest);
                 CBUtil.writeEnumValue(target, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                 CBUtil.writeAsciiString(keyspace, dest);
                 if (target != Target.KEYSPACE)
                     CBUtil.writeAsciiString(name, dest);
@@ -344,6 +360,7 @@ public abstract class Event
                     // For the v1/v2 protocol, we have no way to represent type changes, so we simply say the keyspace
                     // was updated.  See CASSANDRA-7617.
                     CBUtil.writeEnumValue(Change.UPDATED, dest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                     CBUtil.writeAsciiString(keyspace, dest);
                     CBUtil.writeAsciiString("", dest);
                 }
@@ -360,9 +377,11 @@ public abstract class Event
         {
             if (target == Target.FUNCTION || target == Target.AGGREGATE)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                     return CBUtil.sizeOfEnumValue(change)
                                + CBUtil.sizeOfEnumValue(target)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                                + CBUtil.sizeOfAsciiString(keyspace)
                                + CBUtil.sizeOfAsciiString(name)
                                + CBUtil.sizeOfStringList(argTypes);
@@ -375,6 +394,7 @@ public abstract class Event
                        + CBUtil.sizeOfAsciiString("");
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
                 int size = CBUtil.sizeOfEnumValue(change)
@@ -391,6 +411,7 @@ public abstract class Event
                 if (target == Target.TYPE)
                 {
                     return CBUtil.sizeOfEnumValue(Change.UPDATED)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                          + CBUtil.sizeOfAsciiString(keyspace)
                          + CBUtil.sizeOfAsciiString("");
                 }
@@ -403,6 +424,7 @@ public abstract class Event
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
             StringBuilder sb = new StringBuilder().append(change)
                                                   .append(' ').append(target)
                                                   .append(' ').append(keyspace);
@@ -437,7 +459,9 @@ public abstract class Event
             SchemaChange scc = (SchemaChange)other;
             return Objects.equal(change, scc.change)
                 && Objects.equal(target, scc.target)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
                 && Objects.equal(keyspace, scc.keyspace)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
                 && Objects.equal(name, scc.name)
                 && Objects.equal(argTypes, scc.argTypes);
         }

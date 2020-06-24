@@ -72,6 +72,7 @@ public class CassandraStreamReader implements IStreamReader
 
     public CassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         if (session.getPendingRepair() != null)
         {
             // we should only ever be streaming pending repair
@@ -80,14 +81,18 @@ public class CassandraStreamReader implements IStreamReader
         }
         this.session = session;
         this.tableId = header.tableId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         this.estimatedKeys = streamHeader.estimatedKeys;
         this.sections = streamHeader.sections;
         this.inputVersion = streamHeader.version;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         this.repairedAt = header.repairedAt;
         this.pendingRepair = header.pendingRepair;
         this.format = streamHeader.format;
         this.sstableLevel = streamHeader.sstableLevel;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         this.header = streamHeader.serializationHeader;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10961
         this.fileSeqNum = header.sequenceNumber;
     }
 
@@ -112,9 +117,11 @@ public class CassandraStreamReader implements IStreamReader
         logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', table = '{}', pendingRepair = '{}'.",
                      session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(),
                      cfs.getTableName(), pendingRepair);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
 
         StreamDeserializer deserializer = null;
         SSTableMultiWriter writer = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         try (StreamCompressionInputStream streamCompressionInputStream = new StreamCompressionInputStream(inputPlus, current_version))
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
@@ -124,19 +131,24 @@ public class CassandraStreamReader implements IStreamReader
             {
                 writePartition(deserializer, writer);
                 // TODO move this to BytesReadTracker
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
                 session.progress(writer.getFilename(), ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
             }
             logger.debug("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                          session.planId(), fileSeqNum, session.peer, FBUtilities.prettyPrintMemory(in.getBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6503
             return writer;
         }
         catch (Throwable e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13906
             Object partitionKey = deserializer != null ? deserializer.partitionKey() : "";
             logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
                         session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName(), e);
             if (writer != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10771
                 writer.abort(e);
             }
             throw Throwables.propagate(e);
@@ -153,6 +165,7 @@ public class CassandraStreamReader implements IStreamReader
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
             throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
 
         StreamReceiver streamReceiver = session.getAggregator(tableId);
         Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
@@ -165,6 +178,7 @@ public class CassandraStreamReader implements IStreamReader
     protected long totalSize()
     {
         long size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         for (SSTableReader.PartitionPositionBounds section : sections)
             size += section.upperPosition - section.lowerPosition;
         return size;
@@ -192,7 +206,9 @@ public class CassandraStreamReader implements IStreamReader
         public StreamDeserializer(TableMetadata metadata, DataInputPlus in, Version version, SerializationHeader header) throws IOException
         {
             this.metadata = metadata;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             this.in = in;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             this.helper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
         }
@@ -266,12 +282,14 @@ public class CassandraStreamReader implements IStreamReader
             // to what we do in hasNext)
             Unfiltered unfiltered = iterator.next();
             return metadata.isCounter() && unfiltered.kind() == Unfiltered.Kind.ROW
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
                    ? maybeMarkLocalToBeCleared((Row) unfiltered)
                    : unfiltered;
         }
 
         private Row maybeMarkLocalToBeCleared(Row row)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return metadata.isCounter() ? row.markCounterLocalToBeCleared() : row;
         }
 

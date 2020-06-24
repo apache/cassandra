@@ -33,6 +33,7 @@ public class TimeUUIDs extends Generator<UUID>
 
     public TimeUUIDs(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(TimeUUIDType.instance, config, name, UUID.class);
         dateGen = new Dates(name, config);
         clockSeqAndNode = config.salt;

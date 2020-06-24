@@ -136,6 +136,7 @@ public final class ConnectedClient
                            .put(DRIVER_VERSION, driverVersion().orElse(UNDEFINED))
                            .put(REQUESTS, String.valueOf(requestCount()))
                            .put(KEYSPACE, keyspace().orElse(""))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14458
                            .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))

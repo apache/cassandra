@@ -44,6 +44,7 @@ public abstract class Sets
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((SetType<?>)column.type).getElementsType());
     }
 
@@ -56,6 +57,7 @@ public abstract class Sets
     public static AssignmentTestable.TestResult testSetAssignment(ColumnSpecification receiver,
                                                                   List<? extends AssignmentTestable> elements)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
         if (!(receiver.type instanceof SetType))
         {
             // We've parsed empty maps as a set literal to break the ambiguity so handle that case now
@@ -125,6 +127,7 @@ public abstract class Sets
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(keyspace, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
 
             // We've parsed empty maps as a set literal to break the ambiguity so
             // handle that case now
@@ -132,11 +135,13 @@ public abstract class Sets
                 return new Maps.Value(Collections.<ByteBuffer, ByteBuffer>emptyMap());
 
             ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             Set<Term> values = new HashSet<>(elements.size());
             boolean allTerminal = true;
             for (Term.Raw rt : elements)
             {
                 Term t = rt.prepare(keyspace, valueSpec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
 
                 if (t.containsBindMarker())
                     throw new InvalidRequestException(String.format("Invalid set literal for %s: bind variables are not supported inside collection literals", receiver.name));
@@ -146,7 +151,9 @@ public abstract class Sets
 
                 values.add(t);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             DelayedValue value = new DelayedValue(((SetType)receiver.type).getElementsType(), values);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -156,6 +163,7 @@ public abstract class Sets
             {
                 // We've parsed empty maps as a set literal to break the ambiguity so
                 // handle that case now
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                 if ((receiver.type instanceof MapType) && elements.isEmpty())
                     return;
 
@@ -172,6 +180,7 @@ public abstract class Sets
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return testSetAssignment(receiver, elements);
         }
 
@@ -202,6 +211,7 @@ public abstract class Sets
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 Set<?> s = type.getSerializer().deserializeForNativeProtocol(value, version);
                 SortedSet<ByteBuffer> elements = new TreeSet<>(type.getElementsType());
                 for (Object element : s)
@@ -226,6 +236,7 @@ public abstract class Sets
 
             Iterator<ByteBuffer> thisIter = elements.iterator();
             Iterator<ByteBuffer> thatIter = v.elements.iterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             AbstractType elementsType = st.getElementsType();
             while (thisIter.hasNext())
                 if (elementsType.compare(thisIter.next(), thatIter.next()) != 0)
@@ -259,13 +270,16 @@ public abstract class Sets
 
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             SortedSet<ByteBuffer> buffers = new TreeSet<>(comparator);
             for (Term t : elements)
             {
                 ByteBuffer bytes = t.bindAndGet(options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3783
                 if (bytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     return UNSET_VALUE;
 
@@ -276,6 +290,7 @@ public abstract class Sets
 
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(elements, functions);
         }
     }
@@ -291,6 +306,7 @@ public abstract class Sets
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == null)
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
@@ -314,6 +330,7 @@ public abstract class Sets
 
             // delete + add
             if (column.type.isMultiCell())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.setComplexDeletionTimeForOverwrite(column);
             Adder.doAdd(value, column, params);
         }
@@ -329,6 +346,8 @@ public abstract class Sets
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen set";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             Term.Terminal value = t.bind(params.options);
             if (value != UNSET_VALUE)
                 doAdd(value, column, params);
@@ -341,8 +360,10 @@ public abstract class Sets
                 if (value == null)
                     return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                 for (ByteBuffer bb : ((Value) value).elements)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                     if (bb == ByteBufferUtil.UNSET_BYTE_BUFFER)
                         continue;
 
@@ -352,9 +373,12 @@ public abstract class Sets
             else
             {
                 // for frozen sets, we're overwriting the whole cell
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5081
                 if (value == null)
                     params.addTombstone(column);
                 else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                     params.addCell(column, value.get(ProtocolVersion.CURRENT));
             }
         }
@@ -371,8 +395,10 @@ public abstract class Sets
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to remove items from a frozen set";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
             Term.Terminal value = t.bind(params.options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == null || value == UNSET_VALUE)
                 return;
 
@@ -380,8 +406,10 @@ public abstract class Sets
             Set<ByteBuffer> toDiscard = value instanceof Sets.Value
                                       ? ((Sets.Value)value).elements
                                       : Collections.singleton(value.get(params.options.getProtocolVersion()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
 
             for (ByteBuffer bb : toDiscard)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 params.addTombstone(column, CellPath.create(bb));
         }
     }
@@ -400,6 +428,7 @@ public abstract class Sets
             if (elt == null)
                 throw new InvalidRequestException("Invalid null set element");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             params.addTombstone(column, CellPath.create(elt.get(params.options.getProtocolVersion())));
         }
     }

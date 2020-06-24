@@ -43,6 +43,7 @@ public class RepairMessageSerializerTest
         int expectedSize = (int) serializer.serializedSize(message, MS_VERSION);
         try (DataOutputBuffer out = new DataOutputBuffer(expectedSize))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             serializer.serialize(message, out, MS_VERSION);
             Assert.assertEquals(expectedSize, out.buffer().limit());
             try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false))
@@ -59,10 +60,12 @@ public class RepairMessageSerializerTest
     @Test
     public void prepareConsistentRequest() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort coordinator = InetAddressAndPort.getByName("10.0.0.1");
         InetAddressAndPort peer1 = InetAddressAndPort.getByName("10.0.0.2");
         InetAddressAndPort peer2 = InetAddressAndPort.getByName("10.0.0.3");
         InetAddressAndPort peer3 = InetAddressAndPort.getByName("10.0.0.4");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         PrepareConsistentRequest expected =
             new PrepareConsistentRequest(UUIDGen.getTimeUUID(), coordinator, Sets.newHashSet(peer1, peer2, peer3));
         PrepareConsistentRequest actual = serdes(PrepareConsistentRequest.serializer, expected);

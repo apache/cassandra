@@ -34,6 +34,7 @@ public abstract class MemtableAllocator
     enum LifeCycle
     {
         LIVE, DISCARDING, DISCARDED;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
         LifeCycle transition(LifeCycle targetState)
         {
             switch (targetState)
@@ -92,6 +93,7 @@ public abstract class MemtableAllocator
     {
         state = state.transition(LifeCycle.DISCARDED);
         // release any memory owned by this allocator; automatically signals waiters
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
         onHeap.releaseAll();
         offHeap.releaseAll();
     }
@@ -113,8 +115,10 @@ public abstract class MemtableAllocator
         // and is used only to ensure that once we have reclaimed we mark the tracker with the same amount
         private volatile long reclaiming;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         SubAllocator(MemtablePool.SubPool parent)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
             this.parent = parent;
         }
 
@@ -122,6 +126,7 @@ public abstract class MemtableAllocator
         // currently no corroboration/enforcement of this is performed.
         void releaseAll()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
             parent.released(ownsUpdater.getAndSet(this, 0));
             parent.reclaimed(reclaimingUpdater.getAndSet(this, 0));
         }
@@ -147,11 +152,13 @@ public abstract class MemtableAllocator
                     acquired(size);
                     return;
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15367
                 if (opGroup.isBlocking())
                 {
                     allocated(size);
                     return;
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11327
                 WaitQueue.Signal signal = opGroup.isBlockingSignal(parent.hasRoom().register(parent.blockedTimerContext()));
                 boolean allocated = parent.tryAllocate(size);
                 if (allocated || opGroup.isBlocking())
@@ -171,6 +178,7 @@ public abstract class MemtableAllocator
         // retroactively mark an amount allocated and acquired in the tracker, and owned by us
         private void allocated(long size)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
             parent.allocated(size);
             ownsUpdater.addAndGet(this, size);
         }
@@ -195,6 +203,7 @@ public abstract class MemtableAllocator
             {
                 long cur = owns;
                 long prev = reclaiming;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
                 if (!reclaimingUpdater.compareAndSet(this, prev, cur))
                     continue;
 

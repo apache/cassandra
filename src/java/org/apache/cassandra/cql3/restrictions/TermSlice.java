@@ -160,6 +160,7 @@ final class TermSlice
         boolean supported = false;
 
         if (hasBound(Bound.START))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             supported |= isInclusive(Bound.START) ? index.supportsExpression(column, Operator.GTE)
                     : index.supportsExpression(column, Operator.GT);
         if (hasBound(Bound.END))
@@ -171,6 +172,7 @@ final class TermSlice
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         if (hasBound(Bound.START))
             bound(Bound.START).addFunctionsTo(functions);
 

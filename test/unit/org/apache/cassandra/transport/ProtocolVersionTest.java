@@ -33,6 +33,7 @@ public class ProtocolVersionTest
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14659
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -47,6 +48,7 @@ public class ProtocolVersionTest
     {
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             Assert.assertEquals(version, ProtocolVersion.decode(version.asInt(), DatabaseDescriptor.getNativeTransportAllowOlderProtocols()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
 
         for (ProtocolVersion version : ProtocolVersion.UNSUPPORTED)
         { // unsupported old versions
@@ -64,6 +66,7 @@ public class ProtocolVersionTest
 
         try
         { // unsupported newer version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
             Assert.assertEquals(null, ProtocolVersion.decode(63, DatabaseDescriptor.getNativeTransportAllowOlderProtocols()));
             Assert.fail("Expected invalid protocol exception");
         }
@@ -81,6 +84,8 @@ public class ProtocolVersionTest
         Assert.assertNotNull(ProtocolVersion.CURRENT);
 
         Assert.assertFalse(ProtocolVersion.V4.isBeta());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14211
         Assert.assertTrue(ProtocolVersion.V5.isBeta());
     }
 
@@ -92,6 +97,7 @@ public class ProtocolVersionTest
         Assert.assertTrue(ProtocolVersion.V3.isSmallerOrEqualTo(ProtocolVersion.V3));
         Assert.assertTrue(ProtocolVersion.V4.isSmallerOrEqualTo(ProtocolVersion.V4));
         Assert.assertTrue(ProtocolVersion.V5.isSmallerOrEqualTo(ProtocolVersion.V5));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         Assert.assertTrue(ProtocolVersion.V1.isGreaterOrEqualTo(ProtocolVersion.V1));
         Assert.assertTrue(ProtocolVersion.V2.isGreaterOrEqualTo(ProtocolVersion.V2));
@@ -123,6 +129,7 @@ public class ProtocolVersionTest
     @Test
     public void testDisableOldProtocolVersions_Succeeds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14659
         DatabaseDescriptor.setNativeTransportAllowOlderProtocols(false);
         List<ProtocolVersion> disallowedVersions = ProtocolVersion.SUPPORTED
                                                        .stream()
@@ -133,6 +140,7 @@ public class ProtocolVersionTest
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
                 ProtocolVersion.decode(version.asInt(), DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
                 Assert.fail("Expected invalid protocol exception");
             }
@@ -141,6 +149,7 @@ public class ProtocolVersionTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
         Assert.assertEquals(ProtocolVersion.CURRENT, ProtocolVersion.decode(ProtocolVersion.CURRENT.asInt(), DatabaseDescriptor.getNativeTransportAllowOlderProtocols()));
     }
 }

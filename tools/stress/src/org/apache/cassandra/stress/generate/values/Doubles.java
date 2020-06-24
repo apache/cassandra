@@ -26,6 +26,7 @@ public class Doubles extends Generator<Double>
 {
     public Doubles(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(DoubleType.instance, config, name, Double.class);
     }
 

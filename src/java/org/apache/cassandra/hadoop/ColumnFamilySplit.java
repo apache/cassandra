@@ -36,6 +36,7 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
     @Deprecated
     public ColumnFamilySplit(String startToken, String endToken, String[] dataNodes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4803
         this(startToken, endToken, Long.MAX_VALUE, dataNodes);
     }
 
@@ -63,6 +64,7 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
 
     public long getLength()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4803
         return length;
     }
 
@@ -81,10 +83,12 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
         out.writeUTF(startToken);
         out.writeUTF(endToken);
         out.writeInt(dataNodes.length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
         for (String endpoint : dataNodes)
         {
             out.writeUTF(endpoint);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9380
         out.writeLong(length);
     }
 
@@ -93,13 +97,16 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
         startToken = in.readUTF();
         endToken = in.readUTF();
         int numOfEndpoints = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
         dataNodes = new String[numOfEndpoints];
         for(int i = 0; i < numOfEndpoints; i++)
         {
             dataNodes[i] = in.readUTF();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9380
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4803
             length = in.readLong();
         }
         catch (EOFException e)

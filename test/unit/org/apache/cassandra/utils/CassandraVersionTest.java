@@ -37,6 +37,7 @@ public class CassandraVersionTest
 
         version = new CassandraVersion("1.2.3");
         assertTrue(version.major == 1 && version.minor == 2 && version.patch == 3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
 
         version = new CassandraVersion("1.2.3-foo.2+Bar");
         assertTrue(version.major == 1 && version.minor == 2 && version.patch == 3);
@@ -58,6 +59,7 @@ public class CassandraVersionTest
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.4");
         assertTrue(v1.compareTo(v2) == -1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3");
@@ -92,6 +94,7 @@ public class CassandraVersionTest
 
         v1 = new CassandraVersion("3.0.2");
         assertTrue(v1.isSupportedBy(v1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.4");
@@ -113,6 +116,7 @@ public class CassandraVersionTest
         assertTrue(!v1.isSupportedBy(v2));
         assertTrue(v2.isSupportedBy(v1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11841
         v1 = new CassandraVersion("3.7");
         v2 = new CassandraVersion("3.8");
         assertTrue(v1.isSupportedBy(v2));
@@ -159,6 +163,7 @@ public class CassandraVersionTest
         next = new CassandraVersion("2.2.0");
         assertTrue(prev.compareTo(next) < 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
         prev = next;
         next = new CassandraVersion("3.1");
         assertTrue(prev.compareTo(next) < 0);
@@ -181,6 +186,7 @@ public class CassandraVersionTest
         try
         {
             new CassandraVersion(str);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10931
             fail();
         }
         catch (IllegalArgumentException e) {}
@@ -189,6 +195,7 @@ public class CassandraVersionTest
     @Test
     public void testParseIdentifiersPositive() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         String[] result = parseIdentifiers("DUMMY", "+a.b.cde.f_g.");
         String[] expected = {"a", "b", "cde", "f_g"};
         assertArrayEquals(expected, result);
@@ -214,6 +221,7 @@ public class CassandraVersionTest
         Class[] args = {String.class, String.class};
         for (Method m: CassandraVersion.class.getDeclaredMethods())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (name.equals(m.getName()) &&
                     Arrays.equals(args, m.getParameterTypes()))
             {

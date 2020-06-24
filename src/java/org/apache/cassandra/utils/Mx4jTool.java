@@ -41,7 +41,9 @@ public class Mx4jTool
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Will try to load mx4j now, if it's in the classpath");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
             MBeanWrapper mbs = MBeanWrapper.instance;
             ObjectName processorName = new ObjectName("Server:name=XSLTProcessor");
 
@@ -64,6 +66,7 @@ public class Mx4jTool
         }
         catch (ClassNotFoundException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Will not load MX4J, mx4j-tools.jar is not in the classpath");
         }
         catch(Exception e)
@@ -75,8 +78,10 @@ public class Mx4jTool
 
     private static String getAddress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13578
         String sAddress = System.getProperty("mx4jaddress");
         if (StringUtils.isEmpty(sAddress))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             sAddress = FBUtilities.getBroadcastAddressAndPort().address.getHostAddress();
         return sAddress;
     }

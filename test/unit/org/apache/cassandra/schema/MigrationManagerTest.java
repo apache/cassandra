@@ -83,6 +83,7 @@ public class MigrationManagerTest
         SchemaLoader.prepareServer();
         SchemaLoader.startGossiper();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE2));
@@ -152,6 +153,7 @@ public class MigrationManagerTest
         try
         {
             MigrationManager.announceNewTable(newCf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1066
             throw new AssertionError("You shouldn't be able to do anything to a keyspace that doesn't exist.");
         }
         catch (ConfigurationException expected)
@@ -207,8 +209,10 @@ public class MigrationManagerTest
         assertNotNull(store);
         store.forceBlockingFlush();
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
         MigrationManager.announceTableDrop(ks.name, cfm.name, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         assertFalse(Schema.instance.getKeyspaceMetadata(ks.name).tables.get(cfm.name).isPresent());
 
@@ -228,6 +232,7 @@ public class MigrationManagerTest
 
         // verify that the files are gone.
         Supplier<Object> lambda = () -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             for (File file : store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).listFiles())
             {
                 if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
@@ -278,6 +283,7 @@ public class MigrationManagerTest
         assertNotNull(cfs);
         cfs.forceBlockingFlush();
         assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
@@ -301,6 +307,7 @@ public class MigrationManagerTest
         boolean threw = false;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             Keyspace.open(ks.name);
         }
         catch (Throwable th)
@@ -326,6 +333,8 @@ public class MigrationManagerTest
                                            "dropKs", "col" + i, "anyvalue");
 
         MigrationManager.announceKeyspaceDrop(ks.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
 
         assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
     }
@@ -334,7 +343,9 @@ public class MigrationManagerTest
     public void createEmptyKsAddNewCf() throws ConfigurationException
     {
         assertNull(Schema.instance.getKeyspaceMetadata(EMPTY_KEYSPACE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         KeyspaceMetadata newKs = KeyspaceMetadata.create(EMPTY_KEYSPACE, KeyspaceParams.simple(5));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
         MigrationManager.announceNewKeyspace(newKs);
         assertNotNull(Schema.instance.getKeyspaceMetadata(EMPTY_KEYSPACE));
 
@@ -388,11 +399,13 @@ public class MigrationManagerTest
         }
 
         Map<String, String> replicationMap = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13990
         replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
         replicationMap.put("replication_factor", "1");
 
         KeyspaceMetadata newKs = KeyspaceMetadata.create(cf.keyspace, KeyspaceParams.create(true, replicationMap));
         MigrationManager.announceKeyspaceUpdate(newKs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
 
         KeyspaceMetadata newFetchedKs = Schema.instance.getKeyspaceMetadata(newKs.name);
         assertEquals(newFetchedKs.params.replication.klass, newKs.params.replication.klass);
@@ -405,6 +418,7 @@ public class MigrationManagerTest
     {
         // create a keyspace with a cf to update.
         CFMetaData cf = addTestTable("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         KSMetaData ksm = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
         MigrationManager.announceNewKeyspace(ksm);
 
@@ -413,6 +427,7 @@ public class MigrationManagerTest
         assertNotNull(Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName));
 
         // updating certain fields should fail.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         CFMetaData newCfm = cf.copy();
         newCfm.defaultValidator(BytesType.instance);
         newCfm.minCompactionThreshold(5);
@@ -446,6 +461,7 @@ public class MigrationManagerTest
         assertEquals(UTF8Type.instance, Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName).getDefaultValidator());
 
         // Change tableId
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
         newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
@@ -456,6 +472,7 @@ public class MigrationManagerTest
         catch (ConfigurationException expected) {}
 
         // Change cfName
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3237
         newCfm = new CFMetaData(cf.ksName, cf.cfName + "_renamed", cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
@@ -466,6 +483,7 @@ public class MigrationManagerTest
         catch (ConfigurationException expected) {}
 
         // Change ksName
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3237
         newCfm = new CFMetaData(cf.ksName + "_renamed", cf.cfName, cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
@@ -476,6 +494,7 @@ public class MigrationManagerTest
         catch (ConfigurationException expected) {}
 
         // Change cf type
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3237
         newCfm = new CFMetaData(cf.ksName, cf.cfName, ColumnFamilyType.Super, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
@@ -486,6 +505,7 @@ public class MigrationManagerTest
         catch (ConfigurationException expected) {}
 
         // Change comparator
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
         newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, new SimpleDenseCellNameType(TimeUUIDType.instance));
         CFMetaData.copyOpts(newCfm, cf);
         try
@@ -513,6 +533,7 @@ public class MigrationManagerTest
                                        "key0", "col0", 1L, 1L);
 
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         ColumnFamilyStore indexCfs = cfs.indexManager.getIndexByName(indexName)
                                                      .getBackingTable()
                                                      .orElseThrow(throwAssert("Cannot access index cfs"));
@@ -527,7 +548,9 @@ public class MigrationManagerTest
         MigrationManager.announceTableUpdate(meta.unbuild().indexes(meta.indexes.without(existing.name)).build());
 
         // check
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         assertTrue(cfs.indexManager.listIndexes().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LifecycleTransaction.waitForDeletions();
         assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
     }
@@ -536,6 +559,7 @@ public class MigrationManagerTest
     public void testValidateNullKeyspace() throws Exception
     {
         TableMetadata.Builder builder = TableMetadata.builder(null, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13845
 
         TableMetadata table1 = builder.build();
         thrown.expect(ConfigurationException.class);

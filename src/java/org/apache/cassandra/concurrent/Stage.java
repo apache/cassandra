@@ -49,6 +49,8 @@ import static java.util.stream.Collectors.toMap;
 
 public enum Stage
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
     READ              ("ReadStage",             "request",  DatabaseDescriptor::getConcurrentReaders,        DatabaseDescriptor::setConcurrentReaders,        Stage::multiThreadedLowSignalStage),
     MUTATION          ("MutationStage",         "request",  DatabaseDescriptor::getConcurrentWriters,        DatabaseDescriptor::setConcurrentWriters,        Stage::multiThreadedLowSignalStage),
     COUNTER_MUTATION  ("CounterMutationStage",  "request",  DatabaseDescriptor::getConcurrentCounterWriters, DatabaseDescriptor::setConcurrentCounterWriters, Stage::multiThreadedLowSignalStage),
@@ -191,6 +193,8 @@ public enum Stage
 
     static LocalAwareExecutorService multiThreadedLowSignalStage(String jmxName, String jmxType, int numThreads, LocalAwareExecutorService.MaximumPoolSizeListener onSetMaximumPoolSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return SharedExecutorPool.SHARED.newExecutor(numThreads, onSetMaximumPoolSize, Integer.MAX_VALUE, jmxType, jmxName);
     }
 
@@ -215,6 +219,8 @@ public enum Stage
      */
     public int getCorePoolSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return executor().getCorePoolSize();
     }
 

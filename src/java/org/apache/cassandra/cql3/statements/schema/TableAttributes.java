@@ -47,6 +47,7 @@ public final class TableAttributes extends PropertyDefinitions
         ImmutableSet.Builder<String> validBuilder = ImmutableSet.builder();
         for (Option option : Option.values())
             validBuilder.add(option.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         validBuilder.add(ID);
         validKeywords = validBuilder.build();
         obsoleteKeywords = ImmutableSet.of();
@@ -58,6 +59,7 @@ public final class TableAttributes extends PropertyDefinitions
         build(TableParams.builder()).validate();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     TableParams asNewTableParams()
     {
         return build(TableParams.builder());
@@ -72,6 +74,7 @@ public final class TableAttributes extends PropertyDefinitions
 
     public TableId getId() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         String id = getSimple(ID);
         try
         {
@@ -101,6 +104,7 @@ public final class TableAttributes extends PropertyDefinitions
         {
             //crc_check_chance was "promoted" from a compression property to a top-level-property after #9839
             //so we temporarily accept it to be defined as a compression option, to maintain backwards compatibility
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
             Map<String, String> compressionOpts = getMap(Option.COMPRESSION);
             if (compressionOpts.containsKey(Option.CRC_CHECK_CHANCE.toString().toLowerCase()))
             {
@@ -127,16 +131,21 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(Option.SPECULATIVE_RETRY))
             builder.speculativeRetry(SpeculativeRetryPolicy.fromString(getString(Option.SPECULATIVE_RETRY)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14293
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         if (hasOption(Option.ADDITIONAL_WRITE_POLICY))
             builder.additionalWritePolicy(SpeculativeRetryPolicy.fromString(getString(Option.ADDITIONAL_WRITE_POLICY)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
         if (hasOption(Option.CRC_CHECK_CHANCE))
             builder.crcCheckChance(getDouble(Option.CRC_CHECK_CHANCE));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         if (hasOption(Option.CDC))
             builder.cdc(getBoolean(Option.CDC.toString(), false));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
         if (hasOption(Option.READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(Option.READ_REPAIR)));
 

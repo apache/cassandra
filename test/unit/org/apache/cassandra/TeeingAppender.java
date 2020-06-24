@@ -79,6 +79,7 @@ public class TeeingAppender<E> extends UnsynchronizedAppenderBase<E> implements 
     @Override
     public void stop()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10447
         try
         {
             if (started)

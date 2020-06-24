@@ -48,8 +48,10 @@ public class SchemaInsert extends SchemaStatement
 
     public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, RatioDistribution rowPopulation, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio, rowPopulation), statement, statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), cl);
         this.batchType = batchType;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         this.insertStatement = null;
         this.tableSchema = null;
     }
@@ -59,6 +61,7 @@ public class SchemaInsert extends SchemaStatement
      */
     public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, RatioDistribution useRatio, RatioDistribution rowPopulation, String statement, String tableSchema)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), useRatio, rowPopulation), null, generator.getColumnNames(), ConsistencyLevel.ONE);
         this.batchType = BatchStatement.Type.UNLOGGED;
         this.insertStatement = statement;
@@ -79,6 +82,7 @@ public class SchemaInsert extends SchemaStatement
             List<BoundStatement> stmts = new ArrayList<>();
             partitionCount = partitions.size();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             for (PartitionIterator iterator : partitions)
                 while (iterator.hasNext())
                     stmts.add(bindRow(iterator.next()));
@@ -97,6 +101,7 @@ public class SchemaInsert extends SchemaStatement
                 else
                 {
                     BatchStatement batch = new BatchStatement(batchType);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13925
                     if (cl.isSerialConsistency())
                         batch.setSerialConsistencyLevel(JavaDriverClient.from(cl));
                     else
@@ -105,6 +110,7 @@ public class SchemaInsert extends SchemaStatement
                     stmt = batch;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
                 client.getSession().execute(stmt);
             }
             return true;
@@ -114,9 +120,12 @@ public class SchemaInsert extends SchemaStatement
     private class OfflineRun extends Runner
     {
         final StressCQLSSTableWriter writer;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
 
         OfflineRun(StressCQLSSTableWriter writer)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
             this.writer = writer;
         }
 
@@ -127,6 +136,7 @@ public class SchemaInsert extends SchemaStatement
                 while (iterator.hasNext())
                 {
                     Row row = iterator.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                     writer.rawAddRow(rowArgs(row));
                     rowCount += 1;
                 }
@@ -144,12 +154,16 @@ public class SchemaInsert extends SchemaStatement
 
     public boolean isWrite()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return true;
     }
 
     public StressCQLSSTableWriter createWriter(ColumnFamilyStore cfs, int bufferSize, boolean makeRangeAware)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         return StressCQLSSTableWriter.builder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
                                .withCfs(cfs)
                                .withBufferSizeInMB(bufferSize)
                                .forTable(tableSchema)

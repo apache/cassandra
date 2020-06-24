@@ -84,6 +84,7 @@ public class NoSpamLogger
         public boolean log(Level l, long nowNanos, Object... objects)
         {
             if (!shouldLog(nowNanos)) return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
 
             switch (l)
             {
@@ -99,6 +100,7 @@ public class NoSpamLogger
                 default:
                     throw new AssertionError();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
             return true;
         }
 
@@ -189,6 +191,7 @@ public class NoSpamLogger
 
     public boolean info(long nowNanos, String s, Object... objects)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
         return NoSpamLogger.this.log( Level.INFO, s, nowNanos, objects);
     }
 

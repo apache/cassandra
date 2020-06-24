@@ -46,6 +46,7 @@ public class ClientStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
         if (clearConnectionHistory)
         {
             System.out.println("Clearing connection history");
@@ -53,6 +54,7 @@ public class ClientStats extends NodeToolCmd
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
         if (connectionsByProtocolVersion)
         {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm:ss");
@@ -69,6 +71,7 @@ public class ClientStats extends NodeToolCmd
 
                 for (Map<String, String> client : clients)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
                     table.add(client.get(ClientStat.PROTOCOL_VERSION),
                               client.get(ClientStat.INET_ADDRESS),
                               sdf.format(new Date(Long.valueOf(client.get(ClientStat.LAST_SEEN_TIME)))));
@@ -90,6 +93,7 @@ public class ClientStats extends NodeToolCmd
                 table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
                 for (Map<String, String> conn : clients)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
                     table.add(conn.get(ConnectedClient.ADDRESS),
                               conn.get(ConnectedClient.SSL),
                               conn.get(ConnectedClient.CIPHER),

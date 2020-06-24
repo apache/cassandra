@@ -66,6 +66,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2));
         DigestResolver resolver = new DigestResolver(command, plan(ConsistencyLevel.QUORUM, targetReplicas), 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14698
 
         PartitionUpdate response = update(row(1000, 4, 4), row(1000, 5, 5)).build();
 
@@ -84,6 +85,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2));
         DigestResolver resolver = new DigestResolver(command, plan(ConsistencyLevel.QUORUM, targetReplicas), 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14698
 
         PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();
         PartitionUpdate response2 = update(row(2000, 4, 5)).build();
@@ -105,6 +107,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), trans(EP2));
         DigestResolver<?, ?> resolver = new DigestResolver<>(command, plan(ConsistencyLevel.QUORUM, targetReplicas), 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14698
 
         PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();
         PartitionUpdate response2 = update(row(1000, 5, 5)).build();
@@ -126,6 +129,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), trans(EP2));
         DigestResolver<?, ?> resolver = new DigestResolver<>(command, plan(ConsistencyLevel.QUORUM, targetReplicas), 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14698
 
         PartitionUpdate response2 = update(row(1000, 5, 5)).build();
         Assert.assertFalse(resolver.isDataPresent());
@@ -138,6 +142,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     @Test
     public void transientResponseData()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14698
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2), trans(EP3));
         DigestResolver<?, ?> resolver = new DigestResolver<>(command, plan(ConsistencyLevel.QUORUM, targetReplicas), 0);
@@ -161,6 +166,8 @@ public class DigestResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, consistencyLevel, replicas, replicas));
     }
 }

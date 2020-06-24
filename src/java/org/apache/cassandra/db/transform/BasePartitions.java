@@ -29,6 +29,7 @@ import org.apache.cassandra.utils.Throwables;
 import static org.apache.cassandra.utils.Throwables.merge;
 
 public abstract class BasePartitions<R extends BaseRowIterator<?>, I extends BasePartitionIterator<? extends BaseRowIterator<?>>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
 extends BaseIterator<BaseRowIterator<?>, I, R>
 implements BasePartitionIterator<R>
 {
@@ -90,6 +91,7 @@ implements BasePartitionIterator<R>
                 Transformation[] fs = stack;
                 int len = length;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14812
                 while (!stop.isSignalled && !stopChild.isSignalled && input.hasNext())
                 {
                     next = input.next();
@@ -103,6 +105,7 @@ implements BasePartitionIterator<R>
                     }
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14812
                 if (stop.isSignalled || !hasMoreContents())
                     return false;
             }

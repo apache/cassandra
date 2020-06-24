@@ -23,5 +23,6 @@ import org.apache.cassandra.dht.Token;
 
 public interface TokenAllocator<Unit>
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
     Collection<Token> addUnit(Unit newUnit, int numTokens);
 }

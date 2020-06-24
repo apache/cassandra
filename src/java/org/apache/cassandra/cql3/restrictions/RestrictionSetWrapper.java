@@ -46,6 +46,7 @@ class RestrictionSetWrapper implements Restrictions
     }
 
     public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
@@ -74,6 +75,7 @@ class RestrictionSetWrapper implements Restrictions
 
     public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return restrictions.hasSupportingIndex(indexRegistry);
     }
 
@@ -94,11 +96,13 @@ class RestrictionSetWrapper implements Restrictions
 
     public boolean hasContains()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
         return restrictions.hasContains();
     }
 
     public boolean hasSlice()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         return restrictions.hasSlice();
     }
 
@@ -109,12 +113,14 @@ class RestrictionSetWrapper implements Restrictions
 
     public Set<Restriction> getRestrictions(ColumnMetadata columnDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         return restrictions.getRestrictions(columnDef);
     }
     
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

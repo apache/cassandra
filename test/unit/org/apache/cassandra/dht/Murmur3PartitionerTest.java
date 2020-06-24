@@ -23,12 +23,14 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         partitioner = Murmur3Partitioner.instance;
     }
 
     @Override
     protected void midpointMinimumTestCase()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
         Token mintoken = partitioner.getMinimumToken();
         assert mintoken.compareTo(partitioner.midpoint(mintoken, mintoken)) != 0;
         assertMidpoint(mintoken, tok("a"), 16);
@@ -39,12 +41,14 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
 
     protected boolean shouldStopRecursion(Token left, Token right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12858
         return left.size(right) < Math.scalb(1, -48);
     }
 
     @Test
     public void testSplit()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         assertSplit(tok("a"), tok("b"), 16);
         assertSplit(tok("a"), tok("bbb"), 16);
     }

@@ -44,6 +44,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     public TruncateStatement prepare(ClientState state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return this;
     }
 
@@ -65,6 +66,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             if (metaData.isVirtual())
                 throw new InvalidRequestException("Cannot truncate virtual tables");
 
@@ -81,7 +83,10 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
@@ -101,12 +106,14 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 
     @Override
     public AuditLogContext getAuditLogContext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return new AuditLogContext(AuditLogEntryType.TRUNCATE, keyspace(), name());
     }
 }

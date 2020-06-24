@@ -40,9 +40,11 @@ public class SettingsTransport implements Serializable
 
     public EncryptionOptions getEncryptionOptions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         EncryptionOptions encOptions = new EncryptionOptions();
         if (options.trustStore.present())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             encOptions = encOptions
                          .withEnabled(true)
                          .withTrustStore(options.trustStore.value())
@@ -82,6 +84,7 @@ public class SettingsTransport implements Serializable
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             return Arrays.asList(trustStore, trustStorePw, keyStore, keyStorePw, protocol, alg, ciphers);
         }
     }

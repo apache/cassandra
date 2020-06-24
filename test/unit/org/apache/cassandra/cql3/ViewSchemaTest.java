@@ -51,6 +51,7 @@ import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 public class ViewSchemaTest extends CQLTester
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();
 
@@ -83,6 +84,8 @@ public class ViewSchemaTest extends CQLTester
     private void updateView(String query, Object... params) throws Throwable
     {
         executeNet(protocolVersion, query, params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
                  && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {
@@ -672,6 +675,7 @@ public class ViewSchemaTest extends CQLTester
 
         createView(keyspace() + ".mv1",
                    "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         try
         {
@@ -680,6 +684,7 @@ public class ViewSchemaTest extends CQLTester
         }
         catch (InvalidQueryException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             Assert.assertEquals("Cannot use DROP TABLE on a materialized view. Please use DROP MATERIALIZED VIEW instead.", e.getMessage());
         }
     }
@@ -690,9 +695,12 @@ public class ViewSchemaTest extends CQLTester
         // SEE CASSANDRA-13798, we cannot properly support non-pk base column filtering for mv without huge storage
         // format changes.
         createTable("CREATE TABLE %s ( a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10368
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13798
 
         executeNet(protocolVersion, "USE " + keyspace());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Non-primary key columns can only be restricted with 'IS NOT NULL'",
                              "CREATE MATERIALIZED VIEW " + keyspace() + ".mv AS SELECT * FROM %s "
                                      + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "

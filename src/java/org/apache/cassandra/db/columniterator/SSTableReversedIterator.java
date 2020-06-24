@@ -47,8 +47,10 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                                    RowIndexEntry indexEntry,
                                    Slices slices,
                                    ColumnFilter columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                                    FileHandle ifile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
@@ -138,7 +140,10 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         {
             assert buffer != null;
             iterator = buffer.built.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
             if (!iterator.hasNext())
                 return;
 
@@ -173,6 +178,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         // Reads the unfiltered from disk and load them into the reader buffer. It stops reading when either the partition
         // is fully read, or when stopReadingDisk() returns true.
         protected void loadFromDisk(ClusteringBound start,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
                                     ClusteringBound end,
                                     boolean hasPreviousBlock,
                                     boolean hasNextBlock) throws IOException
@@ -187,6 +193,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             // If the start might be in this block, skip everything that comes before it.
             if (start != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10590
                 while (deserializer.hasNext() && deserializer.compareNextTo(start) <= 0 && !stopReadingDisk())
                 {
                     if (deserializer.nextIsRow())
@@ -209,8 +216,11 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // want to "return" it just yet, we'll wait until we reach it in the next blocks. That's why we trigger
                 // skipLastIteratedItem in that case (this is first item of the block, but we're iterating in reverse order
                 // so it will be last returned by the iterator).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBound markerStart = start == null ? ClusteringBound.BOTTOM : start;
                 buffer.add(new RangeTombstoneBoundMarker(markerStart, openMarker));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
                 if (hasNextBlock)
                     skipLastIteratedItem = true;
             }
@@ -223,6 +233,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                    && !stopReadingDisk())
             {
                 Unfiltered unfiltered = deserializer.readNext();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
                 UnfilteredValidation.maybeValidateUnfiltered(unfiltered, metadata(), key, sstable);
                 // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
                 if (!unfiltered.isEmpty())
@@ -243,8 +254,12 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // not breaking ImmutableBTreePartition, we should skip it when returning from the iterator, hence the
                 // skipFirstIteratedItem (this is the last item of the block, but we're iterating in reverse order so it will
                 // be the first returned by the iterator).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBound markerEnd = end == null ? ClusteringBound.TOP : end;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13787
                 buffer.add(new RangeTombstoneBoundMarker(markerEnd, openMarker));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
                 if (hasPreviousBlock)
                     skipFirstIteratedItem = true;
             }
@@ -292,6 +307,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (startIdx < 0)
             {
                 iterator = Collections.emptyIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14513
                 indexState.setToBlock(startIdx);
                 return;
             }
@@ -315,6 +331,8 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             // slice we've only read that block from the previous slice start. Re-reading also handles
             // skipFirstIteratedItem/skipLastIteratedItem that we would need to handle otherwise.
             indexState.setToBlock(startIdx);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
 
             readCurrentBlock(false, startIdx != lastBlockIdx);
         }
@@ -325,10 +343,13 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (super.hasNextInternal())
                 return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14803
             while (true)
             {
                 // We have nothing more for our current block, move the next one (so the one before on disk).
                 int nextBlockIdx = indexState.currentBlockIdx() - 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
                 if (nextBlockIdx < 0 || nextBlockIdx < lastBlockIdx)
                     return false;
 
@@ -398,6 +419,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                                       RegularAndStaticColumns columns,
                                       int initialRowCapacity)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             this.metadata = metadata;
             this.partitionKey = partitionKey;
             this.columns = columns;
@@ -416,6 +438,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         public void reset()
         {
             built = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13929
             rowBuilder.reuse();
             deletionBuilder = MutableDeletionInfo.builder(partitionLevelDeletion, metadata().comparator, false);
         }
@@ -424,6 +447,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         {
             deletionInfo = deletionBuilder.build();
             built = new ImmutableBTreePartition(metadata, partitionKey, columns, Rows.EMPTY_STATIC_ROW, rowBuilder.build(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11733
                                                 deletionInfo, EncodingStats.NO_STATS);
             deletionBuilder = null;
         }
@@ -435,6 +459,8 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
 
         private SkipLastIterator(Iterator<Unfiltered> iterator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
             this.iterator = iterator;
         }
 

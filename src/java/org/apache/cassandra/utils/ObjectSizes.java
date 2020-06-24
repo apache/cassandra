@@ -32,7 +32,9 @@ import org.github.jamm.MemoryMeter;
 public class ObjectSizes
 {
     private static final MemoryMeter meter = new MemoryMeter()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
                                              .omitSharedBufferOverhead()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8209
                                              .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
                                              .ignoreKnownSingletons();
 

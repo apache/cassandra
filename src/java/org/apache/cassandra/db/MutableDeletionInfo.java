@@ -114,6 +114,7 @@ public class MutableDeletionInfo implements DeletionInfo
 
     public void add(RangeTombstone tombstone, ClusteringComparator comparator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15763
         if (ranges == null) // Introduce getInitialRangeTombstoneAllocationSize
             ranges = new RangeTombstoneList(comparator, DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize());
 
@@ -291,6 +292,7 @@ public class MutableDeletionInfo implements DeletionInfo
                 DeletionTime openDeletion = openMarker.openDeletionTime(reversed);
                 assert marker.closeDeletionTime(reversed).equals(openDeletion);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBound open = openMarker.openBound(reversed);
                 ClusteringBound close = marker.closeBound(reversed);
 

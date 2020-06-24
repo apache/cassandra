@@ -55,6 +55,7 @@ public class NativeAllocatorTest
                     }
                     if (isClean.getCount() > 0)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
                         allocatorRef.get().offHeap().released(80);
                         isClean.countDown();
                     }
@@ -79,6 +80,7 @@ public class NativeAllocatorTest
                     allocator.allocate(10, group);
                     Assert.assertEquals(10, allocator.offHeap().owns());
                     // confirm adjustment works
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
                     allocator.offHeap().adjust(-10, group);
                     Assert.assertEquals(0, allocator.offHeap().owns());
                     allocator.offHeap().adjust(10, group);

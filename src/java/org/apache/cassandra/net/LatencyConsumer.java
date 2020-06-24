@@ -21,5 +21,6 @@ import java.util.concurrent.TimeUnit;
 
 public interface LatencyConsumer
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     void accept(long timeElapsed, TimeUnit unit);
 }

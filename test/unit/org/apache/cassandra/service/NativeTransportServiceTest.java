@@ -41,12 +41,14 @@ public class NativeTransportServiceTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @After
     public void resetConfig()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(false));
         DatabaseDescriptor.setNativeTransportPortSSL(null);
     }
@@ -84,7 +86,9 @@ public class NativeTransportServiceTest
     public void testDestroy()
     {
         withService((NativeTransportService service) -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
             BooleanSupplier allTerminated = () ->
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
                                             service.getWorkerGroup().isShutdown() && service.getWorkerGroup().isTerminated();
             assertFalse(allTerminated.getAsBoolean());
             service.destroy();
@@ -127,9 +131,11 @@ public class NativeTransportServiceTest
     public void testSSLOnly()
     {
         // default ssl settings: client encryption enabled and default native transport port used for ssl only
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true)
                                                                                    .withOptional(false));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10559
         withService((NativeTransportService service) ->
                     {
                         service.initialize();
@@ -144,6 +150,7 @@ public class NativeTransportServiceTest
     public void testSSLOptional()
     {
         // default ssl settings: client encryption enabled and default native transport port used for optional ssl
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true)
                                                                                    .withOptional(true));
 
@@ -161,6 +168,7 @@ public class NativeTransportServiceTest
     public void testSSLWithNonSSL()
     {
         // ssl+non-ssl settings: client encryption enabled and additional ssl port specified
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true));
         DatabaseDescriptor.setNativeTransportPortSSL(8432);
 

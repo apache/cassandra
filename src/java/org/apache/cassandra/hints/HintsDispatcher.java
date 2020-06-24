@@ -51,6 +51,7 @@ final class HintsDispatcher implements AutoCloseable
     private enum Action { CONTINUE, ABORT }
 
     private final HintsReader reader;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
     final UUID hostId;
     final InetAddressAndPort address;
     private final int messagingVersion;
@@ -72,6 +73,7 @@ final class HintsDispatcher implements AutoCloseable
     static HintsDispatcher create(File file, RateLimiter rateLimiter, InetAddressAndPort address, UUID hostId, BooleanSupplier abortRequested)
     {
         int messagingVersion = MessagingService.instance().versions.get(address);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         HintsDispatcher dispatcher = new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, messagingVersion, abortRequested);
         HintDiagnostics.dispatcherCreated(dispatcher);
         return dispatcher;
@@ -83,6 +85,7 @@ final class HintsDispatcher implements AutoCloseable
         reader.close();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
     void seek(InputPosition position)
     {
         reader.seek(position);
@@ -95,6 +98,7 @@ final class HintsDispatcher implements AutoCloseable
     {
         for (HintsReader.Page page : reader)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
             currentPagePosition = page.position;
             if (dispatch(page) != Action.CONTINUE)
                 return false;
@@ -106,6 +110,7 @@ final class HintsDispatcher implements AutoCloseable
     /**
      * @return offset of the first non-delivered page
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
     InputPosition dispatchPosition()
     {
         return currentPagePosition;
@@ -115,7 +120,9 @@ final class HintsDispatcher implements AutoCloseable
     // retry in case of a timeout; stop in case of a failure, host going down, or delivery paused
     private Action dispatch(HintsReader.Page page)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         HintDiagnostics.dispatchPage(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13124
         return sendHintsAndAwait(page);
     }
 
@@ -137,6 +144,7 @@ final class HintsDispatcher implements AutoCloseable
         if (action == Action.ABORT)
             return action;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         long success = 0, failures = 0, timeouts = 0;
         for (Callback cb : callbacks)
         {
@@ -151,6 +159,8 @@ final class HintsDispatcher implements AutoCloseable
         if (failures > 0 || timeouts > 0)
         {
             HintDiagnostics.pageFailureResult(this, success, failures, timeouts);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13124
             return Action.ABORT;
         }
         else
@@ -175,8 +185,10 @@ final class HintsDispatcher implements AutoCloseable
     {
         while (hints.hasNext())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
             if (abortRequested.getAsBoolean())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
                 HintDiagnostics.abortRequested(this);
                 return Action.ABORT;
             }
@@ -187,7 +199,9 @@ final class HintsDispatcher implements AutoCloseable
 
     private Callback sendHint(Hint hint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13234
         Callback callback = new Callback(hint.creationTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<?> message = Message.out(HINT_REQ, new HintMessage(hostId, hint));
         MessagingService.instance().sendWithCallback(message, address, callback);
         return callback;
@@ -199,7 +213,9 @@ final class HintsDispatcher implements AutoCloseable
 
     private Callback sendEncodedHint(ByteBuffer hint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         HintMessage.Encoded message = new HintMessage.Encoded(hostId, hint, messagingVersion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13234
         Callback callback = new Callback(message.getHintCreationTime());
         MessagingService.instance().sendWithCallback(Message.out(HINT_REQ, message), address, callback);
         return callback;
@@ -208,6 +224,7 @@ final class HintsDispatcher implements AutoCloseable
     private static final class Callback implements RequestCallback
     {
         enum Outcome { SUCCESS, TIMEOUT, FAILURE, INTERRUPTED }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13308
 
         private final long start = approxTime.now();
         private final SimpleCondition condition = new SimpleCondition();
@@ -228,6 +245,7 @@ final class HintsDispatcher implements AutoCloseable
             }
             catch (InterruptedException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13308
                 logger.warn("Hint dispatch was interrupted", e);
                 return Outcome.INTERRUPTED;
             }
@@ -238,6 +256,7 @@ final class HintsDispatcher implements AutoCloseable
         @Override
         public boolean invokeOnFailure()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return true;
         }
 
@@ -259,6 +278,7 @@ final class HintsDispatcher implements AutoCloseable
         @Override
         public boolean supportsBackPressure()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
             return true;
         }
     }

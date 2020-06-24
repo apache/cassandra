@@ -44,11 +44,13 @@ public abstract class UserTypes
         UserType ut = (UserType)column.type;
         return new ColumnSpecification(column.ksName,
                                        column.cfName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                                        new ColumnIdentifier(column.name + "." + ut.fieldName(field), true),
                                        ut.fieldType(field));
     }
 
     public static <T extends AssignmentTestable> void validateUserTypeAssignableTo(ColumnSpecification receiver,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
                                                                                    Map<FieldIdentifier, T> entries)
     {
         if (!receiver.type.isUDT())
@@ -131,6 +133,7 @@ public abstract class UserTypes
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(keyspace, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
 
             UserType ut = (UserType)receiver.type;
             boolean allTerminal = true;
@@ -138,10 +141,13 @@ public abstract class UserTypes
             int foundValues = 0;
             for (int i = 0; i < ut.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 FieldIdentifier field = ut.fieldName(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7206
                 Term.Raw raw = entries.get(field);
                 if (raw == null)
                     raw = Constants.NULL_LITERAL;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7484
                 else
                     ++foundValues;
                 Term value = raw.prepare(keyspace, fieldSpecOf(receiver, i));
@@ -154,6 +160,7 @@ public abstract class UserTypes
             if (foundValues != entries.size())
             {
                 // We had some field that are not part of the type
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 for (FieldIdentifier id : entries.keySet())
                 {
                     if (!ut.fieldNames().contains(id))
@@ -162,6 +169,7 @@ public abstract class UserTypes
             }
 
             DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -169,14 +177,17 @@ public abstract class UserTypes
         {
             if (!receiver.type.isUDT())
                 throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13646
 
             UserType ut = (UserType)receiver.type;
             for (int i = 0; i < ut.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 FieldIdentifier field = ut.fieldName(i);
                 Term.Raw value = entries.get(field);
                 if (value == null)
                     continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7206
 
                 ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
                 if (!value.testAssignment(keyspace, fieldSpec).isAssignable())
@@ -199,6 +210,7 @@ public abstract class UserTypes
 
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return userTypeToString(entries, Term.Raw::getText);
         }
     }
@@ -256,6 +268,7 @@ public abstract class UserTypes
 
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(values, functions);
         }
 
@@ -269,6 +282,7 @@ public abstract class UserTypes
 
         public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             for (int i = 0; i < type.size(); i++)
                 values.get(i).collectMarkerSpecification(boundNames);
         }
@@ -282,8 +296,10 @@ public abstract class UserTypes
             }
 
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             for (int i = 0; i < type.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7206
                 buffers[i] = values.get(i).bindAndGet(options);
                 // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
                 // value by 'not setting' the new value. Reject the query.
@@ -301,6 +317,7 @@ public abstract class UserTypes
         @Override
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7209
             return UserType.buildValue(bindInternal(options));
         }
     }
@@ -345,6 +362,7 @@ public abstract class UserTypes
                 if (value == null)
                     return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 Iterator<FieldIdentifier> fieldNameIter = userTypeValue.type.fieldNames().iterator();
                 for (ByteBuffer buffer : userTypeValue.elements)
                 {
@@ -387,6 +405,7 @@ public abstract class UserTypes
             if (value == UNSET_VALUE)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             CellPath fieldPath = ((UserType) column.type).cellPathForField(field);
             if (value == null)
                 params.addTombstone(column, fieldPath);
@@ -410,6 +429,7 @@ public abstract class UserTypes
             // we should not get here for frozen UDTs
             assert column.type.isMultiCell() : "Attempted to delete a single field from a frozen UDT";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             CellPath fieldPath = ((UserType) column.type).cellPathForField(field);
             params.addTombstone(column, fieldPath);
         }

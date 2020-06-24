@@ -41,6 +41,7 @@ public class RatioDistribution
 
     public double min()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return Math.min(1d, distribution.minValue() / divisor);
     }
 

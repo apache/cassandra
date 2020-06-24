@@ -42,6 +42,7 @@ public class CassandraStreamHeaderTest
     {
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         CassandraStreamHeader header =
             CassandraStreamHeader.builder()
                                  .withSSTableFormat(SSTableFormat.Type.BIG)

@@ -41,6 +41,7 @@ public class ResultHandler implements Closeable
 
     public ResultHandler(List<String> targetHosts, List<File> resultPaths, File queryFilePath)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
         this(targetHosts, resultPaths, queryFilePath, null);
     }
 
@@ -62,6 +63,7 @@ public class ResultHandler implements Closeable
         for (int i = 0; i < targetHosts.size(); i++)
         {
             if (results.get(i).wasFailed())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
                 logger.error("Query {} against {} failure: {}", query, targetHosts.get(i), results.get(i).getFailureException().getMessage());
         }
 
@@ -103,6 +105,7 @@ public class ResultHandler implements Closeable
 
     public void close() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         if (resultStore != null)
             resultStore.close();
     }

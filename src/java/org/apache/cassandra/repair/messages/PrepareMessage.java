@@ -52,6 +52,7 @@ public class PrepareMessage extends RepairMessage
 
     public PrepareMessage(UUID parentRepairSession, List<TableId> tableIds, Collection<Range<Token>> ranges, boolean isIncremental, long timestamp, boolean isGlobal, PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         this.parentRepairSession = parentRepairSession;
         this.tableIds = tableIds;
@@ -59,18 +60,22 @@ public class PrepareMessage extends RepairMessage
         this.isIncremental = isIncremental;
         this.timestamp = timestamp;
         this.isGlobal = isGlobal;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         this.previewKind = previewKind;
     }
 
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12934
         if (!(o instanceof PrepareMessage))
             return false;
         PrepareMessage other = (PrepareMessage) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return parentRepairSession.equals(other.parentRepairSession) &&
                isIncremental == other.isIncremental &&
                isGlobal == other.isGlobal &&
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                previewKind == other.previewKind &&
                timestamp == other.timestamp &&
                tableIds.equals(other.tableIds) &&
@@ -80,6 +85,7 @@ public class PrepareMessage extends RepairMessage
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return Objects.hash(parentRepairSession, isGlobal, previewKind, isIncremental, timestamp, tableIds, ranges);
     }
 
@@ -99,18 +105,24 @@ public class PrepareMessage extends RepairMessage
             out.writeInt(message.ranges.size());
             for (Range<Token> r : message.ranges)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 IPartitioner.validate(r);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
                 Range.tokenSerializer.serialize(r, out, version);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
             out.writeBoolean(message.isIncremental);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9111
             out.writeLong(message.timestamp);
             out.writeBoolean(message.isGlobal);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             out.writeInt(message.previewKind.getSerializationVal());
         }
 
         public PrepareMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             Preconditions.checkArgument(version == MessagingService.current_version, MIXED_MODE_ERROR);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
             int tableIdCount = in.readInt();
             List<TableId> tableIds = new ArrayList<>(tableIdCount);
@@ -120,10 +132,12 @@ public class PrepareMessage extends RepairMessage
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, IPartitioner.global(), version));
             boolean isIncremental = in.readBoolean();
             long timestamp = in.readLong();
             boolean isGlobal = in.readBoolean();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             return new PrepareMessage(parentRepairSession, tableIds, ranges, isIncremental, timestamp, isGlobal, previewKind);
         }
@@ -131,6 +145,7 @@ public class PrepareMessage extends RepairMessage
         public long serializedSize(PrepareMessage message, int version)
         {
             Preconditions.checkArgument(version == MessagingService.current_version, MIXED_MODE_ERROR);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
             long size;
             size = TypeSizes.sizeof(message.tableIds.size());
@@ -138,15 +153,19 @@ public class PrepareMessage extends RepairMessage
                 size += tableId.serializedSize();
             size += UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
             size += TypeSizes.sizeof(message.ranges.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
             for (Range<Token> r : message.ranges)
                 size += Range.tokenSerializer.serializedSize(r, version);
             size += TypeSizes.sizeof(message.isIncremental);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9111
             size += TypeSizes.sizeof(message.timestamp);
             size += TypeSizes.sizeof(message.isGlobal);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             return size;
         }
     };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
     @Override
     public String toString()
@@ -156,6 +175,7 @@ public class PrepareMessage extends RepairMessage
                ", ranges=" + ranges +
                ", parentRepairSession=" + parentRepairSession +
                ", isIncremental=" + isIncremental +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9111
                ", timestamp=" + timestamp +
                ", isGlobal=" + isGlobal +
                '}';

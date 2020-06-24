@@ -93,6 +93,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     static final ApplicationState[] STATES = ApplicationState.values();
     static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-957
                                                           VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
     static ArrayList<String> SILENT_SHUTDOWN_STATES = new ArrayList<>();
     static
@@ -127,6 +128,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /* live member set */
     @VisibleForTesting
     final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
 
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
@@ -134,6 +136,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /* initial seeds for joining the cluster */
     @VisibleForTesting
     final Set<InetAddressAndPort> seeds = new ConcurrentSkipListSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
     /* map where key is the endpoint and value is the state associated with the endpoint */
     final ConcurrentMap<InetAddressAndPort, EndpointState> endpointStateMap = new ConcurrentHashMap<>();
@@ -157,6 +160,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     //This property and anything that checks it should be removed in 5.0
     private boolean haveMajorVersion3Nodes = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
     final com.google.common.base.Supplier<Boolean> haveMajorVersion3NodesSupplier = () ->
     {
         //Once there are no prior version nodes we don't need to keep rechecking
@@ -191,6 +195,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private static long getVeryLongTime()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
         String newVLT =  System.getProperty("cassandra.very_long_time_ms");
         if (newVLT != null)
         {
@@ -202,6 +207,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private static boolean isInGossipStage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return ((JMXEnabledSingleThreadExecutor) Stage.GOSSIP.executor()).isExecutedBy(Thread.currentThread());
     }
 
@@ -229,10 +236,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 //wait on messaging service to start listening
                 MessagingService.instance().waitUntilListening();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
                 taskLock.lock();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6125
 
                 /* Update the local heartbeat counter. */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
                     logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
@@ -244,6 +254,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
                                                                            DatabaseDescriptor.getPartitionerName(),
                                                                            gDigests);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     Message<GossipDigestSyn> message = Message.out(GOSSIP_DIGEST_SYN, digestSynMessage);
                     /* Gossip to some random live member */
                     boolean gossipedToSeed = doGossipToLiveMember(message);
@@ -273,8 +284,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     doStatusCheck();
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-435
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 logger.error("Gossip error", e);
             }
@@ -285,29 +298,36 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
     Gossiper(boolean registerJmx)
     {
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
         fatClientTimeout = (QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
 
         // Register this instance with JMX
         if (registerJmx)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
         }
     }
 
     public void setLastProcessedMessageAt(long timeInMillis)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6338
         this.lastProcessedMessageAt = timeInMillis;
     }
 
     public boolean seenAnySeed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : endpointStateMap.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6523
             if (seeds.contains(entry.getKey()))
                 return true;
             try
@@ -328,6 +348,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
             catch (UnknownHostException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-130
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-130
                 throw new RuntimeException(e);
             }
         }
@@ -341,6 +363,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void register(IEndpointStateChangeSubscriber subscriber)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2092
         subscribers.add(subscriber);
     }
 
@@ -351,6 +374,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void unregister(IEndpointStateChangeSubscriber subscriber)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2092
         subscribers.remove(subscriber);
     }
 
@@ -359,6 +383,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public Set<InetAddressAndPort> getLiveMembers()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> liveMembers = new HashSet<>(liveEndpoints);
         if (!liveMembers.contains(FBUtilities.getBroadcastAddressAndPort()))
             liveMembers.add(FBUtilities.getBroadcastAddressAndPort());
@@ -386,9 +411,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public Set<InetAddressAndPort> getUnreachableTokenOwners()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> tokenOwners = new HashSet<>();
         for (InetAddressAndPort endpoint : unreachableEndpoints.keySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6864
             if (StorageService.instance.getTokenMetadata().isMember(endpoint))
                 tokenOwners.add(endpoint);
         }
@@ -400,6 +427,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         Long downtime = unreachableEndpoints.get(ep);
         if (downtime != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
             return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - downtime);
         else
             return 0L;
@@ -413,6 +441,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)
         {
@@ -433,6 +462,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public static void runInGossipStageBlocking(Runnable runnable)
     {
         // run immediately if we're already in the gossip stage
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         if (isInGossipStage())
         {
             runnable.run();
@@ -440,6 +470,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         ListenableFutureTask task = ListenableFutureTask.create(runnable, null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         Stage.GOSSIP.execute(task);
         try
         {
@@ -459,11 +491,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void convict(InetAddressAndPort endpoint, double phi)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         runInGossipStageBlocking(() -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2092
             EndpointState epState = endpointStateMap.get(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7940
             if (epState == null)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10205
             if (!epState.isAlive())
                 return;
 
@@ -488,15 +524,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     protected void markAsShutdown(InetAddressAndPort endpoint)
     {
         checkProperThreadForStateMutation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8336
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
             return;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12781
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
         FailureDetector.instance.forceConviction(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.markedAsShutdown(this, endpoint);
     }
 
@@ -509,6 +549,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     int getMaxEndpointStateVersion(EndpointState epState)
     {
         int maxVersion = epState.getHeartBeatState().getHeartBeatVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         for (Map.Entry<ApplicationState, VersionedValue> state : epState.states())
             maxVersion = Math.max(maxVersion, state.getValue().version);
         return maxVersion;
@@ -521,14 +562,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private void evictFromMembership(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
         unreachableEndpoints.remove(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2115
         endpointStateMap.remove(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2961
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         expireTimeEndpointMap.remove(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10371
         FailureDetector.instance.remove(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3936
         quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("evicting {} from gossip", endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.evictedFromMembership(this, endpoint);
     }
 
@@ -537,11 +585,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void removeEndpoint(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
         // do subscribers first so anything in the subscriber that depends on gossiper state won't get confused
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onRemove(endpoint);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5459
         if(seeds.contains(endpoint))
         {
             buildSeedsList();
@@ -551,11 +601,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         liveEndpoints.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().versions.reset(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3936
         quarantineEndpoint(endpoint);
         MessagingService.instance().closeOutbound(endpoint);
         MessagingService.instance().removeInbound(endpoint);
         logger.debug("removing endpoint {}", endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.removedEndpoint(this, endpoint);
     }
 
@@ -578,6 +631,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private void quarantineEndpoint(InetAddressAndPort endpoint, long quarantineExpiration)
     {
         justRemovedEndpoints.put(endpoint, quarantineExpiration);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.quarantinedEndpoint(this, endpoint, quarantineExpiration);
     }
 
@@ -590,6 +644,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // remember, quarantineEndpoint will effectively already add QUARANTINE_DELAY, so this is 2x
         logger.debug("");
         quarantineEndpoint(endpoint, System.currentTimeMillis() + QUARANTINE_DELAY);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.replacementQuarantine(this, endpoint);
     }
 
@@ -601,10 +656,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void replacedEndpoint(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         removeEndpoint(endpoint);
         evictFromMembership(endpoint);
         replacementQuarantine(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.replacedEndpoint(this, endpoint);
     }
 
@@ -616,11 +676,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private void makeRandomGossipDigest(List<GossipDigest> gDigests)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2092
         EndpointState epState;
         int generation = 0;
         int maxVersion = 0;
 
         // local epstate will be part of endpointStateMap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> endpoints = new ArrayList<>(endpointStateMap.keySet());
         Collections.shuffle(endpoints, random);
         for (InetAddressAndPort endpoint : endpoints)
@@ -661,6 +723,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int generation = epState.getHeartBeatState().getGeneration();
         logger.info("Removing host: {}", hostId);
         logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5557
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5557
         Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
         // make sure it did not change
         epState = endpointStateMap.get(endpoint);
@@ -670,7 +734,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.info("Advertising removal for {}", endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         states.put(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removingNonlocal(hostId));
         states.put(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
         states.put(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(localHostId));
@@ -690,18 +756,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5216
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5216
         long expireTime = computeExpireTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         logger.info("Completing removal of {}", endpoint);
         addExpireTimeForEndpoint(endpoint, expireTime);
         endpointStateMap.put(endpoint, epState);
         // ensure at least one gossip round occurs before returning
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5557
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
     public void unsafeAssassinateEndpoint(String address) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7935
         logger.warn("Gossiper.unsafeAssassinateEndpoint is deprecated and will be removed in the next release; use assassinateEndpoint instead");
         assassinateEndpoint(address);
     }
@@ -716,9 +787,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void assassinateEndpoint(String address) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         runInGossipStageBlocking(() -> {
             EndpointState epState = endpointStateMap.get(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
             Collection<Token> tokens = null;
             logger.warn("Assassinating {} via gossip", endpoint);
 
@@ -733,10 +807,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
                 Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
                 // make sure it did not change
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6787
                 EndpointState newState = endpointStateMap.get(endpoint);
                 if (newState == null)
                     logger.warn("Endpoint {} disappeared while trying to assassinate, continuing anyway", endpoint);
                 else if (newState.getHeartBeatState().getGeneration() != generation)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7935
                     throw new RuntimeException("Endpoint still alive: " + endpoint + " generation changed while trying to assassinate it");
                 else if (newState.getHeartBeatState().getHeartBeatVersion() != heartbeat)
                     throw new RuntimeException("Endpoint still alive: " + endpoint + " heartbeat changed while trying to assassinate it");
@@ -744,23 +820,29 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 epState.getHeartBeatState().forceNewerGenerationUnsafe();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9510
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
                 tokens = StorageService.instance.getTokenMetadata().getTokens(endpoint);
             }
             catch (Throwable th)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                 JVMStabilityInspector.inspectThrowable(th);
                 // TODO this is broken
                 logger.warn("Unable to calculate tokens for {}.  Will use a random one", address);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 tokens = Collections.singletonList(StorageService.instance.getTokenMetadata().partitioner.getRandomToken());
             }
 
             // do not pass go, do not collect 200 dollars, just gtfo
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             long expireTime = computeExpireTime();
             epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
             epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
             handleMajorStateChange(endpoint, epState);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5557
             Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
             logger.warn("Finished assassinating {}", endpoint);
         });
@@ -798,8 +880,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (firstSynSendAt == 0)
             firstSynSendAt = System.nanoTime();
         MessagingService.instance().send(message, to);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         boolean isSeed = seeds.contains(to);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.sendGossipDigestSyn(this, to);
         return isSeed;
     }
@@ -834,6 +918,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int size = seeds.size();
         if (size > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             if (size == 1 && seeds.contains(FBUtilities.getBroadcastAddressAndPort()))
             {
                 return;
@@ -849,6 +934,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 double probability = seeds.size() / (double) (liveEndpoints.size() + unreachableEndpoints.size());
                 double randDbl = random.nextDouble();
                 if (randDbl <= probability)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1949
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1949
                     sendGossip(prod, seeds);
             }
         }
@@ -856,11 +943,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isGossipOnlyMember(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5378
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5378
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
         {
             return false;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6615
         return !isDeadState(epState) && !StorageService.instance.getTokenMetadata().isMember(endpoint);
     }
 
@@ -880,6 +970,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * @return true if it is safe to start the node, false otherwise
      */
     public boolean isSafeForStartup(InetAddressAndPort endpoint, UUID localHostUUID, boolean isBootstrapping,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                     Map<InetAddressAndPort, EndpointState> epStates)
     {
         EndpointState epState = epStates.get(endpoint);
@@ -887,6 +978,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (epState == null || isDeadState(epState))
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (isBootstrapping)
         {
             String status = getGossipStatus(epState);
@@ -910,14 +1002,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15592
     void doStatusCheck()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6338
         if (logger.isTraceEnabled())
             logger.trace("Performing status check ...");
 
         long now = System.currentTimeMillis();
         long nowNano = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         long pending = ((JMXEnabledThreadPoolExecutor) Stage.GOSSIP.executor()).metrics.pendingTasks.getValue();
         if (pending > 0 && lastProcessedMessageAt < now - 1000)
         {
@@ -932,23 +1029,27 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> eps = endpointStateMap.keySet();
         for (InetAddressAndPort endpoint : eps)
         {
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
             FailureDetector.instance.interpret(endpoint);
             EndpointState epState = endpointStateMap.get(endpoint);
             if (epState != null)
             {
                 // check if this is a fat client. fat clients are removed automatically from
                 // gossip after FatClientTimeout.  Do not remove dead states here.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
                 if (isGossipOnlyMember(endpoint)
                     && !justRemovedEndpoints.containsKey(endpoint)
                     && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > fatClientTimeout)
                 {
                     logger.info("FatClient {} has been silent for {}ms, removing from gossip", endpoint, fatClientTimeout);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
                     runInGossipStageBlocking(() -> {
                         removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
                         evictFromMembership(endpoint); // can get rid of the state immediately
@@ -956,6 +1057,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 }
 
                 // check for dead state removal
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2961
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                 long expireTime = getExpireTimeForEndpoint(endpoint);
                 if (!epState.isAlive() && (now > expireTime)
                     && (!StorageService.instance.getTokenMetadata().isMember(endpoint)))
@@ -964,6 +1067,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     {
                         logger.debug("time is expiring for endpoint : {} ({})", endpoint, expireTime);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15592
                     runInGossipStageBlocking(() -> evictFromMembership(endpoint));
                 }
             }
@@ -971,6 +1075,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         if (!justRemovedEndpoints.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (Entry<InetAddressAndPort, Long> entry : justRemovedEndpoints.entrySet())
             {
                 if ((now - entry.getValue()) > QUARANTINE_DELAY)
@@ -986,6 +1091,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     protected long getExpireTimeForEndpoint(InetAddressAndPort endpoint)
     {
         /* default expireTime is aVeryLongTime */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4402
         Long storedTime = expireTimeEndpointMap.get(endpoint);
         return storedTime == null ? computeExpireTime() : storedTime;
     }
@@ -1005,6 +1111,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.size();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
     Map<InetAddressAndPort, EndpointState> getEndpointStateMap()
     {
         return ImmutableMap.copyOf(endpointStateMap);
@@ -1040,6 +1147,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     EndpointState getStateForVersionBiggerThan(InetAddressAndPort forEndpoint, int version)
     {
         EndpointState epState = endpointStateMap.get(forEndpoint);
@@ -1055,6 +1163,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
              * than the version passed in. In this case we also send the old
              * heart beat and throw it away on the receiver if it is redundant.
             */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13700
             HeartBeatState heartBeatState = epState.getHeartBeatState();
             int localHbGeneration = heartBeatState.getGeneration();
             int localHbVersion = heartBeatState.getHeartBeatVersion();
@@ -1065,6 +1174,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     logger.trace("local heartbeat version {} greater than {} for {}", localHbVersion, version, forEndpoint);
             }
             /* Accumulate all application states whose versions are greater than "version" variable */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
             Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
             for (Entry<ApplicationState, VersionedValue> entry : epState.states())
             {
@@ -1073,12 +1183,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 {
                     if (reqdEndpointState == null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13700
                         reqdEndpointState = new EndpointState(new HeartBeatState(localHbGeneration, localHbVersion));
                     }
                     final ApplicationState key = entry.getKey();
                     if (logger.isTraceEnabled())
                         logger.trace("Adding state {}: {}" , key, value.value);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
                     states.put(key, value);
                 }
             }
@@ -1099,6 +1211,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
     {
         for (Entry<InetAddressAndPort, EndpointState> entry : remoteEpStateMap.entrySet())
@@ -1116,6 +1229,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         */
         if (localEndpointState != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3396
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             IFailureDetector fd = FailureDetector.instance;
             int localGeneration = localEndpointState.getHeartBeatState().getGeneration();
             int remoteGeneration = remoteEndpointState.getHeartBeatState().getGeneration();
@@ -1124,9 +1241,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 localEndpointState.updateTimestamp();
                 // this node was dead and the generation changed, this indicates a reboot, or possibly a takeover
                 // we will clean the fd intervals for it and relearn them
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3273
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                 if (!localEndpointState.isAlive())
                 {
                     logger.debug("Clearing interval times for {} due to generation change", endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6386
                     fd.remove(endpoint);
                 }
                 fd.report(endpoint);
@@ -1152,24 +1272,29 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         localState.markDead();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
         logger.trace("Sending ECHO_REQ to {}", addr);
         RequestCallback echoHandler = msg ->
         {
             // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
             runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
         };
 
         MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.markedAlive(this, addr, localState);
     }
 
     @VisibleForTesting
     public void realMarkAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
         if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
             logger.trace("marking as alive {}", addr);
         localState.markAlive();
         localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
@@ -1183,17 +1308,22 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (logger.isTraceEnabled())
             logger.trace("Notified {}", subscribers);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.realMarkedAlive(this, addr, localState);
     }
 
     @VisibleForTesting
     public void markDead(InetAddressAndPort addr, EndpointState localState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
         if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5187
             logger.trace("marking as down {}", addr);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6571
         localState.markDead();
         liveEndpoints.remove(addr);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         unreachableEndpoints.put(addr, System.nanoTime());
         logger.info("InetAddress {} is now DOWN", addr);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
@@ -1201,6 +1331,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (logger.isTraceEnabled())
             logger.trace("Notified {}", subscribers);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.markedDead(this, addr, localState);
     }
 
@@ -1212,8 +1343,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private void handleMajorStateChange(InetAddressAndPort ep, EndpointState epState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
         EndpointState localEpState = endpointStateMap.get(ep);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         if (!isDeadState(epState))
         {
             if (localEpState != null)
@@ -1231,6 +1364,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 subscriber.onRestart(ep, localEpState);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         if (!isDeadState(epState))
             markAlive(ep, epState);
         else
@@ -1241,9 +1375,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onJoin(ep, epState);
         // check this at the end so nodes will learn about the endpoint
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8336
         if (isShutdown(ep))
             markAsShutdown(ep);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         GossiperDiagnostics.majorStateChangeHandled(this, ep, epState);
     }
 
@@ -1257,6 +1393,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isDeadState(EndpointState epState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9765
         String status = getGossipStatus(epState);
         if (status.isEmpty())
             return false;
@@ -1275,6 +1412,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private static String getGossipStatus(EndpointState epState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (epState == null)
         {
             return "";
@@ -1322,6 +1460,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 int localGeneration = localEpStatePtr.getHeartBeatState().getGeneration();
                 int remoteGeneration = remoteState.getHeartBeatState().getGeneration();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10969
                 long localTime = System.currentTimeMillis()/1000;
                 if (logger.isTraceEnabled())
                     logger.trace("{} local generation {}, remote generation {}", ep, localGeneration, remoteGeneration);
@@ -1352,6 +1491,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version {} <= {} for {}", remoteMaxVersion, localMaxVersion, ep);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-957
                     if (!localEpStatePtr.isAlive() && !isDeadState(localEpStatePtr)) // unless of course, it was dead
                         markAlive(ep, localEpStatePtr);
                 }
@@ -1364,6 +1504,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             else
             {
                 // this is a new node, report it to the FD in case it is the first time we are seeing it AND it's not alive
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                 FailureDetector.instance.report(ep);
                 handleMajorStateChange(ep, remoteState);
             }
@@ -1401,6 +1542,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
 
             // filter out the states that are already up to date (has the same or higher version)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15097
             VersionedValue local = localState.getApplicationState(entry.getKey());
             return (local == null || local.version < entry.getValue().version);
         }).collect(Collectors.toSet());
@@ -1457,14 +1599,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         This method is used to figure the state that the Gossiper has but Gossipee doesn't. The delta digests
         and the delta state are built up.
     */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     void examineGossiper(List<GossipDigest> gDigestList, List<GossipDigest> deltaGossipDigestList, Map<InetAddressAndPort, EndpointState> deltaEpStateMap)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5916
         if (gDigestList.size() == 0)
         {
            /* we've been sent a *completely* empty syn, which should normally never happen since an endpoint will at least send a syn with itself.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
               If this is happening then the node is attempting shadow gossip, and we should respond with everything we know.
             */
             logger.debug("Shadow request received, adding all states");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (Map.Entry<InetAddressAndPort, EndpointState> entry : endpointStateMap.entrySet())
             {
                 gDigestList.add(new GossipDigest(entry.getKey(), 0, 0));
@@ -1475,6 +1621,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             int remoteGeneration = gDigest.getGeneration();
             int maxRemoteVersion = gDigest.getMaxVersion();
             /* Get state associated with the end point in digest */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2092
             EndpointState epStatePtr = endpointStateMap.get(gDigest.getEndpoint());
             /*
                 Here we need to fire a GossipDigestAckMessage. If we have some data associated with this endpoint locally
@@ -1529,6 +1676,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void start(int generationNumber)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         start(generationNumber, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
     }
 
@@ -1537,13 +1685,20 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void start(int generationNbr, Map<ApplicationState, VersionedValue> preloadLocalStates)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5459
         buildSeedsList();
         /* initialize the heartbeat state for this localEndpoint */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2638
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         maybeInitializeLocalState(generationNbr);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
         localState.addApplicationStates(preloadLocalStates);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
 
         //notify snitches that Gossiper is about to start
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1654
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
         if (logger.isTraceEnabled())
             logger.trace("gossip started with generation {}", localState.getHeartBeatState().getGeneration());
@@ -1594,10 +1749,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         endpointShadowStateMap.clear();
         // send a completely empty syn
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4282
         GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
                 DatabaseDescriptor.getPartitionerName(),
                 gDigests);
         Message<GossipDigestSyn> message = Message.out(GOSSIP_DIGEST_SYN, digestSynMessage);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         inShadowRound = true;
         boolean includePeers = false;
@@ -1612,6 +1769,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
                     for (InetAddressAndPort seed : seeds)
                         MessagingService.instance().send(message, seed);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
                     // Send to any peers we already know about, but only if a seed didn't respond.
                     if (includePeers)
@@ -1650,6 +1808,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     @VisibleForTesting
     void buildSeedsList()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort seed : DatabaseDescriptor.getSeeds())
         {
             if (seed.equals(FBUtilities.getBroadcastAddressAndPort()))
@@ -1664,6 +1823,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public List<String> reloadSeeds()
     {
         logger.trace("Triggering reload of seed node list");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14190
 
         // Get the new set in the same that buildSeedsList does
         Set<InetAddressAndPort> tmp = new HashSet<>();
@@ -1712,6 +1872,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public List<String> getSeeds()
     {
         List<String> seedList = new ArrayList<String>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort seed : seeds)
         {
             seedList.add(seed.toString());
@@ -1722,15 +1883,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     // initialize local HB state if needed, i.e., if gossiper has never been started before.
     public void maybeInitializeLocalState(int generationNbr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4402
         HeartBeatState hbState = new HeartBeatState(generationNbr);
         EndpointState localState = new EndpointState(hbState);
         localState.markAlive();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         endpointStateMap.putIfAbsent(FBUtilities.getBroadcastAddressAndPort(), localState);
     }
 
     public void forceNewerGeneration()
     {
         EndpointState epstate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8336
         epstate.getHeartBeatState().forceNewerGenerationUnsafe();
     }
 
@@ -1740,9 +1904,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void addSavedEndpoint(InetAddressAndPort ep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         checkProperThreadForStateMutation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             logger.debug("Attempt to add self as saved endpoint");
             return;
         }
@@ -1754,6 +1922,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.debug("not replacing a previous epState for {}, but reusing it: {}", ep, epState);
             epState.setHeartBeatState(new HeartBeatState(0));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5216
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5216
         else
         {
             epState = new EndpointState(new HeartBeatState(0));
@@ -1761,6 +1931,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         epState.markDead();
         endpointStateMap.put(ep, epState);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         unreachableEndpoints.put(ep, System.nanoTime());
         if (logger.isTraceEnabled())
             logger.trace("Adding saved endpoint {} {}", ep, epState.getHeartBeatState().getGeneration());
@@ -1768,11 +1939,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void addLocalApplicationStateInternal(ApplicationState state, VersionedValue value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10366
         assert taskLock.isHeldByCurrentThread();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         EndpointState epState = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
         InetAddressAndPort epAddr = FBUtilities.getBroadcastAddressAndPort();
         assert epState != null;
         // Fire "before change" notifications:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6135
         doBeforeChangeNotifications(epAddr, epState, state, value);
         // Notifications may have taken some time, so preventively raise the version
         // of the new value, otherwise it could be ignored by the remote node
@@ -1785,19 +1959,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void addLocalApplicationState(ApplicationState applicationState, VersionedValue value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10366
         addLocalApplicationStates(Arrays.asList(Pair.create(applicationState, value)));
     }
 
     public void addLocalApplicationStates(List<Pair<ApplicationState, VersionedValue>> states)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6125
         taskLock.lock();
         try
         {
             for (Pair<ApplicationState, VersionedValue> pair : states)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10366
                addLocalApplicationStateInternal(pair.left, pair.right);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6125
         finally
         {
             taskLock.unlock();
@@ -1807,20 +1985,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void stop()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         EndpointState mystate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12253
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
             Uninterruptibles.sleepUninterruptibly(Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000), TimeUnit.MILLISECONDS);
         }
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12253
             logger.warn("No local state, state is in silent shutdown, or node hasn't joined, not announcing shutdown");
         if (scheduledGossipTask != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1288
             scheduledGossipTask.cancel(false);
     }
 
@@ -1831,8 +2014,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     protected void maybeFinishShadowRound(InetAddressAndPort respondent, boolean isInShadowRound, Map<InetAddressAndPort, EndpointState> epStateMap)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5916
         if (inShadowRound)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
             if (!isInShadowRound)
             {
                 if (!seeds.contains(respondent))
@@ -1870,6 +2055,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     @VisibleForTesting
     public void initializeNodeUnsafe(InetAddressAndPort addr, UUID uuid, int generationNbr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-597
         HeartBeatState hbState = new HeartBeatState(generationNbr);
         EndpointState newState = new EndpointState(hbState);
         newState.markAlive();
@@ -1877,6 +2063,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState localState = oldState == null ? newState : oldState;
 
         // always add the version state
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10089
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
         states.put(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
         states.put(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(uuid));
@@ -1892,6 +2079,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public long getEndpointDowntime(String address) throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getEndpointDowntime(InetAddressAndPort.getByName(address));
     }
 
@@ -1918,11 +2106,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public CassandraVersion getReleaseVersion(InetAddressAndPort ep)
     {
         EndpointState state = getEndpointStateForEndpoint(ep);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
         return state != null ? state.getReleaseVersion() : null;
     }
 
     public Map<String, List<String>> getReleaseVersionsWithPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13853
         Map<String, List<String>> results = new HashMap<String, List<String>>();
         Iterable<InetAddressAndPort> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
 
@@ -2007,6 +2198,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int toWait = 50;
 
         Set<InetAddressAndPort> members = getLiveTokenOwners();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14571
 
         while (true)
         {
@@ -2024,6 +2216,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean haveMajorVersion3Nodes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14841
         return haveMajorVersion3NodesMemoized.get();
     }
 
@@ -2049,6 +2242,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     @VisibleForTesting
     public void stopShutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         stop();
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }

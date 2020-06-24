@@ -47,6 +47,7 @@ public class AsymmetricSyncRequest extends RepairMessage
 
     public AsymmetricSyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort fetchingNode, InetAddressAndPort fetchFrom, Collection<Range<Token>> ranges, PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(desc);
         this.initiator = initiator;
         this.fetchingNode = fetchingNode;
@@ -61,6 +62,7 @@ public class AsymmetricSyncRequest extends RepairMessage
         if (!(o instanceof AsymmetricSyncRequest))
             return false;
         AsymmetricSyncRequest req = (AsymmetricSyncRequest)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return desc.equals(req.desc) &&
                initiator.equals(req.initiator) &&
                fetchingNode.equals(req.fetchingNode) &&
@@ -71,6 +73,7 @@ public class AsymmetricSyncRequest extends RepairMessage
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return Objects.hash(desc, initiator, fetchingNode, fetchFrom, ranges);
     }
 
@@ -79,6 +82,7 @@ public class AsymmetricSyncRequest extends RepairMessage
         public void serialize(AsymmetricSyncRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(message.initiator, out, version);
             inetAddressAndPortSerializer.serialize(message.fetchingNode, out, version);
             inetAddressAndPortSerializer.serialize(message.fetchFrom, out, version);
@@ -94,6 +98,7 @@ public class AsymmetricSyncRequest extends RepairMessage
         public AsymmetricSyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort owner = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort src = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort dst = inetAddressAndPortSerializer.deserialize(in, version);
@@ -108,6 +113,7 @@ public class AsymmetricSyncRequest extends RepairMessage
         public long serializedSize(AsymmetricSyncRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(message.initiator, version);
             size += inetAddressAndPortSerializer.serializedSize(message.fetchingNode, version);
             size += inetAddressAndPortSerializer.serializedSize(message.fetchFrom, version);
@@ -118,6 +124,7 @@ public class AsymmetricSyncRequest extends RepairMessage
             return size;
         }
     };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
     public String toString()
     {

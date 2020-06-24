@@ -113,6 +113,7 @@ public class ChecksummingTransformer implements FrameBodyTransformer
         ImmutableTable.Builder<ChecksumType, Compressor, ChecksummingTransformer> builder = ImmutableTable.builder();
         builder.put(ChecksumType.CRC32, LZ4Compressor.INSTANCE, new ChecksummingTransformer(ChecksumType.CRC32, LZ4Compressor.INSTANCE));
         builder.put(ChecksumType.CRC32, SnappyCompressor.INSTANCE, new ChecksummingTransformer(ChecksumType.CRC32, SnappyCompressor.INSTANCE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14716
         builder.put(ChecksumType.ADLER32, LZ4Compressor.INSTANCE, new ChecksummingTransformer(ChecksumType.ADLER32, LZ4Compressor.INSTANCE));
         builder.put(ChecksumType.ADLER32, SnappyCompressor.INSTANCE, new ChecksummingTransformer(ChecksumType.ADLER32, SnappyCompressor.INSTANCE));
         transformers = builder.build();

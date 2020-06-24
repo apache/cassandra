@@ -40,6 +40,7 @@ public final class TracingTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -106,6 +107,7 @@ public final class TracingTest
     @Test
     public void test_customPayload()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11706
         List<String> traces = new ArrayList<>();
         ByteBuffer customPayloadValue = ByteBuffer.wrap("test-value".getBytes());
 
@@ -155,6 +157,7 @@ public final class TracingTest
         tracing.begin("test-request", Collections.<String,String>emptyMap());
         tracing.get().enableActivityNotification("test-tag");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12835
         tracing.get().addProgressListener((String tag, ProgressEvent pe) -> {
             assert "test-tag".equals(tag);
             assert "test-trace".equals(pe.getMessage());
@@ -191,9 +194,11 @@ public final class TracingTest
 
         protected UUID newSession(UUID sessionId, TraceType traceType, Map<String,ByteBuffer> customPayload)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12835
             if (!customPayload.isEmpty())
                 logger.info("adding custom payload items {}", StringUtils.join(customPayload.keySet(), ','));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11706
             payloads.putAll(customPayload);
             return super.newSession(sessionId, traceType, customPayload);
         }

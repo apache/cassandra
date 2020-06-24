@@ -500,6 +500,7 @@ public class Config
     @Deprecated
     public static boolean isClientMode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5045
         return isClientMode;
     }
 
@@ -535,6 +536,7 @@ public class Config
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         return overrideLoadConfig;
     }
 
@@ -546,6 +548,7 @@ public class Config
     public enum CommitLogSync
     {
         periodic,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         batch,
         group
     }
@@ -574,6 +577,7 @@ public class Config
     {
         unslabbed_heap_buffers,
         heap_buffers,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         offheap_buffers,
         offheap_objects
     }
@@ -583,12 +587,16 @@ public class Config
         best_effort,
         stop,
         ignore,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6646
         stop_paranoid,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7927
         die
     }
 
     public enum CommitFailurePolicy
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6364
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7429
         stop,
         stop_commit,
         ignore,
@@ -597,7 +605,9 @@ public class Config
 
     public enum UserFunctionTimeoutPolicy
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         ignore,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7927
         die,
         die_immediate
     }
@@ -610,18 +620,23 @@ public class Config
 
     public enum RepairCommandPoolFullStrategy
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13594
         queue,
         reject
     }
 
     public enum CorruptedTombstoneStrategy
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         disabled,
         warn,
         exception
     }
 
     private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
         add("client_encryption_options");
         add("server_encryption_options");
     }};
@@ -629,6 +644,7 @@ public class Config
     public static void log(Config config)
     {
         Map<String, String> configMap = new TreeMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
         for (Field field : Config.class.getFields())
         {
             // ignore the constants
@@ -646,6 +662,7 @@ public class Config
             try
             {
                 // Field.get() can throw NPE if the value of the field is null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11217
                 value = field.get(config).toString();
             }
             catch (NullPointerException | IllegalAccessException npe)

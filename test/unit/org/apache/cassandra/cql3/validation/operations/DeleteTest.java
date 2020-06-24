@@ -43,6 +43,7 @@ public class DeleteTest extends CQLTester
     @Test
     public void testRangeDeletion() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
         testRangeDeletion(true, true);
         testRangeDeletion(false, true);
         testRangeDeletion(true, false);
@@ -418,6 +419,7 @@ public class DeleteTest extends CQLTester
     @Test
     public void testDeleteWithNoClusteringColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         testDeleteWithNoClusteringColumns(false);
         testDeleteWithNoClusteringColumns(true);
     }
@@ -456,6 +458,7 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE partitionKey = ? AND partitionKey = ?", 0, 1);
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name unknown",
                              "DELETE unknown FROM %s WHERE partitionKey = ?", 0);
 
@@ -502,6 +505,7 @@ public class DeleteTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1),
                    row(0, 1, null));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
         execute("DELETE FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1);
         flush(forceFlush);
         assertEmpty(execute("SELECT value FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1));
@@ -535,6 +539,7 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering = ? AND clustering = ?", 0, 1, 1);
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name value1",
                              "DELETE value1 FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1);
 
@@ -552,6 +557,7 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering = ?", 0, 1);
 
         // Non primary key in the where clause
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering = ? AND value = ?", 0, 1, 3);
     }
@@ -636,6 +642,7 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND clustering_1 = ?", 0, 1, 1, 1);
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name value1",
                              "DELETE value1 FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
@@ -653,6 +660,7 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
         // Non primary key in the where clause
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND value = ?", 0, 1, 1, 3);
     }
@@ -977,10 +985,12 @@ public class DeleteTest extends CQLTester
         // Test invalid queries
         assertInvalidMessage("Range deletions are not supported for specific columns",
                              "DELETE value FROM %s WHERE partitionKey = ? AND (clustering_1, clustering_2) >= (?, ?)", 2, 3, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10739
         assertInvalidMessage("Range deletions are not supported for specific columns",
                              "DELETE value FROM %s WHERE partitionKey = ? AND clustering_1 >= ?", 2, 3);
         assertInvalidMessage("Range deletions are not supported for specific columns",
                              "DELETE value FROM %s WHERE partitionKey = ? AND clustering_1 = ?", 2, 3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10739
         assertInvalidMessage("Range deletions are not supported for specific columns",
                              "DELETE value FROM %s WHERE partitionKey = ?", 2);
     }
@@ -1128,6 +1138,7 @@ public class DeleteTest extends CQLTester
         // validates we correctly get only the non-removed rows when doing reverse queries.
 
         createTable("CREATE TABLE %s (k text, i int, PRIMARY KEY (k, i))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11733
 
         for (int i = 0; i < 10; i++)
             execute("INSERT INTO %s(k, i) values (?, ?)", "a", i);
@@ -1340,6 +1351,8 @@ public class DeleteTest extends CQLTester
     public void testQueryingOnRangeTombstoneBoundForward() throws Throwable
     {
         createTable("CREATE TABLE %s (k text, i int, PRIMARY KEY (k, i))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
 
         execute("INSERT INTO %s (k, i) VALUES (?, ?)", "a", 0);
 

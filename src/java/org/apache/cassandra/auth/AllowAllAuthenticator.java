@@ -49,6 +49,7 @@ public class AllowAllAuthenticator implements IAuthenticator
 
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         return AUTHENTICATOR_INSTANCE;
     }
 

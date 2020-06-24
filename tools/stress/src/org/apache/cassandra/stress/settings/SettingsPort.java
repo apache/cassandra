@@ -36,6 +36,7 @@ public class SettingsPort implements Serializable
 
     public SettingsPort(PortOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         nativePort = Integer.parseInt(options.nativePort.value());
         jmxPort = Integer.parseInt(options.jmxPort.value());
     }
@@ -50,6 +51,7 @@ public class SettingsPort implements Serializable
         @Override
         public List<? extends Option> options()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             return Arrays.asList(nativePort, jmxPort);
         }
     }
@@ -58,6 +60,7 @@ public class SettingsPort implements Serializable
     public void printSettings(ResultLogger out)
     {
         out.printf("  Native Port: %d%n", nativePort);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12759
         out.printf("  JMX Port: %d%n", jmxPort);
     }
 

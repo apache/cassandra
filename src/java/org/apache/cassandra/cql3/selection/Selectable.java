@@ -63,6 +63,7 @@ public interface Selectable extends AssignmentTestable
      * Checks if the specified Selectables select columns matching the specified predicate.
      * @param selectables the selectables to check.
      * @return {@code true} if the specified Selectables select columns matching the specified predicate,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
       {@code false} otherwise.
      */
     public static boolean selectColumns(List<Selectable> selectables, Predicate<ColumnMetadata> predicate)
@@ -82,10 +83,12 @@ public interface Selectable extends AssignmentTestable
     public default boolean processesSelection()
     {
         // ColumnMetadata is the only case that returns false and override this
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         return true;
     }
 
     // Term.Raw overrides this since some literals can be WEAKLY_ASSIGNABLE
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
     default public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
         AbstractType<?> type = getExactTypeIfKnown(keyspace);
@@ -103,6 +106,7 @@ public interface Selectable extends AssignmentTestable
         return idx;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
     default ColumnSpecification specForElementOrSlice(Selectable selected, ColumnSpecification receiver, String selectionType)
     {
         switch (((CollectionType)receiver.type).kind)
@@ -195,12 +199,14 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return false;
         }
 
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return rawTerm.getText();
         }
 
@@ -262,6 +268,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return predicate.test(column);
         }
 
@@ -297,6 +304,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return function.columnName(args.stream().map(Object::toString).collect(Collectors.toList()));
         }
 
@@ -309,6 +317,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return Selectable.selectColumns(args, predicate);
         }
 
@@ -330,12 +339,14 @@ public interface Selectable extends AssignmentTestable
 
             public static Raw newCountRowsFunction()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
                 return new Raw(AggregateFcts.countRowsFunction.name(),
                                Collections.emptyList());
             }
 
             public static Raw newOperation(char operator, Selectable.Raw left, Selectable.Raw right)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
                 return new Raw(OperationFcts.getFunctionNameFromOperator(operator),
                                Arrays.asList(left, right));
             }
@@ -352,6 +363,7 @@ public interface Selectable extends AssignmentTestable
                 for (Selectable.Raw arg : args)
                     preparedArgs.add(arg.prepare(table));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 FunctionName name = functionName;
                 // We need to circumvent the normal function lookup process for toJson() because instances of the function
                 // are not pre-declared (because it can accept any type of argument). We also have to wait until we have the
@@ -420,6 +432,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return Selectable.selectColumns(args, predicate);
         }
     }
@@ -431,6 +444,7 @@ public interface Selectable extends AssignmentTestable
 
         public WithCast(Selectable arg, CQL3Type type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
             this.arg = arg;
             this.type = type;
         }
@@ -466,12 +480,14 @@ public interface Selectable extends AssignmentTestable
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return type.getType();
         }
 
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return arg.selectColumns(predicate);
         }
 
@@ -516,6 +532,7 @@ public interface Selectable extends AssignmentTestable
         public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
         {
             AbstractType<?> expectedUdtType = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
 
             // If the UDT is between parentheses, we know that it is not a tuple with a single element.
             if (selected instanceof BetweenParenthesesOrWithTuple)
@@ -525,6 +542,7 @@ public interface Selectable extends AssignmentTestable
             }
 
             Selector.Factory factory = selected.newSelectorFactory(table, expectedUdtType, defs, boundNames);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             AbstractType<?> type = factory.getReturnType();
             if (!type.isUDT())
             {
@@ -547,6 +565,7 @@ public interface Selectable extends AssignmentTestable
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             AbstractType<?> selectedType = selected.getExactTypeIfKnown(keyspace);
             if (selectedType == null || !(selectedType instanceof UserType))
                 return null;
@@ -597,6 +616,7 @@ public interface Selectable extends AssignmentTestable
 
         public BetweenParenthesesOrWithTuple(List<Selectable> selectables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             this.selectables = selectables;
         }
 
@@ -680,6 +700,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return Selectable.selectColumns(selectables, predicate);
         }
 
@@ -764,6 +785,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return Selectable.selectColumns(selectables, predicate);
         }
 
@@ -856,6 +878,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return Selectable.selectColumns(selectables, predicate);
         }
 
@@ -991,6 +1014,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             for (Pair<Selectable.Raw, Selectable.Raw> raw : raws)
             {
                 if (!(raw.left instanceof RawIdentifier) && raw.left.prepare(cfm).selectColumns(predicate))
@@ -1140,6 +1164,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return selectable.selectColumns(predicate);
         }
 
@@ -1240,6 +1265,7 @@ public interface Selectable extends AssignmentTestable
 
         private WithElementSelection(Selectable selected, Term.Raw element)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             assert element != null;
             this.selected = selected;
             this.element = element;
@@ -1300,6 +1326,7 @@ public interface Selectable extends AssignmentTestable
             @Override
             public String toString()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 return String.format("%s[%s]", selected, element);
             }
         }
@@ -1364,6 +1391,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return selected.selectColumns(predicate);
         }
 
@@ -1389,6 +1417,7 @@ public interface Selectable extends AssignmentTestable
             @Override
             public String toString()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 return String.format("%s[%s..%s]", selected, from == null ? "" : from, to == null ? "" : to);
             }
         }

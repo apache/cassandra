@@ -71,20 +71,26 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
         }
 
         logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', pendingRepair = '{}', table = '{}'.",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
                      session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(), pendingRepair,
                      cfs.getTableName());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13906
         StreamDeserializer deserializer = null;
         SSTableMultiWriter writer = null;
         try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance))
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             String filename = writer.getFilename();
             int sectionIdx = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
                 assert cis.chunkBytesRead() <= totalSize;
                 long sectionLength = section.upperPosition - section.lowerPosition;
 
@@ -97,21 +103,26 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 {
                     writePartition(deserializer, writer);
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
                     session.progress(filename, ProgressInfo.Direction.IN, cis.chunkBytesRead(), totalSize);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 assert in.getBytesRead() == sectionLength;
             }
             logger.trace("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}", session.planId(), fileSeqNum,
                          session.peer, FBUtilities.prettyPrintMemory(cis.chunkBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6503
             return writer;
         }
         catch (Throwable e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13906
             Object partitionKey = deserializer != null ? deserializer.partitionKey() : "";
             logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
                         session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName());
             if (writer != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10771
                 writer.abort(e);
             }
             if (extractIOExceptionCause(e).isPresent())

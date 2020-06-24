@@ -54,10 +54,13 @@ public class KeyCollisionTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF));
     }
@@ -65,6 +68,7 @@ public class KeyCollisionTest
     @AfterClass
     public static void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 
@@ -80,6 +84,7 @@ public class KeyCollisionTest
         insert("longKey1", "longKey2"); // token = 8
 
         List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("k2").toKeyIncl("key2").build());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         assert partitions.get(0).partitionKey().getKey().equals(ByteBufferUtil.bytes("k2"));
         assert partitions.get(1).partitionKey().getKey().equals(ByteBufferUtil.bytes("kq"));
@@ -105,6 +110,7 @@ public class KeyCollisionTest
 
         public BigIntegerToken(BigInteger token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
             super(token);
         }
 

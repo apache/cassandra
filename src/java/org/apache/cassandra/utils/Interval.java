@@ -66,6 +66,7 @@ public class Interval<C, D>
     }
 
     private static final AsymmetricOrdering<Interval<Comparable, Object>, Comparable> minOrdering
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
     = new AsymmetricOrdering<Interval<Comparable, Object>, Comparable>()
     {
         public int compareAsymmetric(Interval<Comparable, Object> left, Comparable right)

@@ -78,6 +78,7 @@ public class AuditLogViewerTest
             //Read those written records
             List<String> actualRecords = new ArrayList<>();
             AuditLogViewer.dump(ImmutableList.of(path.toString()), RollCycles.TEST_SECONDLY.toString(), false, false, actualRecords::add);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
 
             assertRecordsMatch(records, actualRecords);
         }

@@ -57,8 +57,10 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
 
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                 KeyspaceParams.simple(1),
                 SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
@@ -102,6 +104,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, "0");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         try
         {
             options.put(DateTieredCompactionStrategyOptions.MAX_WINDOW_SIZE_KEY, "-1");
@@ -121,12 +124,14 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     @Test
     public void testTimeConversions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8406
         Map<String, String> options = new HashMap<>();
         options.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY, "30");
         options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "SECONDS");
 
         DateTieredCompactionStrategyOptions opts = new DateTieredCompactionStrategyOptions(options);
         assertEquals(opts.maxSSTableAge, TimeUnit.SECONDS.convert(365*1000, TimeUnit.DAYS));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
 
         options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
         opts = new DateTieredCompactionStrategyOptions(options);
@@ -152,11 +157,13 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     public void testGetBuckets()
     {
         List<Pair<String, Long>> pairs = Lists.newArrayList(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 Pair.create("a", 199L),
                 Pair.create("b", 299L),
                 Pair.create("a", 1L),
                 Pair.create("b", 201L)
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         List<List<String>> buckets = getBuckets(pairs, 100L, 2, 200L, Long.MAX_VALUE);
         assertEquals(2, buckets.size());
 
@@ -176,6 +183,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
                 Pair.create("b", 3899L),
                 Pair.create("c", 3900L)
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         buckets = getBuckets(pairs, 100L, 3, 4050L, Long.MAX_VALUE);
         // targets (divPosition, size): (40, 100), (39, 100), (12, 300), (3, 900), (0, 2700)
         // in other words: 0 - 2699, 2700 - 3599, 3600 - 3899, 3900 - 3999, 4000 - 4099
@@ -203,6 +211,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
                 Pair.create("too new", 4125L)
         );
         buckets = getBuckets(pairs, 100L, 1, 4050L, Long.MAX_VALUE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
 
         assertEquals(5, buckets.size());
 
@@ -236,7 +245,9 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         List<SSTableReader> newBucket = newestBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 9, 10, Long.MAX_VALUE, new SizeTieredCompactionStrategyOptions());
         assertTrue("incoming bucket should not be accepted when it has below the min threshold SSTables", newBucket.isEmpty());
 
@@ -273,6 +284,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
 
         Iterable<SSTableReader> filtered;
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         filtered = filterOldSSTables(sstrs, 0, 2);
         assertEquals("when maxSSTableAge is zero, no sstables should be filtered", sstrs.size(), Iterables.size(filtered));
@@ -285,6 +297,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
 
         filtered = filterOldSSTables(sstrs, 1, 4);
         assertEquals("no sstables should remain when all are too old", 0, Iterables.size(filtered));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         cfs.truncateBlocking();
     }
 
@@ -305,6 +318,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             .add("val", value).build().applyUnsafe();
 
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
@@ -315,14 +329,17 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
 
         cfs.forceBlockingFlush();
         assertEquals(cfs.getLiveSSTables().size(), 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         Map<String, String> options = new HashMap<>();
 
         options.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY, "30");
         options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
         options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, Double.toString((1d / (24 * 60 * 60))));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9882
         options.put(DateTieredCompactionStrategyOptions.EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY, "0");
         DateTieredCompactionStrategy dtcs = new DateTieredCompactionStrategy(cfs, options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             dtcs.addSSTable(sstable);
         dtcs.startup();
@@ -330,10 +347,12 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         Thread.sleep(2000);
         AbstractCompactionTask t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
         assertNotNull(t);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         assertEquals(1, Iterables.size(t.transaction.originals()));
         SSTableReader sstable = t.transaction.originals().iterator().next();
         assertEquals(sstable, expiredSSTable);
         t.transaction.abort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10280
         cfs.truncateBlocking();
     }
 

@@ -53,6 +53,7 @@ public class ReplicaCollectionTest
 
     static class TestCase<C extends AbstractReplicaCollection<C>>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         final boolean isBuilder;
         final C test;
         final List<Replica> canonicalList;
@@ -70,6 +71,7 @@ public class ReplicaCollectionTest
                 canonicalByEndpoint.put(replica.endpoint(), replica);
             for (Replica replica : canonicalList)
                 canonicalByRange.put(replica.range(), replica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             if (isBuilder)
                 Assert.assertTrue(test instanceof ReplicaCollection.Builder<?>);
         }
@@ -81,6 +83,8 @@ public class ReplicaCollectionTest
 
         void testEquals()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             Assert.assertTrue(elementsEqual(canonicalList, test));
         }
 
@@ -102,6 +106,7 @@ public class ReplicaCollectionTest
             Assert.assertTrue(test.endpoints().containsAll(canonicalByEndpoint.keySet()));
             for (InetAddressAndPort ep : canonicalByEndpoint.keySet())
                 Assert.assertTrue(test.endpoints().contains(ep));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             for (InetAddressAndPort ep : ALL_EP)
                 if (!canonicalByEndpoint.containsKey(ep))
                     Assert.assertFalse(test.endpoints().contains(ep));
@@ -111,6 +116,7 @@ public class ReplicaCollectionTest
         {
             Assert.assertEquals(canonicalList, ImmutableList.copyOf(test));
             Assert.assertEquals(canonicalList, test.stream().collect(Collectors.toList()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             Assert.assertTrue(Iterables.elementsEqual(new LinkedHashSet<>(Lists.transform(canonicalList, Replica::endpoint)), test.endpoints()));
         }
 
@@ -139,6 +145,8 @@ public class ReplicaCollectionTest
             Assert.assertTrue(elementsEqual(subList, subSequence));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         void testSubList(int subListDepth, int filterDepth, int sortDepth)
         {
             if (!isBuilder)
@@ -150,6 +158,8 @@ public class ReplicaCollectionTest
             Assert.assertSame(test.list.contents, test.subList(0, 1).list.contents);
             TestCase<C> skipFront = new TestCase<>(false, test.subList(1, test.size()), canonicalList.subList(1, canonicalList.size()));
             assertSubList(skipFront.test, 1, canonicalList.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             skipFront.testAll(subListDepth - 1, filterDepth, sortDepth);
             TestCase<C> skipBack = new TestCase<>(false, test.subList(0, test.size() - 1), canonicalList.subList(0, canonicalList.size() - 1));
             assertSubList(skipBack.test, 0, canonicalList.size() - 1);
@@ -170,6 +180,7 @@ public class ReplicaCollectionTest
                 Predicate<Replica> removeFirst = r -> !r.equals(canonicalList.get(0));
                 assertSubList(test.filter(removeFirst), 1, canonicalList.size());
                 assertSubList(test.filter(removeFirst, 1), 1, Math.min(canonicalList.size(), 2));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                 assertSubSequence(test.filterLazily(removeFirst), 1, canonicalList.size());
                 assertSubSequence(test.filterLazily(removeFirst, 1), 1, Math.min(canonicalList.size(), 2));
             }
@@ -183,6 +194,7 @@ public class ReplicaCollectionTest
                 int last = canonicalList.size() - 1;
                 Predicate<Replica> removeLast = r -> !r.equals(canonicalList.get(last));
                 assertSubList(test.filter(removeLast), 0, last);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                 assertSubSequence(test.filterLazily(removeLast), 0, last);
             }
 
@@ -226,6 +238,8 @@ public class ReplicaCollectionTest
                 Assert.assertEquals(canonicalList.get(i), test.get(i));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         void testSort(int subListDepth, int filterDepth, int sortDepth)
         {
             final Comparator<Replica> comparator = (o1, o2) ->
@@ -234,6 +248,7 @@ public class ReplicaCollectionTest
                 boolean f2 = o2.equals(canonicalList.get(0));
                 return f1 == f2 ? 0 : f1 ? 1 : -1;
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             TestCase<C> sorted = new TestCase<>(false, test.sorted(comparator), ImmutableList.sortedCopyOf(comparator, canonicalList));
             sorted.testAll(subListDepth, filterDepth, sortDepth - 1);
         }
@@ -246,6 +261,8 @@ public class ReplicaCollectionTest
             testGet();
             testEquals();
             testSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             testCount();
             if (subListDepth > 0)
                 testSubList(subListDepth, filterDepth, sortDepth);
@@ -263,6 +280,7 @@ public class ReplicaCollectionTest
 
     static class RangesAtEndpointTestCase extends TestCase<RangesAtEndpoint>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangesAtEndpointTestCase(boolean isBuilder, RangesAtEndpoint test, List<Replica> canonicalList)
         {
             super(isBuilder, test, canonicalList);
@@ -285,6 +303,7 @@ public class ReplicaCollectionTest
             Assert.assertTrue(test.ranges().containsAll(canonicalByRange.keySet()));
             for (Range<Token> range : canonicalByRange.keySet())
                 Assert.assertTrue(test.ranges().contains(range));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             for (Range<Token> range : ALL_R)
                 if (!canonicalByRange.containsKey(range))
                     Assert.assertFalse(test.ranges().contains(range));
@@ -347,6 +366,7 @@ public class ReplicaCollectionTest
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
                 new RangesAtEndpointTestCase(false, testUnwrap, canonUnwrap)
                         .testAllExceptUnwrap(subListDepth, filterDepth, sortDepth);
             }
@@ -356,6 +376,7 @@ public class ReplicaCollectionTest
         {
             super.testAll(subListDepth, filterDepth, sortDepth);
             testRanges();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             testByRange();
         }
 
@@ -369,6 +390,7 @@ public class ReplicaCollectionTest
 
     static class EndpointsTestCase<E extends Endpoints<E>> extends TestCase<E>
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsTestCase(boolean isBuilder, E test, List<Replica> canonicalList)
         {
             super(isBuilder, test, canonicalList);
@@ -446,6 +468,7 @@ public class ReplicaCollectionTest
     public void testMutableRangesAtEndpoint()
     {
         ImmutableList<Replica> canonical1 = RANGES_AT_ENDPOINT.subList(0, RANGES_AT_ENDPOINT.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangesAtEndpoint.Builder test = new RangesAtEndpoint.Builder(RANGES_AT_ENDPOINT.get(0).endpoint(), canonical1.size());
         test.addAll(canonical1, Conflict.NONE);
         try
@@ -467,6 +490,7 @@ public class ReplicaCollectionTest
         test.add(fullReplica(EP1, R3), Conflict.ALL);
 
         new RangesAtEndpointTestCase(true, test, canonical1).testAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         RangesAtEndpoint snapshot = test.subList(0, test.size());
 
@@ -488,6 +512,7 @@ public class ReplicaCollectionTest
     public void testEndpointsForRange()
     {
         ImmutableList<Replica> canonical = ENDPOINTS_FOR_X;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         new EndpointsTestCase<>(
                 false, EndpointsForRange.copyOf(canonical), canonical
         ).testAll();
@@ -497,6 +522,7 @@ public class ReplicaCollectionTest
     public void testMutableEndpointsForRange()
     {
         ImmutableList<Replica> canonical1 = ENDPOINTS_FOR_X.subList(0, ENDPOINTS_FOR_X.size() - 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsForRange.Builder test = new EndpointsForRange.Builder(R1, canonical1.size());
         test.addAll(canonical1, Conflict.NONE);
         try
@@ -518,6 +544,7 @@ public class ReplicaCollectionTest
         test.add(transientReplica(EP1, R1), Conflict.ALL);
 
         new EndpointsTestCase<>(true, test, canonical1).testAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         EndpointsForRange snapshot = test.subList(0, test.size());
 
@@ -540,6 +567,7 @@ public class ReplicaCollectionTest
     public void testMutableEndpointsForToken()
     {
         ImmutableList<Replica> canonical1 = ENDPOINTS_FOR_X.subList(0, ENDPOINTS_FOR_X.size() - 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsForToken.Builder test = new EndpointsForToken.Builder(tk(1), canonical1.size());
         test.addAll(canonical1, Conflict.NONE);
         try
@@ -561,6 +589,7 @@ public class ReplicaCollectionTest
         test.add(transientReplica(EP1, R1), Conflict.ALL);
 
         new EndpointsTestCase<>(true, test, canonical1).testAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         EndpointsForToken snapshot = test.subList(0, test.size());
 

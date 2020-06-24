@@ -54,6 +54,7 @@ public class KeyCacheKey extends CacheKey
 
     public long unsharedHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return EMPTY_SIZE + ObjectSizes.sizeOfArray(key);
     }
 

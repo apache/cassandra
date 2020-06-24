@@ -304,6 +304,7 @@ abstract class ElementsSelector extends Selector
 
         protected ByteBuffer extractSelection(ByteBuffer collection)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
             return type.getSerializer().getSliceFromSerialized(collection, from, to, type.nameComparator(), type.isFrozenCollection());
         }
 

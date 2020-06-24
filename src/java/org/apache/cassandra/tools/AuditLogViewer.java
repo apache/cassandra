@@ -61,6 +61,7 @@ public class AuditLogViewer
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             dump(options.pathList, options.rollCycle, options.follow, options.ignoreUnsupported, System.out::print);
         }
         catch (Exception e)
@@ -85,6 +86,7 @@ public class AuditLogViewer
             hadWork = false;
             for (ExcerptTailer tailer : tailers)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                 while (tailer.readDocument(new DisplayRecord(ignoreUnsupported, displayFun)))
                 {
                     hadWork = true;
@@ -109,6 +111,7 @@ public class AuditLogViewer
         private final boolean ignoreUnsupported;
         private final Consumer<String> displayFun;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
         DisplayRecord(boolean ignoreUnsupported, Consumer<String> displayFun)
         {
             this.ignoreUnsupported = ignoreUnsupported;
@@ -211,6 +214,7 @@ public class AuditLogViewer
                 opts.follow = cmd.hasOption(FOLLOW);
 
                 opts.ignoreUnsupported = cmd.hasOption(IGNORE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
 
                 if (cmd.hasOption(ROLL_CYCLE))
                 {
@@ -237,6 +241,7 @@ public class AuditLogViewer
         {
             Options options = new Options();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             options.addOption(new Option("r", ROLL_CYCLE, true, "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY."));
             options.addOption(new Option("f", FOLLOW, false, "Upon reacahing the end of the log continue indefinitely waiting for more records"));
             options.addOption(new Option("i", IGNORE, false, "Silently ignore unsupported records"));

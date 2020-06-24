@@ -70,6 +70,7 @@ public class StreamingTransferTest
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -117,6 +118,7 @@ public class StreamingTransferTest
     @Test
     public void testEmptyStreamPlan() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER).execute();
         final UUID planId = futureResult.planId;
         Futures.addCallback(futureResult, new FutureCallback<StreamState>()
@@ -132,6 +134,7 @@ public class StreamingTransferTest
             {
                 fail();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         }, MoreExecutors.directExecutor());
         // should be complete immediately
         futureResult.get(100, TimeUnit.MILLISECONDS);
@@ -141,11 +144,13 @@ public class StreamingTransferTest
     public void testRequestEmpty() throws Exception
     {
         // requesting empty data should succeed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = Util.testPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER)
                                                   .requestRanges(LOCAL, KEYSPACE2, RangesAtEndpoint.toDummyList(ranges), RangesAtEndpoint.toDummyList(Collections.emptyList()))
                                                   .execute();
@@ -177,12 +182,15 @@ public class StreamingTransferTest
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6008
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // transfer the first and last key
         logger.debug("Transferring {}", cfs.name);
         int[] offs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5948
         if (transferSSTables)
         {
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
@@ -200,8 +208,10 @@ public class StreamingTransferTest
 
         // confirm that a single SSTable was transferred and registered
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // and that the index and filter were properly recovered
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(Util.cmd(cfs).build());
         assertEquals(offs.length, partitions.size());
         for (int i = 0; i < offs.length; i++)
@@ -210,6 +220,7 @@ public class StreamingTransferTest
             String col = "col" + offs[i];
 
             assert !Util.getAll(Util.cmd(cfs, key).build()).isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             ImmutableBTreePartition partition = partitions.get(i);
             assert ByteBufferUtil.compareUnsigned(partition.partitionKey().getKey(), ByteBufferUtil.bytes(key)) == 0;
             assert ByteBufferUtil.compareUnsigned(partition.iterator().next().clustering().get(0), ByteBufferUtil.bytes(col)) == 0;
@@ -217,6 +228,7 @@ public class StreamingTransferTest
 
         // and that the max timestamp for the file was rediscovered
         assertEquals(timestamp, cfs.getLiveSSTables().iterator().next().getMaxTimestamp());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         List<String> keys = new ArrayList<>();
         for (int off : offs)
@@ -228,6 +240,7 @@ public class StreamingTransferTest
 
     private void transferSSTables(SSTableReader sstable) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = sstable.getPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
@@ -237,6 +250,7 @@ public class StreamingTransferTest
 
     private void transferRanges(ColumnFamilyStore cfs) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = cfs.getPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         // wrapped range
@@ -258,6 +272,7 @@ public class StreamingTransferTest
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferStreams(LOCAL, makeOutgoingStreams(ranges, Refs.tryRef(Arrays.asList(sstable))));
         streamPlan.execute().get();
 
@@ -275,13 +290,16 @@ public class StreamingTransferTest
 
     private Collection<OutgoingStream> makeOutgoingStreams(StreamOperation operation, List<Range<Token>> ranges, Refs<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         ArrayList<OutgoingStream> streams = new ArrayList<>();
         for (SSTableReader sstable : sstables)
         {
             streams.add(new CassandraOutgoingFile(operation,
                                                   sstables.get(sstable),
                                                   sstable.getPositionsForRanges(ranges),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                                                   ranges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
                                                   sstable.estimatedKeysForRanges(ranges)));
         }
         return streams;
@@ -296,6 +314,7 @@ public class StreamingTransferTest
     {
         final Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEX);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         List<String> keys = createAndTransfer(cfs, new Mutator()
         {
@@ -315,6 +334,7 @@ public class StreamingTransferTest
             long val = key.hashCode();
 
             // test we can search:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             UntypedResultSet result = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE birthdate = %d",
                                                                                    cfs.metadata.keyspace, cfs.metadata.name, val));
             assertEquals(1, result.size());
@@ -329,11 +349,14 @@ public class StreamingTransferTest
     @Test
     public void testTransferRangeTombstones() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String ks = KEYSPACE1;
         String cfname = "StandardInteger1";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(ks);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
         ClusteringComparator comparator = cfs.getComparator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         String key = "key1";
 
@@ -360,12 +383,14 @@ public class StreamingTransferTest
 
 
         updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros() + 1, key);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         updates.addRangeTombstone(5, 7)
                 .build()
                 .apply();
 
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         cfs.clearUnsafe();
         transferSSTables(sstable);
@@ -373,6 +398,7 @@ public class StreamingTransferTest
         // confirm that a single SSTable was transferred and registered
         assertEquals(1, cfs.getLiveSSTables().size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Row r = Util.getOnlyRow(Util.cmd(cfs).build());
         Assert.assertFalse(r.isEmpty());
         Assert.assertTrue(1 == Int32Type.instance.compose(r.clustering().get(0)));
@@ -381,6 +407,7 @@ public class StreamingTransferTest
     @Test
     public void testTransferTableViaRanges() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5948
         doTransferTable(false);
     }
 
@@ -394,6 +421,8 @@ public class StreamingTransferTest
     @Test
     public void testTransferTableCounter() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         final Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Counter1");
         final CounterContext cc = new CounterContext();
@@ -408,35 +437,43 @@ public class StreamingTransferTest
                 Map<String, ColumnFamily> entries = new HashMap<>();
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
                 ColumnFamily cfCleaned = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6506
                 CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 1, 3);
                 state.writeLocal(CounterId.fromInt(2), 9L, 3L);
                 state.writeRemote(CounterId.fromInt(4), 4L, 2L);
                 state.writeRemote(CounterId.fromInt(6), 3L, 3L);
                 state.writeRemote(CounterId.fromInt(8), 2L, 4L);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                 cf.addColumn(new BufferCounterCell(cellname(col), state.context, timestamp));
                 cfCleaned.addColumn(new BufferCounterCell(cellname(col), cc.clearAllLocal(state.context), timestamp));
 
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);
                 cfs.addSSTable(SSTableUtils.prepare()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                     .ks(keyspace.getName())
                     .cf(cfs.name)
                     .generation(0)
                     .write(entries));
             }
         }, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5948
 
         // filter pre-cleaned entries locally, and ensure that the end result is equal
         cleanedEntries.keySet().retainAll(keys);
         SSTableReader cleaned = SSTableUtils.prepare()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             .ks(keyspace.getName())
             .cf(cfs.name)
             .generation(0)
             .write(cleanedEntries);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader streamed = cfs.getLiveSSTables().iterator().next();
         SSTableUtils.assertContentEquals(cleaned, streamed);
 
         // Retransfer the file, making sure it is now idempotent (see CASSANDRA-3481)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3437
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         cfs.clearUnsafe();
         transferSSTables(streamed);
         SSTableReader restreamed = cfs.getLiveSSTables().iterator().next();
@@ -451,7 +488,9 @@ public class StreamingTransferTest
         content.add("test");
         content.add("test2");
         content.add("test3");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SSTableReader sstable = new SSTableUtils(KEYSPACE1, CF_STANDARD).prepare().write(content);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         String keyspaceName = sstable.getKeyspaceName();
         String cfname = sstable.getColumnFamilyName();
 
@@ -462,6 +501,7 @@ public class StreamingTransferTest
         SSTableReader sstable2 = SSTableUtils.prepare().write(content);
 
         // transfer the first and last key
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = Util.testPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
@@ -470,17 +510,22 @@ public class StreamingTransferTest
         Refs<SSTableReader> refs = Refs.tryRef(Arrays.asList(sstable, sstable2));
         assert refs != null;
         new StreamPlan("StreamingTransferTest").transferStreams(LOCAL, makeOutgoingStreams(ranges, refs)).execute().get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
         // confirm that the sstables were transferred and registered and that 2 keys arrived
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         ColumnFamilyStore cfstore = Keyspace.open(keyspaceName).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
         assertEquals(2, rows.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes("test"));
         assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("transfer3"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2843
         assert rows.get(0).cf.getColumnCount() == 1;
         assert rows.get(1).cf.getColumnCount() == 1;
 
         // these keys fall outside of the ranges and should not be transferred
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5149
         assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), "Standard1", System.currentTimeMillis())) == null;
         assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer2"), "Standard1", System.currentTimeMillis())) == null;
         assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test2"), "Standard1", System.currentTimeMillis())) == null;
@@ -490,7 +535,9 @@ public class StreamingTransferTest
     @Test
     public void testTransferOfMultipleColumnFamilies() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String keyspace = KEYSPACE_CACHEKEY;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = Util.testPartitioner();
         String[] columnFamilies = new String[] { "Standard1", "Standard2", "Standard3" };
         List<SSTableReader> ssTableReaders = new ArrayList<>();
@@ -515,6 +562,7 @@ public class StreamingTransferTest
         Map.Entry<DecoratedKey,String> last = keys.lastEntry();
         Map.Entry<DecoratedKey,String> secondtolast = keys.lowerEntry(last.getKey());
         List<Range<Token>> ranges = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         ranges.add(new Range<>(p.getMinimumToken(), first.getKey().getToken()));
         // the left hand side of the range is exclusive, so we transfer from the second-to-last token
         ranges.add(new Range<>(secondtolast.getKey().getToken(), p.getMinimumToken()));
@@ -525,10 +573,12 @@ public class StreamingTransferTest
             throw new AssertionError();
 
         new StreamPlan("StreamingTransferTest").transferStreams(LOCAL, makeOutgoingStreams(ranges, refs)).execute().get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
         // check that only two keys were transferred
         for (Map.Entry<DecoratedKey,String> entry : Arrays.asList(first, last))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(entry.getValue());
             List<Row> rows = Util.getRangeSlice(store);
             assertEquals(rows.toString(), 1, rows.size());
@@ -539,6 +589,7 @@ public class StreamingTransferTest
     @Test
     public void testRandomSSTableTransfer() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         final Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         Mutator mutator = new Mutator()
@@ -547,9 +598,15 @@ public class StreamingTransferTest
             {
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(colName, "value", timestamp));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                 cf.addColumn(new BufferCell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
                 Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer {}", rm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6969
                 rm.applyUnsafe();
             }
         };
@@ -557,16 +614,20 @@ public class StreamingTransferTest
         for (int i = 1; i <= 6000; i++)
             mutator.mutate("key" + i, "col" + i, System.currentTimeMillis());
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6008
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         cfs.clearUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         IPartitioner p = Util.testPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key1000"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key5")), p.getToken(ByteBufferUtil.bytes("key500"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key9")), p.getToken(ByteBufferUtil.bytes("key900"))));
         transfer(sstable, ranges);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
         assertEquals(7, Util.getRangeSlice(cfs).size());
     }

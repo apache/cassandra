@@ -35,6 +35,7 @@ public class ProtocolVersionTracker
 
     private final EnumMap<ProtocolVersion, LoadingCache<InetAddress, Long>> clientsByProtocolVersion;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
     ProtocolVersionTracker()
     {
         this(DEFAULT_MAX_CAPACITY);
@@ -47,10 +48,12 @@ public class ProtocolVersionTracker
         for (ProtocolVersion version : ProtocolVersion.values())
         {
             clientsByProtocolVersion.put(version, Caffeine.newBuilder().maximumSize(capacity)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                                           .build(key -> System.currentTimeMillis()));
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
     void addConnection(InetAddress addr, ProtocolVersion version)
     {
         clientsByProtocolVersion.get(version).put(addr, System.currentTimeMillis());

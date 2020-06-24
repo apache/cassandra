@@ -53,6 +53,7 @@ public class ReplicationStrategyEndpointCacheTest
 
         strategy = getStrategyWithNewTokenMetadata(Keyspace.open(KEYSPACE).getReplicationStrategy(), tmd);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(10)), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(20)), InetAddressAndPort.getByName("127.0.0.2"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(30)), InetAddressAndPort.getByName("127.0.0.3"));
@@ -73,6 +74,7 @@ public class ReplicationStrategyEndpointCacheTest
     public void runEndpointsWereCachedTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
         setup(stratClass, configOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         Util.assertRCEquals(strategy.getNaturalReplicasForToken(searchToken), strategy.getNaturalReplicasForToken(searchToken));
     }
 
@@ -98,6 +100,7 @@ public class ReplicationStrategyEndpointCacheTest
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
         Util.assertNotRCEquals(replicas, initial);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
 
         // test token removal, newly created token
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -106,6 +109,7 @@ public class ReplicationStrategyEndpointCacheTest
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
         assert !replicas.endpoints().contains(InetAddressAndPort.getByName("127.0.0.5"));
         Util.assertNotRCEquals(replicas, initial);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
 
         // test token change
         initial = strategy.getNaturalReplicasForToken(searchToken);
@@ -113,6 +117,7 @@ public class ReplicationStrategyEndpointCacheTest
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddressAndPort.getByName("127.0.0.8"));
         replicas = strategy.getNaturalReplicasForToken(searchToken);
         assert replicas.size() == 5 : StringUtils.join(replicas, ",");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14700
         Util.assertNotRCEquals(replicas, initial);
     }
 
@@ -139,6 +144,8 @@ public class ReplicationStrategyEndpointCacheTest
 
         public FakeNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
@@ -153,7 +160,10 @@ public class ReplicationStrategyEndpointCacheTest
     private AbstractReplicationStrategy getStrategyWithNewTokenMetadata(AbstractReplicationStrategy strategy, TokenMetadata newTmd) throws ConfigurationException
     {
         return AbstractReplicationStrategy.createReplicationStrategy(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                                     strategy.keyspaceName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
                                                                     AbstractReplicationStrategy.getClass(strategy.getClass().getName()),
                                                                     newTmd,
                                                                     strategy.snitch,

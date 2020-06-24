@@ -53,6 +53,7 @@ public class TimestampType extends TemporalType<Date>
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
@@ -67,24 +68,28 @@ public class TimestampType extends TemporalType<Date>
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6973
       return ByteBufferUtil.bytes(TimestampSerializer.dateStringToTimestamp(source));
     }
 
     @Override
     public ByteBuffer fromTimeInMillis(long millis) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         return ByteBufferUtil.bytes(millis);
     }
 
     @Override
     public long toTimeInMillis(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         return ByteBufferUtil.toLong(value);
     }
 
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (parsed instanceof Long)
             return new Constants.Value(ByteBufferUtil.bytes((Long) parsed));
 
@@ -103,6 +108,7 @@ public class TimestampType extends TemporalType<Date>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10814
         return '"' + TimestampSerializer.getJsonDateFormatter().format(TimestampSerializer.instance.deserialize(buffer)) + '"';
     }
 
@@ -126,6 +132,7 @@ public class TimestampType extends TemporalType<Date>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         return this == otherType || otherType == DateType.instance || otherType == LongType.instance;
     }
 
@@ -142,12 +149,14 @@ public class TimestampType extends TemporalType<Date>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 8;
     }
 
     @Override
     protected void validateDuration(Duration duration)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         if (!duration.hasMillisecondPrecision())
             throw invalidRequest("The duration must have a millisecond precision. Was: %s", duration);
     }

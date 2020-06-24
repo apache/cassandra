@@ -57,6 +57,7 @@ public class RowsTest
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         kcvm =
             TableMetadata.builder(KEYSPACE, KCVM_TABLE)
@@ -205,6 +206,7 @@ public class RowsTest
 
     private static long secondToTs(int now)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13866
         return now * 1000000L;
     }
 
@@ -213,6 +215,7 @@ public class RowsTest
         long ts = secondToTs(now);
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(c);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts, now));
         if (vVal != null)
         {
@@ -234,6 +237,7 @@ public class RowsTest
         long ts = secondToTs(now);
         Row.Builder originalBuilder = BTreeRow.unsortedBuilder();
         originalBuilder.newRow(c1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         LivenessInfo liveness = LivenessInfo.create(ts, now);
         originalBuilder.addPrimaryKeyLivenessInfo(liveness);
         DeletionTime complexDeletion = new DeletionTime(ts-1, now);
@@ -243,6 +247,7 @@ public class RowsTest
                                                       BufferCell.live(m, secondToTs(now), BB2, CellPath.create(BB2)));
         expectedCells.forEach(originalBuilder::addCell);
         // We need to use ts-1 so the deletion doesn't shadow what we've created
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts-1, now), false);
         originalBuilder.addRowDeletion(rowDeletion);
 
@@ -263,6 +268,7 @@ public class RowsTest
         long ts = secondToTs(now);
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(c1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         LivenessInfo liveness = LivenessInfo.create(ts, now);
         builder.addPrimaryKeyLivenessInfo(liveness);
         DeletionTime complexDeletion = new DeletionTime(ts-1, now);
@@ -272,6 +278,7 @@ public class RowsTest
                                                       BufferCell.live(m, ts, BB2, CellPath.create(BB2)));
         expectedCells.forEach(builder::addCell);
         // We need to use ts-1 so the deletion doesn't shadow what we've created
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts-1, now), false);
         builder.addRowDeletion(rowDeletion);
 
@@ -301,6 +308,7 @@ public class RowsTest
         long ts1 = secondToTs(now1);
         Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
         DeletionTime r1ComplexDeletion = new DeletionTime(ts1-1, now1);
@@ -431,6 +439,8 @@ public class RowsTest
         long ts1 = secondToTs(now1);
         Row.Builder r1Builder = BTreeRow.unsortedBuilder();
         r1Builder.newRow(c1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         LivenessInfo r1Liveness = LivenessInfo.create(ts1, now1);
         r1Builder.addPrimaryKeyLivenessInfo(r1Liveness);
 
@@ -439,6 +449,9 @@ public class RowsTest
         long ts2 = secondToTs(now2);
         Row.Builder r2Builder = BTreeRow.unsortedBuilder();
         r2Builder.newRow(c1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         LivenessInfo r2Liveness = LivenessInfo.create(ts2, now2);
         r2Builder.addPrimaryKeyLivenessInfo(r2Liveness);
         DeletionTime r2ComplexDeletion = new DeletionTime(ts2-1, now2);
@@ -484,6 +497,7 @@ public class RowsTest
         int now2 = now1 + 1;
         long ts2 = secondToTs(now2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         Cell expectedVCell = BufferCell.live(v, ts2, BB2);
         Cell expectedMCell = BufferCell.live(m, ts2, BB2, CellPath.create(BB1));
         DeletionTime expectedComplexDeletionTime = new DeletionTime(ts2 - 1, now2);
@@ -497,6 +511,7 @@ public class RowsTest
         long td = Rows.merge(existingBuilder.build(), updateBuilder.build(), builder);
 
         Assert.assertEquals(c1, builder.clustering);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         Assert.assertEquals(LivenessInfo.create(ts2, now2), builder.livenessInfo);
         Assert.assertEquals(Lists.newArrayList(Pair.create(m, new DeletionTime(ts2-1, now2))), builder.complexDeletions);
 
@@ -553,6 +568,7 @@ public class RowsTest
     // Creates a dummy cell for a (regular) column for the provided name and without a cellPath.
     private static Cell liveCell(ColumnMetadata name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10468
         return liveCell(name, -1);
     }
 

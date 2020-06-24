@@ -64,6 +64,7 @@ public class ClientState
     {
         // We want these system cfs to be always readable to authenticated users since many tools rely on them
         // (nodetool, cqlsh, bulkloader, etc.)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.LEGACY_PEERS, SystemKeyspace.PEERS_V2))
             READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
 
@@ -72,10 +73,14 @@ public class ClientState
 
         // make all virtual schema tables readable by default as well
         VirtualSchemaKeyspace.instance.tables().forEach(t -> READABLE_SYSTEM_RESOURCES.add(t.metadata().resource));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         // neither clients nor tools need authentication/authorization
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         if (DatabaseDescriptor.isDaemonInitialized())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10209
             PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
             PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
             PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getRoleManager().protectedResources());
@@ -89,17 +94,20 @@ public class ClientState
     private static final QueryHandler cqlQueryHandler;
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6659
         QueryHandler handler = QueryProcessor.instance;
         String customHandlerClass = System.getProperty("cassandra.custom_query_handler_class");
         if (customHandlerClass != null)
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
                 handler = FBUtilities.construct(customHandlerClass, "QueryHandler");
                 logger.info("Using {} as query handler for native protocol queries (as requested with -Dcassandra.custom_query_handler_class)", customHandlerClass);
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 logger.info("Cannot use class {} as query handler ({}), ignoring by defaulting on normal query handling", customHandlerClass, e.getMessage());
             }
@@ -129,6 +137,7 @@ public class ClientState
      */
     private ClientState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6070
         this.isInternal = true;
         this.remoteAddress = null;
     }
@@ -137,16 +146,20 @@ public class ClientState
     {
         this.isInternal = false;
         this.remoteAddress = remoteAddress;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
         if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
             this.user = AuthenticatedUser.ANONYMOUS_USER;
     }
 
     protected ClientState(ClientState source)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         this.isInternal = source.isInternal;
         this.remoteAddress = source.remoteAddress;
         this.user = source.user;
         this.keyspace = source.keyspace;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14275
         this.driverName = source.driverName;
         this.driverVersion = source.driverVersion;
     }
@@ -161,6 +174,7 @@ public class ClientState
 
     public static ClientState forInternalCalls(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ClientState state = new ClientState();
         state.setKeyspace(keyspace);
         return state;
@@ -171,6 +185,7 @@ public class ClientState
      */
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
         return new ClientState((InetSocketAddress)remoteAddress);
     }
 
@@ -183,6 +198,8 @@ public class ClientState
      */
     public ClientState cloneWithKeyspaceIfSet(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         if (keyspace == null)
             return this;
         ClientState clientState = new ClientState(this);
@@ -266,6 +283,7 @@ public class ClientState
 
     public Optional<String> getDriverName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14275
         return Optional.ofNullable(driverName);
     }
 
@@ -286,6 +304,7 @@ public class ClientState
 
     public static QueryHandler getCQLQueryHandler()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6659
         return cqlQueryHandler;
     }
 
@@ -294,6 +313,7 @@ public class ClientState
         return remoteAddress;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
     InetAddress getClientAddress()
     {
         return isInternal ? null : remoteAddress.getAddress();
@@ -301,6 +321,8 @@ public class ClientState
 
     public String getRawKeyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3130
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return keyspace;
     }
 
@@ -325,6 +347,7 @@ public class ClientState
      */
     public void login(AuthenticatedUser user)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15041
         if (user.isAnonymous() || canLogin(user))
             this.user = user;
         else
@@ -348,6 +371,7 @@ public class ClientState
         if (isInternal)
             return;
         validateLogin();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ensurePermission(perm, DataResource.root());
     }
 
@@ -374,13 +398,17 @@ public class ClientState
     private void ensurePermission(String keyspace, Permission perm, DataResource resource)
     {
         validateKeyspace(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4296
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6070
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6070
         if (isInternal)
             return;
 
         validateLogin();
 
         preventSystemKSSchemaModification(keyspace, resource, perm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5112
 
         if ((perm == Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
             return;
@@ -388,6 +416,7 @@ public class ClientState
         if (PROTECTED_AUTH_RESOURCES.contains(resource))
             if ((perm == Permission.CREATE) || (perm == Permission.ALTER) || (perm == Permission.DROP))
                 throw new UnauthorizedException(String.format("%s schema is protected", resource));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ensurePermission(perm, resource);
     }
 
@@ -398,9 +427,11 @@ public class ClientState
 
         // Access to built in functions is unrestricted
         if(resource instanceof FunctionResource && resource.hasParent())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             if (((FunctionResource)resource).getKeyspace().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ensurePermissionOnResourceChain(perm, resource);
     }
 
@@ -416,6 +447,7 @@ public class ClientState
         if (function.isNative())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ensurePermissionOnResourceChain(permission, FunctionResource.function(function.name().keyspace,
                                                                               function.name().name,
                                                                               function.argTypes()));
@@ -428,6 +460,7 @@ public class ClientState
                 return;
 
         throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
                                                       user.getName(),
                                                       perm,
                                                       resource));
@@ -460,8 +493,10 @@ public class ClientState
         {
             throw new UnauthorizedException("You have not logged in");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         else if (!user.hasLocalAccess())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14413
             throw new UnauthorizedException(String.format("You do not have access to this datacenter (%s)", Datacenters.thisDatacenter()));
         }
     }
@@ -470,11 +505,13 @@ public class ClientState
     {
         validateLogin();
         if (user.isAnonymous())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4898
             throw new UnauthorizedException("You have to be logged in and not anonymous to perform this request");
     }
 
     public void ensureIsSuperuser(String message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5963
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication() && (user == null || !user.isSuper()))
             throw new UnauthorizedException(message);
     }
@@ -487,11 +524,13 @@ public class ClientState
 
     public AuthenticatedUser getUser()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
         return user;
     }
 
     private Set<Permission> authorize(IResource resource)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8849
         return user.getPermissions(resource);
     }
 }

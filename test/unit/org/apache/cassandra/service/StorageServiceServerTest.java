@@ -72,8 +72,10 @@ public class StorageServiceServerTest
     public static void setUp() throws ConfigurationException
     {
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5424
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
         Keyspace.setInitialized();
@@ -82,8 +84,10 @@ public class StorageServiceServerTest
     @Test
     public void testRegularMode() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4017
         SchemaLoader.mkdirs();
         SchemaLoader.cleanup();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2477
         StorageService.instance.initServer(0);
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
@@ -94,6 +98,7 @@ public class StorageServiceServerTest
         // calls.  This test is only interested in the shutdown-related items which a properly handled by just
         // stopping the client.
         //StorageService.instance.decommission();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         StorageService.instance.stopClient();
     }
 
@@ -108,6 +113,7 @@ public class StorageServiceServerTest
     public void testSnapshotWithFlush() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
         StorageService.instance.takeSnapshot(UUID.randomUUID().toString());
     }
 
@@ -129,6 +135,7 @@ public class StorageServiceServerTest
     public void testSnapshotFailureHandler() throws IOException
     {
         assumeTrue(FBUtilities.isWindows);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
 
         // Initial "run" of Cassandra, nothing in failed snapshot file
         WindowsFailedSnapshotTracker.deleteOldSnapshots();
@@ -184,6 +191,7 @@ public class StorageServiceServerTest
     public void testTableSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         StorageService.instance.takeTableSnapshot(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.KEYSPACES, UUID.randomUUID().toString());
     }
 
@@ -257,6 +265,7 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                                                             InetAddressAndPort.getByName("127.0.0.1"));
         assertEquals(2, primaryRanges.size());
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
@@ -290,6 +299,7 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.4"));
         metadata.updateNormalToken(new StringToken("D"), InetAddressAndPort.getByName("127.0.0.5"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "1");
@@ -299,6 +309,7 @@ public class StorageServiceServerTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
         Schema.instance.load(meta);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;
         assert primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
@@ -322,6 +333,7 @@ public class StorageServiceServerTest
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
         // DC1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
         metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.2"));
         // DC2
@@ -337,6 +349,7 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         // endpoints in DC1 should not have primary range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         assert primaryRanges.isEmpty();
 
@@ -361,6 +374,9 @@ public class StorageServiceServerTest
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
         // DC1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
         metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.2"));
         // DC2
@@ -376,6 +392,7 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         // endpoints in DC1 should not have primary range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         assertTrue(primaryRanges.isEmpty());
 
@@ -428,6 +445,7 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         // endpoints in DC1 should not have primary range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         assert primaryRanges.isEmpty();
 
@@ -444,6 +462,7 @@ public class StorageServiceServerTest
         // the node covers range (L, A]
         assert primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A")));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
         assert primaryRanges.size() == 8;
         assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
@@ -466,6 +485,8 @@ public class StorageServiceServerTest
         metadata.clearUnsafe();
 
         // DC1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Token> dc1 = HashMultimap.create();
         dc1.put(InetAddressAndPort.getByName("127.0.0.1"), new StringToken("A"));
         dc1.put(InetAddressAndPort.getByName("127.0.0.1"), new StringToken("E"));
@@ -485,16 +506,25 @@ public class StorageServiceServerTest
         dc2.put(InetAddressAndPort.getByName("127.0.0.5"), new StringToken("K"));
         metadata.updateNormalTokens(dc2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "2");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
         Schema.instance.load(meta);
 
         // endpoints in DC1 should have primary ranges which also cover DC2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         assertEquals(8, primaryRanges.size());
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("J"), new StringToken("K"))));
@@ -507,6 +537,7 @@ public class StorageServiceServerTest
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("G"), new StringToken("H"))));
 
         // endpoints in DC1 should have primary ranges which also cover DC2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
         assertEquals(4, primaryRanges.size());
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
@@ -515,6 +546,7 @@ public class StorageServiceServerTest
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J"))));
 
         // endpoints in DC2 should have primary ranges which also cover DC1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
         assertEquals(4, primaryRanges.size());
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
@@ -524,6 +556,7 @@ public class StorageServiceServerTest
         // the node covers range (L, A]
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A"))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
         assertTrue(primaryRanges.size() == 8);
         assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
@@ -545,6 +578,7 @@ public class StorageServiceServerTest
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
         metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.2"));
         metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.3"));
@@ -570,13 +604,16 @@ public class StorageServiceServerTest
     @Test
     public void testPrimaryRangeForEndpointWithinDCWithSimpleStrategy() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7983
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
         metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.2"));
         metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.3"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7450
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "2");
 
@@ -584,6 +621,7 @@ public class StorageServiceServerTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
         Schema.instance.load(meta);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;
         assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
@@ -601,10 +639,12 @@ public class StorageServiceServerTest
     public void testCreateRepairRangeFrom() throws Exception
     {
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         metadata.updateNormalToken(new LongToken(1000L), InetAddressAndPort.getByName("127.0.0.1"));
         metadata.updateNormalToken(new LongToken(2000L), InetAddressAndPort.getByName("127.0.0.2"));
         metadata.updateNormalToken(new LongToken(3000L), InetAddressAndPort.getByName("127.0.0.3"));
@@ -648,6 +688,7 @@ public class StorageServiceServerTest
     @Test
     public void testGetNativeAddress() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14398
         String internalAddressString = "127.0.0.2:666";
         InetAddressAndPort internalAddress = InetAddressAndPort.getByName(internalAddressString);
         Gossiper.instance.addSavedEndpoint(internalAddress);
@@ -666,8 +707,10 @@ public class StorageServiceServerTest
     @Test
     public void testAuditLogEnableLoggerNotFound() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         try
         {
             StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null, null);
@@ -682,8 +725,11 @@ public class StorageServiceServerTest
     @Test
     public void testAuditLogEnableLoggerTransitions() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
         assertTrue(AuditLogManager.instance.isEnabled());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
         try
         {
@@ -695,7 +741,9 @@ public class StorageServiceServerTest
         }
 
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertTrue(AuditLogManager.instance.isEnabled());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15105
         StorageService.instance.disableAuditLog();
     }
 }

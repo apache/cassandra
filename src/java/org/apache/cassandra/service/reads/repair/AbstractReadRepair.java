@@ -49,6 +49,8 @@ import org.apache.cassandra.tracing.Tracing;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         implements ReadRepair<E, P>
 {
     protected final ReadCommand command;
@@ -73,6 +75,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     }
 
     public AbstractReadRepair(ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                               ReplicaPlan.Shared<E, P> replicaPlan,
                               long queryStartNanoTime)
     {
@@ -87,12 +91,16 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         return replicaPlan.get();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
     void sendReadCommand(Replica to, ReadCallback readCallback, boolean speculative)
     {
         ReadCommand command = this.command;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14807
         if (to.isSelf())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback));
             return;
         }
@@ -113,6 +121,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
         // if enabled, request additional info about repaired data from any full replicas
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && to.isFull());
         MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
     }
@@ -125,6 +134,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         getRepairMeter().mark();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryStartNanoTime);
         ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, queryStartNanoTime);
 
@@ -136,6 +147,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
         for (Replica replica : replicaPlan().contacts())
             sendReadCommand(replica, readCallback, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
 
         ReadRepairDiagnostics.startRepair(this, replicaPlan(), digestResolver);
     }
@@ -152,10 +164,13 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     private boolean shouldSpeculate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ConsistencyLevel consistency = replicaPlan().consistencyLevel();
         ConsistencyLevel speculativeCL = consistency.isDatacenterLocal() ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
         return  consistency != ConsistencyLevel.EACH_QUORUM
                 && consistency.satisfies(speculativeCL, cfs.keyspace)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 && cfs.sampleReadLatencyNanos <= command.getTimeout(NANOSECONDS);
     }
 
@@ -167,6 +182,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (repair == null)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyNanos, NANOSECONDS))
         {
             Replica uncontacted = replicaPlan().firstUncontactedCandidate(Predicates.alwaysTrue());
@@ -174,6 +190,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
                 return;
 
             replicaPlan.addToContacts(uncontacted);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14762
             sendReadCommand(uncontacted, repair.readCallback, true);
             ReadRepairMetrics.speculatedRead.mark();
             ReadRepairDiagnostics.speculatedRead(this, uncontacted.endpoint(), replicaPlan());

@@ -50,6 +50,7 @@ public class DeleteStatement extends ModificationStatement
                             Conditions conditions,
                             Attributes attrs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         super(StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs);
     }
 
@@ -67,6 +68,7 @@ public class DeleteStatement extends ModificationStatement
             // We're not deleting any specific columns so it's either a full partition deletion ....
             if (clustering.size() == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                 updateBuilder.addPartitionDeletion(params.deletionTime());
             }
             // ... or a row deletion ...
@@ -91,10 +93,12 @@ public class DeleteStatement extends ModificationStatement
                 // do not support specific columns
                 checkFalse(clustering.size() == 0 && metadata.clusteringColumns().size() != 0,
                            "Range deletions are not supported for specific columns");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10739
 
                 params.newRow(clustering);
 
                 for (Operation op : regularDeletions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                     op.execute(updateBuilder.partitionKey(), params);
                 updateBuilder.add(params.buildRow());
             }
@@ -112,6 +116,7 @@ public class DeleteStatement extends ModificationStatement
     @Override
     public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();
 
@@ -127,8 +132,10 @@ public class DeleteStatement extends ModificationStatement
         private final WhereClause whereClause;
 
         public Parsed(QualifiedName name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4450
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                       WhereClause whereClause,
                       List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
                       boolean ifExists)
@@ -141,11 +148,13 @@ public class DeleteStatement extends ModificationStatement
 
         @Override
         protected ModificationStatement prepareInternal(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
             checkFalse(metadata.isVirtual(), "Virtual tables don't support DELETE statements");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
             Operations operations = new Operations(type);
 
@@ -158,6 +167,7 @@ public class DeleteStatement extends ModificationStatement
                 checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
                 Operation op = deletion.prepare(metadata.keyspace, def, metadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 op.collectMarkerSpecification(bindVariables);
                 operations.add(op);
             }
@@ -193,6 +203,7 @@ public class DeleteStatement extends ModificationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
     @Override

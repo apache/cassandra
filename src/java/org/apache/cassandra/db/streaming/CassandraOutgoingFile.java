@@ -73,6 +73,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.filename = ref.get().getFilename();
         this.manifest = getComponentManifest(ref.get());
         this.shouldStreamEntireSSTable = computeShouldStreamEntireSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
 
         SSTableReader sstable = ref.get();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
@@ -85,6 +86,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                  .withSections(sections)
                                  .withCompressionMetadata(sstable.compression ? sstable.getCompressionMetadata() : null)
                                  .withSerializationHeader(sstable.header.toComponent())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
                                  .isEntireSSTable(shouldStreamEntireSSTable)
                                  .withComponentManifest(manifest)
                                  .withFirstKey(sstable.first)
@@ -139,6 +141,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     @Override
     public int getNumFiles()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         return shouldStreamEntireSSTable ? getManifestSize() : 1;
     }
 
@@ -156,6 +159,7 @@ public class CassandraOutgoingFile implements OutgoingStream
 
     public int getManifestSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         return manifest.components().size();
     }
 
@@ -166,6 +170,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         if (shouldStreamEntireSSTable && out instanceof AsyncStreamingOutputPlus)
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, manifest);
@@ -188,6 +193,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         if (!DatabaseDescriptor.streamEntireSSTables() || ref.get().getSSTableMetadata().hasLegacyCounterShards)
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15657
         return contained(sections, ref.get());
     }
 

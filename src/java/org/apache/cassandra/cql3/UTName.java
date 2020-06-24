@@ -52,6 +52,7 @@ public class UTName
 
     public String getStringTypeName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7413
         return utName.toString();
     }
 

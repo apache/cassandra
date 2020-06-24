@@ -58,6 +58,7 @@ public final class JVMStabilityInspector
      */
     public static void inspectThrowable(Throwable t) throws OutOfMemoryError
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         inspectThrowable(t, true);
     }
 
@@ -84,15 +85,18 @@ public final class JVMStabilityInspector
             StorageService.instance.removeShutdownHook();
             // We let the JVM handle the error. The startup checks should have warned the user if it did not configure
             // the JVM behavior in case of OOM (CASSANDRA-13006).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (!propagateOutOfMemory)
                 return;
 
             throw (OutOfMemoryError) t;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7927
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
             isUnstable = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
 
         // Check for file handle exhaustion
         if (t instanceof FileNotFoundException || t instanceof SocketException)
@@ -102,17 +106,20 @@ public final class JVMStabilityInspector
         if (isUnstable)
             killer.killCurrentJVM(t);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10228
         if (t.getCause() != null)
             inspectThrowable(t.getCause());
     }
 
     public static void inspectCommitLogThrowable(Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10134
         if (!StorageService.instance.isDaemonSetupCompleted())
         {
             logger.error("Exiting due to error while processing commit log during initialization.", t);
             killer.killCurrentJVM(t, true);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         else if (DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.die)
             killer.killCurrentJVM(t);
         else
@@ -121,11 +128,13 @@ public final class JVMStabilityInspector
 
     public static void killCurrentJVM(Throwable t, boolean quiet)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9686
         killer.killCurrentJVM(t, quiet);
     }
 
     public static void userFunctionTimeout(Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
         switch (DatabaseDescriptor.getUserFunctionTimeoutPolicy())
         {
             case die:
@@ -162,6 +171,7 @@ public final class JVMStabilityInspector
         */
         protected void killCurrentJVM(Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9686
             killCurrentJVM(t, false);
         }
 
@@ -177,6 +187,7 @@ public final class JVMStabilityInspector
 
             if (doExit && killing.compareAndSet(false, true))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
                 StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }

@@ -83,6 +83,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
 
     protected <T> FutureTask<T> newTaskFor(Runnable runnable, T result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
         return newTaskFor(runnable, result, ExecutorLocals.create());
     }
 
@@ -103,6 +104,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
     {
         if (isTracing())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
             if (callable instanceof LocalSessionFutureTask)
                 return (LocalSessionFutureTask<T>) callable;
             return new LocalSessionFutureTask<T>(callable, ExecutorLocals.create());
@@ -166,9 +168,13 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
             }
             catch (Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
                 logger.error(String.format("Uncaught exception on thread %s", Thread.currentThread()), t);
                 result = t;
                 failure = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14993
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14993
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15289
                 if (t instanceof CorruptSSTableException)
                     FileUtils.handleCorruptSSTable((CorruptSSTableException) t);
                 else if (t instanceof FSError)
@@ -226,6 +232,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
 
     public void execute(Runnable command)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
         addTask(newTaskFor(command, ExecutorLocals.create()));
     }
 

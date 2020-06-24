@@ -59,6 +59,7 @@ public class LengthPartitioner implements IPartitioner
 
     public Token split(Token left, Token right, double ratioToLeft)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         throw new UnsupportedOperationException();
     }
 
@@ -70,11 +71,13 @@ public class LengthPartitioner implements IPartitioner
     @Override
     public Token getMaximumToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         return null;
     }
 
     public BigIntegerToken getRandomToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         return getRandomToken(ThreadLocalRandom.current());
     }
 

@@ -34,6 +34,7 @@ public class Verify extends NodeToolCmd
     private List<String> args = new ArrayList<>();
 
     @Option(title = "extended_verify",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
             name = {"-e", "--extended-verify"},
             description = "Verify each cell data, beyond simply checking sstable checksums")
     private boolean extendedVerify = false;

@@ -77,6 +77,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public RangeTombstoneList(ClusteringComparator comparator, int capacity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         this(comparator, new ClusteringBound[capacity], new ClusteringBound[capacity], new long[capacity], new int[capacity], 0, 0);
     }
 
@@ -108,12 +109,14 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     public RangeTombstoneList copy(AbstractAllocator allocator)
     {
         RangeTombstoneList copy =  new RangeTombstoneList(comparator,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                                                           new ClusteringBound[size],
                                                           new ClusteringBound[size],
                                                           Arrays.copyOf(markedAts, size),
                                                           Arrays.copyOf(delTimes, size),
                                                           boundaryHeapSize, size);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
 
         for (int i = 0; i < size; i++)
         {
@@ -129,6 +132,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         ByteBuffer[] values = new ByteBuffer[bound.size()];
         for (int i = 0; i < values.length; i++)
             values[i] = allocator.clone(bound.get(i));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return new ClusteringBound(bound.kind(), values);
     }
 
@@ -157,16 +161,20 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         int c = comparator.compare(ends[size-1], start);
 
         // Fast path if we add in sorted order
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         if (c <= 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
             addInternal(size, start, end, markedAt, delTime);
         }
         else
         {
             // Note: insertFrom expect i to be the insertion point in term of interval ends
             int pos = Arrays.binarySearch(ends, 0, size, start, comparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             insertFrom((pos >= 0 ? pos+1 : -pos-1), start, end, markedAt, delTime);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         boundaryHeapSize += start.unsharedHeapSize() + end.unsharedHeapSize();
     }
 
@@ -213,6 +221,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             int j = 0;
             while (i < size && j < tombstones.size)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 if (comparator.compare(tombstones.starts[j], ends[i]) < 0)
                 {
                     insertFrom(i, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
@@ -225,6 +235,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             }
             // Addds the remaining ones from tombstones if any (note that addInternal will increment size if relevant).
             for (; j < tombstones.size; j++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6181
                 addInternal(size, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
         }
     }
@@ -237,6 +248,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     {
         int idx = searchInternal(clustering, 0, size);
         // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return idx >= 0 && (cell.isCounterCell() || markedAts[idx] >= cell.timestamp());
     }
 
@@ -247,6 +259,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     public DeletionTime searchDeletionTime(Clustering name)
     {
         int idx = searchInternal(name, 0, size);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return idx < 0 ? null : new DeletionTime(markedAts[idx], delTimes[idx]);
     }
 
@@ -272,6 +285,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         {
             // Equality only happens for bounds (as used by forward/reverseIterator), and bounds are equal only if they
             // are the same or complementary, in either case the bound itself is not part of the range.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10059
             return -pos - 1;
         }
         else
@@ -281,6 +295,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             if (idx < 0)
                 return -1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10059
             return comparator.compare(name, ends[idx]) < 0 ? idx : -idx-2;
         }
     }
@@ -290,7 +305,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         int dataSize = TypeSizes.sizeof(size);
         for (int i = 0; i < size; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             dataSize += starts[i].dataSize() + ends[i].dataSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             dataSize += TypeSizes.sizeof(markedAts[i]);
             dataSize += TypeSizes.sizeof(delTimes[i]);
         }
@@ -299,6 +316,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public long maxMarkedAt()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         long max = Long.MIN_VALUE;
         for (int i = 0; i < size; i++)
             max = Math.max(max, markedAts[i]);
@@ -316,12 +334,14 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public void updateAllTimestamp(long timestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5787
         for (int i = 0; i < size; i++)
             markedAts[i] = timestamp;
     }
 
     private RangeTombstone rangeTombstone(int idx)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return new RangeTombstone(Slice.make(starts[idx], ends[idx]), new DeletionTime(markedAts[idx], delTimes[idx]));
     }
 
@@ -342,6 +362,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public Iterator<RangeTombstone> iterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return iterator(false);
     }
 
@@ -387,6 +408,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         if (start >= size)
             return Collections.emptyIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10059
 
         int finishIdx = slice.end() == ClusteringBound.TOP ? size - 1 : searchInternal(slice.end(), start, size);
         // if stopIdx is the first range after 'slice.end()' we care only until the previous range
@@ -445,6 +467,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         {
             // We want to make sure the range are stricly included within the queried slice as this
             // make it easier to combine things when iterator over successive slices.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             ClusteringBound s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
             ClusteringBound e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
             return Iterators.<RangeTombstone>singletonIterator(rangeTombstoneWithNewBounds(start, s, e));
@@ -465,6 +489,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                     return rangeTombstoneWithNewEnd(idx--, slice.end());
                 if (idx == finish && comparator.compare(starts[idx], slice.start()) < 0)
                     return rangeTombstoneWithNewStart(idx--, slice.start());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10059
                 return rangeTombstone(idx--);
             }
         };
@@ -514,6 +539,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         System.arraycopy(src.markedAts, 0, dst.markedAts, 0, src.size);
         System.arraycopy(src.delTimes, 0, dst.delTimes, 0, src.size);
         dst.size = src.size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         dst.boundaryHeapSize = src.boundaryHeapSize;
     }
 
@@ -534,6 +560,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         while (i < size)
         {
             assert start.isStart() && end.isEnd();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             assert i == 0 || comparator.compare(ends[i-1], start) <= 0;
             assert comparator.compare(start, ends[i]) < 0;
 
@@ -548,7 +575,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 // First deal with what might come before the newly added one.
                 if (comparator.compare(starts[i], start) < 0)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                     ClusteringBound newEnd = start.invert();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                     if (!Slice.isEmpty(comparator, starts[i], newEnd))
                     {
                         addInternal(i, starts[i], newEnd, markedAts[i], delTimes[i]);
@@ -580,6 +609,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                     // Note that the comparison below is inclusive: if a end equals a start, this means they form a boundary, or
                     // in other words that they are for the same element but one is inclusive while the other exclusive. In which case we know
                     // we're good with the next element
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9799
                     if (i == size-1 || comparator.compare(end, starts[i+1]) <= 0)
                     {
                         setInternal(i, start, end, markedAt, delTime);
@@ -596,6 +626,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                     // one to reflect the not overwritten parts. We're then done.
                     addInternal(i, start, end, markedAt, delTime);
                     i++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                     ClusteringBound newStart = end.invert();
                     if (!Slice.isEmpty(comparator, newStart, ends[i]))
                     {
@@ -613,11 +644,13 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 {
                     // If we stop before the start of the current element, just insert the new interval and we're done;
                     // otherwise insert until the beginning of the current element
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9799
                     if (comparator.compare(end, starts[i]) <= 0)
                     {
                         addInternal(i, start, end, markedAt, delTime);
                         return;
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                     ClusteringBound newEnd = starts[i].invert();
                     if (!Slice.isEmpty(comparator, start, newEnd))
                     {
@@ -633,6 +666,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 if (comparator.compare(end, ends[i]) <= 0)
                     return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 start = ends[i].invert();
                 i++;
             }
@@ -671,6 +705,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         // Introduce getRangeTombstoneResizeFactor
         int newLength = (int) Math.ceil(capacity() * DatabaseDescriptor.getRangeTombstoneListGrowthFactor());
         // Fallback to the original calculation if the newLength calculated from the resize factor is not valid.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15763
         if (newLength <= capacity())
             newLength = ((capacity() * 3) / 2) + 1;
         
@@ -699,6 +734,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         if (i < 0 || i >= size)
             return Arrays.copyOf(a, newLength);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBound[] newA = new ClusteringBound[newLength];
         System.arraycopy(a, 0, newA, 0, i);
         System.arraycopy(a, i, newA, i+1, size - i);
@@ -741,6 +777,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         System.arraycopy(delTimes, i, delTimes, i+1, size - i);
         // we set starts[i] to null to indicate the position is now empty, so that we update boundaryHeapSize
         // when we set it
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         starts[i] = null;
     }
 

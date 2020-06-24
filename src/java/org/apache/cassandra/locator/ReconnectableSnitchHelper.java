@@ -55,6 +55,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             reconnect(publicAddress, InetAddressAndPort.getByName(localAddressValue.value), snitch, localDc);
         }
         catch (UnknownHostException e)
@@ -66,6 +67,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     @VisibleForTesting
     static void reconnect(InetAddressAndPort publicAddress, InetAddressAndPort localAddress, IEndpointSnitch snitch, String localDc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (!new OutboundConnectionSettings(publicAddress, localAddress).withDefaults(ConnectionCategory.MESSAGING).authenticate())
         {
             logger.debug("InternodeAuthenticator said don't reconnect to {} on {}", publicAddress, localAddress);
@@ -86,6 +88,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
 
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (preferLocal && !Gossiper.instance.isDeadState(epState))
         {
             VersionedValue address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);

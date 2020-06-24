@@ -74,6 +74,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                                  boolean offline,
                                  boolean keepOriginals)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
     }
 
@@ -92,8 +93,10 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
         sstableWriter = SSTableRewriter.construct(cfs, txn, keepOriginals, maxAge);
         minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         pendingRepair = CompactionTask.getPendingRepair(nonExpiredSSTables);
         isTransient = CompactionTask.getIsTransient(nonExpiredSSTables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
         DiskBoundaries db = cfs.getDiskBoundaries();
         diskBoundaries = db.positions;
         locations = db.directories;
@@ -144,6 +147,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      */
     public final boolean append(UnfilteredRowIterator partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         maybeSwitchWriter(partition.partitionKey());
         return realAppend(partition);
     }
@@ -151,6 +155,8 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     @Override
     protected Throwable doPostCleanup(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
         sstableWriter.close();
         return super.doPostCleanup(accumulate);
     }
@@ -163,6 +169,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      */
     protected void maybeSwitchWriter(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         if (diskBoundaries == null)
         {
             if (locationIndex < 0)
@@ -181,6 +188,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         while (locationIndex == -1 || key.compareTo(diskBoundaries.get(locationIndex)) > 0)
             locationIndex++;
         if (prevIdx >= 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
             logger.debug("Switching write location from {} to {}", locations.get(prevIdx), locations.get(locationIndex));
         switchCompactionLocation(locations.get(locationIndex));
     }
@@ -225,6 +233,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         {
             long availableSpace = d.getAvailableSpace();
             if (availableSpace < estimatedWriteSize)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 throw new RuntimeException(String.format("Not enough space to write %s to %s (%s available)",
                                                          FBUtilities.prettyPrintMemory(estimatedWriteSize),
                                                          d.location,

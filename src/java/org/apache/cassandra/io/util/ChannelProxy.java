@@ -118,6 +118,7 @@ public final class ChannelProxy extends SharedCloseableImpl
      */
     public final ChannelProxy newChannel()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         return new ChannelProxy(filePath);
     }
 
@@ -182,6 +183,7 @@ public final class ChannelProxy extends SharedCloseableImpl
 
     public int getFileDescriptor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         return NativeLibrary.getfd(channel);
     }
 

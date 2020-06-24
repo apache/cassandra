@@ -40,6 +40,7 @@ public class GossipDigestAck
 
     final List<GossipDigest> gDigestList;
     final Map<InetAddressAndPort, EndpointState> epStateMap;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
     GossipDigestAck(List<GossipDigest> gDigestList, Map<InetAddressAndPort, EndpointState> epStateMap)
     {
@@ -52,6 +53,7 @@ public class GossipDigestAck
         return gDigestList;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     Map<InetAddressAndPort, EndpointState> getEndpointStateMap()
     {
         return epStateMap;
@@ -67,6 +69,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : gDigestAckMessage.epStateMap.entrySet())
         {
             InetAddressAndPort ep = entry.getKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(ep, out, version);
             EndpointState.serializer.serialize(entry.getValue(), out, version);
         }
@@ -80,6 +83,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
 
         for (int i = 0; i < size; ++i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort ep = inetAddressAndPortSerializer.deserialize(in, version);
             EndpointState epState = EndpointState.serializer.deserialize(in, version);
             epStateMap.put(ep, epState);
@@ -90,8 +94,10 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
     public long serializedSize(GossipDigestAck ack, int version)
     {
         int size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         size += TypeSizes.sizeof(ack.epStateMap.size());
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : ack.epStateMap.entrySet())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(entry.getKey(), version)
                     + EndpointState.serializer.serializedSize(entry.getValue(), version);
         return size;

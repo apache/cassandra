@@ -40,6 +40,7 @@ public interface Terms
         @Override
         public Object get(int index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12981
             throw new UnsupportedOperationException();
         }
 
@@ -263,6 +264,7 @@ public interface Terms
 
     public static ByteBuffer asBytes(String keyspace, String term, AbstractType type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
         ColumnSpecification receiver = new ColumnSpecification(keyspace, "--dummy--", new ColumnIdentifier("(dummy)", true), type);
         Term.Raw rawTerm = CQLFragmentParser.parseAny(CqlParser::term, term, "CQL term");
         return rawTerm.prepare(keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);

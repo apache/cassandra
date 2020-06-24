@@ -81,8 +81,10 @@ public class StartupMessage extends Message.Request
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
             if (new CassandraVersion(cqlVersion).compareTo(new CassandraVersion("2.99.0")) < 0)
                 throw new ProtocolException(String.format("CQL version %s is not supported by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
         }
@@ -91,6 +93,7 @@ public class StartupMessage extends Message.Request
             throw new ProtocolException(e.getMessage());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         ChecksumType checksumType = getChecksumType();
         Compressor compressor = getCompressor();
 
@@ -106,7 +109,9 @@ public class StartupMessage extends Message.Request
         }
 
         connection.setThrowOnOverload("1".equals(options.get(THROW_ON_OVERLOAD)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14275
         ClientState clientState = state.getClientState();
         String driverName = options.get(DRIVER_NAME);
         if (null != driverName)
@@ -115,6 +120,7 @@ public class StartupMessage extends Message.Request
             clientState.setDriverVersion(options.get(DRIVER_VERSION));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5003
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
         else
@@ -131,9 +137,11 @@ public class StartupMessage extends Message.Request
 
     private ChecksumType getChecksumType() throws ProtocolException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         String name = options.get(CHECKSUM);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14716
             return name != null ? ChecksumType.valueOf(name.toUpperCase()) : null;
         }
         catch (IllegalArgumentException e)
@@ -168,6 +176,7 @@ public class StartupMessage extends Message.Request
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4539
         return "STARTUP " + options;
     }
 }

@@ -61,12 +61,14 @@ public abstract class AbstractRow implements Row
 
     public void digest(Digest digest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         digest.updateWithByte(kind().ordinal());
         clustering().digest(digest);
 
         deletion().digest(digest);
         primaryKeyLivenessInfo().digest(digest);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         apply(ColumnData::digest, digest);
     }
 
@@ -93,11 +95,13 @@ public abstract class AbstractRow implements Row
         if (deletion().time().localDeletionTime() < 0)
             throw new MarshalException("A local deletion time should not be negative in '" + metadata + "'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         apply(cd -> cd.validate());
     }
 
     public boolean hasInvalidDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         if (primaryKeyLivenessInfo().isExpiring() && (primaryKeyLivenessInfo().ttl() < 0 || primaryKeyLivenessInfo().localExpirationTime() < 0))
             return true;
         if (!deletion().time().validate())
@@ -110,6 +114,7 @@ public abstract class AbstractRow implements Row
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
         return columnData().toString();
     }
 
@@ -120,6 +125,7 @@ public abstract class AbstractRow implements Row
 
     public String toString(TableMetadata metadata, boolean fullDetails)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7464
         return toString(metadata, true, fullDetails);
     }
 
@@ -134,6 +140,7 @@ public abstract class AbstractRow implements Row
                 sb.append(" del=").append(deletion());
             sb.append(" ]");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7464
         sb.append(": ");
         if(includeClusterKeys)
             sb.append(clustering().toString(metadata));
@@ -164,6 +171,7 @@ public abstract class AbstractRow implements Row
                 if (cd.column().isSimple())
                 {
                     Cell cell = (Cell)cd;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10796
                     sb.append(cell.column().name).append('=');
                     if (cell.isTombstone())
                         sb.append("<tombstone>");
@@ -172,6 +180,7 @@ public abstract class AbstractRow implements Row
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12916
                     sb.append(cd.column().name).append('=');
                     ComplexColumnData complexData = (ComplexColumnData) cd;
                     Function<Cell, String> transform = null;
@@ -218,6 +227,7 @@ public abstract class AbstractRow implements Row
              || !this.deletion().equals(that.deletion()))
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return Iterables.elementsEqual(this, that);
     }
 

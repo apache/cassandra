@@ -30,6 +30,7 @@ public class Dates extends Generator<Date>
 {
     public Dates(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(DateType.instance, config, name, Date.class);
     }
 

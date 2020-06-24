@@ -68,6 +68,7 @@ public class StreamRequest
             out.writeUTF(request.keyspace);
             out.writeInt(request.columnFamilies.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(request.full.endpoint(), out, version);
             serializeReplicas(request.full, out, version);
             serializeReplicas(request.transientReplicas, out, version);
@@ -81,6 +82,7 @@ public class StreamRequest
 
             for (Replica replica : replicas)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 IPartitioner.validate(replica.range());
                 Token.serializer.serialize(replica.range().left, out, version);
                 Token.serializer.serialize(replica.range().right, out, version);
@@ -92,6 +94,7 @@ public class StreamRequest
             String keyspace = in.readUTF();
             int cfCount = in.readInt();
             InetAddressAndPort endpoint = inetAddressAndPortSerializer.deserialize(in, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
             RangesAtEndpoint full = deserializeReplicas(in, version, endpoint, true);
             RangesAtEndpoint transientReplicas = deserializeReplicas(in, version, endpoint, false);
@@ -111,6 +114,7 @@ public class StreamRequest
                 //TODO, super need to review the usage of streaming vs not streaming endpoint serialization helper
                 //to make sure I'm not using the wrong one some of the time, like do repair messages use the
                 //streaming version?
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 Token left = Token.serializer.deserialize(in, IPartitioner.global(), version);
                 Token right = Token.serializer.deserialize(in, IPartitioner.global(), version);
                 replicas.add(new Replica(endpoint, new Range<>(left, right), isFull));
@@ -122,6 +126,7 @@ public class StreamRequest
         {
             int size = TypeSizes.sizeof(request.keyspace);
             size += TypeSizes.sizeof(request.columnFamilies.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(request.full.endpoint(), version);
             size += replicasSerializedSize(request.transientReplicas, version);
             size += replicasSerializedSize(request.full, version);

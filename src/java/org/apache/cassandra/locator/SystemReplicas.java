@@ -49,9 +49,12 @@ public class SystemReplicas
 
     public static EndpointsForRange getSystemReplicas(Collection<InetAddressAndPort> endpoints)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         if (endpoints.isEmpty())
             return EndpointsForRange.empty(FULL_RANGE);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return EndpointsForRange.copyOf(Collections2.transform(endpoints, SystemReplicas::getSystemReplica));
     }
 }

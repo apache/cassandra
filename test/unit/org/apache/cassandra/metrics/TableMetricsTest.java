@@ -69,6 +69,7 @@ public class TableMetricsTest extends SchemaLoader
 
     private ColumnFamilyStore recreateTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
         return recreateTable(TABLE);
     }
 
@@ -98,6 +99,7 @@ public class TableMetricsTest extends SchemaLoader
 
         BatchStatement batch = new BatchStatement(batchType);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
         for (String table : tables)
             populateBatch(batch, table, distinctPartitions, statementsPerPartition);
 
@@ -141,6 +143,8 @@ public class TableMetricsTest extends SchemaLoader
 
         assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
         assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
 
         for (int i = 0; i < 10; i++)
         {
@@ -157,6 +161,7 @@ public class TableMetricsTest extends SchemaLoader
         ColumnFamilyStore cfs = recreateTable();
         assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
         assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
 
         executeBatch(true, 10, 2);
         assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
@@ -194,6 +199,7 @@ public class TableMetricsTest extends SchemaLoader
         ColumnFamilyStore cfs = recreateTable();
         assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
         assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
 
         executeBatch(false, 5, 3);
         assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
@@ -229,9 +235,12 @@ public class TableMetricsTest extends SchemaLoader
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, COUNTER_TABLE);
         assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
         assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
         session.execute(String.format("UPDATE %s.%s SET id_c = id_c + 1 WHERE id = 1 AND val = 'val1'", KEYSPACE, COUNTER_TABLE));
         assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
     }
 

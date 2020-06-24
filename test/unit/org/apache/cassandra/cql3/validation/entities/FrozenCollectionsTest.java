@@ -45,7 +45,9 @@ public class FrozenCollectionsTest extends CQLTester
     {
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         prepareServer();
     }
 
@@ -91,6 +93,7 @@ public class FrozenCollectionsTest extends CQLTester
         );
 
         assertRows(execute("SELECT * FROM %s WHERE k IN ?", list(set(4, 5, 6), set())),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
                    row(set(), 0),
                    row(set(4, 5, 6), 0)
         );
@@ -160,6 +163,7 @@ public class FrozenCollectionsTest extends CQLTester
         );
 
         assertRows(execute("SELECT * FROM %s WHERE k IN ?", list(map(set(4, 5, 6), list(1, 2, 3)), map(), map(set(), list(1, 2, 3)))),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
                    row(map(), 0),
                    row(map(set(), list(1, 2, 3)), 0),
                    row(map(set(4, 5, 6), list(1, 2, 3)), 0)
@@ -554,6 +558,7 @@ public class FrozenCollectionsTest extends CQLTester
         createTable("CREATE TABLE %s (a frozen<map<int, text>> PRIMARY KEY, b frozen<map<int, text>>)");
 
         // for now, we don't support indexing values or keys of collections in the primary key
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (full(a))", "Cannot create secondary index on the only partition key column");
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(a))", "Cannot create secondary index on the only partition key column");
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(b))", "Cannot create keys() index on frozen column b. " +
@@ -588,6 +593,7 @@ public class FrozenCollectionsTest extends CQLTester
                    row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a")),
                    row(1, list(1, 2, 3), set(4, 5, 6), map(2, "b")));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE d CONTAINS KEY ?", 1);
 
@@ -701,6 +707,7 @@ public class FrozenCollectionsTest extends CQLTester
             row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a"))
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertRows(execute("SELECT * FROM %s WHERE d CONTAINS KEY ? ALLOW FILTERING", 1),
             row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a")),
             row(0, list(4, 5, 6), set(1, 2, 3), map(1, "a"))
@@ -766,6 +773,7 @@ public class FrozenCollectionsTest extends CQLTester
     public void testFrozenListInMap() throws Throwable
     {
         createTable("CREATE TABLE %s (k int primary key, m map<frozen<list<int>>, int>)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8900
 
         execute("INSERT INTO %s (k, m) VALUES (1, {[1, 2, 3] : 1})");
         assertRows(execute("SELECT * FROM %s WHERE k = 1"),
@@ -1072,6 +1080,7 @@ public class FrozenCollectionsTest extends CQLTester
     public void testListWithElementsBiggerThan64K() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l frozen<list<text>>)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10374
 
         byte[] bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
         Arrays.fill(bytes, (byte) 1);

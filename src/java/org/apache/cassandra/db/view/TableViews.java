@@ -90,6 +90,7 @@ public class TableViews extends AbstractCollection<View>
     public Iterable<ColumnFamilyStore> allViewsCfs()
     {
         Keyspace keyspace = Keyspace.open(baseTableMetadata.keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name()));
     }
 
@@ -137,6 +138,7 @@ public class TableViews extends AbstractCollection<View>
 
         // Read modified rows
         int nowInSec = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         long queryStartNanoTime = System.nanoTime();
         SinglePartitionReadCommand command = readExistingRowsCommand(update, views, nowInSec);
         if (command == null)
@@ -149,11 +151,13 @@ public class TableViews extends AbstractCollection<View>
              UnfilteredRowIterator existings = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command);
              UnfilteredRowIterator updates = update.unfilteredIterator())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12268
             mutations = Iterators.getOnlyElement(generateViewUpdates(views, updates, existings, nowInSec, false));
         }
         Keyspace.openAndGetStore(update.metadata()).metric.viewReadTime.update(System.nanoTime() - start, TimeUnit.NANOSECONDS);
 
         if (!mutations.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete, queryStartNanoTime);
     }
 
@@ -174,6 +178,7 @@ public class TableViews extends AbstractCollection<View>
      * @return the mutations to apply to the {@code views}. This can be empty.
      */
     public Iterator<Collection<Mutation>> generateViewUpdates(Collection<View> views,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12268
                                                               UnfilteredRowIterator updates,
                                                               UnfilteredRowIterator existings,
                                                               int nowInSec,
@@ -270,6 +275,7 @@ public class TableViews extends AbstractCollection<View>
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12268
         if (separateUpdates)
         {
             final Collection<Mutation> firstBuild = buildMutations(baseTableMetadata.get(), generators);
@@ -504,6 +510,7 @@ public class TableViews extends AbstractCollection<View>
         // One view is probably common enough and we can optimize a bit easily
         if (generators.size() == 1)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12268
             ViewUpdateGenerator generator = generators.get(0);
             Collection<PartitionUpdate> updates = generator.generateViewUpdates();
             List<Mutation> mutations = new ArrayList<>(updates.size());
@@ -514,6 +521,7 @@ public class TableViews extends AbstractCollection<View>
             return mutations;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutations = new HashMap<>();
         for (ViewUpdateGenerator generator : generators)
         {
@@ -528,6 +536,7 @@ public class TableViews extends AbstractCollection<View>
                 }
                 collector.add(update);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12268
             generator.clear();
         }
         return mutations.values().stream().map(Mutation.PartitionUpdateCollector::build).collect(Collectors.toList());

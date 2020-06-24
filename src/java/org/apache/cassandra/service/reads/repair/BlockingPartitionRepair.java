@@ -55,6 +55,7 @@ import org.apache.cassandra.tracing.Tracing;
 import static org.apache.cassandra.net.Verb.*;
 
 public class BlockingPartitionRepair
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         extends AbstractFuture<Object> implements RequestCallback<Object>
 {
     private final DecoratedKey key;
@@ -67,6 +68,7 @@ public class BlockingPartitionRepair
 
     public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         this(key, repairs, writePlan,
              writePlan.consistencyLevel().isDatacenterLocal() ? InOurDcTester.endpoints() : Predicates.alwaysTrue());
     }
@@ -84,6 +86,7 @@ public class BlockingPartitionRepair
         {
             // remote dcs can sometimes get involved in dc-local reads. We want to repair
             // them if they do, but they shouldn't interfere with blocking the client read.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
             if (!repairs.containsKey(participant) && shouldBlockOn.test(participant.endpoint()))
                 blockFor--;
         }
@@ -98,6 +101,7 @@ public class BlockingPartitionRepair
 
     int blockFor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return writePlan.blockFor();
     }
 
@@ -110,8 +114,10 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     void ack(InetAddressAndPort from)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         if (shouldBlockOn.test(from))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
             pendingRepairs.remove(writePlan.lookup(from));
             latch.countDown();
         }
@@ -120,6 +126,7 @@ public class BlockingPartitionRepair
     @Override
     public void onResponse(Message<Object> msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ack(msg.from());
     }
 
@@ -141,6 +148,7 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     protected void sendRR(Message<Mutation> message, InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().sendWithCallback(message, endpoint, this);
     }
 
@@ -158,9 +166,11 @@ public class BlockingPartitionRepair
 
             Tracing.trace("Sending read-repair-mutation to {}", destination);
             // use a separate verb here to avoid writing hints on timeouts
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             sendRR(Message.out(READ_REPAIR_REQ, mutation), destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
             if (!shouldBlockOn.test(destination.endpoint()))
                 pendingRepairs.remove(destination);
             ReadRepairDiagnostics.sendInitialRepair(this, destination.endpoint(), mutation);
@@ -176,6 +186,7 @@ public class BlockingPartitionRepair
      */
     public boolean awaitRepairsUntil(long timeoutAt, TimeUnit timeUnit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         long timeoutAtNanos = timeUnit.toNanos(timeoutAt);
         long remaining = timeoutAtNanos - System.nanoTime();
         try
@@ -202,9 +213,11 @@ public class BlockingPartitionRepair
      */
     public void maybeSendAdditionalWrites(long timeout, TimeUnit timeoutUnit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         if (awaitRepairsUntil(timeout + timeoutUnit.convert(mutationsSentTime, TimeUnit.NANOSECONDS), timeoutUnit))
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         EndpointsForToken newCandidates = writePlan.liveUncontacted();
         if (newCandidates.isEmpty())
             return;
@@ -219,6 +232,8 @@ public class BlockingPartitionRepair
 
         Mutation[] versionedMutations = new Mutation[msgVersionIdx(MessagingService.current_version) + 1];
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         for (Replica replica : newCandidates)
         {
             int versionIdx = msgVersionIdx(MessagingService.instance().versions.get(replica.endpoint()));
@@ -227,6 +242,7 @@ public class BlockingPartitionRepair
 
             if (mutation == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
                 mutation = BlockingReadRepairs.createRepairMutation(update, writePlan.consistencyLevel(), replica.endpoint(), true);
                 versionedMutations[versionIdx] = mutation;
             }
@@ -239,6 +255,7 @@ public class BlockingPartitionRepair
             }
 
             Tracing.trace("Sending speculative read-repair-mutation to {}", replica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             sendRR(Message.out(READ_REPAIR_REQ, mutation), replica.endpoint());
             ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);
         }
@@ -246,6 +263,7 @@ public class BlockingPartitionRepair
 
     Keyspace getKeyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return writePlan.keyspace();
     }
 
@@ -256,6 +274,7 @@ public class BlockingPartitionRepair
 
     ConsistencyLevel getConsistency()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return writePlan.consistencyLevel();
     }
 }

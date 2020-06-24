@@ -46,6 +46,7 @@ public class DescribeCluster extends NodeToolCmd
         // display cluster name, snitch and partitioner
         System.out.println("Cluster Information:");
         System.out.println("\tName: " + probe.getClusterName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13528
         String snitch = probe.getEndpointSnitchInfoProxy().getSnitchName();
         boolean dynamicSnitchEnabled = false;
         if (snitch.equals(DynamicEndpointSnitch.class.getName()))
@@ -59,6 +60,7 @@ public class DescribeCluster extends NodeToolCmd
 
         // display schema version for each node
         System.out.println("\tSchema versions:");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14392
         Map<String, List<String>> schemaVersions = printPort ? probe.getSpProxy().getSchemaVersionsWithPort() : probe.getSpProxy().getSchemaVersions();
         for (String version : schemaVersions.keySet())
         {
@@ -67,6 +69,7 @@ public class DescribeCluster extends NodeToolCmd
 
         // Collect status information of all nodes
         boolean withPort = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13853
         joiningNodes = probe.getJoiningNodes(withPort);
         leavingNodes = probe.getLeavingNodes(withPort);
         movingNodes = probe.getMovingNodes(withPort);
@@ -110,6 +113,7 @@ public class DescribeCluster extends NodeToolCmd
             ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
             for (HostStatWithPort stat : dc.getValue())
                 hostToTokens.put(stat.endpointWithPort, stat);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15305
 
             int totalNodes = 0; // total number of nodes in a datacenter
             int downNodes = 0; // number of down nodes in a datacenter

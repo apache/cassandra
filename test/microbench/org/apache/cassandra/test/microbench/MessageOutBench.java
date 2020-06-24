@@ -73,6 +73,7 @@ public class MessageOutBench
 
         UUID uuid = UUIDGen.getTimeUUID();
         Map<ParamType, Object> parameters = new EnumMap<>(ParamType.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         if (withParams)
         {

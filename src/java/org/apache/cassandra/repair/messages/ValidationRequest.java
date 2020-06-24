@@ -36,13 +36,16 @@ public class ValidationRequest extends RepairMessage
 
     public ValidationRequest(RepairJobDesc desc, int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(desc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13671
         this.nowInSec = nowInSec;
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
         return "ValidationRequest{" +
                "nowInSec=" + nowInSec +
                "} " + super.toString();
@@ -55,6 +58,7 @@ public class ValidationRequest extends RepairMessage
         if (o == null || getClass() != o.getClass()) return false;
 
         ValidationRequest that = (ValidationRequest) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13671
         return nowInSec == that.nowInSec;
     }
 
@@ -69,6 +73,7 @@ public class ValidationRequest extends RepairMessage
         public void serialize(ValidationRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13671
             out.writeInt(message.nowInSec);
         }
 
@@ -81,8 +86,10 @@ public class ValidationRequest extends RepairMessage
         public long serializedSize(ValidationRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13671
             size += TypeSizes.sizeof(message.nowInSec);
             return size;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     };
 }

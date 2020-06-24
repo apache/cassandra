@@ -42,6 +42,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
      *
      * @param rebufferer Rebufferer to use
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
     RandomAccessReader(Rebufferer rebufferer)
     {
         super(Rebufferer.EMPTY.buffer());
@@ -56,6 +57,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         if (isEOF())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         reBufferAt(current());
     }
 
@@ -74,6 +76,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     {
         if (buffer == null)     // closed already
             return rebufferer.fileLength();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4050
         return current();
     }
 
@@ -106,6 +109,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
     public long bytesPastMark()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4050
         long bytes = current() - markedPointer;
         assert bytes >= 0;
         return bytes;
@@ -126,6 +130,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     public long bytesPastMark(DataPosition mark)
     {
         assert mark instanceof BufferedRandomAccessFileMark;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4050
         long bytes = current() - ((BufferedRandomAccessFileMark) mark).pointer;
         assert bytes >= 0;
         return bytes;
@@ -157,6 +162,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         if (buffer == null)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         bufferHolder.release();
         rebufferer.closeReader();
         buffer = null;
@@ -191,9 +197,11 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         if (newPosition < 0)
             throw new IllegalArgumentException("new position should not be negative");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         if (buffer == null)
             throw new IllegalStateException("Attempted to seek in a closed RAR");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         long bufferOffset = bufferHolder.offset();
         if (newPosition >= bufferOffset && newPosition < bufferOffset + buffer.limit())
         {
@@ -202,6 +210,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         }
 
         if (newPosition > length())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
             throw new IllegalArgumentException(String.format("Unable to seek to position %d in %s (%d bytes) in read-only mode",
                                                          newPosition, getPath(), length()));
         reBufferAt(newPosition);
@@ -257,6 +266,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
     public long length()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         return rebufferer.fileLength();
     }
 
@@ -277,6 +287,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     // not have a shared channel.
     static class RandomAccessReaderWithOwnChannel extends RandomAccessReader
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         RandomAccessReaderWithOwnChannel(Rebufferer rebufferer)
         {
             super(rebufferer);
@@ -291,6 +302,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
             }
             finally
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
                 try
                 {
                     rebufferer.close();
@@ -312,6 +324,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     @SuppressWarnings("resource")
     public static RandomAccessReader open(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         ChannelProxy channel = new ChannelProxy(file);
         try
         {

@@ -99,6 +99,7 @@ public class BytesReadTrackerTest
             out.close();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
         DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(testData));
         BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
         DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
@@ -149,6 +150,7 @@ public class BytesReadTrackerTest
             in.close();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2901
         tracker.reset(0);
         assertEquals(0, tracker.getBytesRead());
     }
@@ -172,6 +174,7 @@ public class BytesReadTrackerTest
             out.close();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
         DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(testData));
         BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
         DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
@@ -200,6 +203,7 @@ public class BytesReadTrackerTest
         String testStr = "1234567890";
         byte[] testData = testStr.getBytes();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
         DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(testData));
         BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
         DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
@@ -222,6 +226,8 @@ public class BytesReadTrackerTest
             assertEquals("890", new String(out));
             assertEquals(10, tracker.getBytesRead());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2901
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2901
             assertEquals(testData.length, tracker.getBytesRead());
         }
         finally
@@ -233,6 +239,7 @@ public class BytesReadTrackerTest
     public void internalTestReadLine(boolean inputStream) throws Exception
     {
         DataInputStream in = new DataInputStream(new ByteArrayInputStream("1".getBytes()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
         BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
         DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
 

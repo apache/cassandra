@@ -76,6 +76,7 @@ public class EncryptedFileSegmentInputStream extends FileSegmentInputStream impl
 
     public void seek(long position)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11957
         long bufferPos = position - totalChunkOffset - segmentOffset;
         while (buffer != null && bufferPos > buffer.capacity())
         {

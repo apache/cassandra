@@ -202,6 +202,7 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
     {
         logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getPath(), prettyPrintMemory(size));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (in instanceof AsyncStreamingInputPlus)
             write((AsyncStreamingInputPlus) in, size, componentWriters.get(type));
         else

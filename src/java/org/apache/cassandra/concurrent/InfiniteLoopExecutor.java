@@ -79,6 +79,7 @@ public class InfiniteLoopExecutor
     public boolean awaitTermination(long time, TimeUnit unit) throws InterruptedException
     {
         thread.join(unit.toMillis(time));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
         return !thread.isAlive();
     }
 }

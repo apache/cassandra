@@ -47,6 +47,7 @@ public class Tuples
 
     public static ColumnSpecification componentSpecOf(ColumnSpecification column, int component)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
         return new ColumnSpecification(column.ksName,
                                        column.cfName,
                                        new ColumnIdentifier(String.format("%s[%d]", column.name, component), true),
@@ -72,9 +73,11 @@ public class Tuples
             // By consequence, we need to wait until we know the target type to determine which one it is.
             if (elements.size() == 1 && !checkIfTupleType(receiver.type))
                 return elements.get(0).prepare(keyspace, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
 
             validateTupleAssignableTo(receiver, elements);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (int i = 0; i < elements.size(); i++)
@@ -95,6 +98,7 @@ public class Tuples
                 throw new InvalidRequestException(String.format("Expected %d elements in value tuple, but got %d: %s", receivers.size(), elements.size(), this));
 
             List<Term> values = new ArrayList<>(elements.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7472
             List<AbstractType<?>> types = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (int i = 0; i < elements.size(); i++)
@@ -104,6 +108,7 @@ public class Tuples
                     allTerminal = false;
 
                 values.add(t);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7472
                 types.add(receivers.get(i).type);
             }
             DelayedValue value = new DelayedValue(new TupleType(types), values);
@@ -116,6 +121,7 @@ public class Tuples
             // By consequence, we need to wait until we know the target type to determine which one it is.
             if (elements.size() == 1 && !checkIfTupleType(receiver.type))
                 return elements.get(0).testAssignment(keyspace, receiver);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
 
             return testTupleAssignment(receiver, elements);
         }
@@ -123,6 +129,7 @@ public class Tuples
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             List<AbstractType<?>> types = new ArrayList<>(elements.size());
             for (Term.Raw term : elements)
             {
@@ -136,6 +143,7 @@ public class Tuples
 
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             return tupleToString(elements, Term.Raw::getText);
         }
     }
@@ -166,6 +174,7 @@ public class Tuples
 
         public ByteBuffer get(ProtocolVersion protocolVersion)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             return TupleType.buildValue(elements);
         }
 
@@ -185,6 +194,7 @@ public class Tuples
 
         public DelayedValue(TupleType type, List<Term> elements)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7472
             this.type = type;
             this.elements = elements;
         }
@@ -210,11 +220,13 @@ public class Tuples
                 throw new InvalidRequestException(String.format(
                         "Tuple value contained too many fields (expected %s, got %s)", type.size(), elements.size()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             ByteBuffer[] buffers = new ByteBuffer[elements.size()];
             for (int i = 0; i < elements.size(); i++)
             {
                 buffers[i] = elements.get(i).bindAndGet(options);
                 // Since A tuple value is always written in its entirety Cassandra can't preserve a pre-existing value by 'not setting' the new value. Reject the query.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
                 if (buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     throw new InvalidRequestException(String.format("Invalid unset value for tuple field number %d", i));
             }
@@ -241,6 +253,7 @@ public class Tuples
 
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(elements, functions);
         }
     }
@@ -326,6 +339,7 @@ public class Tuples
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
 
@@ -356,6 +370,7 @@ public class Tuples
                 if (i < receivers.size() - 1)
                     inName.append(",");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                 if (receiver.type.isCollection() && receiver.type.isMultiCell())
                     throw new InvalidRequestException("Non-frozen collection columns do not support IN relations");
 
@@ -370,6 +385,7 @@ public class Tuples
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
 
@@ -394,6 +410,7 @@ public class Tuples
         public Value bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw new InvalidRequestException(String.format("Invalid unset value for tuple %s", receiver.name));
             return value == null ? null : Value.fromSerialized(value, getTupleType(receiver.type));
@@ -414,6 +431,7 @@ public class Tuples
         public InValue bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw new InvalidRequestException(String.format("Invalid unset value for %s", receiver.name));
             return value == null ? null : InValue.fromSerialized(value, (ListType)receiver.type, options);
@@ -428,6 +446,7 @@ public class Tuples
      */
     public static String tupleToString(List<?> elements)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return tupleToString(elements, Object::toString);
     }
 

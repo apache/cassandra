@@ -35,20 +35,24 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
     {
         if (logger.isTraceEnabled())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort from = message.from();
             logger.trace("Received a GossipDigestAck2Message from {}", from);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5254
         if (!Gossiper.instance.isEnabled())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestAck2Message because gossip is disabled");
             return;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, EndpointState> remoteEpStateMap = message.payload.getEndpointStateMap();
         /* Notify the Failure Detector */
         Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
         Gossiper.instance.applyStateLocally(remoteEpStateMap);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         super.doVerb(message);
     }
 }

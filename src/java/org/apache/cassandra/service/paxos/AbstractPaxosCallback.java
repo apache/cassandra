@@ -42,6 +42,7 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
         this.targets = targets;
         this.consistency = consistency;
         latch = new CountDownLatch(targets);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
@@ -54,8 +55,10 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long timeout = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) - (System.nanoTime() - queryStartNanoTime);
             if (!latch.await(timeout, NANOSECONDS))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6884
                 throw new WriteTimeoutException(WriteType.CAS, consistency, getResponseCount(), targets);
         }
         catch (InterruptedException ex)

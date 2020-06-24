@@ -37,6 +37,8 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
                                           WriteType writeType,
                                           long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         super(replicaPlan, callback, writeType, queryStartNanoTime);
         assert replicaPlan.consistencyLevel().isDatacenterLocal();
     }
@@ -44,10 +46,12 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     @Override
     public void onResponse(Message<T> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (message == null || waitingFor(message.from()))
         {
             super.onResponse(message);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         else
         {
             //WriteResponseHandler.response will call logResonseToIdealCLDelegate so only do it if not calling WriteResponseHandler.response.
@@ -59,6 +63,7 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     @Override
     protected boolean waitingFor(InetAddressAndPort from)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         return waitingFor.test(from);
     }
 }

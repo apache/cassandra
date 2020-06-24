@@ -95,6 +95,7 @@ public class GoogleCloudSnitch extends AbstractNetworkTopologySnitch
 
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return gceZone;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
@@ -111,6 +112,7 @@ public class GoogleCloudSnitch extends AbstractNetworkTopologySnitch
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return gceRegion;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);

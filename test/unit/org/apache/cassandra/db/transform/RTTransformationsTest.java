@@ -100,6 +100,8 @@ public final class RTTransformationsTest
         , row(1, "a", "1", "")
         , bound(Kind.INCL_START_BOUND, 0, "a", "1")
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         assertIteratorsEqual(original, close(extended));
     }
 
@@ -129,6 +131,8 @@ public final class RTTransformationsTest
         , row(2, "a", "1", "")
         );
         UnfilteredPartitionIterator extended = close(original);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
 
         UnfilteredPartitionIterator expected = iter(false
         , bound(Kind.INCL_START_BOUND, 0, "a")
@@ -165,6 +169,8 @@ public final class RTTransformationsTest
         , row(2, "a", "0", "")
         );
         UnfilteredPartitionIterator extended = close(original);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
 
         UnfilteredPartitionIterator expected = iter(true
         , bound(Kind.INCL_END_BOUND, 0, "a")
@@ -182,6 +188,7 @@ public final class RTTransformationsTest
         UnfilteredPartitionIterator iterator = iter(false
         , bound(Kind.INCL_START_BOUND, 0, "a")
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         assertThrowsISEIterated(close(iterator));
     }
 
@@ -339,6 +346,8 @@ public final class RTTransformationsTest
         , bound(Kind.INCL_START_BOUND, 0, "a", "1")
         , bound(Kind.INCL_START_BOUND, 0, "a", "1")
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         iterator = validate(iterator, Stage.PROCESSED, true);
         assertThrowsISEIterated(iterator);
 
@@ -349,6 +358,8 @@ public final class RTTransformationsTest
         , row(1, "a", "1", "")
         , bound(Kind.INCL_START_BOUND, 0, "a", "1")
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         iterator = validate(iterator, Stage.PROCESSED, true);
         assertThrowsISEIterated(iterator);
 
@@ -357,6 +368,8 @@ public final class RTTransformationsTest
         , bound(Kind.INCL_END_BOUND, 0, "a", "1")
         , row(1, "a", "1", "")
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         iterator = validate(iterator, Stage.PROCESSED, true);
         assertThrowsISEIterated(iterator);
 
@@ -365,6 +378,14 @@ public final class RTTransformationsTest
         , row(1, "a", "1", "")
         , bound(Kind.INCL_START_BOUND, 0, "a", "1")
         );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14824
         iterator = validate(iterator, Stage.PROCESSED, true);
         assertThrowsISEIterated(iterator);
     }

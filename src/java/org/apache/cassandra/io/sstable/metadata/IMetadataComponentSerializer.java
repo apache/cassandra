@@ -51,6 +51,7 @@ public interface IMetadataComponentSerializer<T extends MetadataComponent>
      * @throws IOException
      */
     void serialize(Version version, T component, DataOutputPlus out) throws IOException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
 
     /**
      * Deserialize metadata component from given input.
@@ -60,5 +61,6 @@ public interface IMetadataComponentSerializer<T extends MetadataComponent>
      * @return Deserialized component
      * @throws IOException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
     T deserialize(Version version, DataInputPlus in) throws IOException;
 }

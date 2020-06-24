@@ -37,8 +37,10 @@ public class TokenSerializer
 
     public static void serialize(IPartitioner partitioner, Collection<Token> tokens, DataOutput out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
         for (Token token : tokens)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9241
             ByteBuffer tokenBuffer = partitioner.getTokenFactory().toByteArray(token);
             assert tokenBuffer.arrayOffset() == 0;
             ByteBufferUtil.writeWithLength(tokenBuffer.array(), out);
@@ -54,7 +56,9 @@ public class TokenSerializer
             int size = in.readInt();
             if (size < 1)
                 break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
             if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 logger.trace("Reading token of {}", FBUtilities.prettyPrintMemory(size));
             byte[] bintoken = new byte[size];
             in.readFully(bintoken);

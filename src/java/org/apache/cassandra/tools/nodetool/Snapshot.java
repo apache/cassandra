@@ -59,6 +59,7 @@ public class Snapshot extends NodeToolCmd
 
             sb.append("Requested creating snapshot(s) for ");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
             Map<String, String> options = new HashMap<String,String>();
             options.put("skipFlush", Boolean.toString(skipFlush));
 
@@ -71,10 +72,12 @@ public class Snapshot extends NodeToolCmd
                 else
                 {
                     throw new IOException(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15287
                             "When specifying the Keyspace table list (using -kt,--kt-list,-kc,--kc.list), you must not also specify keyspaces to snapshot");
                 }
                 if (!snapshotName.isEmpty())
                     sb.append(" with snapshot name [").append(snapshotName).append("]");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
                 sb.append(" and options ").append(options.toString());
                 System.out.println(sb.toString());
                 probe.takeMultipleTableSnapshot(snapshotName, options, ktList.split(","));
@@ -89,6 +92,7 @@ public class Snapshot extends NodeToolCmd
 
                 if (!snapshotName.isEmpty())
                     sb.append(" with snapshot name [").append(snapshotName).append("]");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
                 sb.append(" and options ").append(options.toString());
                 System.out.println(sb.toString());
 

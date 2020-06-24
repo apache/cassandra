@@ -68,6 +68,7 @@ public class PreparedStatementsTest extends CQLTester
         session.execute(createTableStatement);
 
         PreparedStatement prepared = session.prepare("INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8652
         PreparedStatement preparedBatch = session.prepare("BEGIN BATCH " +
                                                           "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?);" +
                                                           "APPLY BATCH;");
@@ -223,6 +224,8 @@ public class PreparedStatementsTest extends CQLTester
                                  .withClusterName("Test Cluster")
                                  .withPort(nativePort)
                                  .withoutJMXReporting()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14211
                                  .allowBetaProtocolVersion()
                                  .build())
         {
@@ -243,6 +246,7 @@ public class PreparedStatementsTest extends CQLTester
     {
         Session session = sessions.get(ProtocolVersion.V5);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
         String table = "custom_expr_test";
@@ -292,6 +296,7 @@ public class PreparedStatementsTest extends CQLTester
         createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))");
         execute("INSERT INTO %s (pk, v1, v2) VALUES (1,1,1)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         try (SimpleClient simpleClient = newSimpleClient(ProtocolVersion.BETA.orElse(ProtocolVersion.CURRENT), false, false))
         {
             ResultMessage.Prepared prepUpdate = simpleClient.prepare(String.format("UPDATE %s.%s SET v1 = ?, v2 = ? WHERE pk = 1 IF v1 = ?",

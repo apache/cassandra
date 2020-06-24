@@ -41,6 +41,7 @@ public class StartupChecksTest
     public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
     StartupChecks startupChecks;
     Path sstableDir;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
 
     @BeforeClass
     public static void setupServer()
@@ -51,11 +52,13 @@ public class StartupChecksTest
     @Before
     public void setup() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
         for (File dataDir : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             FileUtils.deleteRecursive(dataDir);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
         File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
         sstableDir = Paths.get(dataDir.getAbsolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
@@ -96,6 +99,7 @@ public class StartupChecksTest
     public void compatibilityCheckIgnoresNonDbFiles() throws Exception
     {
         startupChecks = startupChecks.withTest(StartupChecks.checkSSTablesFormat);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
 
         copyLegacyNonSSTableFiles(sstableDir);
         assertFalse(sstableDir.toFile().listFiles().length == 0);
@@ -106,6 +110,7 @@ public class StartupChecksTest
     @Test
     public void maxMapCountCheck() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13008
         startupChecks = startupChecks.withTest(StartupChecks.checkMaxMapCount);
         startupChecks.verify();
     }

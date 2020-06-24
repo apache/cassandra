@@ -65,22 +65,27 @@ public class BootStrapper extends ProgressEventNotifierSupport
     public ListenableFuture<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
     {
         logger.trace("Beginning bootstrap process");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         RangeStreamer streamer = new RangeStreamer(tokenMetadata,
                                                    tokens,
                                                    address,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
                                                    StreamOperation.BOOTSTRAP,
                                                    useStrictConsistency,
                                                    DatabaseDescriptor.getEndpointSnitch(),
                                                    stateStore,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4663
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
             streamer.addRanges(keyspaceName, strategy.getPendingAddressRanges(tokenMetadata, tokens, address));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8942
         StreamResultFuture bootstrapStreamResult = streamer.fetchAsync();
         bootstrapStreamResult.addEventListener(new StreamEventHandler()
         {
@@ -155,6 +160,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
     public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, int schemaWaitDelay) throws ConfigurationException
     {
         String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         Integer allocationLocalRf = DatabaseDescriptor.getAllocateTokensForLocalRf();
         Collection<String> initialTokens = DatabaseDescriptor.getInitialTokens();
         if (initialTokens.size() > 0 && allocationKeyspace != null)
@@ -163,6 +169,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
         // if user specified tokens, use those
         if (initialTokens.size() > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
             Collection<Token> tokens = getSpecifiedTokens(metadata, initialTokens);
             BootstrapDiagnostics.useSpecifiedTokens(address, allocationKeyspace, tokens, DatabaseDescriptor.getNumTokens());
             return tokens;
@@ -175,21 +182,25 @@ public class BootStrapper extends ProgressEventNotifierSupport
         if (allocationKeyspace != null)
             return allocateTokens(metadata, address, allocationKeyspace, numTokens, schemaWaitDelay);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
         if (allocationLocalRf != null)
             return allocateTokens(metadata, address, allocationLocalRf, numTokens, schemaWaitDelay);
 
         if (numTokens == 1)
             logger.warn("Picking random token for a single vnode.  You should probably add more vnodes and/or use the automatic token allocation mechanism.");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         Collection<Token> tokens = getRandomTokens(metadata, numTokens);
         BootstrapDiagnostics.useRandomTokens(address, metadata, numTokens, tokens);
         return tokens;
     }
 
     private static Collection<Token> getSpecifiedTokens(final TokenMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                                                         Collection<String> initialTokens)
     {
         logger.info("tokens manually specified as {}",  initialTokens);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
         List<Token> tokens = new ArrayList<>(initialTokens.size());
         for (String tokenString : initialTokens)
         {
@@ -202,6 +213,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
     }
 
     static Collection<Token> allocateTokens(final TokenMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                             InetAddressAndPort address,
                                             String allocationKeyspace,
                                             int numTokens,
@@ -216,6 +228,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
             throw new ConfigurationException("Problem opening token allocation keyspace " + allocationKeyspace);
         AbstractReplicationStrategy rs = ks.getReplicationStrategy();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         Collection<Token> tokens = TokenAllocation.allocateTokens(metadata, rs, address, numTokens);
         BootstrapDiagnostics.tokensAllocated(address, metadata, allocationKeyspace, numTokens, tokens);
         return tokens;
@@ -223,6 +236,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
 
     static Collection<Token> allocateTokens(final TokenMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
                                             InetAddressAndPort address,
                                             int rf,
                                             int numTokens,
@@ -239,9 +253,11 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
     public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
         Set<Token> tokens = new HashSet<>(numTokens);
         while (tokens.size() < numTokens)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             Token token = metadata.partitioner.getRandomToken();
             if (metadata.getEndpoint(token) == null)
                 tokens.add(token);

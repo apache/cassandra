@@ -80,6 +80,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         if (installed)
             return;
         System.setSecurityManager(new ThreadAwareSecurityManager());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13396
         LoggingSupportFactory.getLoggingSupport().onStartup();
         installed = true;
     }
@@ -110,6 +111,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
                 switch (codesource.getLocation().getProtocol())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15494
                     case "jar":   // One-JAR or Uno-Jar source
                         if (!codesource.getLocation().getPath().startsWith("file:")) {
                             return perms;
@@ -137,6 +139,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
                 switch (codesource.getLocation().getProtocol())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15494
                     case "jar":   // One-JAR or Uno-Jar source
                         return codesource.getLocation().getPath().startsWith("file:");
                     case "file":  // Standard file system source
@@ -203,6 +206,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
             return;
 
         // Nashorn / Java 11
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         if (NASHORN_GLOBAL_PERMISSION.equals(perm))
             return;
         if (SUPPRESS_ACCESS_CHECKS_PERMISSION.equals(perm))

@@ -51,6 +51,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     {
         this.pool = pool;
         this.workerId = workerId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
         thread = new FastThreadLocalThread(this, pool.poolName + "-Worker-" + workerId);
         thread.setDaemon(true);
         set(initialState);
@@ -77,6 +78,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             while (true)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
                 if (pool.shuttingDown)
                     return;
 
@@ -99,6 +101,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 assigned = get().assigned;
                 if (assigned == null)
                     continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11966
                 if (SET_THREAD_NAME)
                     Thread.currentThread().setName(assigned.name + "-" + workerId);
                 task = assigned.tasks.poll();
@@ -107,6 +110,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 // (which is also a state that will never be interrupted externally)
                 set(Work.WORKING);
                 boolean shutdown;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 SEPExecutor.TakeTaskPermitResult status = null; // make sure set if shutdown check short circuits
                 while (true)
                 {
@@ -119,6 +124,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     task.run();
                     task = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                     if (shutdown = assigned.shuttingDown)
                         break;
 
@@ -132,6 +139,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 if (status != RETURNED_WORK_PERMIT)
                     assigned.returnWorkPermit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
                 if (shutdown)
                 {
                     if (assigned.getActiveTaskCount() == 0)
@@ -148,6 +156,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         }
         catch (Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
             JVMStabilityInspector.inspectThrowable(t);
             while (true)
             {
@@ -162,6 +171,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             if (assigned != null)
                 assigned.returnWorkPermit();
             if (task != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
                 logger.error("Failed to execute task, unexpected exception killed worker", t);
             else
                 logger.error("Unexpected exception killed worker", t);
@@ -190,6 +200,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             if (work.isStop())
             {
                 pool.descheduled.put(workerId, this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14815
                 if (pool.shuttingDown)
                     return true;
             }
@@ -254,6 +265,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         // we should always have a thread about to wake up, but most threads are sleeping
         long sleep = 10000L * pool.spinningCount.get();
         sleep = Math.min(1000000, sleep);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14261
         sleep *= ThreadLocalRandom.current().nextDouble();
         sleep = Math.max(10000, sleep);
 

@@ -35,8 +35,10 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
 {
     private static final SSTableIntervalTree EMPTY = new SSTableIntervalTree(null);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
     SSTableIntervalTree(Collection<Interval<PartitionPosition, SSTableReader>> intervals)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         super(intervals);
     }
 
@@ -52,6 +54,7 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
 
     public static List<Interval<PartitionPosition, SSTableReader>> buildIntervals(Iterable<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<Interval<PartitionPosition, SSTableReader>> intervals = new ArrayList<>(Iterables.size(sstables));
         for (SSTableReader sstable : sstables)
             intervals.add(Interval.<PartitionPosition, SSTableReader>create(sstable.first, sstable.last, sstable));

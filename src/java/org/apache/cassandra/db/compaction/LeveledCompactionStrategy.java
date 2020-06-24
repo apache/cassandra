@@ -54,6 +54,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public static final int DEFAULT_LEVEL_FANOUT_SIZE = 10;
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4807
     final LeveledManifest manifest;
     private final int maxSSTableSizeInMB;
     private final int levelFanoutSize;
@@ -65,9 +66,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         int configuredMaxSSTableSize = 160;
         int configuredLevelFanoutSize = DEFAULT_LEVEL_FANOUT_SIZE;
         boolean configuredSingleSSTableUplevel = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5439
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
             if (options.containsKey(SSTABLE_SIZE_OPTION))
             {
                 configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
@@ -82,11 +86,13 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
             if (options.containsKey(LEVEL_FANOUT_SIZE_OPTION))
             {
                 configuredLevelFanoutSize = Integer.parseInt(options.get(LEVEL_FANOUT_SIZE_OPTION));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
             if (options.containsKey(SINGLE_SSTABLE_UPLEVEL_OPTION))
             {
                 configuredSingleSSTableUplevel = Boolean.parseBoolean(options.get(SINGLE_SSTABLE_UPLEVEL_OPTION));
@@ -97,6 +103,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         singleSSTableUplevel = configuredSingleSSTableUplevel;
 
         manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMB, this.levelFanoutSize, localOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Created {}", manifest);
     }
 
@@ -107,12 +114,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     public int[] getAllLevelSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4537
         return manifest.getAllLevelSize();
     }
 
     @Override
     public void startup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6216
         manifest.calculateLastCompactedKeys();
         super.startup();
     }
@@ -124,10 +133,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
         Collection<SSTableReader> previousCandidate = null;
         while (true)
         {
             OperationType op;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
             LeveledManifest.CompactionCandidate candidate = manifest.getCompactionCandidates();
             if (candidate == null)
             {
@@ -135,6 +146,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 SSTableReader sstable = findDroppableSSTable(gcBefore);
                 if (sstable == null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("No compaction necessary for {}", this);
                     return null;
                 }
@@ -150,6 +162,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
             // Already tried acquiring references without success. It means there is a race with
             // the tracker but candidate SSTables were not yet replaced in the compaction strategy manager
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
             if (candidate.sstables.equals(previousCandidate))
             {
                 logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
@@ -161,6 +174,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             LifecycleTransaction txn = cfs.getTracker().tryModify(candidate.sstables, OperationType.COMPACTION);
             if (txn != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
                 AbstractCompactionTask newTask;
                 if (!singleSSTableUplevel || op == OperationType.TOMBSTONE_COMPACTION || txn.originals().size() > 1)
                     newTask = new LeveledCompactionTask(cfs, txn, candidate.level, gcBefore, candidate.maxSSTableBytes, false);
@@ -168,8 +182,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                     newTask = new SingleSSTableLCSTask(cfs, txn, candidate.level);
 
                 newTask.setCompactionType(op);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
                 return newTask;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
             previousCandidate = candidate.sstables;
         }
     }
@@ -182,6 +198,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
         if (Iterables.isEmpty(sstables))
             return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
@@ -194,6 +211,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
         if (sstables.isEmpty())
             return null;
 
@@ -204,12 +222,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
         int level = sstables.size() > 1 ? 0 : sstables.iterator().next().getSSTableLevel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
         return new LeveledCompactionTask(cfs, transaction, level, gcBefore, level == 0 ? Long.MAX_VALUE : getMaxSSTableBytes(), false);
     }
 
     @Override
     public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         assert txn.originals().size() > 0;
         int level = -1;
         // if all sstables are in the same level, we can set that level:
@@ -234,6 +254,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> ssTablesToGroup)
     {
         int groupSize = 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6851
         Map<Integer, Collection<SSTableReader>> sstablesByLevel = new HashMap<>();
         for (SSTableReader sstable : ssTablesToGroup)
         {
@@ -251,6 +272,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         for (Collection<SSTableReader> levelOfSSTables : sstablesByLevel.values())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
             Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
             for (SSTableReader sstable : levelOfSSTables)
             {
@@ -272,17 +294,21 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public int getEstimatedRemainingTasks()
     {
         int n = manifest.getEstimatedTasks();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         cfs.getCompactionStrategyManager().compactionLogger.pending(this, n);
         return n;
     }
 
     public long getMaxSSTableBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3364
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return maxSSTableSizeInMB * 1024L * 1024L;
     }
 
     public int getLevelFanoutSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         return levelFanoutSize;
     }
 
@@ -318,6 +344,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 {
                     // L0 makes no guarantees about overlapping-ness.  Just create a direct scanner for each
                     for (SSTableReader sstable : byLevel.get(level))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                         scanners.add(sstable.getScanner(ranges));
                 }
                 else
@@ -328,6 +355,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                     {
                         @SuppressWarnings("resource") // The ScannerList will be in charge of closing (and we close properly on errors)
                         ISSTableScanner scanner = new LeveledScanner(cfs.metadata(), intersecting, ranges);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                         scanners.add(scanner);
                     }
                 }
@@ -335,6 +363,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         }
         catch (Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
             ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
 
@@ -344,12 +373,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8463
         manifest.replace(removed, added);
     }
 
     @Override
     public void metadataChanged(StatsMetadata oldMetadata, SSTableReader sstable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         if (sstable.getSSTableLevel() != oldMetadata.sstableLevel)
             manifest.newLevel(sstable, oldMetadata.sstableLevel);
     }
@@ -357,6 +388,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public void addSSTable(SSTableReader added)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8004
         manifest.add(added);
     }
 
@@ -369,6 +401,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     @Override
     protected Set<SSTableReader> getSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return manifest.getSSTables();
     }
 
@@ -393,8 +426,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             this.ranges = ranges;
 
             // add only sstables that intersect our range, and estimate how much data that involves
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
             this.sstables = new ArrayList<>(sstables.size());
             long length = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
             long cLength = 0;
             for (SSTableReader sstable : sstables)
             {
@@ -402,6 +437,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 long estimatedKeys = sstable.estimatedKeys();
                 double estKeysInRangeRatio = 1.0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11412
                 if (estimatedKeys > 0 && ranges != null)
                     estKeysInRangeRatio = ((double) sstable.estimatedKeysForRanges(ranges)) / estimatedKeys;
 
@@ -411,6 +447,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
             totalLength = length;
             compressedLength = cLength;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
             Collections.sort(this.sstables, SSTableReader.sstableComparator);
             sstableIterator = this.sstables.iterator();
             assert sstableIterator.hasNext(); // caller should check intersecting first
@@ -421,6 +458,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         public static Collection<SSTableReader> intersecting(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11412
             if (ranges == null)
                 return Lists.newArrayList(sstables);
 
@@ -429,6 +467,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 for (SSTableReader sstable : sstables)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
                     Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken());
                     if (range == null || sstableRange.intersects(range))
                         filtered.add(sstable);
@@ -447,6 +486,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             if (currentScanner == null)
                 return endOfData();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4587
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             while (true)
             {
                 if (currentScanner.hasNext())
@@ -454,15 +495,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
                 positionOffset += currentScanner.getLengthInBytes();
                 totalBytesScanned += currentScanner.getBytesScanned();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
 
                 currentScanner.close();
                 if (!sstableIterator.hasNext())
                 {
                     // reset to null so getCurrentPosition does not return wrong value
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4807
                     currentScanner = null;
                     return endOfData();
                 }
                 SSTableReader currentSSTable = sstableIterator.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
                 currentScanner = currentSSTable.getScanner(ranges);
             }
         }
@@ -485,6 +530,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         public long getCompressedLengthInBytes()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
             return compressedLength;
         }
 
@@ -495,6 +541,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         public Set<SSTableReader> getBackingSSTables()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             return ImmutableSet.copyOf(sstables);
         }
     }
@@ -507,6 +554,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     private SSTableReader findDroppableSSTable(final int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4234
         level:
         for (int i = manifest.getLevelCount(); i >= 0; i--)
         {
@@ -523,6 +571,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             if (sstables.isEmpty())
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
             for (SSTableReader sstable : sstables)
             {
@@ -537,6 +586,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     public CompactionLogger.Strategy strategyLogger()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         return new CompactionLogger.Strategy()
         {
             public JsonNode sstable(SSTableReader sstable)
@@ -558,6 +608,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
         Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
 
         String size = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "1";
         try
@@ -576,6 +627,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         uncheckedOptions.remove(SSTABLE_SIZE_OPTION);
 
         // Validate the fanout_size option
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         String levelFanoutSize = options.containsKey(LEVEL_FANOUT_SIZE_OPTION) ? options.get(LEVEL_FANOUT_SIZE_OPTION) : String.valueOf(DEFAULT_LEVEL_FANOUT_SIZE);
         try
         {
@@ -592,11 +644,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         uncheckedOptions.remove(LEVEL_FANOUT_SIZE_OPTION);
         uncheckedOptions.remove(SINGLE_SSTABLE_UPLEVEL_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14388
         uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
         uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
 
         uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5439
 
         return uncheckedOptions;
     }

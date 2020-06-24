@@ -47,6 +47,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public DeletionTime(long markedForDeleteAt, int localDeletionTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         this.markedForDeleteAt = markedForDeleteAt;
         this.localDeletionTime = localDeletionTime;
     }
@@ -83,6 +84,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         // localDeletionTime is basically a metadata of the deletion time that tells us when it's ok to purge it.
         // It's thus intrinsically a local information and shouldn't be part of the digest (which exists for
         // cross-nodes comparisons).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         digest.updateWithLong(markedForDeleteAt());
     }
 
@@ -92,6 +94,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
      */
     public boolean validate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         return localDeletionTime >= 0;
     }
 
@@ -101,6 +104,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         if(!(o instanceof DeletionTime))
             return false;
         DeletionTime that = (DeletionTime)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return markedForDeleteAt() == that.markedForDeleteAt() && localDeletionTime() == that.localDeletionTime();
     }
 
@@ -125,6 +129,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         else if (localDeletionTime() < dt.localDeletionTime())
             return -1;
         else if (localDeletionTime() > dt.localDeletionTime())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10749
             return 1;
         else
             return 0;
@@ -142,6 +147,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public boolean deletes(Cell cell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return deletes(cell.timestamp());
     }
 
@@ -157,6 +163,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public long unsharedHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return EMPTY_SIZE;
     }
 
@@ -164,6 +171,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     {
         public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             out.writeInt(delTime.localDeletionTime());
             out.writeLong(delTime.markedForDeleteAt());
         }
@@ -174,16 +182,19 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
             long mfda = in.readLong();
             return mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE
                  ? LIVE
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                  : new DeletionTime(mfda, ldt);
         }
 
         public void skip(DataInputPlus in) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
             in.skipBytesFully(4 + 8);
         }
 
         public long serializedSize(DeletionTime delTime)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             return TypeSizes.sizeof(delTime.localDeletionTime())
                  + TypeSizes.sizeof(delTime.markedForDeleteAt());
         }

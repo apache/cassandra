@@ -47,6 +47,7 @@ final class SystemPropertiesTable extends AbstractVirtualTable
             "sun.arch.data.model",
             // jmx properties
             "java.rmi.server.hostname",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15643
             "java.rmi.server.randomID",
             "com.sun.management.jmxremote.authenticate",
             "com.sun.management.jmxremote.rmi.port",
@@ -63,6 +64,7 @@ final class SystemPropertiesTable extends AbstractVirtualTable
             "cassandra-foreground",
             "cassandra-pidfile",
             "default.provide.overlapping.tombstones",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15643
             "org.apache.cassandra.disable_mbean_registration",
             // only for testing
             "org.apache.cassandra.db.virtual.SystemPropertiesTableTest"
@@ -87,6 +89,7 @@ final class SystemPropertiesTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15643
         System.getenv().keySet()
                 .stream()
                 .filter(SystemPropertiesTable::isCassandraRelevant)
@@ -107,6 +110,7 @@ final class SystemPropertiesTable extends AbstractVirtualTable
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         if (isCassandraRelevant(name))
             addRow(result, name, System.getProperty(name, System.getenv(name)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15643
 
         return result;
     }

@@ -53,6 +53,7 @@ final class HintsDispatchExecutor
     private final Predicate<InetAddressAndPort> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Predicate<InetAddressAndPort> isAlive)
     {
         this.hintsDirectory = hintsDirectory;
@@ -60,6 +61,7 @@ final class HintsDispatchExecutor
         this.isAlive = isAlive;
 
         scheduledDispatches = new ConcurrentHashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13329
         executor = new JMXEnabledThreadPoolExecutor(maxThreads, 1, TimeUnit.MINUTES,
                                                     new LinkedBlockingQueue<>(),
                                                     new NamedThreadFactory("HintsDispatcher", Thread.MIN_PRIORITY),
@@ -73,6 +75,7 @@ final class HintsDispatchExecutor
     {
         scheduledDispatches.clear();
         executor.shutdownNow();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         try
         {
             executor.awaitTermination(1, TimeUnit.MINUTES);
@@ -104,6 +107,7 @@ final class HintsDispatchExecutor
          *
          * It also simplifies reasoning about dispatch sessions.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
         return scheduledDispatches.computeIfAbsent(hostId, uuid -> executor.submit(new DispatchHintsTask(store, hostId)));
     }
 
@@ -126,6 +130,7 @@ final class HintsDispatchExecutor
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13308
     void interruptDispatch(UUID hostId)
     {
         Future future = scheduledDispatches.remove(hostId);
@@ -146,6 +151,7 @@ final class HintsDispatchExecutor
 
         private TransferHintsTask(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
             this.catalog = catalog;
             this.hostIdSupplier = hostIdSupplier;
         }
@@ -154,6 +160,7 @@ final class HintsDispatchExecutor
         public void run()
         {
             UUID hostId = hostIdSupplier.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             logger.info("Transferring all hints to {}: {}", address, hostId);
             if (transfer(hostId))
@@ -171,6 +178,7 @@ final class HintsDispatchExecutor
             }
 
             hostId = hostIdSupplier.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13205
             logger.info("Transferring all hints to {}: {}", address, hostId);
             if (!transfer(hostId))
             {
@@ -240,6 +248,7 @@ final class HintsDispatchExecutor
                 }
                 catch (FSReadError e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
                     logger.error(String.format("Failed to dispatch hints file %s: file is corrupted", descriptor.fileName()), e);
                     store.cleanUp(descriptor);
                     store.markCorrupted(descriptor);
@@ -255,6 +264,7 @@ final class HintsDispatchExecutor
         {
             logger.trace("Dispatching hints file {}", descriptor.fileName());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             if (address != null)
                 return deliver(descriptor, address);
@@ -269,6 +279,7 @@ final class HintsDispatchExecutor
             File file = new File(hintsDirectory, descriptor.fileName());
             InputPosition offset = store.getDispatchOffset(descriptor);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
             BooleanSupplier shouldAbort = () -> !isAlive.test(address) || isPaused.get();
             try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
             {
@@ -277,13 +288,16 @@ final class HintsDispatchExecutor
 
                 if (dispatcher.dispatch())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10947
                     store.delete(descriptor);
                     store.cleanUp(descriptor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13205
                     logger.info("Finished hinted handoff of file {} to endpoint {}: {}", descriptor.fileName(), address, hostId);
                     return true;
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
                     store.markDispatchOffset(descriptor, dispatcher.dispatchPosition());
                     store.offerFirst(descriptor);
                     logger.info("Finished hinted handoff of file {} to endpoint {}: {}, partially", descriptor.fileName(), address, hostId);
@@ -309,6 +323,7 @@ final class HintsDispatchExecutor
 
     public boolean isPaused()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         return isPaused.get();
     }
 

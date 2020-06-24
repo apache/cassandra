@@ -83,6 +83,7 @@ public class Replay implements Runnable
                 System.err.println("You need to state at least one --target host to replay the query against");
                 System.exit(1);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
             replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath);
         }
         catch (Exception e)
@@ -100,12 +101,14 @@ public class Replay implements Runnable
 
         if (keyspace != null)
             filters.add(fqlQuery -> fqlQuery.keyspace() == null || fqlQuery.keyspace().equals(keyspace));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
 
         try
         {
             readQueues = arguments.stream().map(s -> ChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead)).collect(Collectors.toList());
             try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
                  QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath))
             {
                 replayer.replay();

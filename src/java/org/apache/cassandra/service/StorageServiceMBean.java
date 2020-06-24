@@ -490,6 +490,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12179
       Update dynamic_snitch_update_interval_in_ms
      */
     public void setDynamicUpdateInterval(int dynamicUpdateInterval);
@@ -676,9 +677,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public double getTraceProbability();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
     void disableAutoCompaction(String ks, String ... tables) throws IOException;
     void enableAutoCompaction(String ks, String ... tables) throws IOException;
     Map<String, Boolean> getAutoCompactionStatus(String ks, String... tables) throws IOException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8727
 
     public void deliverHints(String host) throws UnknownHostException;
 
@@ -731,6 +734,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
         public StageConcurrency(int corePoolSize, int maximumPoolSize)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             this.corePoolSize = corePoolSize;
             this.maximumPoolSize = maximumPoolSize;
         }
@@ -742,6 +747,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setConcurrency(String threadPoolName, int newCorePoolSize, int newMaximumPoolSize);
 
     /** Clears the history of clients that have connected in the past **/
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
     void clearConnectionHistory();
     public void disableAuditLog();
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;

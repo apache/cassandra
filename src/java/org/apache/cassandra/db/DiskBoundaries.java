@@ -89,6 +89,7 @@ public class DiskBoundaries
      */
     public boolean isOutOfDate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         if (isInvalid)
             return true;
         int currentDiskVersion = DisallowedDirectories.getDirectoriesVersion();
@@ -135,6 +136,7 @@ public class DiskBoundaries
 
     public Directories.DataDirectory getCorrectDiskForKey(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         if (positions == null)
             return null;
 

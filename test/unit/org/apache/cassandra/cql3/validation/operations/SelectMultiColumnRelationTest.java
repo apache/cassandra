@@ -33,12 +33,15 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testSingleClusteringInvalidQueries() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6599
         assertInvalidSyntax("SELECT * FROM %s WHERE () = (?, ?)", 1, 2);
         assertInvalidMessage("b cannot be restricted by more than one relation if it includes an Equal",
                              "SELECT * FROM %s WHERE a = 0 AND (b) = (?) AND (b) > (?)", 0, 0);
         assertInvalidMessage("More than one restriction was found for the start bound on b",
                              "SELECT * FROM %s WHERE a = 0 AND (b) > (?) AND (b) > (?)", 0, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9606
         assertInvalidMessage("More than one restriction was found for the start bound on b",
                              "SELECT * FROM %s WHERE a = 0 AND (b) > (?) AND b > ?", 0, 1);
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
@@ -50,6 +53,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6599
         assertInvalidSyntax("SELECT * FROM %s WHERE a = 0 AND (b, c) > ()");
         assertInvalidMessage("Expected 2 elements in value tuple, but got 3: (?, ?, ?)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?, ?)", 1, 2, 3);
@@ -75,6 +79,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE a = 0 AND (c, d) > (?, ?)", 0, 0);
 
         // Nulls
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         assertInvalidMessage("Invalid null value for column d",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c, d) = (?, ?, ?)", 1, 2, null);
         assertInvalidMessage("Invalid null value for column d",
@@ -177,6 +182,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 1, 1, 0),
                    row(0, 1, 1, 1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9606
         assertRows(execute("SELECT * FROM %s WHERE a = ? and b = ? and (c, d) > (?, ?) and c <= ? ", 0, 1, 0, 0, 1),
                    row(0, 1, 1, 0),
                    row(0, 1, 1, 1));
@@ -272,6 +278,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 1, 1, 0),
                    row(0, 1, 1, 1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9606
         assertRows(execute("SELECT * FROM %s WHERE a = ? and (b) = (?) and (c, d) > (?, ?) and c <= ? ", 0, 1, 0, 0, 1),
                    row(0, 1, 1, 0),
                    row(0, 1, 1, 1));
@@ -299,6 +306,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testSinglePartitionInvalidQueries() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE (a) > (?)", 0);
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
@@ -355,6 +363,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 1, 0)
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9606
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b) > (?) AND b < ?", 0, 0, 2),
                    row(0, 1, 0)
         );
@@ -368,6 +377,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testNonEqualsRelation() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         assertInvalidMessage("Unsupported \"!=\" relation: (b) != (0)",
                              "SELECT * FROM %s WHERE a = 0 AND (b) != (0)");
     }
@@ -500,6 +510,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1)
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9606
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) > (?, ?, ?) AND b < ?", 0, 0, 1, 0, 1),
                    row(0, 0, 1, 1)
         );
@@ -593,6 +604,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1)
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9606
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) > (?, ?, ?) AND b < ? ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 0, 1),
                    row(0, 0, 1, 1)
         );
@@ -642,6 +654,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertEmpty(execute("SELECT * FROM %s WHERE a = ? and (b) IN ()", 0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8419
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) IN ((?, ?)) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1),
                    row(0, 0, 1, 1),
@@ -673,6 +686,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         // same query, but reversed order for the IN values
         assertRows(execute("SELECT * FROM %s WHERE a IN (?, ?) AND (b, c, d) IN (?, ?)", 1, 0, tuple(0, 1, 1), tuple(0, 1, 0)),
                    row(0, 0, 1, 0),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
                    row(0, 0, 1, 1),
                    row(1, 0, 1, 0),
                    row(1, 0, 1, 1)
@@ -804,6 +818,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 1, 1, 0, 1),
                    row(0, 1, 1, 1, 2));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE (b, c) = (?, ?)", 1, 1);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) = (?, ?)", 0, 1, 1),
@@ -815,6 +831,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) = (?, ?) AND e = ?", 0, 1, 1, 2),
                    row(0, 1, 1, 1, 2));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE (b, c) = (?, ?) AND e = ?", 1, 1, 2);
         assertRows(execute("SELECT * FROM %s WHERE (b, c) = (?, ?) AND e = ? ALLOW FILTERING", 1, 1, 2),
@@ -918,6 +936,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
         execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 2, 0, 0, 5);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND (c) = (?)");
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) = (?) ALLOW FILTERING", 0, 1),
@@ -931,6 +951,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 0, 4),
                    row(0, 0, 1, 1, 1, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) ALLOW FILTERING", 0, 1, 1),
                 row(0, 0, 1, 1, 0, 4),
                 row(0, 0, 1, 1, 1, 5));
@@ -943,6 +964,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) IN ((?)) AND f = ?", 0, 0, 1, 5),
                    row(0, 0, 1, 1, 1, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND (c) IN ((?), (?)) AND f = ?", 0, 1, 3, 5);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) IN ((?), (?)) AND f = ? ALLOW FILTERING", 0, 1, 3, 5),
@@ -961,6 +984,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c, d) IN ((?, ?)) AND f = ?", 0, 0, 1, 0, 3),
                    row(0, 0, 1, 0, 0, 3));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) AND f = ?", 0, 1, 0, 3);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) AND f = ? ALLOW FILTERING", 0, 1, 0, 3),
@@ -980,6 +1005,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c, d) >= (?, ?) AND f = ?", 0, 0, 1, 1, 5),
                    row(0, 0, 1, 1, 1, 5),
                    row(0, 0, 2, 0, 0, 5));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) AND f = ?", 0, 1, 1, 5);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) AND f = ? ALLOW FILTERING", 0, 1, 1, 5),
@@ -1002,6 +1029,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testWithUnsetValues() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         createTable("CREATE TABLE %s (k int, i int, j int, s text, PRIMARY KEY(k,i,j))");
         createIndex("CREATE INDEX s_index ON %s (s)");
 
@@ -1876,6 +1904,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testMixedOrderColumnsInReverse() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b, c)) WITH CLUSTERING ORDER BY (b ASC, c DESC);");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14899
 
         execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 3)");
         execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 2)");
@@ -1923,6 +1952,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testInvalidColumnNames() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE (b, e) = (0, 0)");
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE (b, e) IN ((0, 1), (2, 4))");
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE (b, e) > (0, 1) and b <= 2");

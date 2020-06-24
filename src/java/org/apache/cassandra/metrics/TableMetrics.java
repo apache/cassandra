@@ -258,12 +258,14 @@ public class TableMetrics
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13774
         long total = 0;
         long filtered = 0;
         for (String keyspace : Schema.instance.getNonSystemKeyspaces())
         {
 
             Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
                 continue;
             if (k.getReplicationStrategy().getReplicationFactor().allReplicas < 2)
@@ -343,14 +345,17 @@ public class TableMetrics
 
     private interface GetHistogram
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         EstimatedHistogram getHistogram(SSTableReader reader);
     }
 
     private static long[] combineHistograms(Iterable<SSTableReader> sstables, GetHistogram getHistogram)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8028
         Iterator<SSTableReader> iterator = sstables.iterator();
         if (!iterator.hasNext())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             return EMPTY;
         }
         long[] firstBucket = getHistogram.getHistogram(iterator.next()).getBuckets(false);
@@ -388,9 +393,11 @@ public class TableMetrics
      */
     public TableMetrics(final ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         factory = new TableMetricNameFactory(cfs, "Table");
         aliasFactory = new TableMetricNameFactory(cfs, "ColumnFamily");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         samplers = new EnumMap<>(SamplerType.class);
         topReadPartitionFrequency = new FrequencySampler<ByteBuffer>()
         {
@@ -438,6 +445,7 @@ public class TableMetrics
         {
             public Long getValue()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 return cfs.getTracker().getView().getCurrentMemtable().getOperations();
             }
         });
@@ -468,26 +476,31 @@ public class TableMetrics
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                     size += cfs2.getTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
                 return size;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         allMemtablesOffHeapSize = createTableGauge("AllMemtablesOffHeapSize", new Gauge<Long>()
         {
             public Long getValue()
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                     size += cfs2.getTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
                 return size;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         allMemtablesLiveDataSize = createTableGauge("AllMemtablesLiveDataSize", new Gauge<Long>()
         {
             public Long getValue()
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                     size += cfs2.getTracker().getView().getCurrentMemtable().getLiveDataSize();
                 return size;
             }
@@ -511,8 +524,10 @@ public class TableMetrics
             public Long getValue()
             {
                 long memtablePartitions = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
                    memtablePartitions += memtable.partitionCount();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14647
                 try(ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
                 {
                     return SSTableReader.getApproximateKeyCount(refViewFragment.sstables) + memtablePartitions;
@@ -523,10 +538,13 @@ public class TableMetrics
         {
             public long[] getValue()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 return combineHistograms(cfs.getSSTables(SSTableSet.CANONICAL), new GetHistogram()
                 {
                     public EstimatedHistogram getHistogram(SSTableReader reader)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
                         return reader.getEstimatedCellPerPartitionCount();
                     }
                 });
@@ -543,11 +561,13 @@ public class TableMetrics
         {
             public Double getValue()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
                 List<SSTableReader> sstables = new ArrayList<>();
                 Keyspace.all().forEach(ks -> sstables.addAll(ks.getAllSSTables(SSTableSet.CANONICAL)));
                 return computeCompressionRatio(sstables);
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11503
         percentRepaired = createTableGauge("PercentRepaired", new Gauge<Double>()
         {
             public Double getValue()
@@ -566,6 +586,7 @@ public class TableMetrics
             }
         });
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13774
         bytesRepaired = createTableGauge("BytesRepaired", new Gauge<Long>()
         {
             public Long getValue()
@@ -608,14 +629,17 @@ public class TableMetrics
         readLatency = createLatencyMetrics("Read", cfs.keyspace.metric.readLatency, globalReadLatency);
         writeLatency = createLatencyMetrics("Write", cfs.keyspace.metric.writeLatency, globalWriteLatency);
         rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, globalRangeLatency);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11420
 
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");
         pendingCompactions = createTableGauge("PendingCompactions", new Gauge<Integer>()
         {
             public Integer getValue()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                 return cfs.getCompactionStrategyManager().getEstimatedRemainingTasks();
             }
         });
@@ -623,9 +647,11 @@ public class TableMetrics
         {
             public Integer getValue()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 return cfs.getTracker().getView().liveSSTables().size();
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
         oldVersionSSTableCount = createTableGauge("OldVersionSSTableCount", new Gauge<Integer>()
         {
             public Integer getValue()
@@ -644,6 +670,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long min = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     if (min == 0 || sstable.getEstimatedPartitionSize().min() < min)
@@ -656,8 +683,10 @@ public class TableMetrics
             public Long getValue()
             {
                 long min = Long.MAX_VALUE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 for (Metric cfGauge : allTableMetrics.get("MinPartitionSize"))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     min = Math.min(min, ((Gauge<? extends Number>) cfGauge).getValue().longValue());
                 }
                 return min;
@@ -668,6 +697,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long max = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     if (sstable.getEstimatedPartitionSize().max() > max)
@@ -680,8 +710,10 @@ public class TableMetrics
             public Long getValue()
             {
                 long max = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 for (Metric cfGauge : allTableMetrics.get("MaxPartitionSize"))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     max = Math.max(max, ((Gauge<? extends Number>) cfGauge).getValue().longValue());
                 }
                 return max;
@@ -693,6 +725,8 @@ public class TableMetrics
             {
                 long sum = 0;
                 long count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     long n = sstable.getEstimatedPartitionSize().count();
@@ -709,8 +743,12 @@ public class TableMetrics
                 long count = 0;
                 for (Keyspace keyspace : Keyspace.all())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.CANONICAL))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                         long n = sstable.getEstimatedPartitionSize().count();
                         sum += sstable.getEstimatedPartitionSize().mean() * n;
                         count += n;
@@ -724,6 +762,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long count = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable: cfs.getSSTables(SSTableSet.LIVE))
                     count += sstable.getBloomFilterFalsePositiveCount();
                 return count;
@@ -734,17 +773,20 @@ public class TableMetrics
             public Long getValue()
             {
                 long count = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     count += sstable.getRecentBloomFilterFalsePositiveCount();
                 return count;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         bloomFilterFalseRatio = createTableGauge("BloomFilterFalseRatio", new Gauge<Double>()
         {
             public Double getValue()
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                 {
                     falseCount += sstable.getBloomFilterFalsePositiveCount();
@@ -754,6 +796,8 @@ public class TableMetrics
                     return 0d;
                 return (double) falseCount / (trueCount + falseCount);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
         }, new Gauge<Double>() // global gauge
         {
             public Double getValue()
@@ -762,6 +806,7 @@ public class TableMetrics
                 long trueCount = 0L;
                 for (Keyspace keyspace : Keyspace.all())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.LIVE))
                     {
                         falseCount += sstable.getBloomFilterFalsePositiveCount();
@@ -779,6 +824,7 @@ public class TableMetrics
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable: cfs.getSSTables(SSTableSet.LIVE))
                 {
                     falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
@@ -788,6 +834,8 @@ public class TableMetrics
                     return 0d;
                 return (double) falseCount / (trueCount + falseCount);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7273
         }, new Gauge<Double>() // global gauge
         {
             public Double getValue()
@@ -796,6 +844,7 @@ public class TableMetrics
                 long trueCount = 0L;
                 for (Keyspace keyspace : Keyspace.all())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                     for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.LIVE))
                     {
                         falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
@@ -807,41 +856,49 @@ public class TableMetrics
                 return (double) falseCount / (trueCount + falseCount);
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         bloomFilterDiskSpaceUsed = createTableGauge("BloomFilterDiskSpaceUsed", new Gauge<Long>()
         {
             public Long getValue()
             {
                 long total = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sst : cfs.getSSTables(SSTableSet.CANONICAL))
                     total += sst.getBloomFilterSerializedSize();
                 return total;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         bloomFilterOffHeapMemoryUsed = createTableGauge("BloomFilterOffHeapMemoryUsed", new Gauge<Long>()
         {
             public Long getValue()
             {
                 long total = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
                     total += sst.getBloomFilterOffHeapSize();
                 return total;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         indexSummaryOffHeapMemoryUsed = createTableGauge("IndexSummaryOffHeapMemoryUsed", new Gauge<Long>()
         {
             public Long getValue()
             {
                 long total = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
                     total += sst.getIndexSummaryOffHeapSize();
                 return total;
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         compressionMetadataOffHeapMemoryUsed = createTableGauge("CompressionMetadataOffHeapMemoryUsed", new Gauge<Long>()
         {
             public Long getValue()
             {
                 long total = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
                     total += sst.getCompressionMetadataOffHeapSize();
                 return total;
@@ -852,6 +909,7 @@ public class TableMetrics
         speculativeInsufficientReplicas = createTableCounter("SpeculativeInsufficientReplicas");
         speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", () -> cfs.sampleReadLatencyNanos);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         additionalWrites = createTableCounter("AdditionalWrites");
         additionalWriteLatencyNanos = createTableGauge("AdditionalWriteLatencyNanos", () -> cfs.additionalWriteLatencyNanos);
 
@@ -860,12 +918,15 @@ public class TableMetrics
             @Override
             public Ratio getRatio()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                 return Ratio.of(getNumerator(), getDenominator());
             }
 
             protected double getNumerator()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5868
                 long hits = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     hits += sstable.getKeyCacheHit();
                 return hits;
@@ -874,6 +935,7 @@ public class TableMetrics
             protected double getDenominator()
             {
                 long requests = 0L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     requests += sstable.getKeyCacheRequest();
                 return Math.max(requests, 1); // to avoid NaN.
@@ -891,6 +953,7 @@ public class TableMetrics
         // They only makes sense to capture on the base table
         if (cfs.metadata().isView())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
             viewLockAcquireTime = null;
             viewReadTime = null;
         }
@@ -907,22 +970,27 @@ public class TableMetrics
                 return cfs.trueSnapshotsSize();
             }
         });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");
         rowCacheHit = createTableCounter("RowCacheHit");
         rowCacheMiss = createTableCounter("RowCacheMiss");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13771
         tombstoneFailures = createTableCounter("TombstoneFailures");
         tombstoneWarnings = createTableCounter("TombstoneWarnings");
 
         droppedMutations = createTableCounter("DroppedMutations");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10866
 
         casPrepare = createLatencyMetrics("CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = createLatencyMetrics("CasCommit", cfs.keyspace.metric.casCommit);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13598
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
         anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
         validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);
         syncTime = createTableTimer("SyncTime", cfs.keyspace.metric.repairSyncTime);
@@ -947,9 +1015,11 @@ public class TableMetrics
         confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
         unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15601
         repairedDataTrackingOverreadRows = createTableHistogram("RepairedDataTrackingOverreadRows", cfs.keyspace.metric.repairedDataTrackingOverreadRows, false);
         repairedDataTrackingOverreadTime = createTableTimer("RepairedDataTrackingOverreadTime", cfs.keyspace.metric.repairedDataTrackingOverreadTime);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15620
         unleveledSSTables = createTableGauge("UnleveledSSTables", cfs::getUnleveledSSTables, () -> {
             // global gauge
             int cnt = 0;
@@ -991,6 +1061,7 @@ public class TableMetrics
                 long total = 0;
                 for (Metric cfGauge : allTableMetrics.get(name))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                     total = total + ((Gauge<? extends Number>) cfGauge).getValue().longValue();
                 }
                 return total;
@@ -1004,6 +1075,7 @@ public class TableMetrics
      */
     protected <G,T> Gauge<T> createTableGauge(String name, Gauge<T> gauge, Gauge<G> globalGauge)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         return createTableGauge(name, name, gauge, globalGauge);
     }
 
@@ -1071,6 +1143,7 @@ public class TableMetrics
     {
         double compressedLengthSum = 0;
         double dataLengthSum = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10225
         for (SSTableReader sstable : sstables)
         {
             if (sstable.compression)
@@ -1084,6 +1157,7 @@ public class TableMetrics
                 dataLengthSum += compressionMetadata.dataLength;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
         return dataLengthSum != 0 ? compressedLengthSum / dataLengthSum : MetadataCollector.NO_COMPRESSION_RATIO;
     }
 
@@ -1121,6 +1195,7 @@ public class TableMetrics
 
     protected TableTimer createTableTimer(String name, Timer keyspaceTimer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
         return createTableTimer(name, name, keyspaceTimer);
     }
 
@@ -1236,6 +1311,7 @@ public class TableMetrics
         public final Timer cf;
         private TableTimer(Timer cf, Timer keyspace, Timer global)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
             this.cf = cf;
             this.all = new Timer[]{cf, keyspace, global};
         }
@@ -1250,6 +1326,7 @@ public class TableMetrics
 
         public Context time()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
             return new Context(all);
         }
 
@@ -1280,8 +1357,10 @@ public class TableMetrics
         private final boolean isIndex;
         private final String type;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         TableMetricNameFactory(ColumnFamilyStore cfs, String type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             this.keyspaceName = cfs.keyspace.getName();
             this.tableName = cfs.name;
             this.isIndex = cfs.isIndex();

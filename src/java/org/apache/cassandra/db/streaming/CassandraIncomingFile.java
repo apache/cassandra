@@ -68,11 +68,13 @@ public class CassandraIncomingFile implements IncomingStream
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
         logger.debug("Incoming stream entireSSTable={} components={}", streamHeader.isEntireSSTable, streamHeader.componentManifest);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
 
         IStreamReader reader;
         if (streamHeader.isEntireSSTable)
         {
             reader = new CassandraEntireSSTableStreamReader(header, streamHeader, session);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
             numFiles = streamHeader.componentManifest.components().size();
         }
         else if (streamHeader.isCompressed())
@@ -100,6 +102,7 @@ public class CassandraIncomingFile implements IncomingStream
     @Override
     public int getNumFiles()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         return numFiles;
     }
 

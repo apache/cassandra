@@ -52,10 +52,12 @@ public class IndexAttributes extends PropertyDefinitions
         if (!isCustom && !properties.isEmpty())
             throw new InvalidRequestException("Cannot specify options for a non-CUSTOM index");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         if (getRawOptions().containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))
             throw new InvalidRequestException(String.format("Cannot specify %s as a CUSTOM option",
                                                             IndexTarget.CUSTOM_INDEX_OPTION_NAME));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         if (getRawOptions().containsKey(IndexTarget.TARGET_OPTION_NAME))
             throw new InvalidRequestException(String.format("Cannot specify %s as a CUSTOM option",
                                                             IndexTarget.TARGET_OPTION_NAME));
@@ -65,12 +67,14 @@ public class IndexAttributes extends PropertyDefinitions
     private Map<String, String> getRawOptions() throws SyntaxException
     {
         Map<String, String> options = getMap(KW_OPTIONS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return options == null ? Collections.emptyMap() : options;
     }
 
     public Map<String, String> getOptions() throws SyntaxException
     {
         Map<String, String> options = new HashMap<>(getRawOptions());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, customClass);
         return options;
     }

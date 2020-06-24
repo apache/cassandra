@@ -42,6 +42,7 @@ public abstract class Cells
     public static void collectStats(Cell cell, PartitionStatisticsCollector collector)
     {
         collector.update(cell);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
         if (cell.isCounterCell())
             collector.updateHasLegacyCounterShards(CounterCells.hasLegacyShards(cell));
@@ -81,6 +82,7 @@ public abstract class Cells
         {
             if (update != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 builder.addCell(update);
             }
             else if (existing != null)
@@ -288,6 +290,7 @@ public abstract class Cells
      * @param builder the row builder to which the result of the filtering is written.
      */
     public static void addNonShadowed(Cell existing,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                                       Cell update,
                                       DeletionTime deletion,
                                       Row.Builder builder)

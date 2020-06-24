@@ -47,6 +47,7 @@ public class FailureDetectorTest
         // slow unit tests can cause problems with FailureDetector's GC pause handling
         System.setProperty("cassandra.max_local_pause_in_ms", "20000");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -62,6 +63,7 @@ public class FailureDetectorTest
 
         ArrayList<Token> endpointTokens = new ArrayList<>();
         ArrayList<Token> keyTokens = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
 
@@ -72,6 +74,7 @@ public class FailureDetectorTest
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 3);
 
         InetAddressAndPort leftHost = hosts.get(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         FailureDetector.instance.report(leftHost);
 

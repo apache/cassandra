@@ -40,6 +40,7 @@ public class CQLSSTableWriterClientTest
     public void setUp()
     {
         this.testDirectory = Files.createTempDir();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -73,6 +74,8 @@ public class CQLSSTableWriterClientTest
         writer.close();
         writer2.close();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         FilenameFilter filter = new FilenameFilter()
         {
             @Override
@@ -89,6 +92,7 @@ public class CQLSSTableWriterClientTest
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         FileUtils.deleteRecursive(this.testDirectory);
     }
 }

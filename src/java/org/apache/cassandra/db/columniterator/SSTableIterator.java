@@ -43,8 +43,10 @@ public class SSTableIterator extends AbstractSSTableIterator
                            RowIndexEntry indexEntry,
                            Slices slices,
                            ColumnFilter columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                            FileHandle ifile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
@@ -91,8 +93,10 @@ public class SSTableIterator extends AbstractSSTableIterator
 
         public void setForSlice(Slice slice) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
             end = slice.end();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
 
             sliceDone = false;
             next = null;
@@ -119,6 +123,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                     updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             ClusteringBound sliceStart = start;
             start = null;
 
@@ -146,6 +151,8 @@ public class SSTableIterator extends AbstractSSTableIterator
                 // it's fundamentally excluded. And if the bound is a  end (for a range tombstone), it means it's exactly
                 // our slice end, but in that  case we will properly close the range tombstone anyway as part of our "close
                 // an open marker" code in hasNextInterna
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
                 if (!deserializer.hasNext() || deserializer.compareNextTo(end) >= 0)
                     return null;
 
@@ -184,6 +191,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                 return true;
 
             // for current slice, no data read from deserialization
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13787
             sliceDone = true;
             // If we have an open marker, we should not close it, there could be more slices
             if (openMarker != null)
@@ -274,6 +282,7 @@ public class SSTableIterator extends AbstractSSTableIterator
             // and we need to return it.
             if (indexState.currentBlockIdx() == lastBlockIdx
                 && metadata().comparator.compare(slice.end(), indexState.currentIndex().firstName) < 0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 && openMarker == null)
             {
                 sliceDone = true;
@@ -288,6 +297,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                 // Our previous read might have made us cross an index block boundary. If so, update our informations.
                 // If we read from the beginning of the partition, this is also what will initialize the index state.
                 indexState.updateBlock();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10136
 
                 // Return the next unfiltered unless we've reached the end, or we're beyond our slice
                 // end (note that unless we're on the last block for the slice, there is no point
@@ -295,11 +305,15 @@ public class SSTableIterator extends AbstractSSTableIterator
                 if (indexState.isDone()
                     || indexState.currentBlockIdx() > lastBlockIdx
                     || !deserializer.hasNext()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13340
                     || (indexState.currentBlockIdx() == lastBlockIdx && deserializer.compareNextTo(end) >= 0))
                     return null;
 
 
                 Unfiltered next = deserializer.readNext();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
                 UnfilteredValidation.maybeValidateUnfiltered(next, metadata(), key, sstable);
                 // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
                 if (next.isEmpty())

@@ -51,6 +51,7 @@ public class Scrub extends NodeToolCmd
 
     @Option(title = "reinsert_overflowed_ttl",
     name = {"-r", "--reinsert-overflowed-ttl"},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
     description = StandaloneScrubber.REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION)
     private boolean reinsertOverflowedTTL = false;
 

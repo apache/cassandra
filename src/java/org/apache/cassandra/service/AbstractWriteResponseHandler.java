@@ -59,6 +59,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     protected final Runnable callback;
     protected final WriteType writeType;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
     = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
@@ -84,12 +86,16 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected AbstractWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                            Runnable callback,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                            WriteType writeType,
                                            long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         this.replicaPlan = replicaPlan;
         this.callback = callback;
         this.writeType = writeType;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         this.queryStartNanoTime = queryStartNanoTime;
     }
@@ -97,6 +103,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     public void get() throws WriteTimeoutException, WriteFailureException
     {
         long timeoutNanos = currentTimeoutNanos();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         boolean success;
         try
@@ -117,6 +124,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             // avoid sending confusing info to the user (see CASSANDRA-6491).
             if (acks >= blockedFor)
                 acks = blockedFor - 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
         }
 
@@ -129,6 +138,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     public final long currentTimeoutNanos()
     {
         long requestTimeout = writeType == WriteType.COUNTER
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                               ? DatabaseDescriptor.getCounterWriteRpcTimeout(NANOSECONDS)
                               : DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
         return requestTimeout - (System.nanoTime() - queryStartNanoTime);
@@ -140,7 +150,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     public void setIdealCLResponseHandler(AbstractWriteResponseHandler handler)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         this.idealCLDelegate = handler;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         idealCLDelegate.responsesAndExpirations = new AtomicInteger(replicaPlan.contacts().size());
     }
 
@@ -168,6 +181,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             //Let the delegate do full processing, this will loop back into the branch above
             //with idealCLDelegate == this, because the ideal write handler idealCLDelegate will always
             //be set to this in the delegate.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             idealCLDelegate.onResponse(m);
         }
     }
@@ -199,6 +213,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return replicaPlan.blockFor();
     }
 
@@ -239,12 +255,15 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         //The ideal CL should only count as a strike if the requested CL was achieved.
         //If the requested CL is not achieved it's fine for the ideal CL to also not be achieved.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15696
         if (idealCLDelegate != null)
         {
             idealCLDelegate.requestedCLAchieved = true;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5691
         condition.signalAll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4578
         if (callback != null)
             callback.run();
     }
@@ -253,13 +272,18 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         logger.trace("Got failure from {}", from);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
 
         int n = waitingFor(from)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
                 ? failuresUpdater.incrementAndGet(this)
                 : failures;
 
         failureReasonByEndpoint.put(from, failureReason);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         if (blockFor() + n > candidateReplicaCount())
             signal();
     }
@@ -267,12 +291,14 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     @Override
     public boolean invokeOnFailure()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return true;
     }
 
     @Override
     public boolean supportsBackPressure()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
         return supportsBackPressure;
     }
 
@@ -289,12 +315,16 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private final void decrementResponseOrExpired()
     {
         int decrementedValue = responsesAndExpirations.decrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         if (decrementedValue == 0)
         {
             // The condition being signaled is a valid proxy for the CL being achieved
             // Only mark it as failed if the requested CL was achieved.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15696
             if (!condition.isSignaled() && requestedCLAchieved)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 replicaPlan.keyspace().metric.writeFailedIdealCL.inc();
             }
             else
@@ -309,6 +339,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     public void maybeTryAdditionalReplicas(IMutation mutation, StorageProxy.WritePerformer writePerformer, String localDC)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         EndpointsForToken uncontacted = replicaPlan.liveUncontacted();
         if (uncontacted.isEmpty())
             return;
@@ -319,8 +351,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                                               .collect(Collectors.toList());
         for (ColumnFamilyStore cf : cfs)
             timeout = Math.min(timeout, cf.additionalWriteLatencyNanos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
 
         // no latency information, or we're overloaded
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (timeout > mutation.getTimeout(NANOSECONDS))
             return;
 
@@ -330,7 +364,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             {
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.additionalWrites.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 writePerformer.apply(mutation, replicaPlan.withContact(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
                                      localDC);

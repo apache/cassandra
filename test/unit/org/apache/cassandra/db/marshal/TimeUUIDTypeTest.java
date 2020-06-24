@@ -35,6 +35,7 @@ public class TimeUUIDTypeTest
     @Test
     public void testEquality()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID a = UUIDGen.getTimeUUID();
         UUID b = new UUID(a.getMostSignificantBits(), a.getLeastSignificantBits());
 
@@ -62,6 +63,8 @@ public class TimeUUIDTypeTest
     @Test
     public void testBigger()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID a = UUIDGen.getTimeUUID();
         UUID b = UUIDGen.getTimeUUID();
         UUID c = UUIDGen.getTimeUUID();
@@ -78,6 +81,7 @@ public class TimeUUIDTypeTest
     @Test
     public void testTimestampComparison()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8730
         compareAll(UUIDTypeTest.random(1000, (byte) 0x10));
         for (ByteBuffer[] permutations : UUIDTypeTest.permutations(100, (byte) 0x10))
             compareAll(permutations);
@@ -151,7 +155,9 @@ public class TimeUUIDTypeTest
     @Test
     public void testValidTimeVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2067
         UUID uuid1 = UUID.fromString("00000000-0000-1000-0000-000000000000");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         assert uuid1.version() == 1;
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid1)));
     }
@@ -159,6 +165,7 @@ public class TimeUUIDTypeTest
     @Test(expected = MarshalException.class)
     public void testInvalidTimeVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2067
         UUID uuid2 = UUID.fromString("00000000-0000-2100-0000-000000000000");
         assert uuid2.version() == 2;
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid2)));

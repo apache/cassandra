@@ -103,6 +103,7 @@ public class PartitionImplementationTest
         ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("col", true));
         Row.Builder row = BTreeRow.unsortedBuilder();
         row.newRow(clustering);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes(colValue)));
         return row.build();
     }
@@ -112,6 +113,7 @@ public class PartitionImplementationTest
         ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("static_col", true));
         Row.Builder row = BTreeRow.unsortedBuilder();
         row.newRow(Clustering.STATIC_CLUSTERING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes("static value")));
         return row.build();
     }
@@ -325,6 +327,7 @@ public class PartitionImplementationTest
         int pos = reversed ? KEY_RANGE : 0;
         int mul = reversed ? -1 : 1;
         boolean started = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
         while (pos < KEY_RANGE)
         {
             int skip = rand.nextInt(KEY_RANGE / 10);
@@ -354,6 +357,7 @@ public class PartitionImplementationTest
             Clustering start = clustering(pos);
             pos += sz;
             Clustering end = clustering(pos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             Slice slice = Slice.make(skip == 0 ? ClusteringBound.exclusiveStartOf(start) : ClusteringBound.inclusiveStartOf(start), ClusteringBound.inclusiveEndOf(end));
             builder.add(slice);
         }

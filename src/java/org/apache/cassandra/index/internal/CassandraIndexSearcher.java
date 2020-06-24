@@ -132,6 +132,7 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
                     DecoratedKey startKey = (DecoratedKey) range.left;
                     DecoratedKey endKey = (DecoratedKey) range.right;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                     ClusteringBound start = ClusteringBound.BOTTOM;
                     ClusteringBound end = ClusteringBound.TOP;
 
@@ -167,6 +168,7 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
                 else
                 {
                     // otherwise, just start the index slice from the key we do have
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                     slice = Slice.make(makeIndexBound(((DecoratedKey)range.left).getKey(), ClusteringBound.BOTTOM),
                                        ClusteringBound.TOP);
                 }

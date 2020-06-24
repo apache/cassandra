@@ -31,6 +31,7 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
     {
         super(left, right);
         // unlike a Range, an ExcludingBounds may not wrap, nor be empty
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9462
         assert !strictlyWrapsAround(left, right) && (right.isMinimum() || left.compareTo(right) != 0) : "(" + left + "," + right + ")";
     }
 
@@ -44,6 +45,7 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
         assert contains(position) || left.equals(position);
         if (left.equals(position))
             return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         AbstractBounds<T> lb = new Range<T>(left, position);
         AbstractBounds<T> rb = new ExcludingBounds<T>(position, right);
         return Pair.create(lb, rb);
@@ -51,6 +53,7 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
 
     public boolean inclusiveLeft()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8946
         return false;
     }
 
@@ -82,6 +85,7 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
 
     protected String getOpeningString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4905
         return "(";
     }
 
@@ -92,6 +96,7 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
 
     public boolean isStartInclusive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return false;
     }
 
@@ -102,6 +107,7 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
 
     public AbstractBounds<T> withNewRight(T newRight)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4858
         return new ExcludingBounds<T>(left, newRight);
     }
 }

@@ -106,6 +106,7 @@ public class ByteBufferUtilTest
 
     private void checkLastIndexOf(ByteBuffer bb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assert bb.position() + 8 == ByteBufferUtil.lastIndexOf(bb, (byte) 'a', bb.position() + 8);
         assert bb.position() + 4 == ByteBufferUtil.lastIndexOf(bb, (byte) 'a', bb.position() + 7);
         assert bb.position() + 3 == ByteBufferUtil.lastIndexOf(bb, (byte) 's', bb.position() + 8);
@@ -153,6 +154,7 @@ public class ByteBufferUtilTest
     {
 
         byte[] bytes = new byte[s.length()];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBufferUtil.copyBytes(bb, bb.position(), bytes, 0, s.length());
         assertArrayEquals(s.getBytes(), bytes);
 
@@ -176,6 +178,7 @@ public class ByteBufferUtilTest
 
     private void checkReadWrite(ByteBuffer bb) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         DataOutputBuffer out = new DataOutputBuffer();
         ByteBufferUtil.writeWithLength(bb, out);
         ByteBufferUtil.writeWithShortLength(bb, out);
@@ -221,6 +224,7 @@ public class ByteBufferUtilTest
     public void testDecode() throws IOException
     {
         ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2367
         ByteBufferUtil.string(bytes);
     }
 
@@ -256,6 +260,7 @@ public class ByteBufferUtilTest
     @Test
     public void testStartsAndEndsWith()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         byte[] bytes = new byte[512];
         ThreadLocalRandom random = ThreadLocalRandom.current();
 

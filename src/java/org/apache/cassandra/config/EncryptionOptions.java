@@ -48,6 +48,7 @@ public class EncryptionOptions
 
     public EncryptionOptions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         keystore = "conf/.keystore";
         keystore_password = "cassandra";
         truststore = "conf/.truststore";
@@ -129,6 +130,7 @@ public class EncryptionOptions
 
     public EncryptionOptions withKeyStore(String keystore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new EncryptionOptions(keystore, keystore_password, truststore, truststore_password, cipher_suites,
                                            protocol, algorithm, store_type, require_client_auth, require_endpoint_verification,
                                            enabled, optional);
@@ -231,6 +233,8 @@ public class EncryptionOptions
             return false;
 
         EncryptionOptions opt = (EncryptionOptions)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15018
         return enabled == opt.enabled &&
                optional == opt.optional &&
                require_client_auth == opt.require_client_auth &&
@@ -242,6 +246,7 @@ public class EncryptionOptions
                Objects.equals(protocol, opt.protocol) &&
                Objects.equals(algorithm, opt.algorithm) &&
                Objects.equals(store_type, opt.store_type) &&
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                Objects.equals(cipher_suites, opt.cipher_suites);
     }
 
@@ -262,6 +267,7 @@ public class EncryptionOptions
         result += 31 * (store_type == null ? 0 : store_type.hashCode());
         result += 31 * Boolean.hashCode(enabled);
         result += 31 * Boolean.hashCode(optional);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         result += 31 * (cipher_suites == null ? 0 : cipher_suites.hashCode());
         result += 31 * Boolean.hashCode(require_client_auth);
         result += 31 * Boolean.hashCode(require_endpoint_verification);
@@ -280,6 +286,7 @@ public class EncryptionOptions
 
         public ServerEncryptionOptions()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             this.internode_encryption = InternodeEncryption.none;
             this.enable_legacy_ssl_storage_port = false;
         }

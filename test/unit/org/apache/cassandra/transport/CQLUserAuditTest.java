@@ -70,6 +70,7 @@ public class CQLUserAuditTest
             config.role_manager = "CassandraRoleManager";
             config.diagnostic_events_enabled = true;
             config.audit_logging_options.enabled = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
             config.audit_logging_options.logger = new ParameterizedClass("DiagnosticEventAuditLogger", null);
         });
         CQLTester.prepareServer();
@@ -86,6 +87,7 @@ public class CQLUserAuditTest
                   "cassandra", "cassandra", null);
 
         DiagnosticEventService.instance().subscribe(AuditEvent.class, auditEvents::add);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         AuditLogManager.instance.initialize();
     }
 

@@ -143,6 +143,7 @@ public class CommitLogReader
      */
     public void readCommitLogSegment(CommitLogReadHandler handler, File file, CommitLogPosition minPosition, boolean tolerateTruncation) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         readCommitLogSegment(handler, file, minPosition, ALL_MUTATIONS, tolerateTruncation);
     }
 
@@ -174,6 +175,7 @@ public class CommitLogReader
         // just transform from the file name (no reading of headers) to determine version
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         try(RandomAccessReader reader = RandomAccessReader.open(file))
         {
             final long segmentIdFromFilename = desc.id;
@@ -233,6 +235,7 @@ public class CommitLogReader
                 {
                     // Only tolerate truncation if we allow in both global and segment
                     statusTracker.tolerateErrorsInSection = tolerateTruncation & syncSegment.toleratesErrorsInSection;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
 
                     // Skip segments that are completely behind the desired minPosition
                     if (desc.id == minPosition.segmentId && syncSegment.endPosition < minPosition.position)
@@ -253,6 +256,7 @@ public class CommitLogReader
                     throw (IOException) re.getCause();
                 throw re;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Finished reading {}", file);
         }
     }
@@ -294,6 +298,7 @@ public class CommitLogReader
                              CommitLogDescriptor desc) throws IOException
     {
         // seek rather than deserializing mutation-by-mutation to reach the desired minPosition in this SyncSegment
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11957
         if (desc.id == minPosition.segmentId && reader.getFilePointer() < minPosition.position)
             reader.seek(minPosition.position);
 
@@ -429,6 +434,7 @@ public class CommitLogReader
         {
             mutation = Mutation.serializer.deserialize(bufIn,
                                                        desc.getMessagingVersion(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                                        DeserializationHelper.Flag.LOCAL);
             // doublecheck that what we read is still] valid for the current schema
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
@@ -452,6 +458,7 @@ public class CommitLogReader
         {
             JVMStabilityInspector.inspectThrowable(t);
             Path p = Files.createTempFile("mutation", "dat");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
 
             try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(p)))
             {
@@ -463,6 +470,7 @@ public class CommitLogReader
                 String.format(
                     "Unexpected error deserializing mutation; saved to %s.  " +
                     "This may be caused by replaying a mutation against a table with the same name but incompatible schema.  " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
                     "Exception follows: %s", p.toString(), t),
                 CommitLogReadErrorReason.MUTATION_ERROR,
                 false));
@@ -484,6 +492,7 @@ public class CommitLogReader
     {
         public static long calculateClaimedChecksum(FileDataInput input, int commitLogVersion) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             return input.readInt() & 0xffffffffL;
         }
 

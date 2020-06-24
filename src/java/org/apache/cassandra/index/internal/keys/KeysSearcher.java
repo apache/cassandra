@@ -37,6 +37,7 @@ public class KeysSearcher extends CassandraIndexSearcher
     private static final Logger logger = LoggerFactory.getLogger(KeysSearcher.class);
 
     public KeysSearcher(ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                         RowFilter.Expression expression,
                         CassandraIndex indexer)
     {
@@ -56,6 +57,7 @@ public class KeysSearcher extends CassandraIndexSearcher
 
             public TableMetadata metadata()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
                 return command.metadata();
             }
 
@@ -80,9 +82,11 @@ public class KeysSearcher extends CassandraIndexSearcher
                 {
                     Row hit = indexHits.next();
                     DecoratedKey key = index.baseCfs.decorateKey(hit.clustering().get(0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11104
                     if (!command.selectsKey(key))
                         continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11523
                     ColumnFilter extendedFilter = getExtendedFilter(command.columnFilter());
                     SinglePartitionReadCommand dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
                                                                                            command.nowInSec(),
@@ -90,6 +94,7 @@ public class KeysSearcher extends CassandraIndexSearcher
                                                                                            command.rowFilter(),
                                                                                            DataLimits.NONE,
                                                                                            key,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                                                                                            command.clusteringIndexFilter(key),
                                                                                            null);
 
@@ -99,6 +104,7 @@ public class KeysSearcher extends CassandraIndexSearcher
                     UnfilteredRowIterator dataIter = filterIfStale(dataCmd.queryMemtableAndDisk(index.baseCfs, executionController),
                                                                    hit,
                                                                    indexKey.getKey(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                                                    executionController.getWriteContext(),
                                                                    command.nowInSec());
 
@@ -131,6 +137,7 @@ public class KeysSearcher extends CassandraIndexSearcher
     {
         if (command.columnFilter().fetches(index.getIndexedColumn()))
             return initialFilter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11523
 
         ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
         builder.addAll(initialFilter.fetchedColumns());
@@ -141,9 +148,11 @@ public class KeysSearcher extends CassandraIndexSearcher
     private UnfilteredRowIterator filterIfStale(UnfilteredRowIterator iterator,
                                                 Row indexHit,
                                                 ByteBuffer indexedValue,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                                 WriteContext ctx,
                                                 int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         Row data = iterator.staticRow();
         if (index.isStale(data, indexedValue, nowInSec))
         {
@@ -151,6 +160,7 @@ public class KeysSearcher extends CassandraIndexSearcher
             index.deleteStaleEntry(index.getIndexCfs().decorateKey(indexedValue),
                     makeIndexClustering(iterator.partitionKey().getKey(), Clustering.EMPTY),
                     new DeletionTime(indexHit.primaryKeyLivenessInfo().timestamp(), nowInSec),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                     ctx);
             iterator.close();
             return null;

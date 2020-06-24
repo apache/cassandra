@@ -61,6 +61,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private static long getMaxLocalPause()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9183
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9183
         if (System.getProperty("cassandra.max_local_pause_in_ms") != null)
         {
             long pause = Long.parseLong(System.getProperty("cassandra.max_local_pause_in_ms"));
@@ -87,6 +89,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public FailureDetector()
     {
         // Register this instance with JMX
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
@@ -95,6 +98,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         String newvalue = System.getProperty("cassandra.fd_initial_value_ms");
         if (newvalue == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7307
             return Gossiper.intervalInMillis * 2;
         }
         else
@@ -106,6 +110,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public String getAllEndpointStates()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getAllEndpointStates(false);
     }
 
@@ -127,6 +132,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public Map<String, String> getSimpleStates()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getSimpleStates(false);
     }
 
@@ -151,8 +157,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public int getDownEndpointCount()
     {
         int count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6044
             if (!entry.getValue().isAlive())
                 count++;
         }
@@ -162,6 +170,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public int getUpEndpointCount()
     {
         int count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
             if (entry.getValue().isAlive())
@@ -173,6 +182,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     @Override
     public TabularData getPhiValues() throws OpenDataException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return getPhiValues(false);
     }
 
@@ -184,6 +194,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private TabularData getPhiValues(boolean withPort) throws OpenDataException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9526
         final CompositeType ct = new CompositeType("Node", "Node",
                 new String[]{"Endpoint", "PHI"},
                 new String[]{"IP of the endpoint", "PHI value"},
@@ -201,6 +212,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
                     // returned values are scaled by PHI_FACTOR so that the are on the same scale as PhiConvictThreshold
                     final CompositeData data = new CompositeDataSupport(ct,
                             new String[]{"Endpoint", "PHI"},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                             new Object[]{entry.getKey().toString(withPort), phi * PHI_FACTOR});
                     results.put(data);
                 }
@@ -212,6 +224,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public String getEndpointState(String address) throws UnknownHostException
     {
         StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByName(address));
         appendEndpointState(sb, endpointState);
         return sb.toString();
@@ -219,10 +232,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private void appendEndpointState(StringBuilder sb, EndpointState endpointState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7333
         sb.append("  generation:").append(endpointState.getHeartBeatState().getGeneration()).append("\n");
         sb.append("  heartbeat:").append(endpointState.getHeartBeatState().getHeartBeatVersion()).append("\n");
         for (Map.Entry<ApplicationState, VersionedValue> state : endpointState.states())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
             if (state.getKey() == ApplicationState.TOKENS)
                 continue;
             sb.append("  ").append(state.getKey()).append(":").append(state.getValue().version).append(":").append(state.getValue().value).append("\n");
@@ -243,6 +258,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
      */
     public void dumpInterArrivalTimes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         Path path = null;
         try {
             path = Files.createTempFile("failuredetector-", ".dat");
@@ -260,6 +276,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void setPhiConvictThreshold(double phi)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
         DatabaseDescriptor.setPhiConvictThreshold(phi);
     }
 
@@ -270,20 +287,24 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public boolean isAlive(InetAddressAndPort ep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
         // we could assert not-null, but having isAlive fail screws a node over so badly that
         // it's worth being defensive here so minor bugs don't cause disproportionate
         // badness.  (See CASSANDRA-1463 for an example).
         if (epState == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10795
             logger.error("Unknown endpoint: " + ep, new IllegalArgumentException(""));
         return epState != null && epState.isAlive();
     }
 
     public void report(InetAddressAndPort ep)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long now = preciseTime.now();
         ArrivalWindow heartbeatWindow = arrivalSamples.get(ep);
         if (heartbeatWindow == null)
@@ -291,8 +312,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             // avoid adding an empty ArrivalWindow to the Map
             heartbeatWindow = new ArrivalWindow(SAMPLE_SIZE);
             heartbeatWindow.add(now, ep);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9526
             heartbeatWindow = arrivalSamples.putIfAbsent(ep, heartbeatWindow);
             if (heartbeatWindow != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8245
                 heartbeatWindow.add(now, ep);
         }
         else
@@ -311,6 +334,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             return;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long now = preciseTime.now();
         long diff = now - lastInterpret;
         lastInterpret = now;
@@ -320,6 +344,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             lastPause = now;
             return;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (preciseTime.now() - lastPause < MAX_LOCAL_PAUSE_IN_NANOS)
         {
             logger.debug("Still not marking nodes down due to local pause");
@@ -329,8 +354,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         if (logger.isTraceEnabled())
             logger.trace("PHI for {} : {}", ep, phi);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6385
         if (PHI_FACTOR * phi > getPhiConvictThreshold())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9526
             if (logger.isTraceEnabled())
                 logger.trace("Node {} phi {} > {}; intervals: {} mean: {}ns", new Object[]{ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean()});
             for (IFailureDetectionEventListener listener : fdEvntListeners)
@@ -354,6 +381,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         logger.debug("Forcing conviction of {}", ep);
         for (IFailureDetectionEventListener listener : fdEvntListeners)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
             listener.convict(ep, getPhiConvictThreshold());
         }
     }
@@ -377,6 +405,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     {
         StringBuilder sb = new StringBuilder();
         Set<InetAddressAndPort> eps = arrivalSamples.keySet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         sb.append("-----------------------------------------------------------------------");
         for (InetAddressAndPort ep : eps)
@@ -392,6 +421,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 }
 
 /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
  This class is not thread safe.
  */
 class ArrayBackedBoundedStats
@@ -455,6 +485,7 @@ class ArrivalWindow
 
     ArrivalWindow(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
         arrivalIntervals = new ArrayBackedBoundedStats(size);
     }
 
@@ -472,6 +503,7 @@ class ArrivalWindow
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     synchronized void add(long value, InetAddressAndPort ep)
     {
         assert tLast >= 0;
@@ -493,6 +525,7 @@ class ArrivalWindow
             // We use a very large initial interval since the "right" average depends on the cluster size
             // and it's better to err high (false negatives, which will be corrected by waiting a bit longer)
             // than low (false positives, which cause "flapping").
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6658
             arrivalIntervals.add(FailureDetector.INITIAL_VALUE_NANOS);
         }
         tLast = value;
@@ -506,8 +539,10 @@ class ArrivalWindow
     // see CASSANDRA-2597 for an explanation of the math at work here.
     double phi(long tnow)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
         assert arrivalIntervals.mean() > 0 && tLast > 0; // should not be called before any samples arrive
         long t = tnow - tLast;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9526
         lastReportedPhi = t / mean();
         return lastReportedPhi;
     }

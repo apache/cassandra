@@ -56,6 +56,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         return writer;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
     PartitionUpdate.Builder getUpdateFor(DecoratedKey key) throws IOException
     {
         assert key != null;
@@ -65,6 +66,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         if (!key.equals(currentKey))
         {
             if (update != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                 writePartition(update.build());
             currentKey = key;
             update = new PartitionUpdate.Builder(metadata.get(), currentKey, columns, 4);
@@ -79,6 +81,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         try
         {
             if (update != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                 writePartition(update.build());
             if (writer != null)
                 writer.finish(false);

@@ -31,6 +31,7 @@ public class SerializationHelper
 
     public SerializationHelper(SerializationHeader header)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         this.header = header;
     }
 

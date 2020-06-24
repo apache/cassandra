@@ -52,6 +52,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -60,6 +61,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         try (IFilter bf = FilterFactory.getFilter(1000000, 0.0001))
         {
             for (int i = 0; i < 1000; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 bf.add(Util.dk(Int32Type.instance.decompose(i)));
             try (DataOutputStreamPlus out = getOutput(oldBfFormat ? "3.0" : "4.0", "utils.BloomFilter1000.bin"))
             {
@@ -102,6 +104,9 @@ public class SerializationsTest extends AbstractSerializationsTester
             boolean present;
             for (int i = 0 ; i < 1000 ; i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 Assert.assertTrue(present);
             }
@@ -162,6 +167,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         data[offsets.length] = 100000;
         EstimatedHistogram hist2 = new EstimatedHistogram(offsets, data);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         try (DataOutputStreamPlus out = getOutput("utils.EstimatedHistogram.bin"))
         {
             EstimatedHistogram.serializer.serialize(hist0, out);
@@ -176,6 +182,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testEstimatedHistogramWrite();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         try (DataInputStreamPlus in = getInput("utils.EstimatedHistogram.bin"))
         {
             Assert.assertNotNull(EstimatedHistogram.serializer.deserialize(in));

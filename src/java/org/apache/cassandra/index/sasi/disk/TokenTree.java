@@ -410,6 +410,7 @@ public class TokenTree
 
         public LongSet getOffsets()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
             LongSet offsets = new LongHashSet(4);
             for (TokenInfo i : info)
             {
@@ -481,6 +482,7 @@ public class TokenTree
             {
                 case SIMPLE:
                     return new long[] { offsetData };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11525
 
                 case OVERFLOW:
                     long[] offsets = new long[offsetExtra]; // offsetShort contains count of tokens

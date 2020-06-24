@@ -50,6 +50,7 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
 
     public DecoratedKey(Token token)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         assert token != null;
         this.token = token;
     }
@@ -65,6 +66,7 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
     {
         if (this == obj)
             return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         if (obj == null || !(obj instanceof DecoratedKey))
             return false;
 
@@ -83,22 +85,26 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
 
         DecoratedKey otherKey = (DecoratedKey) pos;
         int cmp = getToken().compareTo(otherKey.getToken());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(getKey(), otherKey.getKey()) : cmp;
     }
 
     public static int compareTo(IPartitioner partitioner, ByteBuffer key, PartitionPosition position)
     {
         // delegate to Token.KeyBound if needed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5521
         if (!(position instanceof DecoratedKey))
             return -position.compareTo(partitioner.decorateKey(key));
 
         DecoratedKey otherKey = (DecoratedKey) position;
         int cmp = partitioner.getToken(key).compareTo(otherKey.getToken());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.getKey()) : cmp;
     }
 
     public IPartitioner getPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return getToken().getPartitioner();
     }
 
@@ -115,18 +121,21 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
 
     public PartitionPosition.Kind kind()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return PartitionPosition.Kind.ROW_KEY;
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         String keystring = getKey() == null ? "null" : ByteBufferUtil.bytesToHex(getKey());
         return "DecoratedKey(" + getToken() + ", " + keystring + ")";
     }
 
     public Token getToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         return token;
     }
 
@@ -134,6 +143,7 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
 
     public void filterHash(long[] dest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         ByteBuffer key = getKey();
         MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, dest);
     }

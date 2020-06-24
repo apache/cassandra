@@ -46,6 +46,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         this.queryStartTime = queryStartTime;
         this.queryOptions = queryOptions;
         this.protocolVersion = protocolVersion;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         this.queryState = queryState(keyspace, generatedTimestamp, generatedNowInSeconds);
     }
 
@@ -58,6 +59,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
 
     public String keyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         return queryState.getClientState().getRawKeyspace();
     }
 
@@ -74,6 +76,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         FQLQuery fqlQuery = (FQLQuery) o;
         return queryStartTime == fqlQuery.queryStartTime &&
                protocolVersion == fqlQuery.protocolVersion &&
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
                queryState.getTimestamp() == fqlQuery.queryState.getTimestamp() &&
                Objects.equals(queryState.getClientState().getRawKeyspace(), fqlQuery.queryState.getClientState().getRawKeyspace()) &&
                Objects.equals(queryOptions.getValues(), fqlQuery.queryOptions.getValues());
@@ -94,6 +97,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         return "FQLQuery{" +
                "queryStartTime=" + queryStartTime +
                ", protocolVersion=" + protocolVersion +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
                ", queryState='" + queryState + '\'' +
                '}';
     }
@@ -113,6 +117,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
             return String.format("%s: Query: [%s], valuecount : %d",
                                  super.toString(),
                                  query,
@@ -123,6 +128,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         {
             SimpleStatement ss = new SimpleStatement(query, values.toArray());
             ss.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             ss.setDefaultTimestamp(queryOptions.getTimestamp(queryState));
             return ss;
         }
@@ -194,6 +200,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         {
             BatchStatement bs = new BatchStatement(batchType);
             for (Single query : queries)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
                 bs.add(query.toStatement());
             bs.setConsistencyLevel(ConsistencyLevel.valueOf(queryOptions.getConsistency().name()));
             bs.setDefaultTimestamp(queryOptions.getTimestamp(queryState));
@@ -231,11 +238,13 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                 queryStrings.add(q.query);
                 values.add(q.values);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
             return new FullQueryLogger.Batch(org.apache.cassandra.cql3.statements.BatchStatement.Type.valueOf(batchType.name()), queryStrings, values, queryOptions, queryState, queryStartTime);
         }
 
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
             StringBuilder sb = new StringBuilder(super.toString()).append(" batch: ").append(batchType).append(':');
             for (Single q : queries)
                 sb.append(q.toString()).append(',');

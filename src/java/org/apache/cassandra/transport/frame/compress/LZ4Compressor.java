@@ -34,6 +34,7 @@ public class LZ4Compressor implements Compressor
     {
         final LZ4Factory lz4Factory = LZ4Factory.fastestInstance();
         compressor = lz4Factory.fastCompressor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15556
         decompressor = lz4Factory.safeDecompressor();
     }
 
@@ -58,6 +59,7 @@ public class LZ4Compressor implements Compressor
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15556
             byte[] decompressed = new byte[expectedDecompressedLength];
             decompressor.decompress(src, offset, length, decompressed, 0, expectedDecompressedLength);
             return decompressed;

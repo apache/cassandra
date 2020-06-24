@@ -82,6 +82,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         }
         catch (ConfigurationException ex)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5897
             logger.error("{} found, but does not look like a plain file. Will not watch it for changes", SNITCH_PROPERTIES_FILENAME);
         }
     }
@@ -94,6 +95,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public static String[] getEndpointInfo(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4349
         String[] rawEndpointInfo = getRawEndpointInfo(endpoint);
         if (rawEndpointInfo == null)
             throw new RuntimeException("Unknown host " + endpoint + " with no default configured");
@@ -105,6 +107,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         String[] value = endpointMap.get(endpoint);
         if (value == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Could not find end point information for {}, will use default", endpoint);
             return defaultDCRack;
         }
@@ -119,6 +122,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String getDatacenter(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4728
         String[] info = getEndpointInfo(endpoint);
         assert info != null : "No location defined for endpoint " + endpoint;
         return info[0];
@@ -132,6 +136,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4728
         String[] info = getEndpointInfo(endpoint);
         assert info != null : "No location defined for endpoint " + endpoint;
         return info[1];
@@ -139,14 +144,17 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
     public void reloadConfiguration(boolean isUpdate) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         HashMap<InetAddressAndPort, String[]> reloadedMap = new HashMap<>();
         String[] reloadedDefaultDCRack = null;
 
         Properties properties = new Properties();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (InputStream stream = getClass().getClassLoader().getResourceAsStream(SNITCH_PROPERTIES_FILENAME))
         {
             properties.load(stream);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1974
         catch (Exception e)
         {
             throw new ConfigurationException("Unable to read " + SNITCH_PROPERTIES_FILENAME, e);
@@ -167,6 +175,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 InetAddressAndPort host;
                 String hostString = StringUtils.remove(key, '/');
                 try
@@ -180,11 +189,13 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                 String[] token = value.split(":");
                 if (token.length < 2)
                     token = new String[] { "default", "default" };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5165
                 else
                     token = new String[] { token[0].trim(), token[1].trim() };
                 reloadedMap.put(host, token);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
         String[] localInfo = reloadedMap.get(broadcastAddress);
         if (reloadedDefaultDCRack == null && localInfo == null)
@@ -193,6 +204,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                                                            SNITCH_PROPERTIES_FILENAME, broadcastAddress));
         // internode messaging code converts our broadcast address to local,
         // make sure we can be found at that as well.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort localAddress = FBUtilities.getLocalAddressAndPort();
         if (!localAddress.equals(broadcastAddress) && !reloadedMap.containsKey(localAddress))
             reloadedMap.put(localAddress, localInfo);
@@ -200,9 +212,11 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         if (isUpdate && !livenessCheck(reloadedMap, reloadedDefaultDCRack))
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         if (logger.isTraceEnabled())
         {
             StringBuilder sb = new StringBuilder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (Map.Entry<InetAddressAndPort, String[]> entry : reloadedMap.entrySet())
                 sb.append(entry.getKey()).append(':').append(Arrays.toString(entry.getValue())).append(", ");
             logger.trace("Loaded network topology from property file: {}", StringUtils.removeEnd(sb.toString(), ", "));
@@ -220,6 +234,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         }
 
         if (gossipStarted)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4814
             StorageService.instance.gossipSnitchInfo();
     }
 
@@ -235,6 +250,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         // If the default has changed we must check all live hosts but hopefully we will find a live
         // host quickly and interrupt the loop. Otherwise we only check the live hosts that were either
         // in the old set or in the new set
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> hosts = Arrays.equals(defaultDCRack, reloadedDefaultDCRack)
                                  ? Sets.intersection(StorageService.instance.getLiveRingMembers(), // same default
                                                      Sets.union(endpointMap.keySet(), reloadedMap.keySet()))

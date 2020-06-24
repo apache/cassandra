@@ -57,6 +57,7 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
                                        ColumnFilter selection,
                                        Row staticRow,
                                        boolean isReversed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                                        EncodingStats stats,
                                        Iterator<Row> rows,
                                        Iterator<RangeTombstone> ranges,

@@ -42,6 +42,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6281
             Keyspace.clearSnapshot(command.snapshot_name, command.keyspace);
         }
         else if (DiagnosticSnapshotService.isDiagnosticSnapshotRequest(command))
@@ -53,6 +54,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
             Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from());
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }

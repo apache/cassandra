@@ -22,6 +22,7 @@ import io.netty.channel.MessageSizeEstimator;
 /**
  * We want to manage the bytes we have in-flight, so this class asks Netty not to by returning zero for every object.
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 class NoSizeEstimator implements MessageSizeEstimator, MessageSizeEstimator.Handle
 {
     public static final NoSizeEstimator instance = new NoSizeEstimator();

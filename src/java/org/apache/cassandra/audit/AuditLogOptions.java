@@ -45,6 +45,7 @@ public class AuditLogOptions extends BinLogOptions
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14373
         return "AuditLogOptions{" +
                "enabled=" + enabled +
                ", logger='" + logger + '\'' +

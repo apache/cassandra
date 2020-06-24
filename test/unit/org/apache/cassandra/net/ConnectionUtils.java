@@ -96,6 +96,7 @@ public class ConnectionUtils
 
         public void check()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15630
             doCheck((message, expected, actual) -> spinAssertEquals(message, expected, actual, 5, TimeUnit.SECONDS));
         }
 
@@ -195,6 +196,7 @@ public class ConnectionUtils
 
         public void check()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15630
             doCheck((message, expected, actual) -> spinAssertEquals(message, expected, actual, 5, TimeUnit.SECONDS));
         }
 

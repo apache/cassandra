@@ -80,6 +80,7 @@ public class RowUtil
 
     public static Iterator<Object[]> toObjects(List<ColumnSpecification> columnSpecs, Iterator<UntypedResultSet.Row> rs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15009
         return Iterators.transform(rs,
                                    (row) -> {
                                        Object[] objectRow = new Object[columnSpecs.size()];
@@ -98,6 +99,7 @@ public class RowUtil
 
     public static Iterator<Object[]> toObjects(ResultSet rs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         return Iterators.transform(rs.iterator(), (Row row) -> {
             final int numColumns = rs.getColumnDefinitions().size();
             Object[] objectRow = new Object[numColumns];

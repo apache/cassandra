@@ -67,6 +67,7 @@ public class BootstrapTest extends TestBaseImpl
             withBootstrap = count(cluster);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         builder = builder.withNodes(expandedNodeCount)
                          .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                          .withConfig(config -> config.with(NETWORK, GOSSIP));

@@ -130,6 +130,7 @@ final class LogRecord
                                  Long.parseLong(matcher.group(3)),
                                  Integer.parseInt(matcher.group(4)),
                                  Long.parseLong(matcher.group(5)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                                  line);
         }
         catch (IllegalArgumentException e)
@@ -151,6 +152,7 @@ final class LogRecord
 
     public static LogRecord make(Type type, SSTable table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13909
         String absoluteTablePath = absolutePath(table.descriptor.baseFilename());
         return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
     }
@@ -164,6 +166,7 @@ final class LogRecord
 
         // maps sstable base file name to the actual files on disk
         Map<String, List<File>> existingFiles = getExistingFiles(absolutePaths.keySet());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
         Map<SSTable, LogRecord> records = new HashMap<>(existingFiles.size());
         for (Map.Entry<String, List<File>> entry : existingFiles.entrySet())
         {
@@ -182,6 +185,7 @@ final class LogRecord
 
     public LogRecord withExistingFiles(List<File> existingFiles)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         return make(type, existingFiles, 0, absolutePath.get());
     }
 
@@ -299,6 +303,7 @@ final class LogRecord
     public static Map<String, List<File>> getExistingFiles(Set<String> absoluteFilePaths)
     {
         Map<String, List<File>> fileMap = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15364
         Map<File, TreeSet<String>> dirToFileNamePrefix = new HashMap<>();
         for (String absolutePath : absoluteFilePaths)
         {
@@ -343,6 +348,7 @@ final class LogRecord
 
     boolean isInFolder(Path folder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11470
         return absolutePath.isPresent()
                ? FileUtils.isContained(folder.toFile(), Paths.get(absolutePath.get()).toFile())
                : false;
@@ -393,6 +399,7 @@ final class LogRecord
         return crc32.getValue() & (Long.MAX_VALUE);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
     LogRecord asType(Type type)
     {
         return new LogRecord(type, absolutePath.orElse(null), updateTime, numFiles);

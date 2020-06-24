@@ -51,8 +51,10 @@ public class OnDiskIndexBuilder
     public enum Mode
     {
         PREFIX(EnumSet.of(Op.EQ, Op.MATCH, Op.PREFIX, Op.NOT_EQ, Op.RANGE)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         CONTAINS(EnumSet.of(Op.EQ, Op.MATCH, Op.CONTAINS, Op.PREFIX, Op.SUFFIX, Op.NOT_EQ)),
         SPARSE(EnumSet.of(Op.EQ, Op.NOT_EQ, Op.RANGE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
         Set<Op> supportedOps;
 
@@ -131,6 +133,7 @@ public class OnDiskIndexBuilder
     public static final int IS_PARTIAL_BIT = 15;
 
     private static final SequentialWriterOption WRITER_OPTION = SequentialWriterOption.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
                                                                                       .bufferSize(BLOCK_SIZE)
                                                                                       .build();
 
@@ -150,6 +153,7 @@ public class OnDiskIndexBuilder
 
     public OnDiskIndexBuilder(AbstractType<?> keyComparator, AbstractType<?> comparator, Mode mode)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         this(keyComparator, comparator, mode, true);
     }
 
@@ -167,6 +171,7 @@ public class OnDiskIndexBuilder
     {
         if (term.remaining() >= MAX_TERM_SIZE)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             logger.error("Rejecting value (value size {}, maximum size {}).",
                          FBUtilities.prettyPrintMemory(term.remaining()),
                          FBUtilities.prettyPrintMemory(Short.MAX_VALUE));
@@ -247,6 +252,7 @@ public class OnDiskIndexBuilder
         // no terms means there is nothing to build
         if (terms.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12962
             try
             {
                 file.createNewFile();
@@ -278,6 +284,7 @@ public class OnDiskIndexBuilder
         try
         {
             out = new SequentialWriter(file, WRITER_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
 
             out.writeUTF(descriptor.version.toString());
 
@@ -293,6 +300,7 @@ public class OnDiskIndexBuilder
 
             out.writeUTF(mode.toString());
             out.writeBoolean(marksPartials);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
 
             out.skipBytes((int) (BLOCK_SIZE - out.position()));
 
@@ -300,6 +308,7 @@ public class OnDiskIndexBuilder
                                             : new MutableLevel<>(out, new MutableDataBlock(termComparator, mode));
             while (terms.hasNext())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
                 Pair<IndexedTerm, TokenTreeBuilder> term = terms.next();
                 addTerm(new InMemoryDataTerm(term.left, term.right), out);
             }
@@ -366,6 +375,7 @@ public class OnDiskIndexBuilder
 
         public int serializedSize()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
             return (termSize.isConstant() ? 0 : 2) + term.getBytes().remaining();
         }
 
@@ -608,6 +618,7 @@ public class OnDiskIndexBuilder
                 if (keys.getTokenCount() > MAX_KEYS_SPARSE)
                     throw new IOException(String.format("Term - '%s' belongs to more than %d keys in %s mode, which is not allowed.",
                                                         comparator.getString(term.term.getBytes()), MAX_KEYS_SPARSE, mode.name()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
 
                 writeTerm(term, keys);
             }

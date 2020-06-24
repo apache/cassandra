@@ -27,6 +27,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 public final class FilteredRows extends BaseRows<Row, BaseRowIterator<?>> implements RowIterator
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
     FilteredRows(RowIterator input)
     {
         super(input);

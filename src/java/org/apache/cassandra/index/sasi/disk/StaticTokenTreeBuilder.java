@@ -80,6 +80,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11525
         return tokenCount == 0;
     }
 
@@ -101,6 +102,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     public long getTokenCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11525
         return tokenCount;
     }
 
@@ -131,6 +133,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
     {
         RangeIterator<Long, Token> tokens = combinedTerm.getTokenIterator();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11525
         tokenCount = 0;
         treeMinToken = tokens.getMinimum();
         treeMaxToken = tokens.getMaximum();

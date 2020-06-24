@@ -669,6 +669,7 @@ public class Verifier
                             // TODO: even 2s or 5s are unreasonable periods of time without _any_ movement on a message waiting to arrive
                             //       this seems to happen regularly on MacOS, but we should confirm this does not happen on Linux
                             fail("Unreasonably long period spent waiting for sync (%dms)", NANOSECONDS.toMillis(now - lastEventAt));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
                             messages.<LongObjectProcedure<MessageState>>forEach((k, v) -> {
                                 failinfo("%s", v);
                                 controller.fail(v.message.serializedSize(v.messagingVersion == 0 ? current_version : v.messagingVersion));

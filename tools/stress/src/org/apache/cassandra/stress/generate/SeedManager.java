@@ -33,7 +33,9 @@ public class SeedManager
     final Distribution visits;
     final Generator writes;
     final Generator reads;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
     final ConcurrentHashMap<Long, Seed> managing = new ConcurrentHashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
     final LockedDynamicList<Seed> sampleFrom;
     final Distribution sample;
     final long sampleOffset;
@@ -43,6 +45,7 @@ public class SeedManager
 
     public SeedManager(StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         Distribution tSample = settings.insert.revisit.get();
         this.sampleOffset = Math.min(tSample.minValue(), tSample.maxValue());
         long sampleSize = 1 + Math.max(tSample.minValue(), tSample.maxValue()) - sampleOffset;
@@ -75,7 +78,9 @@ public class SeedManager
         this.visits = settings.insert.visits.get();
         this.writes = writes;
         this.reads = reads;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         this.sampleFrom = new LockedDynamicList<>((int) sampleSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         this.sample = DistributionInverted.invert(tSample);
         this.sampleSize = (int) sampleSize;
         this.updateSampleImmediately = visits.average() > 1;
@@ -88,6 +93,7 @@ public class SeedManager
             Seed seed = reads.next(-1);
             if (seed == null)
                 return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
             Seed managing = this.managing.get(seed.seed);
             return managing == null ? seed : managing;
         }
@@ -96,6 +102,7 @@ public class SeedManager
         {
             int index = (int) (sample.next() - sampleOffset);
             Seed seed = sampleFrom.get(index);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             if (seed != null && seed.isSaved())
                 return seed;
 
@@ -139,6 +146,7 @@ public class SeedManager
 
         final Distribution distribution;
         final long multiplier;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12744
 
         public RandomGenerator(Distribution distribution, long multiplier)
         {
@@ -159,6 +167,7 @@ public class SeedManager
         final long start;
         final long totalCount;
         final boolean wrap;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12744
         final long multiplier;
         final AtomicLong next = new AtomicLong();
 
@@ -178,6 +187,7 @@ public class SeedManager
             long next = this.next.getAndIncrement();
             if (!wrap && next >= totalCount)
                 return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12744
             return new Seed((start + (next % totalCount))*multiplier, visits);
         }
     }
@@ -191,6 +201,7 @@ public class SeedManager
 
         public LookbackableWriteGenerator(long start, long end, boolean wrap, Distribution readLookback, long multiplier)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12744
             super(start, end, wrap, multiplier);
             this.writeCount.set(0);
             reads = new LookbackReadGenerator(readLookback);
@@ -201,6 +212,7 @@ public class SeedManager
             long next = this.next.getAndIncrement();
             if (!wrap && next >= totalCount)
                 return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12744
             return new Seed((start + (next % totalCount)) * multiplier, visits);
         }
 

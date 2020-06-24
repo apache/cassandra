@@ -50,6 +50,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
 
     public ClusteringComparator(AbstractType<?>... clusteringTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         this(ImmutableList.copyOf(clusteringTypes));
     }
 
@@ -58,6 +59,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         // copy the list to ensure despatch is monomorphic
         this.clusteringTypes = ImmutableList.copyOf(clusteringTypes);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         this.indexComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.lastName, o2.lastName);
         this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.firstName, o2.firstName);
         this.reverseComparator = (c1, c2) -> ClusteringComparator.this.compare(c2, c1);
@@ -108,6 +110,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
             throw new IllegalArgumentException(String.format("Invalid number of components, expecting %d but got %d", size(), values.length));
 
         CBuilder builder = CBuilder.create(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         for (Object val : values)
         {
             if (val instanceof ByteBuffer)
@@ -139,11 +142,13 @@ public class ClusteringComparator implements Comparator<Clusterable>
         if (s1 == s2)
             return ClusteringPrefix.Kind.compare(c1.kind(), c2.kind());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return s1 < s2 ? c1.kind().comparedToClustering : -c2.kind().comparedToClustering;
     }
 
     public int compare(Clustering c1, Clustering c2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         return compare(c1, c2, size());
     }
 
@@ -170,10 +175,12 @@ public class ClusteringComparator implements Comparator<Clusterable>
     public int compareComponent(int i, ByteBuffer v1, ByteBuffer v2)
     {
         if (v1 == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return v2 == null ? 0 : -1;
         if (v2 == null)
             return 1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         return clusteringTypes.get(i).compare(v1, v2);
     }
 
@@ -232,6 +239,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
      */
     public Comparator<Row> rowComparator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return rowComparator;
     }
 

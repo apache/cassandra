@@ -48,13 +48,16 @@ public class RangeTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
     public void testContains()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> left = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("100"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-495
         assert !left.contains(new BigIntegerToken("0"));
         assert left.contains(new BigIntegerToken("10"));
         assert left.contains(new BigIntegerToken("100"));
@@ -64,6 +67,7 @@ public class RangeTest
     @Test
     public void testContainsWrapping()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> range = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("0"));
         assert range.contains(new BigIntegerToken("0"));
         assert range.contains(new BigIntegerToken("10"));
@@ -80,6 +84,7 @@ public class RangeTest
     @Test
     public void testContainsRange()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> one = new Range<Token>(new BigIntegerToken("2"), new BigIntegerToken("10"));
         Range<Token> two = new Range<Token>(new BigIntegerToken("2"), new BigIntegerToken("5"));
         Range<Token> thr = new Range<Token>(new BigIntegerToken("5"), new BigIntegerToken("10"));
@@ -105,6 +110,7 @@ public class RangeTest
     @Test
     public void testContainsRangeWrapping()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> one = new Range<Token>(new BigIntegerToken("10"), new BigIntegerToken("2"));
         Range<Token> two = new Range<Token>(new BigIntegerToken("5"), new BigIntegerToken("3"));
         Range<Token> thr = new Range<Token>(new BigIntegerToken("10"), new BigIntegerToken("12"));
@@ -136,6 +142,7 @@ public class RangeTest
     @Test
     public void testContainsRangeOneWrapping()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> wrap1 = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("0"));
         Range<Token> wrap2 = new Range<Token>(new BigIntegerToken("10"), new BigIntegerToken("2"));
 
@@ -155,6 +162,7 @@ public class RangeTest
     @Test
     public void testIntersects()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> all = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("0")); // technically, this is a wrapping range
         Range<Token> one = new Range<Token>(new BigIntegerToken("2"), new BigIntegerToken("10"));
         Range<Token> two = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("8"));
@@ -176,6 +184,7 @@ public class RangeTest
     @Test
     public void testIntersectsWrapping()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> onewrap = new Range<Token>(new BigIntegerToken("10"), new BigIntegerToken("2"));
         Range<Token> onecomplement = new Range<Token>(onewrap.right, onewrap.left);
         Range<Token> onestartswith = new Range<Token>(onewrap.left, new BigIntegerToken("12"));
@@ -201,6 +210,7 @@ public class RangeTest
     static <T extends RingPosition<T>> void assertIntersection(Range<T> one, Range<T> two, Range<T>... ranges)
     {
         Set<Range<T>> correct = Range.rangeSet(ranges);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Set<Range<T>> result1 = one.intersectionWith(two);
         assert result1.equals(correct) : String.format("%s != %s",
                                                        StringUtils.join(result1, ","),
@@ -219,6 +229,7 @@ public class RangeTest
     @Test
     public void testIntersectionWithAll()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> all0 = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("0"));
         Range<Token> all10 = new Range<Token>(new BigIntegerToken("10"), new BigIntegerToken("10"));
         Range<Token> all100 = new Range<Token>(new BigIntegerToken("100"), new BigIntegerToken("100"));
@@ -234,6 +245,7 @@ public class RangeTest
     @Test
     public void testIntersectionContains()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> wraps1 = new Range<Token>(new BigIntegerToken("100"), new BigIntegerToken("10"));
         Range<Token> wraps2 = new Range<Token>(new BigIntegerToken("90"), new BigIntegerToken("20"));
         Range<Token> wraps3 = new Range<Token>(new BigIntegerToken("90"), new BigIntegerToken("0"));
@@ -257,6 +269,7 @@ public class RangeTest
     @Test
     public void testNoIntersection()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> wraps1 = new Range<Token>(new BigIntegerToken("100"), new BigIntegerToken("10"));
         Range<Token> wraps2 = new Range<Token>(new BigIntegerToken("100"), new BigIntegerToken("0"));
         Range<Token> nowrap1 = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("100"));
@@ -271,6 +284,7 @@ public class RangeTest
     @Test
     public void testIntersectionOneWraps()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Range<Token> wraps1 = new Range<Token>(new BigIntegerToken("100"), new BigIntegerToken("10"));
         Range<Token> wraps2 = new Range<Token>(new BigIntegerToken("100"), new BigIntegerToken("0"));
         Range<Token> nowrap1 = new Range<Token>(new BigIntegerToken("0"), new BigIntegerToken("200"));
@@ -325,6 +339,7 @@ public class RangeTest
         Token t2 = new BytesToken(ByteBuffer.wrap(new byte[] { 1,2,3 }));
         Token t3 = new BytesToken(ByteBuffer.wrap(new byte[]{1, 2, 3, 4}));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         assert t1.compareTo(t2) == 0;
         assert t1.compareTo(t3) < 0;
         assert t3.compareTo(t1) > 0;
@@ -340,12 +355,14 @@ public class RangeTest
 
     private Range<Token> makeRange(long token1, long token2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
         return new Range<>(new Murmur3Partitioner.LongToken(token1), new Murmur3Partitioner.LongToken(token2));
     }
 
     private void assertRanges(Set<Range<Token>> result, Long ... tokens)
     {
         assert tokens.length % 2 ==0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10887
 
         final Set<Range<Token>> expected = new HashSet<>();
         for(int i=0; i < tokens.length; i+=2)
@@ -392,6 +409,8 @@ public class RangeTest
         collection.add(makeRange(1000L, 0));
         assertRanges(range.subtractAll(collection), 100L, 200L, 500L, 1000L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14869
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14869
         assertEquals(Collections.emptySet(), range.subtractAll(Collections.singleton(range)));
     }
 
@@ -433,6 +452,7 @@ public class RangeTest
     
     private Range<Token> makeRange(String token1, String token2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return new Range<Token>(new BigIntegerToken(token1), new BigIntegerToken(token2));
     }
 
@@ -461,6 +481,7 @@ public class RangeTest
     public void testDifferenceToFetchNoWrap()
     {
         Range<Token> oldRange = makeRange("10", "40");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         // New range is entirely contained
         String[][] newTokens1 = { { "20", "30" }, { "10", "20" }, { "10", "40" }, { "20", "40" } };
@@ -487,6 +508,7 @@ public class RangeTest
     public void testDifferenceToFetchBothWrap()
     {
         Range<Token> oldRange = makeRange("1010", "40");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         // New range is entirely contained
         String[][] newTokens1 = { { "1020", "30" }, { "1010", "20" }, { "1010", "40" }, { "1020", "40" } };
@@ -513,6 +535,7 @@ public class RangeTest
     public void testDifferenceToFetchOldWraps()
     {
         Range<Token> oldRange = makeRange("1010", "40");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         // New range is entirely contained
         String[][] newTokens1 = { { "0", "30" }, { "0", "40" }, { "10", "40" } };
@@ -544,6 +567,7 @@ public class RangeTest
     public void testDifferenceToFetchNewWraps()
     {
         Range<Token> oldRange = makeRange("0", "40");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
 
         // Only the LHS of the new range is needed
         String[][] newTokens1 = { { "1010", "0" }, { "1010", "10" }, { "1010", "40" } };
@@ -580,6 +604,7 @@ public class RangeTest
 
     private <T extends RingPosition<T>> void assertNormalize(List<Range<T>> input, List<Range<T>> expected)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
         List<Range<T>> result = Range.normalize(input);
         assert result.equals(expected) : "Expecting " + expected + " but got " + result;
     }
@@ -588,6 +613,7 @@ public class RangeTest
     public void testNormalizeNoop()
     {
         List<Range<PartitionPosition>> l;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         l = asList(range("1", "3"), range("4", "5"));
         assertNormalize(l, l);
@@ -597,6 +623,7 @@ public class RangeTest
     public void testNormalizeSimpleOverlap()
     {
         List<Range<PartitionPosition>> input, expected;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         input = asList(range("1", "4"), range("3", "5"));
         expected = asList(range("1", "5"));
@@ -611,6 +638,7 @@ public class RangeTest
     public void testNormalizeSort()
     {
         List<Range<PartitionPosition>> input, expected;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         input = asList(range("4", "5"), range("1", "3"));
         expected = asList(range("1", "3"), range("4", "5"));
@@ -621,6 +649,7 @@ public class RangeTest
     public void testNormalizeUnwrap()
     {
         List<Range<PartitionPosition>> input, expected;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         input = asList(range("9", "2"));
         expected = asList(range("", "2"), range("9", ""));
@@ -631,6 +660,7 @@ public class RangeTest
     public void testNormalizeComplex()
     {
         List<Range<PartitionPosition>> input, expected;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         input = asList(range("8", "2"), range("7", "9"), range("4", "5"));
         expected = asList(range("", "2"), range("4", "5"), range("7", ""));
@@ -652,6 +682,7 @@ public class RangeTest
     @Test
     public void testRandomOrderedRangeContainmentChecker()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10768
         Random r = new Random();
         for (int j = 0; j < 1000; j++)
         {
@@ -712,6 +743,7 @@ public class RangeTest
     @Test
     public void testCompareTo_SameObject_WrapAround()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11216
         Range<Token> range = r(10, -10);
         assertEquals(0, range.compareTo(range));
     }

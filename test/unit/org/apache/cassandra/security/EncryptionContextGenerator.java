@@ -33,6 +33,7 @@ public class EncryptionContextGenerator
 
     public static EncryptionContext createContext(boolean init)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         return createContext(null, init);
     }
 

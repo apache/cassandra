@@ -30,6 +30,7 @@ import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
  * <p/>
  * This is a fairly heavy-weight object, so a Recycled instance is created for making modifications to a tree
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
 final class TreeBuilder
 {
 
@@ -37,6 +38,7 @@ final class TreeBuilder
     {
         protected TreeBuilder newObject(Handle handle)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             return new TreeBuilder(handle);
         }
     };
@@ -77,14 +79,18 @@ final class TreeBuilder
     public <C, K extends C, V extends C> Object[] update(Object[] btree, Comparator<C> comparator, Iterable<K> source, UpdateFunction<K, V> updateF)
     {
         assert updateF != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
 
         NodeBuilder current = rootBuilder;
         current.reset(btree, POSITIVE_INFINITY, updateF, comparator);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         for (K key : source)
         {
             while (true)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
                 if (updateF.abortEarly())
                 {
                     rootBuilder.clear();
@@ -102,6 +108,7 @@ final class TreeBuilder
         // finish copying any remaining keys from the original btree
         while (true)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
             NodeBuilder next = current.finish();
             if (next == null)
                 break;
@@ -115,6 +122,7 @@ final class TreeBuilder
         current.clear();
 
         recycleHandle.recycle(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9989
 
         return r;
     }

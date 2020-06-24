@@ -52,6 +52,7 @@ public class EC2SnitchTest
     {
         public String get(String propertyName, String defaultValue)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
             return propertyName.equals("ec2_naming_scheme") ? EC2_NAMING_LEGACY : super.get(propertyName, defaultValue);
         }
     };
@@ -59,7 +60,9 @@ public class EC2SnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         SchemaLoader.mkdirs();
@@ -72,11 +75,13 @@ public class EC2SnitchTest
     {
         public TestEC2Snitch() throws IOException, ConfigurationException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             super();
         }
 
         public TestEC2Snitch(SnitchProperties props) throws IOException, ConfigurationException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
             super(props);
         }
 
@@ -91,7 +96,9 @@ public class EC2SnitchTest
     public void testLegacyRac() throws IOException, ConfigurationException
     {
         az = "us-east-1d";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
         Ec2Snitch snitch = new TestEC2Snitch(legacySnitchProps);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -112,7 +119,9 @@ public class EC2SnitchTest
     public void testLegacyNewRegions() throws IOException, ConfigurationException
     {
         az = "us-east-2d";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
         Ec2Snitch snitch = new TestEC2Snitch(legacySnitchProps);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("us-east-2", snitch.getDatacenter(local));
         assertEquals("2d", snitch.getRack(local));

@@ -56,6 +56,7 @@ public class StreamCompressionSerializer
 
     public static AsyncStreamingOutputPlus.Write serialize(LZ4Compressor compressor, ByteBuffer in, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         assert version == current_version;
         return bufferSupplier -> {
             int uncompressedLength = in.remaining();

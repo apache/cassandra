@@ -120,6 +120,7 @@ public class BatchTest extends CQLTester
         execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 6, 6)");
 
         execute("BEGIN BATCH " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
                 "UPDATE %1$s SET value = 7 WHERE partitionKey = 0 AND clustering_1 = 1;" +
                 "UPDATE %1$s SET value = 8 WHERE partitionKey = 0 AND (clustering_1) = (2);" +
                 "UPDATE %1$s SET value = 10 WHERE partitionKey = 0 AND clustering_1 IN (3, 4);" +
@@ -139,12 +140,15 @@ public class BatchTest extends CQLTester
     @Test
     public void testBatchEmpty() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
         assertEmpty(execute("BEGIN BATCH APPLY BATCH;"));
     }
 
     @Test
     public void testBatchMultipleTable() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10554
         String tbl1 = KEYSPACE + "." + createTableName();
         String tbl2 = KEYSPACE + "." + createTableName();
 
@@ -170,6 +174,7 @@ public class BatchTest extends CQLTester
     @Test
     public void testBatchMultipleTablePrepare() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15730
         String tbl1 = KEYSPACE + "." + createTableName();
         String tbl2 = KEYSPACE + "." + createTableName();
 
@@ -231,6 +236,7 @@ public class BatchTest extends CQLTester
     public void testBatchTTLConditionalInteraction() throws Throwable
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
         createTable(String.format("CREATE TABLE %s.clustering (\n" +
                 "  id int,\n" +
                 "  clustering1 int,\n" +
@@ -243,6 +249,7 @@ public class BatchTest extends CQLTester
         execute("DELETE FROM " + KEYSPACE +".clustering WHERE id=1");
 
         String clusteringInsert = "INSERT INTO " + KEYSPACE + ".clustering(id, clustering1, clustering2, clustering3, val) VALUES(%s, %s, %s, %s, %s); ";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13846
         String clusteringTTLInsert = "INSERT INTO " + KEYSPACE + ".clustering(id, clustering1, clustering2, clustering3, val) VALUES(%s, %s, %s, %s, %s) USING TTL %s; ";
         String clusteringConditionalInsert = "INSERT INTO " + KEYSPACE + ".clustering(id, clustering1, clustering2, clustering3, val) VALUES(%s, %s, %s, %s, %s) IF NOT EXISTS; ";
         String clusteringConditionalTTLInsert = "INSERT INTO " + KEYSPACE + ".clustering(id, clustering1, clustering2, clustering3, val) VALUES(%s, %s, %s, %s, %s)  IF NOT EXISTS USING TTL %s; ";
@@ -338,6 +345,7 @@ public class BatchTest extends CQLTester
                 row(1, 3, 4, 5, 345)
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13846
         StringBuilder cmd8 = new StringBuilder();
         cmd8.append("BEGIN BATCH ");
         cmd8.append(String.format(clusteringConditionalDelete, 1, 3, 4, 5, 345));

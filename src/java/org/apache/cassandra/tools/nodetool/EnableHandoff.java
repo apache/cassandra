@@ -28,6 +28,7 @@ public class EnableHandoff extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
         probe.enableHintedHandoff();
     }
 }

@@ -58,6 +58,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
     protected int end;
 
     protected CommitLogSegmentReader(CommitLogReadHandler handler,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                                      CommitLogDescriptor descriptor,
                                      RandomAccessReader reader,
                                      boolean tolerateTruncation)
@@ -103,6 +104,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
                     }
                     return segmenter.nextSegment(currentStart + SYNC_MARKER_SIZE, end);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                 catch(CommitLogSegmentReader.SegmentReadException e)
                 {
                     try
@@ -123,6 +125,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
                     {
                         boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
                         // if no exception is thrown, the while loop will continue
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                         handler.handleUnrecoverableError(new CommitLogReadException(
                                                     e.getMessage(),
                                                     CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,

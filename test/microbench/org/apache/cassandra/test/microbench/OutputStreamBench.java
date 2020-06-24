@@ -42,6 +42,7 @@ public class OutputStreamBench
 {
 
     BufferedOutputStream hole;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
 
     WrappedDataOutputStreamPlus streamA;
 

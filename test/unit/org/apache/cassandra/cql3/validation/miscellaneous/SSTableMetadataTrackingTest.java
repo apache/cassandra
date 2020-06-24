@@ -34,6 +34,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("INSERT INTO %s (a,b,c) VALUES (1,1,'1') using timestamp 9999");
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime);
@@ -70,6 +71,8 @@ public class SSTableMetadataTrackingTest extends CQLTester
         execute("INSERT INTO %s (a,b,c) VALUES (1,1,'1') using timestamp 10000");
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a = 1");
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
@@ -129,6 +132,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         execute("INSERT INTO %s (a) VALUES (1) USING TIMESTAMP 9999");
 
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
@@ -148,6 +152,9 @@ public class SSTableMetadataTrackingTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a=1");
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);

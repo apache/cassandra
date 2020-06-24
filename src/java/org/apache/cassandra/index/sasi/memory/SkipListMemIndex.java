@@ -90,6 +90,7 @@ public class SkipListMemIndex extends MemIndex
 
         RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15526
         for (ConcurrentSkipListSet<DecoratedKey> keys : search.values()) {
             int size;
             if ((size = keys.size()) > 0)

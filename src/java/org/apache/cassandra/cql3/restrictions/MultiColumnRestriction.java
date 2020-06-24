@@ -113,7 +113,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     @Override
     public final boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         for (Index index : indexRegistry.listIndexes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
            if (isSupportedBy(index))
                return true;
         return false;
@@ -147,6 +149,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             value.addFunctionsTo(functions);
         }
 
@@ -167,6 +170,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         protected boolean isSupportedBy(Index index)
         {
             for(ColumnMetadata column : columnDefs)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 if (index.supportsExpression(column, Operator.EQ))
                     return true;
             return false;
@@ -194,6 +198,8 @@ public abstract class MultiColumnRestriction implements SingleRestriction
             for (int i = 0, m = columnDefs.size(); i < m; i++)
             {
                 ColumnMetadata columnDef = columnDefs.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 filter.add(columnDef, Operator.EQ, values.get(i));
             }
         }
@@ -237,6 +243,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         protected boolean isSupportedBy(Index index)
         {
             for (ColumnMetadata column: columnDefs)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 if (index.supportsExpression(column, Operator.IN))
                     return true;
             return false;
@@ -244,9 +251,11 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
         @Override
         public final void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                          IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             throw  invalidRequest("IN restrictions are not supported on indexed columns");
         }
 
@@ -270,6 +279,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             Terms.addFunctions(values, functions);
         }
 
@@ -359,6 +369,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         {
             boolean reversed = getFirstColumn().isReversedType();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
             EnumMap<Bound, List<ByteBuffer>> componentBounds = new EnumMap<Bound, List<ByteBuffer>>(Bound.class);
             componentBounds.put(Bound.START, componentBounds(Bound.START, options));
             componentBounds.put(Bound.END, componentBounds(Bound.END, options));
@@ -370,6 +381,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
             {
                 ColumnMetadata column = columnDefs.get(i);
                 Bound b = bound.reverseIfNeeded(column);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
 
                 // For mixed order columns, we need to create additional slices when 2 columns are in reverse order
                 if (reversed != column.isReversedType())
@@ -419,6 +431,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         protected boolean isSupportedBy(Index index)
         {
             for(ColumnMetadata def : columnDefs)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
                 if (slice.isSupportedBy(def, index))
                     return true;
             return false;
@@ -427,18 +440,21 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public boolean hasBound(Bound bound)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
             return slice.hasBound(bound);
         }
 
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             slice.addFunctionsTo(functions);
         }
 
         @Override
         public boolean isInclusive(Bound bound)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
             return slice.isInclusive(bound);
         }
 
@@ -465,6 +481,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                        "More than one restriction was found for the end bound on %s",
                        getColumnsInCommons(otherRestriction));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             SliceRestriction otherSlice = (SliceRestriction) otherRestriction;
             List<ColumnMetadata> newColumnDefs = columnDefs.size() >= otherSlice.columnDefs.size() ? columnDefs : otherSlice.columnDefs;
 
@@ -473,7 +490,10 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
         @Override
         public final void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                          IndexRegistry indexRegistry,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11354
                                          QueryOptions options)
         {
             throw invalidRequest("Multi-column slice restrictions cannot be used for filtering.");
@@ -494,6 +514,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
          */
         private List<ByteBuffer> componentBounds(Bound b, QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
             if (!slice.hasBound(b))
                 return Collections.emptyList();
 
@@ -509,6 +530,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
         private boolean hasComponent(Bound b, int index, EnumMap<Bound, List<ByteBuffer>> componentBounds)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
             return componentBounds.get(b).size() > index;
         }
     }
@@ -517,6 +539,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     {
         public NotNullRestriction(List<ColumnMetadata> columnDefs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             super(columnDefs);
             assert columnDefs.size() == 1;
         }
@@ -570,6 +593,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

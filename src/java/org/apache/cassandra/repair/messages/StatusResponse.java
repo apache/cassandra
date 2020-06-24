@@ -35,6 +35,7 @@ public class StatusResponse extends RepairMessage
 
     public StatusResponse(UUID sessionID, ConsistentSession.State state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         assert sessionID != null;
         assert state != null;

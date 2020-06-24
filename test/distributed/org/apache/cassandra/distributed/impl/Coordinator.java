@@ -78,6 +78,7 @@ public class Coordinator implements ICoordinator
 
     protected org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
     }
 
@@ -92,6 +93,7 @@ public class Coordinator implements ICoordinator
 
         prepared.validate(QueryState.forInternalCalls().getClientState());
         ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
                                              QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                  boundBBValues,
                                                                  false,

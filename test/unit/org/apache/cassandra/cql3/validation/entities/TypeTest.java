@@ -28,9 +28,11 @@ public class TypeTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Type '%s.type_does_not_exist' doesn't exist", KEYSPACE), "DROP TYPE " + KEYSPACE + ".type_does_not_exist");
         assertInvalidMessage("Type 'keyspace_does_not_exist.type_does_not_exist' doesn't exist", "DROP TYPE keyspace_does_not_exist.type_does_not_exist");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10658
         execute("DROP TYPE IF EXISTS " + KEYSPACE + ".type_does_not_exist");
         execute("DROP TYPE IF EXISTS keyspace_does_not_exist.type_does_not_exist");
     }
@@ -50,6 +52,7 @@ public class TypeTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b timestamp, c bigint, d varint, PRIMARY KEY (a, b, c, d))");
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (0, toUnixTimestamp(now()), toTimestamp(now()), toTimestamp(now()))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10034
         UntypedResultSet results = execute("SELECT * FROM %s WHERE a=0 AND b <= toUnixTimestamp(now())");
         assertEquals(1, results.size());
 

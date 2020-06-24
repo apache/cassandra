@@ -95,6 +95,7 @@ public class SinglePartitionSliceCommandTest
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         metadata =
             TableMetadata.builder(KEYSPACE, TABLE)
@@ -120,6 +121,7 @@ public class SinglePartitionSliceCommandTest
     @Before
     public void truncate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10336
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_SCLICES).truncateBlocking();
     }
@@ -127,6 +129,7 @@ public class SinglePartitionSliceCommandTest
     @Test
     public void testMultiNamesCommandWithFlush()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13787
         testMultiNamesOrSlicesCommand(true, false);
     }
 
@@ -232,6 +235,7 @@ public class SinglePartitionSliceCommandTest
                 assertTrue(unfiltered.isRow());
                 Row row = (Row) unfiltered;
                 assertEquals(deletionTime, row.deletion().time().markedForDeleteAt());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14588
                 assertEquals(0, row.columnCount()); // no btree
             }
             count++;
@@ -267,6 +271,7 @@ public class SinglePartitionSliceCommandTest
         ColumnFilter columnFilter = ColumnFilter.selection(RegularAndStaticColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
         ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
                                                             RowFilter.NONE,
@@ -288,6 +293,7 @@ public class SinglePartitionSliceCommandTest
         // check (de)serialized iterator for memtable static cell
         try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
             response = ReadResponse.createDataResponse(pi, cmd);
         }
 
@@ -304,6 +310,7 @@ public class SinglePartitionSliceCommandTest
         Schema.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush();
         try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
             response = ReadResponse.createDataResponse(pi, cmd);
         }
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));

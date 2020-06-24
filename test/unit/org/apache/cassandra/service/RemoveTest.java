@@ -55,6 +55,7 @@ public class RemoveTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -65,15 +66,19 @@ public class RemoveTest
     static IPartitioner oldPartitioner;
     ArrayList<Token> endpointTokens = new ArrayList<Token>();
     ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     List<InetAddressAndPort> hosts = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
     List<UUID> hostIds = new ArrayList<UUID>();
     InetAddressAndPort removalhost;
     UUID removalId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
     @BeforeClass
     public static void setupClass() throws ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         MessagingService.instance().listen();
     }
 
@@ -90,9 +95,11 @@ public class RemoveTest
 
         // create a ring of 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         removalhost = hosts.get(5);
         hosts.remove(removalhost);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
         removalId = hostIds.get(5);
         hostIds.remove(removalId);
     }
@@ -100,6 +107,7 @@ public class RemoveTest
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().callbacks.unsafeClear();
@@ -109,6 +117,7 @@ public class RemoveTest
     public void testBadHostId()
     {
         ss.removeNode("ffffffff-aaaa-aaaa-aaaa-ffffffffffff");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
     }
 
@@ -122,9 +131,11 @@ public class RemoveTest
     @Test(expected = UnsupportedOperationException.class)
     public void testNonmemberId()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10926
         VersionedValueFactory valueFactory = new VersionedValueFactory(DatabaseDescriptor.getPartitioner());
         Collection<Token> tokens = Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort joininghost = hosts.get(4);
         UUID joiningId = hostIds.get(4);
 
@@ -143,10 +154,13 @@ public class RemoveTest
     {
         // start removal in background and send replication confirmations
         final AtomicBoolean success = new AtomicBoolean(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         Thread remover = NamedThreadFactory.createThread(() ->
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
                 ss.removeNode(removalId.toString());
             }
             catch (Exception e)
@@ -161,11 +175,14 @@ public class RemoveTest
 
         Thread.sleep(1000); // make sure removal is waiting for confirmation
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         assertTrue(tmd.isLeaving(removalhost));
         assertEquals(1, tmd.getSizeOfLeavingEndpoints());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
 
         for (InetAddressAndPort host : hosts)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Message msg = Message.builder(REPLICATION_DONE_REQ, noPayload)
                                  .from(host)
                                  .build();
@@ -175,6 +192,7 @@ public class RemoveTest
         remover.join();
 
         assertTrue(success.get());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
     }
 }

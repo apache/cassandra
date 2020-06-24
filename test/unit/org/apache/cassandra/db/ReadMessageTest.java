@@ -58,10 +58,12 @@ public class ReadMessageTest
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         TableMetadata.Builder cfForReadMetadata =
             TableMetadata.builder(KEYSPACE1, CF_FOR_READ_TEST)
                          .addPartitionKeyColumn("key", BytesType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                          .addClusteringColumn("col1", AsciiType.instance)
                          .addClusteringColumn("col2", AsciiType.instance)
                          .addRegularColumn("a", AsciiType.instance)
@@ -82,6 +84,7 @@ public class ReadMessageTest
         SchemaLoader.prepareServer();
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF),
                                     cfForReadMetadata,
@@ -153,6 +156,7 @@ public class ReadMessageTest
 
         rms.serialize(rm, out, MessagingService.current_version);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
         DataInputPlus dis = new DataInputBuffer(out.getData());
         return rms.deserialize(dis, MessagingService.current_version);
     }
@@ -204,6 +208,7 @@ public class ReadMessageTest
         Checker checker = new Checker(cfs.metadata().getColumn(ByteBufferUtil.bytes("commit1")),
                                       cfsnocommit.metadata().getColumn(ByteBufferUtil.bytes("commit2")));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         CommitLogTestReplayer replayer = new CommitLogTestReplayer(checker);
         replayer.examineCommitLog();
 

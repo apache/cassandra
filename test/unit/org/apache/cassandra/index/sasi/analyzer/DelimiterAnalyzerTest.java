@@ -54,6 +54,7 @@ public class DelimiterAnalyzerTest
         while (analyzer.hasNext())
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ' ' : ""));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14450
         Assert.assertEquals(testString, output.toString());
         Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
     }
@@ -122,7 +123,7 @@ public class DelimiterAnalyzerTest
         tokenizer.init(
             new HashMap()
                 {{
-                    put(DelimiterTokenizingOptions.DELIMITER, "ã€‚");
+                    put(DelimiterTokenizingOptions.DELIMITER, "ã€?");
                 }},
             UTF8Type.instance);
 
@@ -145,7 +146,7 @@ public class DelimiterAnalyzerTest
         tokenizer.init(
             new HashMap()
                 {{
-                    put(DelimiterTokenizingOptions.DELIMITER, "ã€‚");
+                    put(DelimiterTokenizingOptions.DELIMITER, "ã€?");
                 }},
             UTF8Type.instance);
 

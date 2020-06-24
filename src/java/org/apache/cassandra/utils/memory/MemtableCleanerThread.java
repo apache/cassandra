@@ -31,6 +31,7 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
     {
         /** The pool we're cleaning */
         final P pool;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
         /** should ensure that at least some memory has been marked reclaiming after completion */
         final Runnable cleaner;
@@ -46,6 +47,7 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
 
         boolean needsCleaning()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
             return pool.onHeap.needsCleaning() || pool.offHeap.needsCleaning();
         }
 
@@ -74,6 +76,7 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
         this.trigger = clean.wait::signal;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
     MemtableCleanerThread(P pool, Runnable cleaner)
     {
         this(new Clean<>(pool, cleaner));

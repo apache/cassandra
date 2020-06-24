@@ -106,8 +106,10 @@ public class CompressionMetadata
     {
         this.indexFilePath = indexFilePath;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         try (DataInputStream stream = new DataInputStream(Files.newInputStream(Paths.get(indexFilePath))))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3001
             String compressorName = stream.readUTF();
             int optionCount = stream.readInt();
             Map<String, String> options = new HashMap<>(optionCount);
@@ -134,6 +136,7 @@ public class CompressionMetadata
             compressedFileLength = compressedLength;
             chunkOffsets = readChunkOffsets(stream);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         catch (FileNotFoundException e)
         {
             throw new RuntimeException(e);
@@ -160,6 +163,7 @@ public class CompressionMetadata
 
     public ICompressor compressor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
         return parameters.getSstableCompressor();
     }
 
@@ -179,11 +183,13 @@ public class CompressionMetadata
      */
     public long offHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7897
         return chunkOffsets.size();
     }
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         identities.add(chunkOffsets);
     }
 
@@ -196,10 +202,12 @@ public class CompressionMetadata
      */
     private Memory readChunkOffsets(DataInput input)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         final int chunkCount;
         try
         {
             chunkCount = input.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8192
             if (chunkCount <= 0)
                 throw new IOException("Compressed file with 0 chunks encountered: " + input);
         }
@@ -223,6 +231,7 @@ public class CompressionMetadata
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8750
             if (offsets != null)
                 offsets.close();
 
@@ -247,18 +256,22 @@ public class CompressionMetadata
         // position of the chunk
         long idx = 8 * (position / parameters.chunkLength());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         if (idx >= chunkOffsetsSize)
             throw new CorruptSSTableException(new EOFException(), indexFilePath);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
 
         if (idx < 0)
             throw new CorruptSSTableException(new IllegalArgumentException(String.format("Invalid negative chunk index %d with position %d", idx, position)),
                                               indexFilePath);
 
         long chunkOffset = chunkOffsets.getLong(idx);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8429
         long nextChunkOffset = (idx + 8 == chunkOffsetsSize)
                                 ? compressedFileLength
                                 : chunkOffsets.getLong(idx + 8);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1717
         return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
     }
 
@@ -268,6 +281,7 @@ public class CompressionMetadata
      */
     public long getTotalSizeForSections(Collection<SSTableReader.PartitionPositionBounds> sections)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10680
         long size = 0;
         long lastOffset = -1;
         for (SSTableReader.PartitionPositionBounds section : sections)
@@ -303,12 +317,15 @@ public class CompressionMetadata
     {
         // use SortedSet to eliminate duplicates and sort by chunk offset
         SortedSet<Chunk> offsets = new TreeSet<>((o1, o2) -> Longs.compare(o1.offset, o2.offset));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         for (SSTableReader.PartitionPositionBounds section : sections)
         {
             int startIndex = (int) (section.lowerPosition / parameters.chunkLength());
 
             int endIndex = (int) (section.upperPosition / parameters.chunkLength());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13938
             if (section.upperPosition % parameters.chunkLength() == 0)
                 endIndex--;
 
@@ -316,6 +333,7 @@ public class CompressionMetadata
             {
                 long offset = i * 8L;
                 long chunkOffset = chunkOffsets.getLong(offset);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
                 long nextChunkOffset = offset + 8 == chunkOffsetsSize
                                      ? compressedFileLength
                                      : chunkOffsets.getLong(offset + 8);
@@ -328,6 +346,7 @@ public class CompressionMetadata
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8758
         chunkOffsets.close();
     }
 
@@ -359,6 +378,7 @@ public class CompressionMetadata
             if (count == maxCount)
             {
                 SafeMemory newOffsets = offsets.copy((maxCount *= 2L) * 8L);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8758
                 offsets.close();
                 offsets = newOffsets;
             }
@@ -369,6 +389,7 @@ public class CompressionMetadata
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
                 out.writeUTF(parameters.getSstableCompressor().getClass().getSimpleName());
                 out.writeInt(parameters.getOtherOptions().size());
                 for (Map.Entry<String, String> entry : parameters.getOtherOptions().entrySet())
@@ -420,6 +441,7 @@ public class CompressionMetadata
                     out.writeLong(offsets.getLong(i * 8L));
 
                 out.flush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14134
                 SyncUtil.sync(fos);
             }
             catch (IOException e)
@@ -432,6 +454,7 @@ public class CompressionMetadata
         public CompressionMetadata open(long dataLength, long compressedLength)
         {
             SafeMemory tOffsets = this.offsets.sharedCopy();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
 
             // calculate how many entries we need, if our dataLength is truncated
             int tCount = (int) (dataLength / parameters.chunkLength());
@@ -481,6 +504,7 @@ public class CompressionMetadata
 
         protected Throwable doAbort(Throwable accumulate)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
             return accumulate;
         }
     }
@@ -498,6 +522,7 @@ public class CompressionMetadata
         public Chunk(long offset, int length)
         {
             assert(length > 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8192
 
             this.offset = offset;
             this.length = length;
@@ -505,6 +530,7 @@ public class CompressionMetadata
 
         public boolean equals(Object o)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4297
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
@@ -521,6 +547,7 @@ public class CompressionMetadata
 
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1717
             return String.format("Chunk<offset: %d, length: %d>", offset, length);
         }
     }
@@ -540,6 +567,7 @@ public class CompressionMetadata
 
         public long serializedSize(Chunk chunk, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             long size = TypeSizes.sizeof(chunk.offset);
             size += TypeSizes.sizeof(chunk.length);
             return size;

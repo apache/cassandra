@@ -49,16 +49,19 @@ public final class SessionInfo implements Serializable
 
     public SessionInfo(InetAddressAndPort peer,
                        int sessionIndex,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                        InetAddressAndPort connecting,
                        Collection<StreamSummary> receivingSummaries,
                        Collection<StreamSummary> sendingSummaries,
                        StreamSession.State state)
     {
         this.peer = peer;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         this.sessionIndex = sessionIndex;
         this.connecting = connecting;
         this.receivingSummaries = ImmutableSet.copyOf(receivingSummaries);
         this.sendingSummaries = ImmutableSet.copyOf(sendingSummaries);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6577
         this.receivingFiles = new ConcurrentHashMap<>();
         this.sendingFiles = new ConcurrentHashMap<>();
         this.state = state;
@@ -160,6 +163,7 @@ public final class SessionInfo implements Serializable
     private long getTotalSizeInProgress(Collection<ProgressInfo> streams)
     {
         long total = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         for (ProgressInfo stream : streams)
             total += stream.currentBytes;
         return total;
@@ -195,6 +199,7 @@ public final class SessionInfo implements Serializable
 
     public SessionSummary createSummary()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return new SessionSummary(FBUtilities.getBroadcastAddressAndPort(), peer, receivingSummaries, sendingSummaries);
     }
 }

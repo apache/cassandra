@@ -146,6 +146,7 @@ public abstract class SimpleBuilders
             if (updateBuilders.size() == 1)
                 return new Mutation(updateBuilders.values().iterator().next().build());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
                 mutationBuilder.add(builder.build());
@@ -207,6 +208,7 @@ public abstract class SimpleBuilders
 
         public PartitionUpdate.SimpleBuilder addRangeTombstone(RangeTombstone rt)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             if (rangeTombstones == null)
                 rangeTombstones = new ArrayList<>();
             rangeTombstones.add(rt);
@@ -223,6 +225,7 @@ public abstract class SimpleBuilders
             // Note that rowBuilders.size() could include the static column so could be 1 off the really need capacity
             // of the final PartitionUpdate, but as that's just a sizing hint, we'll live.
             PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, key, columns.build(), rowBuilders.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
             update.addPartitionDeletion(partitionDeletion);
             if (rangeBuilders != null)
@@ -231,6 +234,7 @@ public abstract class SimpleBuilders
                     update.add(builder.build());
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
             if (rangeTombstones != null)
             {
                 for (RangeTombstone rt : rangeTombstones)

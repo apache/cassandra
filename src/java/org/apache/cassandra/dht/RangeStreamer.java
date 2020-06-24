@@ -104,6 +104,7 @@ public class RangeStreamer
         {
             Preconditions.checkNotNull(local);
             Preconditions.checkNotNull(remote);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
             assert local.isSelf() && !remote.isSelf();
             this.local = local;
             this.remote = remote;
@@ -164,6 +165,7 @@ public class RangeStreamer
         @Override
         public String message(Replica replica)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             return "Filtered " + replica + " out because it was down";
         }
     }
@@ -191,6 +193,7 @@ public class RangeStreamer
         @Override
         public String message(Replica replica)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             return "Filtered " + replica + " out because it does not belong to " + sourceDc + " datacenter";
         }
     }
@@ -203,6 +206,7 @@ public class RangeStreamer
         @Override
         public boolean apply(Replica replica)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
             return !replica.isSelf();
         }
 
@@ -247,13 +251,16 @@ public class RangeStreamer
                          boolean connectSequentially,
                          int connectionsPerHost)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         this(metadata, tokens, address, streamOperation, useStrictConsistency, snitch, stateStore,
              FailureDetector.instance, connectSequentially, connectionsPerHost);
     }
 
     RangeStreamer(TokenMetadata metadata,
                   Collection<Token> tokens,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                   InetAddressAndPort address,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
                   StreamOperation streamOperation,
                   boolean useStrictConsistency,
                   IEndpointSnitch snitch,
@@ -262,6 +269,7 @@ public class RangeStreamer
                   boolean connectSequentially,
                   int connectionsPerHost)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         Preconditions.checkArgument(streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD, streamOperation);
         this.metadata = metadata;
         this.tokens = tokens;
@@ -274,6 +282,7 @@ public class RangeStreamer
         streamPlan.listeners(this.stateStore);
 
         // We're _always_ filtering out a local node and down sources
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(failureDetector));
         addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
     }
@@ -334,6 +343,7 @@ public class RangeStreamer
             workMap = getOptimizedWorkMap(fetchMap, sourceFilters, keyspaceName);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         if (toFetch.put(keyspaceName, workMap) != null)
             throw new IllegalArgumentException("Keyspace is already added to fetch map");
 
@@ -353,6 +363,7 @@ public class RangeStreamer
      */
     private boolean useStrictSourcesForRanges(AbstractReplicationStrategy strat)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
         return useStrictConsistency
                 && tokens != null
                 && metadata.getSizeOfAllEndpoints() != strat.getReplicationFactor().allReplicas;
@@ -372,6 +383,7 @@ public class RangeStreamer
         if (tokens != null)
         {
             // Pending ranges
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
             tmdAfter = tmd.cloneOnlyTokenMap();
             tmdAfter.updateNormalTokens(tokens, address);
         }
@@ -380,6 +392,7 @@ public class RangeStreamer
             throw new IllegalArgumentException("Can't ask for strict consistency and not supply tokens");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         return calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
                                                             strat,
                                                             fetchRanges,
@@ -404,6 +417,7 @@ public class RangeStreamer
                                                   TokenMetadata tmdBefore,
                                                   TokenMetadata tmdAfter,
                                                   String keyspace,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                                                   Collection<SourceFilter> sourceFilters)
      {
          EndpointsByRange rangeAddresses = strat.getRangeAddresses(tmdBefore);
@@ -418,6 +432,7 @@ public class RangeStreamer
          endpoints -> snitchGetSortedListByProximity.apply(localAddress, endpoints);
 
          //This list of replicas is just candidates. With strict consistency it's going to be a narrow list.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
          EndpointsByReplica.Builder rangesToFetchWithPreferredEndpoints = new EndpointsByReplica.Builder();
          for (Replica toFetch : fetchRanges)
          {
@@ -539,6 +554,7 @@ public class RangeStreamer
                  }
              }
          }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
          return rangesToFetchWithPreferredEndpoints.build();
      }
 
@@ -553,6 +569,7 @@ public class RangeStreamer
         {
             for (Replica source : e.getValue())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                 assert (e.getKey()).isSelf();
                 assert !source.isSelf();
                 workMap.put(source.endpoint(), new FetchReplica(e.getKey(), source));
@@ -566,6 +583,7 @@ public class RangeStreamer
      * Optimized version that also outputs the final work map
      */
     private static Multimap<InetAddressAndPort, FetchReplica> getOptimizedWorkMap(EndpointsByReplica rangesWithSources,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                                                                                   Collection<SourceFilter> sourceFilters,
                                                                                   String keyspace)
     {
@@ -573,6 +591,7 @@ public class RangeStreamer
         //the surface area to test and introduce bugs.
         //In the future it's possible we could run it twice once for full ranges with only full replicas
         //and once with transient ranges and all replicas. Then merge the result.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder unwrapped = new EndpointsByRange.Builder();
         for (Map.Entry<Replica, Replica> entry : rangesWithSources.flattenEntries())
         {
@@ -635,6 +654,7 @@ public class RangeStreamer
 
     // For testing purposes
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
     Map<String, Multimap<InetAddressAndPort, FetchReplica>> toFetch()
     {
         return toFetch;
@@ -648,6 +668,7 @@ public class RangeStreamer
 
                 // filter out already streamed ranges
                 SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
 
                 Predicate<FetchReplica> isAvailable = fetch -> {
                     boolean isInFull = available.full.contains(fetch.local.range());
@@ -667,6 +688,7 @@ public class RangeStreamer
 
                 List<FetchReplica> remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                 if (remaining.size() < available.full.size() + available.trans.size())
                 {
                     List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());

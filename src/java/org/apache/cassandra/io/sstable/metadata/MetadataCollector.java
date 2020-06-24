@@ -65,6 +65,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     static TombstoneHistogram defaultTombstoneDropTimeHistogram()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13444
         return TombstoneHistogram.createDefault();
     }
 
@@ -72,6 +73,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         return new StatsMetadata(defaultPartitionSizeHistogram(),
                                  defaultCellPerPartitionCountHistogram(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                                  IntervalSet.empty(),
                                  Long.MIN_VALUE,
                                  Long.MAX_VALUE,
@@ -84,6 +86,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  0,
                                  Collections.<ByteBuffer>emptyList(),
                                  Collections.<ByteBuffer>emptyList(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
@@ -146,6 +149,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public MetadataCollector addPartitionSizeInBytes(long partitionSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         estimatedPartitionSize.add(partitionSize);
         return this;
     }
@@ -168,6 +172,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public void update(LivenessInfo newInfo)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (newInfo.isEmpty())
             return;
 
@@ -206,6 +211,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     private void updateLocalDeletionTime(int newLocalDeletionTime)
     {
         localDeletionTimeTracker.update(newLocalDeletionTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13040
         if (newLocalDeletionTime != Cell.NO_DELETION_TIME)
             estimatedTombstoneDropTime.update(newLocalDeletionTime);
     }
@@ -229,6 +235,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public MetadataCollector updateClusteringValues(ClusteringPrefix clustering)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15400
         minClustering = minClustering == null || comparator.compare(clustering, minClustering) < 0 ? clustering.minimize() : minClustering;
         maxClustering = maxClustering == null || comparator.compare(clustering, maxClustering) > 0 ? clustering.minimize() : maxClustering;
         return this;
@@ -247,8 +254,10 @@ public class MetadataCollector implements PartitionStatisticsCollector
         ByteBuffer[] maxValues = maxClustering != null ? maxClustering.getRawValues() : EMPTY_CLUSTERING;
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,
                                                              estimatedCellPerPartitionCount,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                                                              commitLogIntervals,
                                                              timestampTracker.min(),
                                                              timestampTracker.max(),
@@ -257,10 +266,13 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              ttlTracker.min(),
                                                              ttlTracker.max(),
                                                              compressionRatio,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13444
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13756
                                                              estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
                                                              makeList(minValues),
                                                              makeList(maxValues),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,

@@ -35,6 +35,7 @@ public class GossipDigest implements Comparable<GossipDigest>
 {
     public static final IVersionedSerializer<GossipDigest> serializer = new GossipDigestSerializer();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     final InetAddressAndPort endpoint;
     final int generation;
     final int maxVersion;
@@ -84,6 +85,7 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 {
     public void serialize(GossipDigest gDigest, DataOutputPlus out, int version) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         inetAddressAndPortSerializer.serialize(gDigest.endpoint, out, version);
         out.writeInt(gDigest.generation);
         out.writeInt(gDigest.maxVersion);
@@ -99,7 +101,9 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 
     public long serializedSize(GossipDigest gDigest, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long size = inetAddressAndPortSerializer.serializedSize(gDigest.endpoint, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         size += TypeSizes.sizeof(gDigest.generation);
         size += TypeSizes.sizeof(gDigest.maxVersion);
         return size;

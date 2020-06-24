@@ -32,6 +32,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class GetSSTables extends NodeToolCmd
 {
     @Option(title = "hex_format",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11337
            name = {"-hf", "--hex-format"},
            description = "Specify the key in hexadecimal string format")
     private boolean hexFormat = false;
@@ -47,6 +48,7 @@ public class GetSSTables extends NodeToolCmd
         String cf = args.get(1);
         String key = args.get(2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11337
         List<String> sstables = probe.getSSTables(ks, cf, key, hexFormat);
         for (String sstable : sstables)
         {

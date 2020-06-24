@@ -60,6 +60,7 @@ public final class OptionAnyProbabilities extends OptionMulti
         }
         public String getOptionAsString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, Double> entry : options.entrySet())
             {
@@ -85,6 +86,7 @@ public final class OptionAnyProbabilities extends OptionMulti
 
         boolean present()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
             return setByUser();
         }
     }
@@ -96,12 +98,14 @@ public final class OptionAnyProbabilities extends OptionMulti
         return Arrays.asList(ratios);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7559
     Map<String, Double> ratios()
     {
         return ratios.options;
     }
     public String getOptionAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         StringBuilder sb = new StringBuilder(super.getOptionAsString());
         sb.append(" [Ratios: ");
         sb.append(ratios.getOptionAsString());

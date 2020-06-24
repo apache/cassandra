@@ -35,6 +35,7 @@ public class SupportedMessage extends Message.Response
     {
         public SupportedMessage decode(ByteBuf body, ProtocolVersion version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4539
             return new SupportedMessage(CBUtil.readStringToStringListMap(body));
         }
 
@@ -60,6 +61,7 @@ public class SupportedMessage extends Message.Response
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4539
         return "SUPPORTED " + supported;
     }
 }

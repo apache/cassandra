@@ -66,6 +66,7 @@ public class EncryptedSegment extends FileDirectSegment
 
     public EncryptedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         super(commitLog, manager);
         this.encryptionContext = commitLog.configuration.getEncryptionContext();
 
@@ -79,6 +80,7 @@ public class EncryptedSegment extends FileDirectSegment
         }
         logger.debug("created a new encrypted commit log segment: {}", logFile);
         // Keep reusable buffers on-heap regardless of compression preference so we avoid copy off/on repeatedly during decryption
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
         manager.getBufferPool().setPreferredReusableBufferType(BufferType.ON_HEAP);
     }
 
@@ -93,6 +95,7 @@ public class EncryptedSegment extends FileDirectSegment
     {
         // Note: we want to keep the compression buffers on-heap as we need those bytes for encryption,
         // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return manager.getBufferPool().createBuffer(BufferType.ON_HEAP);
     }
 
@@ -110,6 +113,7 @@ public class EncryptedSegment extends FileDirectSegment
             ByteBuffer inputBuffer = buffer.duplicate();
             inputBuffer.limit(contentStart + length).position(contentStart);
             ByteBuffer buffer = manager.getBufferPool().getThreadLocalReusableBuffer(DatabaseDescriptor.getCommitLogSegmentSize());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
 
             // save space for the sync marker at the beginning of this section
             final long syncMarkerPosition = lastWrittenPos;
@@ -128,12 +132,14 @@ public class EncryptedSegment extends FileDirectSegment
                 buffer = EncryptionUtils.encryptAndWrite(buffer, channel, true, cipher);
 
                 contentStart += nextBlockSize;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                 manager.addSize(buffer.limit() + ENCRYPTED_BLOCK_HEADER_SIZE);
             }
 
             lastWrittenPos = channel.position();
 
             // rewind to the beginning of the section and write out the sync marker
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
             buffer.position(0).limit(ENCRYPTED_SECTION_HEADER_SIZE);
             writeSyncMarker(id, buffer, 0, (int) syncMarkerPosition, (int) lastWrittenPos);
             buffer.putInt(SYNC_MARKER_SIZE, length);

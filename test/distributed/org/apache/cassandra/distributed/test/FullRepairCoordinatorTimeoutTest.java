@@ -11,6 +11,7 @@ public class FullRepairCoordinatorTimeoutTest extends RepairCoordinatorTimeout
 {
     public FullRepairCoordinatorTimeoutTest(RepairParallelism parallelism, boolean withNotifications)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         super(RepairType.FULL, parallelism, withNotifications);
     }
 }

@@ -52,6 +52,7 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
 
     public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast, ConsistencyLevel consistency, long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         super(totalTargets, consistency, queryStartNanoTime);
         this.requiredAccepts = requiredTargets;
         this.failFast = failFast;
@@ -60,6 +61,7 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
     public void onResponse(Message<Boolean> msg)
     {
         logger.trace("Propose response {} from {}", msg.payload, msg.from());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         if (msg.payload)
             accepts.incrementAndGet();

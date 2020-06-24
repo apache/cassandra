@@ -63,6 +63,7 @@ public class CompactionExecutorTest
     public void destroy() throws Exception
     {
         executor.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
         Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
     }
 

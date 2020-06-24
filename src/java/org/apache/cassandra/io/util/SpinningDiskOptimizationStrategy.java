@@ -26,6 +26,7 @@ public class SpinningDiskOptimizationStrategy implements DiskOptimizationStrateg
     @Override
     public int bufferSize(long recordSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         return roundBufferSize(recordSize + 4096);
     }
 }

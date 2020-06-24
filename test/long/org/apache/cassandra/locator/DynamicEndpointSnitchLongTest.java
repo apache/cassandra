@@ -36,6 +36,7 @@ public class DynamicEndpointSnitchLongTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -103,6 +104,7 @@ public class DynamicEndpointSnitchLongTest
             {
                 Replica host = hosts.get(random.nextInt(hosts.size()));
                 int score = random.nextInt(SCORE_RANGE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 dsnitch.receiveTiming(host.endpoint(), score, MILLISECONDS);
             }
         }

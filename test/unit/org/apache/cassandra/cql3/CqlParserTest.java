@@ -37,6 +37,7 @@ public class CqlParserTest
         SyntaxErrorCounter firstCounter = new SyntaxErrorCounter();
         SyntaxErrorCounter secondCounter = new SyntaxErrorCounter();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12598
         CharStream stream = new ANTLRStringStream("SELECT * FORM FROM test");
         CqlLexer lexer = new CqlLexer(stream);
 
@@ -49,6 +50,7 @@ public class CqlParserTest
         // but as recoverFromMismatchedToken and recover have been overloaded, it will not
         // and the returned ParsedStatement will be null.
         assertNull(parser.query());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12598
 
         // Only one error must be reported (mismatched: FORM).
         assertEquals(1, firstCounter.count);
@@ -72,6 +74,7 @@ public class CqlParserTest
 
         parser.query();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12598
         assertEquals(1, firstCounter.count);
         assertEquals(0, secondCounter.count);
     }
@@ -79,6 +82,7 @@ public class CqlParserTest
     @Test
     public void testDuplicateProperties() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13369
         parseAndCountErrors("properties = { 'foo' : 'value1', 'bar': 'value2' };", 0, (p) -> p.properties(new PropertyDefinitions()));
         parseAndCountErrors("properties = { 'foo' : 'value1', 'foo': 'value2' };", 1, (p) -> p.properties(new PropertyDefinitions()));
         parseAndCountErrors("foo = 'value1' AND bar = 'value2' };", 0, (p) -> p.properties(new PropertyDefinitions()));

@@ -73,6 +73,7 @@ public class ValidationMetadata extends MetadataComponent
     {
         public int serializedSize(Version version, ValidationMetadata component) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             return TypeSizes.sizeof(component.partitioner) + 8;
         }
 

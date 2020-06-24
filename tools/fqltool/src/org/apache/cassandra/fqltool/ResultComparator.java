@@ -33,6 +33,7 @@ public class ResultComparator
 
     public ResultComparator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
         this(null);
     }
 
@@ -93,6 +94,7 @@ public class ResultComparator
 
     private void handleMismatch(List<String> targetHosts, FQLQuery query, List<ResultHandler.ComparableRow> rows)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
         UUID mismatchUUID = UUID.randomUUID();
         StringBuilder sb = new StringBuilder("{} - MISMATCH Query = {} ");
         for (int i = 0; i < targetHosts.size(); i++)

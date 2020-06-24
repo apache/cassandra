@@ -58,6 +58,7 @@ public abstract class Operation
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         if (t != null)
             t.addFunctionsTo(functions);
     }
@@ -225,6 +226,7 @@ public abstract class Operation
                 case LIST:
                     Term idx = selector.prepare(metadata.keyspace, Lists.indexSpecOf(receiver));
                     Term lval = value.prepare(metadata.keyspace, Lists.valueSpecOf(receiver));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
                     return new Lists.SetterByIndex(receiver, idx, lval);
                 case SET:
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for set column %s", toString(receiver), receiver.name));
@@ -270,6 +272,7 @@ public abstract class Operation
             int fieldPosition = ((UserType) receiver.type).fieldPosition(field);
             if (fieldPosition == -1)
                 throw new InvalidRequestException(String.format("UDT column %s does not have a field named %s", receiver.name, field));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
 
             Term val = value.prepare(metadata.keyspace, UserTypes.fieldSpecOf(receiver, fieldPosition));
             return new UserTypes.SetterByField(receiver, field, val);
@@ -302,6 +305,7 @@ public abstract class Operation
         {
             if (!(receiver.type instanceof CollectionType))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
                 if (receiver.type instanceof TupleType)
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for tuple column %s", toString(receiver), receiver.name));
 
@@ -315,6 +319,7 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
                     return new Lists.Appender(receiver, value.prepare(metadata.keyspace, receiver));
                 case SET:
                     return new Sets.Adder(receiver, value.prepare(metadata.keyspace, receiver));
@@ -362,6 +367,9 @@ public abstract class Operation
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
                 return new Constants.Substracter(receiver, value.prepare(metadata.keyspace, receiver));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen collection column %s", toString(receiver), receiver.name));
 
@@ -376,7 +384,9 @@ public abstract class Operation
                     ColumnSpecification vr = new ColumnSpecification(receiver.ksName,
                                                                      receiver.cfName,
                                                                      receiver.name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
                                                                      SetType.getInstance(((MapType)receiver.type).getKeysType(), false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
                     Term term;
                     try
                     {
@@ -417,9 +427,11 @@ public abstract class Operation
 
             if (!(receiver.type instanceof ListType))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for non list column %s", toString(receiver), receiver.name));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen list column %s", toString(receiver), receiver.name));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             return new Lists.Prepender(receiver, v);
         }
 
@@ -473,6 +485,8 @@ public abstract class Operation
 
         public Operation prepare(String keyspace, ColumnMetadata receiver, TableMetadata metadata) throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             if (!(receiver.type.isCollection()))
                 throw new InvalidRequestException(String.format("Invalid deletion operation for non collection column %s", receiver.name));
             else if (!(receiver.type.isMultiCell()))
@@ -481,10 +495,12 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
                     Term idx = element.prepare(keyspace, Lists.indexSpecOf(receiver));
                     return new Lists.DiscarderByIndex(receiver, idx);
                 case SET:
                     Term elt = element.prepare(keyspace, Sets.valueSpecOf(receiver));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8900
                     return new Sets.ElementDiscarder(receiver, elt);
                 case MAP:
                     Term key = element.prepare(keyspace, Maps.keySpecOf(receiver));
@@ -517,6 +533,7 @@ public abstract class Operation
             else if (!receiver.type.isMultiCell())
                 throw new InvalidRequestException(String.format("Frozen UDT column %s does not support field deletions", receiver.name));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             if (((UserType) receiver.type).fieldPosition(field) == -1)
                 throw new InvalidRequestException(String.format("UDT column %s does not have a field named %s", receiver.name, field));
 

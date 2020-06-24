@@ -67,6 +67,7 @@ public final class CompressionParams
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
 
     public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.<String, String>emptyMap()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                                                           DEFAULT_CHUNK_LENGTH,
                                                                           calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                           DEFAULT_MIN_COMPRESS_RATIO,
@@ -81,6 +82,7 @@ public final class CompressionParams
 
     private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
                                                            "You should specify it as a top-level table option instead";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
 
     @Deprecated public static final String SSTABLE_COMPRESSION = "sstable_compression";
     @Deprecated public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
@@ -121,6 +123,7 @@ public final class CompressionParams
 
         CompressionParams cp = new CompressionParams(sstableCompressionClass, options, chunkLength, minCompressRatio);
         cp.validate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3611
 
         return cp;
     }
@@ -147,6 +150,8 @@ public final class CompressionParams
     @VisibleForTesting
     public static CompressionParams snappy(int chunkLength)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
         return snappy(chunkLength, 1.1);
     }
 
@@ -188,6 +193,7 @@ public final class CompressionParams
 
     public static CompressionParams zstd()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         return zstd(DEFAULT_CHUNK_LENGTH);
     }
 
@@ -246,6 +252,7 @@ public final class CompressionParams
      */
     public boolean isEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
         return sstableCompressor != null;
     }
 
@@ -275,16 +282,19 @@ public final class CompressionParams
 
     private static Class<?> parseCompressorClass(String className) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3871
         if (className == null || className.isEmpty())
             return null;
 
         className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
             return Class.forName(className);
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3128
             throw new ConfigurationException("Could not create Compression for type " + className, e);
         }
     }
@@ -293,11 +303,13 @@ public final class CompressionParams
     {
         if (compressorClass == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5066
             if (!compressionOptions.isEmpty())
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
         if (compressionOptions.containsKey(CRC_CHECK_CHANCE))
         {
             if (!hasLoggedCrcCheckChanceWarning)
@@ -332,6 +344,7 @@ public final class CompressionParams
         }
         catch (InvocationTargetException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
             if (e.getTargetException() instanceof ConfigurationException)
                 throw (ConfigurationException) e.getTargetException();
 
@@ -360,7 +373,9 @@ public final class CompressionParams
     {
         if (co == null || co.isEmpty())
             return Collections.emptyMap();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         Map<String, String> compressionOptions = new HashMap<>();
         for (Map.Entry<? extends CharSequence, ? extends CharSequence> entry : co.entrySet())
             compressionOptions.put(entry.getKey().toString(), entry.getValue().toString());
@@ -383,6 +398,7 @@ public final class CompressionParams
         {
             int parsed = Integer.parseInt(chLengthKB);
             if (parsed > Integer.MAX_VALUE / 1024)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                 throw new ConfigurationException(format("Value of %s is too large (%s)", CHUNK_LENGTH_IN_KB,parsed));
             return 1024 * parsed;
         }
@@ -404,6 +420,7 @@ public final class CompressionParams
         {
             if (options.containsKey(CHUNK_LENGTH_KB))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                 throw new ConfigurationException(format("The '%s' option must not be used if the chunk length is already specified by the '%s' option",
                                                         CHUNK_LENGTH_KB,
                                                         CHUNK_LENGTH_IN_KB));
@@ -414,6 +431,7 @@ public final class CompressionParams
 
         if (options.containsKey(CHUNK_LENGTH_KB))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
             if (!hasLoggedChunkLengthWarning)
             {
                 hasLoggedChunkLengthWarning = true;
@@ -454,6 +472,7 @@ public final class CompressionParams
      */
     public static boolean containsSstableCompressionClass(Map<String, String> options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         return options.containsKey(CLASS) || options.containsKey(SSTABLE_COMPRESSION);
     }
 
@@ -468,6 +487,7 @@ public final class CompressionParams
         if (options.containsKey(CLASS))
         {
             if (options.containsKey(SSTABLE_COMPRESSION))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                 throw new ConfigurationException(format("The '%s' option must not be used if the compression algorithm is already specified by the '%s' option",
                                                         SSTABLE_COMPRESSION,
                                                         CLASS));
@@ -524,22 +544,28 @@ public final class CompressionParams
         // if chunk length was not set (chunkLength == null), this is fine, default will be used
         if (chunkLength <= 0)
             throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH_IN_KB);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
 
         if ((chunkLength & (chunkLength - 1)) != 0)
             throw new ConfigurationException(CHUNK_LENGTH_IN_KB + " must be a power of 2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
 
         if (maxCompressedLength < 0)
             throw new ConfigurationException("Invalid negative " + MIN_COMPRESS_RATIO);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
         if (maxCompressedLength > chunkLength && maxCompressedLength < Integer.MAX_VALUE)
             throw new ConfigurationException(MIN_COMPRESS_RATIO + " can either be 0 or greater than or equal to 1");
     }
 
     public Map<String, String> asMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
         if (!isEnabled())
             return Collections.singletonMap(ENABLED, "false");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         Map<String, String> options = new HashMap<>(otherOptions);
         options.put(CLASS, sstableCompressor.getClass().getName());
         options.put(CHUNK_LENGTH_IN_KB, chunkLengthInKB());
@@ -556,6 +582,7 @@ public final class CompressionParams
 
     public void setCrcCheckChance(double crcCheckChance)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10543
         this.crcCheckChance = crcCheckChance;
     }
 
@@ -577,6 +604,7 @@ public final class CompressionParams
         if (obj == this)
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         if (!(obj instanceof CompressionParams))
             return false;
 
@@ -592,7 +620,9 @@ public final class CompressionParams
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3128
             .append(sstableCompressor)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             .append(chunkLength)
             .append(otherOptions)
             .append(minCompressRatio)
@@ -611,6 +641,7 @@ public final class CompressionParams
                 out.writeUTF(entry.getValue());
             }
             out.writeInt(parameters.chunkLength());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (version >= MessagingService.VERSION_40)
                 out.writeInt(parameters.maxCompressedLength);
             else
@@ -622,6 +653,7 @@ public final class CompressionParams
         {
             String compressorName = in.readUTF();
             int optionCount = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
             Map<String, String> options = new HashMap<>();
             for (int i = 0; i < optionCount; ++i)
             {
@@ -631,6 +663,7 @@ public final class CompressionParams
             }
             int chunkLength = in.readInt();
             int minCompressRatio = Integer.MAX_VALUE;   // Earlier Cassandra cannot use uncompressed chunks.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (version >= MessagingService.VERSION_40)
                 minCompressRatio = in.readInt();
 
@@ -648,6 +681,7 @@ public final class CompressionParams
 
         public long serializedSize(CompressionParams parameters, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             long size = TypeSizes.sizeof(parameters.sstableCompressor.getClass().getSimpleName());
             size += TypeSizes.sizeof(parameters.otherOptions.size());
             for (Map.Entry<String, String> entry : parameters.otherOptions.entrySet())
@@ -656,6 +690,7 @@ public final class CompressionParams
                 size += TypeSizes.sizeof(entry.getValue());
             }
             size += TypeSizes.sizeof(parameters.chunkLength());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (version >= MessagingService.VERSION_40)
                 size += TypeSizes.sizeof(parameters.maxCompressedLength());
             return size;

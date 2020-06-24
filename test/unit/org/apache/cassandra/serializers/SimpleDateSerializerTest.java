@@ -39,6 +39,7 @@ public class SimpleDateSerializerTest
             "-0001-01-02",
             "-5877521-01-02",
             "2014-01-01",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
             "+5881580-01-10", // See java.time.format.SignStyle.EXCEEDS_PAD
             "1920-12-01",
             "1582-10-19"

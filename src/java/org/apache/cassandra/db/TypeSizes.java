@@ -71,16 +71,19 @@ public final class TypeSizes
 
     public static int sizeofWithVIntLength(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         return sizeofUnsignedVInt(value.remaining()) + value.remaining();
     }
 
     public static int sizeof(boolean value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return BOOL_SIZE;
     }
 
     public static int sizeof(byte value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
         return BYTE_SIZE;
     }
 
@@ -101,6 +104,7 @@ public final class TypeSizes
 
     public static int sizeof(UUID value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3794
         return UUID_SIZE;
     }
 
@@ -111,6 +115,7 @@ public final class TypeSizes
 
     public static int sizeofUnsignedVInt(long value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
         return VIntCoding.computeUnsignedVIntSize(value);
     }
 }

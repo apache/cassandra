@@ -47,6 +47,7 @@ public class DataIntegrityMetadata
 
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             this(ChecksumType.CRC32,
                  RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC))),
                  descriptor.filenameFor(Component.DATA));
@@ -63,6 +64,7 @@ public class DataIntegrityMetadata
         @VisibleForTesting
         protected ChecksumValidator(ChecksumType checksumType, RandomAccessReader reader, int chunkSize)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             this.checksumType = checksumType;
             this.reader = reader;
             this.dataFilename = null;
@@ -99,7 +101,9 @@ public class DataIntegrityMetadata
         {
             int current = (int) checksumType.of(buffer);
             int actual = reader.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             if (current != actual)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9265
                 throw new IOException("Corrupted File : " + dataFilename);
         }
 
@@ -111,6 +115,8 @@ public class DataIntegrityMetadata
 
     public static FileDigestValidator fileDigestValidator(Descriptor desc) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5791
         return new FileDigestValidator(desc);
     }
 
@@ -125,6 +131,7 @@ public class DataIntegrityMetadata
         public FileDigestValidator(Descriptor descriptor) throws IOException
         {
             this.descriptor = descriptor;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             checksum = ChecksumType.CRC32.newInstance();
             digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DIGEST)));
             dataReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DATA)));
@@ -134,6 +141,7 @@ public class DataIntegrityMetadata
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 close();
                 // Attempting to create a FileDigestValidator without a DIGEST file will fail
                 throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));

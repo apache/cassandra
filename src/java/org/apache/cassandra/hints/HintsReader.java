@@ -83,12 +83,14 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 // The compressed input is instantiated with the uncompressed input's position
                 reader = CompressedChecksummedDataInput.upgradeInput(reader, descriptor.createCompressor());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
             else if (descriptor.isEncrypted())
                 reader = EncryptedChecksummedDataInput.upgradeInput(reader, descriptor.getCipher(), descriptor.createCompressor());
             return new HintsReader(descriptor, file, reader, rateLimiter);
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             reader.close();
             throw new FSReadError(e, file);
         }
@@ -101,6 +103,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
         input.close();
     }
 
@@ -109,6 +112,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         return descriptor;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
     void seek(InputPosition newPosition)
     {
         input.seek(newPosition);
@@ -130,6 +134,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
         private Page(InputPosition inputPosition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
             this.position = inputPosition;
         }
 
@@ -150,6 +155,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         protected Page computeNext()
         {
             input.tryUncacheRead();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
 
             if (input.isEOF())
                 return endOfData();
@@ -166,6 +172,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         private final InputPosition offset;
         private final long now = System.currentTimeMillis();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         HintsIterator(InputPosition offset)
         {
             super();
@@ -228,11 +235,13 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             Hint hint;
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
                 hint = Hint.serializer.deserializeIfLive(input, now, size, descriptor.messagingVersion());
                 input.checkLimit(0);
             }
             catch (UnknownTableException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13205
                 logger.warn("Failed to read a hint for {}: {} - table with id {} is unknown in file {}",
                             StorageService.instance.getEndpointForHostId(descriptor.hostId),
                             descriptor.hostId,
@@ -240,6 +249,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                             descriptor.fileName());
                 input.skipBytes(Ints.checkedCast(size - input.bytesPastLimit()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13696
                 hint = null; // set the return value to null and let following code to update/check the CRC
             }
 
@@ -247,6 +257,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 return hint;
 
             // log a warning and skip the corrupted entry
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13205
             logger.warn("Failed to read a hint for {}: {} - digest mismatch for hint at position {} in file {}",
                         StorageService.instance.getEndpointForHostId(descriptor.hostId),
                         descriptor.hostId,
@@ -264,6 +275,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         private final InputPosition offset;
         private final long now = System.currentTimeMillis();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         BuffersIterator(InputPosition offset)
         {
             super();
@@ -277,6 +289,8 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             do
             {
                 InputPosition position = input.getSeekPosition();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
 
                 if (input.isEOF())
                     return endOfData(); // reached EOF
@@ -288,6 +302,8 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 {
                     buffer = computeNextInternal();
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12728
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12728
                 catch (EOFException e)
                 {
                     logger.warn("Unexpected EOF replaying hints ({}), likely due to unflushed hint file on shutdown; continuing", descriptor.fileName(), e);
@@ -323,6 +339,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 rateLimiter.acquire(size);
             input.limit(size);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
             ByteBuffer buffer = Hint.serializer.readBufferIfLive(input, now, size, descriptor.messagingVersion());
             if (input.checkCrc())
                 return buffer;

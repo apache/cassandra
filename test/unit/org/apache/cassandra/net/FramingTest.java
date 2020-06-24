@@ -291,6 +291,7 @@ public class FramingTest
                     // we should have an initial frame containing only some prefix of the message (probably 64 bytes)
                     // that was stashed only to decide how big the message was
                     FrameDecoder.IntactFrame frame = (FrameDecoder.IntactFrame) out.get(outIndex++);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15165
                     Assert.assertFalse(frame.isSelfContained);
                     start = frame.contents.remaining();
                     verify(message, 0, frame.contents.remaining(), frame.contents);
@@ -343,6 +344,7 @@ public class FramingTest
                 while (beginFrameIndex < messageIndex)
                 {
                     byte[] m = messages.get(beginFrameIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15165
                     ShareableBytes bytesToVerify = frame.contents.sliceAndConsume(m.length);
                     verify(m, bytesToVerify);
                     bytesToVerify.release();
@@ -368,7 +370,9 @@ public class FramingTest
             i = limit;
         }
         stream.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15165
         Assert.assertTrue(stream.isReleased());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15165
         Assert.assertNull(decoder.stash);
         Assert.assertTrue(decoder.frames.isEmpty());
     }

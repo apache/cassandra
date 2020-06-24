@@ -70,6 +70,7 @@ public class StatsMetadata extends MetadataComponent
     public final EncodingStats encodingStats;
 
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
                          EstimatedHistogram estimatedCellPerPartitionCount,
                          IntervalSet<CommitLogPosition> commitLogIntervals,
                          long minTimestamp,
@@ -79,8 +80,10 @@ public class StatsMetadata extends MetadataComponent
                          int minTTL,
                          int maxTTL,
                          double compressionRatio,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13444
                          TombstoneHistogram estimatedTombstoneDropTime,
                          int sstableLevel,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                          List<ByteBuffer> minClusteringValues,
                          List<ByteBuffer> maxClusteringValues,
                          boolean hasLegacyCounterShards,
@@ -90,8 +93,11 @@ public class StatsMetadata extends MetadataComponent
                          UUID pendingRepair,
                          boolean isTransient)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         this.estimatedPartitionSize = estimatedPartitionSize;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
         this.estimatedCellPerPartitionCount = estimatedCellPerPartitionCount;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         this.commitLogIntervals = commitLogIntervals;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
@@ -104,12 +110,16 @@ public class StatsMetadata extends MetadataComponent
         this.sstableLevel = sstableLevel;
         this.minClusteringValues = minClusteringValues;
         this.maxClusteringValues = maxClusteringValues;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
         this.hasLegacyCounterShards = hasLegacyCounterShards;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         this.repairedAt = repairedAt;
         this.totalColumnsSet = totalColumnsSet;
         this.totalRows = totalRows;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         this.encodingStats = new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
     }
 
@@ -124,6 +134,7 @@ public class StatsMetadata extends MetadataComponent
      */
     public double getEstimatedDroppableTombstoneRatio(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
         long estimatedColumnCount = this.estimatedCellPerPartitionCount.mean() * this.estimatedCellPerPartitionCount.count();
         if (estimatedColumnCount > 0)
         {
@@ -149,6 +160,7 @@ public class StatsMetadata extends MetadataComponent
                                  commitLogIntervals,
                                  minTimestamp,
                                  maxTimestamp,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                  minLocalDeletionTime,
                                  maxLocalDeletionTime,
                                  minTTL,
@@ -161,6 +173,7 @@ public class StatsMetadata extends MetadataComponent
                                  hasLegacyCounterShards,
                                  repairedAt,
                                  totalColumnsSet,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                  totalRows,
                                  pendingRepair,
                                  isTransient);
@@ -168,11 +181,16 @@ public class StatsMetadata extends MetadataComponent
 
     public StatsMetadata mutateRepairedMetadata(long newRepairedAt, UUID newPendingRepair, boolean newIsTransient)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         return new StatsMetadata(estimatedPartitionSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
                                  estimatedCellPerPartitionCount,
                                  commitLogIntervals,
                                  minTimestamp,
                                  maxTimestamp,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                  minLocalDeletionTime,
                                  maxLocalDeletionTime,
                                  minTTL,
@@ -182,6 +200,8 @@ public class StatsMetadata extends MetadataComponent
                                  sstableLevel,
                                  minClusteringValues,
                                  maxClusteringValues,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
                                  hasLegacyCounterShards,
                                  newRepairedAt,
                                  totalColumnsSet,
@@ -198,11 +218,15 @@ public class StatsMetadata extends MetadataComponent
 
         StatsMetadata that = (StatsMetadata) o;
         return new EqualsBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                        .append(estimatedPartitionSize, that.estimatedPartitionSize)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
                        .append(estimatedCellPerPartitionCount, that.estimatedCellPerPartitionCount)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                        .append(commitLogIntervals, that.commitLogIntervals)
                        .append(minTimestamp, that.minTimestamp)
                        .append(maxTimestamp, that.maxTimestamp)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                        .append(minLocalDeletionTime, that.minLocalDeletionTime)
                        .append(maxLocalDeletionTime, that.maxLocalDeletionTime)
                        .append(minTTL, that.minTTL)
@@ -210,12 +234,15 @@ public class StatsMetadata extends MetadataComponent
                        .append(compressionRatio, that.compressionRatio)
                        .append(estimatedTombstoneDropTime, that.estimatedTombstoneDropTime)
                        .append(sstableLevel, that.sstableLevel)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
                        .append(repairedAt, that.repairedAt)
                        .append(maxClusteringValues, that.maxClusteringValues)
                        .append(minClusteringValues, that.minClusteringValues)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
                        .append(hasLegacyCounterShards, that.hasLegacyCounterShards)
                        .append(totalColumnsSet, that.totalColumnsSet)
                        .append(totalRows, that.totalRows)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                        .append(pendingRepair, that.pendingRepair)
                        .build();
     }
@@ -224,11 +251,15 @@ public class StatsMetadata extends MetadataComponent
     public int hashCode()
     {
         return new HashCodeBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                        .append(estimatedPartitionSize)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
                        .append(estimatedCellPerPartitionCount)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                        .append(commitLogIntervals)
                        .append(minTimestamp)
                        .append(maxTimestamp)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                        .append(minLocalDeletionTime)
                        .append(maxLocalDeletionTime)
                        .append(minTTL)
@@ -236,12 +267,15 @@ public class StatsMetadata extends MetadataComponent
                        .append(compressionRatio)
                        .append(estimatedTombstoneDropTime)
                        .append(sstableLevel)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
                        .append(repairedAt)
                        .append(maxClusteringValues)
                        .append(minClusteringValues)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
                        .append(hasLegacyCounterShards)
                        .append(totalColumnsSet)
                        .append(totalRows)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                        .append(pendingRepair)
                        .build();
     }
@@ -251,10 +285,15 @@ public class StatsMetadata extends MetadataComponent
         public int serializedSize(Version version, StatsMetadata component) throws IOException
         {
             int size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedPartitionSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedCellPerPartitionCount);
             size += CommitLogPosition.serializer.serializedSize(component.commitLogIntervals.upperBound().orElse(CommitLogPosition.NONE));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13444
             size += TombstoneHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime);
             size += TypeSizes.sizeof(component.sstableLevel);
             // min column names
@@ -265,13 +304,16 @@ public class StatsMetadata extends MetadataComponent
             size += 4;
             for (ByteBuffer value : component.maxClusteringValues)
                 size += 2 + value.remaining(); // with short length
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             size += TypeSizes.sizeof(component.hasLegacyCounterShards);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             size += 8 + 8; // totalColumnsSet, totalRows
             if (version.hasCommitLogLowerBound())
                 size += CommitLogPosition.serializer.serializedSize(component.commitLogIntervals.lowerBound().orElse(CommitLogPosition.NONE));
             if (version.hasCommitLogIntervals())
                 size += commitLogPositionSetSerializer.serializedSize(component.commitLogIntervals);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             if (version.hasPendingRepair())
             {
                 size += 1;
@@ -289,18 +331,24 @@ public class StatsMetadata extends MetadataComponent
 
         public void serialize(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             EstimatedHistogram.serializer.serialize(component.estimatedPartitionSize, out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
             EstimatedHistogram.serializer.serialize(component.estimatedCellPerPartitionCount, out);
             CommitLogPosition.serializer.serialize(component.commitLogIntervals.upperBound().orElse(CommitLogPosition.NONE), out);
             out.writeLong(component.minTimestamp);
             out.writeLong(component.maxTimestamp);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             out.writeInt(component.minLocalDeletionTime);
             out.writeInt(component.maxLocalDeletionTime);
             out.writeInt(component.minTTL);
             out.writeInt(component.maxTTL);
             out.writeDouble(component.compressionRatio);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13444
             TombstoneHistogram.serializer.serialize(component.estimatedTombstoneDropTime, out);
             out.writeInt(component.sstableLevel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
             out.writeLong(component.repairedAt);
             out.writeInt(component.minClusteringValues.size());
             for (ByteBuffer value : component.minClusteringValues)
@@ -309,7 +357,9 @@ public class StatsMetadata extends MetadataComponent
             for (ByteBuffer value : component.maxClusteringValues)
                 ByteBufferUtil.writeWithShortLength(value, out);
             out.writeBoolean(component.hasLegacyCounterShards);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             out.writeLong(component.totalColumnsSet);
             out.writeLong(component.totalRows);
 
@@ -318,6 +368,7 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasCommitLogIntervals())
                 commitLogPositionSetSerializer.serialize(component.commitLogIntervals, out);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             if (version.hasPendingRepair())
             {
                 if (component.pendingRepair != null)
@@ -339,6 +390,7 @@ public class StatsMetadata extends MetadataComponent
 
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             EstimatedHistogram partitionSizes = EstimatedHistogram.serializer.deserialize(in);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
             CommitLogPosition commitLogLowerBound = CommitLogPosition.NONE, commitLogUpperBound;
@@ -350,9 +402,11 @@ public class StatsMetadata extends MetadataComponent
             int minTTL = in.readInt();
             int maxTTL = in.readInt();
             double compressionRatio = in.readDouble();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13444
             TombstoneHistogram tombstoneHistogram = TombstoneHistogram.serializer.deserialize(in);
             int sstableLevel = in.readInt();
             long repairedAt = in.readLong();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
             // for legacy sstables, we skip deserializing the min and max clustering value
             // to prevent erroneously excluding sstables from reads (see CASSANDRA-14861)
@@ -376,10 +430,12 @@ public class StatsMetadata extends MetadataComponent
 
             boolean hasLegacyCounterShards = in.readBoolean();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             long totalColumnsSet = in.readLong();
             long totalRows = in.readLong();
 
             if (version.hasCommitLogLowerBound())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                 commitLogLowerBound = CommitLogPosition.serializer.deserialize(in);
             IntervalSet<CommitLogPosition> commitLogIntervals;
             if (version.hasCommitLogIntervals())
@@ -387,6 +443,7 @@ public class StatsMetadata extends MetadataComponent
             else
                 commitLogIntervals = new IntervalSet<CommitLogPosition>(commitLogLowerBound, commitLogUpperBound);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             UUID pendingRepair = null;
             if (version.hasPendingRepair() && in.readByte() != 0)
             {
@@ -395,8 +452,11 @@ public class StatsMetadata extends MetadataComponent
 
             boolean isTransient = version.hasIsTransient() && in.readBoolean();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                                      commitLogIntervals,
                                      minTimestamp,
                                      maxTimestamp,
@@ -409,6 +469,7 @@ public class StatsMetadata extends MetadataComponent
                                      sstableLevel,
                                      minClusteringValues,
                                      maxClusteringValues,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6888
                                      hasLegacyCounterShards,
                                      repairedAt,
                                      totalColumnsSet,

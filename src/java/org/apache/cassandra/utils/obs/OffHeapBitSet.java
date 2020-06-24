@@ -42,12 +42,14 @@ public class OffHeapBitSet implements IBitSet
     public OffHeapBitSet(long numBits)
     {
         /** returns the number of 64 bit words it would take to hold numBits */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         long wordCount = (((numBits - 1) >>> 6) + 1);
         if (wordCount > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
         try
         {
             long byteCount = wordCount * 8L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
             bytes = Memory.allocate(byteCount);
         }
         catch (OutOfMemoryError e)
@@ -71,11 +73,13 @@ public class OffHeapBitSet implements IBitSet
     @Override
     public long offHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7897
         return bytes.size();
     }
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         identities.add(bytes);
     }
 
@@ -127,6 +131,7 @@ public class OffHeapBitSet implements IBitSet
         out.writeInt((int) (bytes.size() / 8));
         for (long i = 0; i < bytes.size(); )
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             long value = ((bytes.getByte(i++) & 0xff) << 0)
                          + ((bytes.getByte(i++) & 0xff) << 8)
                          + ((bytes.getByte(i++) & 0xff) << 16)
@@ -141,6 +146,7 @@ public class OffHeapBitSet implements IBitSet
 
     public long serializedSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return TypeSizes.sizeof((int) bytes.size()) + bytes.size();
     }
 
@@ -148,6 +154,7 @@ public class OffHeapBitSet implements IBitSet
     public static OffHeapBitSet deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
     {
         long byteCount = in.readInt() * 8L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         Memory memory = Memory.allocate(byteCount);
         if (oldBfFormat)
         {
@@ -202,6 +209,7 @@ public class OffHeapBitSet implements IBitSet
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         return "[OffHeapBitSet]";
     }
 }

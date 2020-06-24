@@ -69,6 +69,7 @@ public class RecoveryManagerTruncateTest
             {null, EncryptionContextGenerator.createContext(true)}, // Encryption
             {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
@@ -84,7 +85,9 @@ public class RecoveryManagerTruncateTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 

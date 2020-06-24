@@ -77,9 +77,11 @@ public class ConfigHelper
 
         if (columnFamily == null)
             throw new UnsupportedOperationException("table may not be null");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
 
         conf.set(INPUT_KEYSPACE_CONFIG, keyspace);
         conf.set(INPUT_COLUMNFAMILY_CONFIG, columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3264
         conf.set(INPUT_WIDEROWS_CONFIG, String.valueOf(widerows));
     }
 
@@ -117,6 +119,7 @@ public class ConfigHelper
      */
     public static void setOutputColumnFamily(Configuration conf, String columnFamily)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4208
     	conf.set(OUTPUT_COLUMNFAMILY_CONFIG, columnFamily);
     }
 
@@ -144,6 +147,7 @@ public class ConfigHelper
      */
     public static void setRangeBatchSize(Configuration conf, int batchsize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-789
         conf.setInt(RANGE_BATCH_SIZE_CONFIG, batchsize);
     }
 
@@ -208,6 +212,7 @@ public class ConfigHelper
      */
     public static void setInputRange(Configuration conf, String startToken, String endToken)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         conf.set(INPUT_KEYRANGE_CONFIG, startToken + "," + endToken);
     }
 
@@ -229,6 +234,7 @@ public class ConfigHelper
 
     public static String getInputKeyspace(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1227
         return conf.get(INPUT_KEYSPACE_CONFIG);
     }
 
@@ -239,6 +245,7 @@ public class ConfigHelper
 
     public static void setInputKeyspaceUserNameAndPassword(Configuration conf, String username, String password)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3042
         setInputKeyspaceUserName(conf, username);
         setInputKeyspacePassword(conf, password);
     }
@@ -271,6 +278,7 @@ public class ConfigHelper
 
     public static void setOutputKeyspaceUserName(Configuration conf, String username)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4155
         conf.set(OUTPUT_KEYSPACE_USERNAME_CONFIG, username);
     }
 
@@ -296,6 +304,7 @@ public class ConfigHelper
 
     public static String getOutputColumnFamily(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4208
     	if (conf.get(OUTPUT_COLUMNFAMILY_CONFIG) != null)
     		return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
     	else
@@ -309,16 +318,19 @@ public class ConfigHelper
 
     public static String getReadConsistencyLevel(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6214
         return conf.get(READ_CONSISTENCY_LEVEL, "LOCAL_ONE");
     }
 
     public static void setReadConsistencyLevel(Configuration conf, String consistencyLevel)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5827
         conf.set(READ_CONSISTENCY_LEVEL, consistencyLevel);
     }
 
     public static String getWriteConsistencyLevel(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6214
         return conf.get(WRITE_CONSISTENCY_LEVEL, "LOCAL_ONE");
     }
 
@@ -329,6 +341,7 @@ public class ConfigHelper
 
     public static String getInputInitialAddress(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return conf.get(INPUT_INITIAL_ADDRESS);
     }
 
@@ -343,16 +356,19 @@ public class ConfigHelper
 
     public static IPartitioner getInputPartitioner(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         return FBUtilities.newPartitioner(conf.get(INPUT_PARTITIONER_CONFIG));
     }
 
     public static String getOutputInitialAddress(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return conf.get(OUTPUT_INITIAL_ADDRESS);
     }
 
     public static void setOutputInitialPort(Configuration conf, Integer port)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         conf.set(OUTPUT_INITIAL_PORT, port.toString());
     }
 
@@ -373,6 +389,7 @@ public class ConfigHelper
 
     public static IPartitioner getOutputPartitioner(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
         return FBUtilities.newPartitioner(conf.get(OUTPUT_PARTITIONER_CONFIG));
     }
 
@@ -383,6 +400,7 @@ public class ConfigHelper
 
     public static String getOutputCompressionChunkLength(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         return conf.get(OUTPUT_COMPRESSION_CHUNK_LENGTH, String.valueOf(CompressionParams.DEFAULT_CHUNK_LENGTH));
     }
 
@@ -398,6 +416,7 @@ public class ConfigHelper
 
     public static boolean getOutputLocalDCOnly(Configuration conf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7252
         return Boolean.parseBoolean(conf.get(OUTPUT_LOCAL_DC_ONLY, "false"));
     }
 

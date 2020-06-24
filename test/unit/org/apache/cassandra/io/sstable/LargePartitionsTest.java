@@ -98,6 +98,7 @@ public class LargePartitionsTest extends CQLTester
 
         measured("SELECTs 2 for " + name, () -> selects(partitionKBytes, totalKBytes));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12731
         CacheService.instance.keyCache.clear();
         measured("Scan for " + name, () -> scan(partitionKBytes, totalKBytes));
     }
@@ -119,6 +120,7 @@ public class LargePartitionsTest extends CQLTester
 
     private void scan(long partitionKBytes, long totalKBytes) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12731
         long pk = ThreadLocalRandom.current().nextLong(totalKBytes / partitionKBytes) * partitionKBytes;
         Iterator<UntypedResultSet.Row> iter = execute("SELECT val FROM %s WHERE pk=?", Long.toBinaryString(pk)).iterator();
         int i = 0;

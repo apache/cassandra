@@ -95,6 +95,7 @@ public class VerifyTest
 
         loadSchema();
         createKeyspace(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                        KeyspaceParams.simple(1),
                        standardCFMD(KEYSPACE, CF).compression(compressionParameters),
                        standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
@@ -268,6 +269,8 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().extendedVerification(true).invokeDiskFailurePolicy(true).build()))
         {
             verifier.verify();
@@ -300,6 +303,7 @@ public class VerifyTest
             writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
             verifier.verify();
@@ -328,8 +332,10 @@ public class VerifyTest
         Util.getAll(Util.cmd(cfs).build());
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // overwrite one row with garbage
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
         long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
         long startPosition = row0Start < row1Start ? row0Start : row1Start;
@@ -339,15 +345,19 @@ public class VerifyTest
         file.seek(startPosition);
         file.writeBytes(StringUtils.repeat('z', (int) 2));
         file.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(sstable.getFilename());
 
         // Update the Digest to have the right Checksum
         writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.filenameFor(Component.DIGEST));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
             // First a simple verify checking digest, which should succeed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             try
             {
                 verifier.verify();
@@ -357,6 +367,7 @@ public class VerifyTest
                 fail("Simple verify should have succeeded as digest matched");
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).extendedVerification(true).build()))
         {
             // Now try extended verify
@@ -376,6 +387,7 @@ public class VerifyTest
     @Test
     public void testVerifyBrokenSSTableMetadata() throws IOException, WriteTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13922
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
@@ -391,6 +403,12 @@ public class VerifyTest
         file.seek(0);
         file.writeBytes(StringUtils.repeat('z', 2));
         file.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
             verifier.verify();
@@ -414,6 +432,7 @@ public class VerifyTest
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         cfs.truncateBlocking();
         fillCF(cfs, 2);
 
@@ -480,6 +499,7 @@ public class VerifyTest
     @Test
     public void testMutateRepair() throws IOException, ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14217
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
@@ -500,6 +520,7 @@ public class VerifyTest
             correctChecksum = Long.parseLong(file.readLine());
         }
         writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true).build()))
         {
             verifier.verify();
@@ -513,6 +534,7 @@ public class VerifyTest
     @Test
     public void testVerifyIndex() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         testBrokenComponentHelper(Component.PRIMARY_INDEX);
     }
     @Test
@@ -565,12 +587,23 @@ public class VerifyTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF);
 
         fillCF(cfs, 2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         Util.getAll(Util.cmd(cfs).build());
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
             Long correctChecksum = Long.valueOf(file.readLine());
@@ -601,6 +634,7 @@ public class VerifyTest
     @Test
     public void testRangeOwnHelper()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
         List<Range<Token>> normalized = new ArrayList<>();
         normalized.add(r(Long.MIN_VALUE, Long.MIN_VALUE + 1));
         normalized.add(r(Long.MIN_VALUE + 5, Long.MIN_VALUE + 6));
@@ -612,6 +646,7 @@ public class VerifyTest
 
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         roh.validate(dk(1));
         roh.validate(dk(10));
         roh.validate(dk(11));
@@ -635,6 +670,7 @@ public class VerifyTest
         List<Range<Token>> normalized = new ArrayList<>();
         normalized.add(r(0,10));
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         roh.validate(dk(1));
         // call with smaller token to get exception
         roh.validate(dk(0));
@@ -646,6 +682,7 @@ public class VerifyTest
     {
         List<Range<Token>> normalized = Range.normalize(Collections.singletonList(r(0,0)));
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         roh.validate(dk(Long.MIN_VALUE));
         roh.validate(dk(0));
         roh.validate(dk(Long.MAX_VALUE));
@@ -656,6 +693,7 @@ public class VerifyTest
     {
         List<Range<Token>> normalized = Range.normalize(Collections.singletonList(r(Long.MAX_VALUE - 1000,Long.MIN_VALUE + 1000)));
         Verifier.RangeOwnHelper roh = new Verifier.RangeOwnHelper(normalized);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         roh.validate(dk(Long.MIN_VALUE));
         roh.validate(dk(Long.MAX_VALUE));
         boolean gotException = false;
@@ -673,6 +711,7 @@ public class VerifyTest
     @Test
     public void testEmptyRanges()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         new Verifier.RangeOwnHelper(Collections.emptyList()).validate(dk(1));
     }
 
@@ -721,6 +760,7 @@ public class VerifyTest
     {
         try (FileInputStream inputStream = new FileInputStream(filename))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8684
             CRC32 checksum = new CRC32();
             CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);
             byte[] b = new byte[128];

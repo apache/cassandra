@@ -37,6 +37,7 @@ public class CollectionTypeTest
     public void testListComparison()
     {
         ListType<String> lt = ListType.getInstance(UTF8Type.instance, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
         ByteBuffer[] lists = new ByteBuffer[] {
             ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -64,6 +65,7 @@ public class CollectionTypeTest
     public void testSetComparison()
     {
         SetType<String> st = SetType.getInstance(UTF8Type.instance, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
         ByteBuffer[] sets = new ByteBuffer[] {
             ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -91,6 +93,7 @@ public class CollectionTypeTest
     public void testMapComparison()
     {
         MapType<String, String> mt = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
 
         ByteBuffer[] maps = new ByteBuffer[] {
             ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -119,9 +122,11 @@ public class CollectionTypeTest
     @Test
     public void listSerDerTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         ListSerializer<String> sls = ListType.getInstance(UTF8Type.instance, true).getSerializer();
         ListSerializer<Integer> ils = ListType.getInstance(Int32Type.instance, true).getSerializer();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7208
         List<String> sl = Arrays.asList("Foo", "Bar");
         List<Integer> il = Arrays.asList(3, 1, 5);
 
@@ -143,6 +148,7 @@ public class CollectionTypeTest
     @Test
     public void setSerDerTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         SetSerializer<String> sss = SetType.getInstance(UTF8Type.instance, true).getSerializer();
         SetSerializer<Integer> iss = SetType.getInstance(Int32Type.instance, true).getSerializer();
 
@@ -167,6 +173,7 @@ public class CollectionTypeTest
     @Test
     public void setMapDerTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         MapSerializer<String, String> sms = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).getSerializer();
         MapSerializer<Integer, Integer> ims = MapType.getInstance(Int32Type.instance, Int32Type.instance, true).getSerializer();
 
@@ -187,6 +194,7 @@ public class CollectionTypeTest
         // non map value
         assertInvalid(sms, UTF8Type.instance.getSerializer().serialize("foo"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         MapSerializer<Integer, String> sims = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true).getSerializer();
         MapSerializer<String, Integer> isms = MapType.getInstance(UTF8Type.instance, Int32Type.instance, true).getSerializer();
 

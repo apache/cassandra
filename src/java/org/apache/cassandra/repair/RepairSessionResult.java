@@ -40,6 +40,7 @@ public class RepairSessionResult
         this.keyspace = keyspace;
         this.ranges = ranges;
         this.repairJobResults = repairJobResults;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
         this.skippedReplicas = skippedReplicas;
     }
 

@@ -38,6 +38,7 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
     private final RepairJobDesc desc;
     private final InetAddressAndPort endpoint;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     SnapshotTask(RepairJobDesc desc, InetAddressAndPort endpoint)
     {
         this.desc = desc;
@@ -46,6 +47,7 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
 
     public void run()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         MessagingService.instance().sendWithCallback(Message.out(SNAPSHOT_MSG, new SnapshotMessage(desc)),
                                                      endpoint,
                                                      new SnapshotCallback(this));
@@ -77,6 +79,7 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
         @Override
         public boolean invokeOnFailure()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return true;
         }
 
@@ -84,6 +87,7 @@ public class SnapshotTask extends AbstractFuture<InetAddressAndPort> implements 
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
             //listener.failedSnapshot();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6747
             task.setException(new RuntimeException("Could not create snapshot at " + from));
         }
     }

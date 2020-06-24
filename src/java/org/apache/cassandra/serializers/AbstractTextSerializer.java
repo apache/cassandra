@@ -48,6 +48,7 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
 
     public ByteBuffer serialize(String value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return ByteBufferUtil.bytes(value, charset);
     }
 

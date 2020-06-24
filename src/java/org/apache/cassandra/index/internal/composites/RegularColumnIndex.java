@@ -48,6 +48,7 @@ public class RegularColumnIndex extends CassandraIndex
 {
     public RegularColumnIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         super(baseCfs, indexDef);
     }
 
@@ -79,6 +80,8 @@ public class RegularColumnIndex extends CassandraIndex
     {
         Clustering clustering = indexEntry.clustering();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8103
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10958
         Clustering indexedEntryClustering = null;
         if (getIndexedColumn().isStatic())
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;

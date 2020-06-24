@@ -41,6 +41,7 @@ public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
     {
         public InstrumentedSymmetricRemoteSyncTask(InetAddressAndPort e1, InetAddressAndPort e2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             super(DESC, e1, e2, RANGE_LIST, PreviewKind.NONE);
         }
 
@@ -48,6 +49,7 @@ public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
         InetAddressAndPort sentTo = null;
 
         @Override
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         void sendRequest(SyncRequest request, InetAddressAndPort to)
         {
             Assert.assertNull(sentMessage);
@@ -63,6 +65,7 @@ public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
     {
         InstrumentedSymmetricRemoteSyncTask syncTask = new InstrumentedSymmetricRemoteSyncTask(PARTICIPANT1, PARTICIPANT2);
         syncTask.startSync();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
 
         Assert.assertNotNull(syncTask.sentMessage);
         Assert.assertSame(SyncRequest.class, syncTask.sentMessage.getClass());

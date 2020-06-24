@@ -43,6 +43,7 @@ public final class ViewMetadata
     public ViewMetadata(TableId baseTableId,
                         String baseTableName,
                         boolean includeAllColumns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                         WhereClause whereClause,
                         TableMetadata metadata)
     {
@@ -73,6 +74,7 @@ public final class ViewMetadata
 
     public ViewMetadata copy(TableMetadata newMetadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return new ViewMetadata(baseTableId, baseTableName, includeAllColumns, whereClause, newMetadata);
     }
 
@@ -91,6 +93,7 @@ public final class ViewMetadata
             return false;
 
         ViewMetadata other = (ViewMetadata) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return baseTableId.equals(other.baseTableId)
             && includeAllColumns == other.includeAllColumns
             && whereClause.equals(other.whereClause)
@@ -130,6 +133,7 @@ public final class ViewMetadata
 
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return metadata.referencesUserType(name);
     }
 

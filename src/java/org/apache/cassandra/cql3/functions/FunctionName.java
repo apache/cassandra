@@ -28,12 +28,15 @@ public final class FunctionName
 
     public static FunctionName nativeFunction(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         return new FunctionName(SchemaConstants.SYSTEM_KEYSPACE_NAME, name);
     }
 
     public FunctionName(String keyspace, String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
         assert name != null : "Name parameter must not be null";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         this.keyspace = keyspace;
         this.name = name;
     }
@@ -61,12 +64,14 @@ public final class FunctionName
             return false;
 
         FunctionName that = (FunctionName)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
         return Objects.equal(this.keyspace, that.keyspace)
             && Objects.equal(this.name, that.name);
     }
 
     public final boolean equalsNativeFunction(FunctionName nativeFunction)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         assert nativeFunction.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         if (this.hasKeyspace() && !this.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             return false;

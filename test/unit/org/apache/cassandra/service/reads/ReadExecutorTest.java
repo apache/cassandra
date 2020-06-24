@@ -145,6 +145,7 @@ public class ReadExecutorTest
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
             executor.awaitResponses();
             fail();
         }
@@ -174,6 +175,9 @@ public class ReadExecutorTest
         executor.maybeTryAdditionalReplicas();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
             executor.awaitResponses();
             fail();
         }
@@ -205,6 +209,7 @@ public class ReadExecutorTest
         @Override
         public long getTimeout(TimeUnit unit)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return unit.convert(timeout, MILLISECONDS);
         }
 
@@ -222,6 +227,8 @@ public class ReadExecutorTest
 
     private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return new ReplicaPlan.ForTokenRead(ks, consistencyLevel, natural, selected);
     }
 }

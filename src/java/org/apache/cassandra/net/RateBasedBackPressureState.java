@@ -51,6 +51,7 @@ class RateBasedBackPressureState extends IntervalLock implements BackPressureSta
     final SlidingTimeRate outgoingRate;
     final RateLimiter rateLimiter;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     RateBasedBackPressureState(InetAddressAndPort host, TimeSource timeSource, long windowSize)
     {
         super(timeSource);

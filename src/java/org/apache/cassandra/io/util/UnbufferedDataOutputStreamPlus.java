@@ -254,6 +254,7 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
     public static void writeUTF(String str, DataOutput out) throws IOException
     {
         int length = str.length();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10203
         if (length == 0)
         {
             out.write(zeroBytes);
@@ -262,9 +263,11 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
 
         int utfCount = 0;
         int maxSize = 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         for (int i = 0 ; i < length ; i++)
         {
             int ch = str.charAt(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             if ((ch > 0) & (ch <= 127))
                 utfCount += 1;
             else if (ch <= 2047)
@@ -301,6 +304,7 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
             utfBytes[0] = (byte) (utfCount >> 8);
             utfBytes[1] = (byte) utfCount;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             while (length > 0)
             {
                 int charRunLength = (utfBytes.length - utfIndex) / maxSize;

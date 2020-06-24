@@ -92,12 +92,14 @@ public class UFIdentificationTest extends CQLTester
         sFunc = createEchoFunction("set<int>");
         mFunc = createEchoFunction("map<int, int>");
         uFunc = createEchoFunction("timeuuid");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
         udtFunc = createEchoFunction(userType);
     }
 
     @Test
     public void testSimpleModificationStatement() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, t_sc) VALUES (0, 0, 'A', %s)", functionCall(tFunc, "'foo'")), tFunc);
         assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc) VALUES (0, %s, 'A')", functionCall(iFunc, "1")), iFunc);
         assertFunctions(cql("INSERT INTO %s (key, t_cc, i_cc) VALUES (0, %s, 1)", functionCall(tFunc, "'foo'")), tFunc);
@@ -115,6 +117,7 @@ public class UFIdentificationTest extends CQLTester
         String iFunc2 = createEchoFunction("int");
         String mapValue = String.format("{%s:%s}", functionCall(iFunc, "1"), functionCall(iFunc2, "1"));
         assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, m_val) VALUES (0, 0, 'A', %s)", mapValue), iFunc, iFunc2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
 
         String listValue = String.format("[%s]", functionCall(iFunc, "1"));
         assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, l_val) VALUES (0, 0, 'A',  %s)", listValue), iFunc);
@@ -201,6 +204,7 @@ public class UFIdentificationTest extends CQLTester
     public void testSelectStatementSimpleRestrictions() throws Throwable
     {
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=%s", functionCall(iFunc, "1")), iFunc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=0 AND t_sc=%s ALLOW FILTERING", functionCall(tFunc, "'foo'")), tFunc);
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=0 AND i_cc=%s AND t_cc='foo' ALLOW FILTERING", functionCall(iFunc, "1")), iFunc);
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=0 AND i_cc=0 AND t_cc=%s ALLOW FILTERING", functionCall(tFunc, "'foo'")), tFunc);
@@ -308,6 +312,7 @@ public class UFIdentificationTest extends CQLTester
         statements.add(modificationStatement(cql("INSERT INTO %s (key, i_cc, t_cc) VALUES (2, 2, %s)",
                                                  functionCall(tFunc, "'foo'"))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertFunctions(batch, iFunc, iFunc2, tFunc);
     }
@@ -321,6 +326,7 @@ public class UFIdentificationTest extends CQLTester
         statements.add(modificationStatement(cql("UPDATE %s SET i_val = %s WHERE key=0 AND i_cc=1 and t_cc='foo' IF s_val = %s",
                                                  functionCall(iFunc, "0"), functionCall(sFunc, "{1}"))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertFunctions(batch, iFunc, lFunc, sFunc);
     }
@@ -373,6 +379,7 @@ public class UFIdentificationTest extends CQLTester
     {
         return createFunction(KEYSPACE, type,
            "CREATE FUNCTION %s(input " + type + ")" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
            " CALLED ON NULL INPUT" +
            " RETURNS " + type +
            " LANGUAGE java" +

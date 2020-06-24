@@ -43,6 +43,7 @@ public class TermSelectionTest extends CQLTester
     @Test
     public void testSelectLiteral() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         long timestampInMicros = System.currentTimeMillis() * 1000;
         createTable("CREATE TABLE %s (pk int, ck int, t text, PRIMARY KEY (pk, ck) )");
         execute("INSERT INTO %s (pk, ck, t) VALUES (?, ?, ?) USING TIMESTAMP ?", 1, 1, "one", timestampInMicros);
@@ -72,6 +73,7 @@ public class TermSelectionTest extends CQLTester
         assertInvalidMessage("Cannot infer type for term", "SELECT ck, t, {1: 'foo', 2: 'bar', 3: 'baz'} FROM %s");
         assertConstantResult(execute("SELECT ck, t, (map<int, text>){1: 'foo', 2: 'bar', 3: 'baz'} FROM %s"), map(1, "foo", 2, "bar", 3, "baz"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         assertInvalidMessage("Cannot infer type for term", "SELECT ck, t, {} FROM %s");
         assertConstantResult(execute("SELECT ck, t, (map<int, text>){} FROM %s"), map());
         assertConstantResult(execute("SELECT ck, t, (set<int>){} FROM %s"), set());
@@ -420,6 +422,7 @@ public class TermSelectionTest extends CQLTester
         execute("INSERT INTO %s(k, v) VALUES (?, ?)", 0, userType("a", 3, "b", "foo"));
 
         assertInvalidMessage("Cannot infer type for term", "SELECT { a: 4, b: 'bar'} FROM %s");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
 
         assertRows(execute("SELECT k, v, (" + type + "){ a: 4, b: 'bar'} FROM %s"),
             row(0, userType("a", 3, "b", "foo"), userType("a", 4, "b", "bar"))
@@ -589,6 +592,7 @@ public class TermSelectionTest extends CQLTester
         createFunctionOverload(fAmbiguousFunc1, "int,int",
                                                 "CREATE FUNCTION %s (val1 int, val2 int) " +
                                                 "CALLED ON NULL INPUT " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
                                                 "RETURNS int " +
                                                 "LANGUAGE java\n" +
                                                 "AS 'return Math.max(val1, val2);';");

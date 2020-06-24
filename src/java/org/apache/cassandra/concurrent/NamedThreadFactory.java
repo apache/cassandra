@@ -37,6 +37,7 @@ public class NamedThreadFactory implements ThreadFactory
     private static volatile String globalPrefix;
     public static void setGlobalPrefix(String prefix) { globalPrefix = prefix; }
     public static String globalPrefix() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         String prefix = globalPrefix;
         return prefix == null ? "" : prefix;
     }
@@ -54,6 +55,8 @@ public class NamedThreadFactory implements ThreadFactory
 
     public NamedThreadFactory(String id, int priority)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
         this(id, priority, null, null);
     }
 
@@ -68,6 +71,7 @@ public class NamedThreadFactory implements ThreadFactory
     public Thread newThread(Runnable runnable)
     {
         String name = id + ':' + n.getAndIncrement();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         Thread thread = createThread(threadGroup, runnable, name, true);
         thread.setPriority(priority);
         if (contextClassLoader != null)
@@ -80,6 +84,7 @@ public class NamedThreadFactory implements ThreadFactory
     @VisibleForTesting
     public static Thread createThread(Runnable runnable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         return createThread(null, runnable, "anonymous-" + threadCounter.incrementAndGet());
     }
 
@@ -101,6 +106,7 @@ public class NamedThreadFactory implements ThreadFactory
     public static Thread createThread(ThreadGroup threadGroup, Runnable runnable, String name, boolean daemon)
     {
         String prefix = globalPrefix;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15008
         Thread thread = new FastThreadLocalThread(threadGroup, runnable, prefix != null ? prefix + name : name);
         thread.setDaemon(daemon);
         return thread;

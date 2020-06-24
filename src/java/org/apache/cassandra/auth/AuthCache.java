@@ -74,6 +74,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
                         IntConsumer setMaxEntriesDelegate,
                         IntSupplier getMaxEntriesDelegate,
                         Function<K, V> loadFunction,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14662
                         BooleanSupplier cacheEnabledDelegate)
     {
         this.name = checkNotNull(name);
@@ -94,6 +95,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
     protected void init()
     {
         cache = initCache(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, getObjectName());
     }
 
@@ -156,6 +158,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
 
     public int getValidity()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13732
         return getValidityDelegate.getAsInt();
     }
 
@@ -174,6 +177,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
 
     public int getUpdateInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13732
         return getUpdateIntervalDelegate.getAsInt();
     }
 
@@ -192,6 +196,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
 
     public int getMaxEntries()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13732
         return getMaxEntriesDelegate.getAsInt();
     }
 
@@ -213,8 +218,10 @@ public class AuthCache<K, V> implements AuthCacheMBean
         logger.info("(Re)initializing {} (validity period/update interval/max entries) ({}/{}/{})",
                     name, getValidity(), getUpdateInterval(), getMaxEntries());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         if (existing == null) {
           return Caffeine.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14662
                          .refreshAfterWrite(getUpdateInterval(), TimeUnit.MILLISECONDS)
                          .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
                          .maximumSize(getMaxEntries())

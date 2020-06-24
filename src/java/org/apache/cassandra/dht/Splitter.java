@@ -55,6 +55,7 @@ public abstract class Splitter
     protected BigInteger tokensInRange(Range<Token> range)
     {
         //full range case
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         if (range.left.equals(range.right))
             return tokensInRange(new Range(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
 
@@ -131,6 +132,7 @@ public abstract class Splitter
 
         BigInteger perPart = totalTokens.divide(BigInteger.valueOf(parts));
         // the range owned is so tiny we can't split it:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11034
         if (perPart.equals(BigInteger.ZERO))
             return Collections.singletonList(partitioner.getMaximumToken());
 
@@ -215,6 +217,7 @@ public abstract class Splitter
     public Set<Range<Token>> split(Collection<Range<Token>> ranges, int parts)
     {
         int numRanges = ranges.size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         if (numRanges >= parts)
         {
             return Sets.newHashSet(ranges);

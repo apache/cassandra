@@ -51,6 +51,7 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return new CachedHashDecoratedKey(getToken(key), key);
     }
 
@@ -60,12 +61,14 @@ public class OrderPreservingPartitioner implements IPartitioner
         BigInteger left = bigForString(((StringToken)ltoken).token, sigchars);
         BigInteger right = bigForString(((StringToken)rtoken).token, sigchars);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
         Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 16*sigchars);
         return new StringToken(stringForBig(midpair.left, sigchars, midpair.right));
     }
 
     public Token split(Token left, Token right, double ratioToLeft)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         throw new UnsupportedOperationException();
     }
 
@@ -110,16 +113,19 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     public StringToken getMinimumToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-242
         return MINIMUM;
     }
 
     public StringToken getRandomToken()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         return getRandomToken(ThreadLocalRandom.current());
     }
 
     public StringToken getRandomToken(Random random)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-273
         StringBuilder buffer = new StringBuilder();
         for (int j = 0; j < 16; j++)
             buffer.append(rndchars.charAt(random.nextInt(rndchars.length())));
@@ -130,12 +136,17 @@ public class OrderPreservingPartitioner implements IPartitioner
     {
         public ByteBuffer toByteArray(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
             StringToken stringToken = (StringToken) token;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2367
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             return ByteBufferUtil.bytes(stringToken.token);
         }
 
         public Token fromByteArray(ByteBuffer bytes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2091
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             try
             {
                 return new StringToken(ByteBufferUtil.string(bytes));
@@ -148,12 +159,16 @@ public class OrderPreservingPartitioner implements IPartitioner
 
         public String toString(Token token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
             StringToken stringToken = (StringToken) token;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-114
             return stringToken.token;
         }
 
         public void validate(String token) throws ConfigurationException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2762
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             if (token.contains(VersionedValue.DELIMITER_STR))
                 throw new ConfigurationException("Tokens may not contain the character " + VersionedValue.DELIMITER_STR);
         }
@@ -171,6 +186,7 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     public boolean preservesOrder()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-242
         return true;
     }
 
@@ -180,6 +196,7 @@ public class OrderPreservingPartitioner implements IPartitioner
 
         public StringToken(String token)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
             super(token);
         }
 
@@ -201,10 +218,13 @@ public class OrderPreservingPartitioner implements IPartitioner
         String skey;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2367
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             skey = ByteBufferUtil.string(key);
         }
         catch (CharacterCodingException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5793
             skey = ByteBufferUtil.bytesToHex(key);
         }
         return new StringToken(skey);
@@ -215,6 +235,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
         Map<Token, Float> allTokens = new HashMap<Token, Float>();
         List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3949
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
@@ -225,10 +246,12 @@ public class OrderPreservingPartitioner implements IPartitioner
             lastToken = node;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         for (String ks : Schema.instance.getKeyspaces())
         {
             for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
                 for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
@@ -254,6 +277,8 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     public AbstractType<?> partitionOrdering()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return UTF8Type.instance;
     }
 }

@@ -34,5 +34,6 @@ public interface IVerbHandler<T>
      *
      * @param message - incoming message that needs handling.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     void doVerb(Message<T> message) throws IOException;
 }

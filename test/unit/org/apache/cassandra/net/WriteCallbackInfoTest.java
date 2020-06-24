@@ -42,12 +42,14 @@ public class WriteCallbackInfoTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
     public void testShouldHint() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         testShouldHint(Verb.COUNTER_MUTATION_REQ, ConsistencyLevel.ALL, true, false);
         for (Verb verb : new Verb[] { Verb.PAXOS_COMMIT_REQ, Verb.MUTATION_REQ })
         {
@@ -59,7 +61,9 @@ public class WriteCallbackInfoTest
 
     private void testShouldHint(Verb verb, ConsistencyLevel cl, boolean allowHints, boolean expectHint) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         TableMetadata metadata = MockSchema.newTableMetadata("", "");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Object payload = verb == Verb.PAXOS_COMMIT_REQ
                          ? new Commit(UUID.randomUUID(), new PartitionUpdate.Builder(metadata, ByteBufferUtil.EMPTY_BYTE_BUFFER, RegularAndStaticColumns.NONE, 1).build())
                          : new Mutation(PartitionUpdate.simpleBuilder(metadata, "").build());

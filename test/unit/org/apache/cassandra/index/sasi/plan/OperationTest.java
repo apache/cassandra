@@ -182,6 +182,7 @@ public class OperationTest extends SchemaLoader
 
         // comment = 'soft eng' and comment != 'likes do'
         ListMultimap<ColumnMetadata, Expression> e = Operation.analyzeGroup(controller, OperationType.OR,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                                                                             Arrays.asList(new SimpleExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("soft eng")),
                                                                   new SimpleExpression(comment, Operator.NEQ, UTF8Type.instance.decompose("likes do"))));
 
@@ -279,6 +280,7 @@ public class OperationTest extends SchemaLoader
 
         Unfiltered row = buildRow(buildCell(age, Int32Type.instance.decompose(6), System.currentTimeMillis()));
         Row staticRow = buildRow(Clustering.STATIC_CLUSTERING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
         Assert.assertTrue(op.satisfiedBy(row, staticRow, false));
 
@@ -358,6 +360,7 @@ public class OperationTest extends SchemaLoader
                                   buildCell(timestamp, LongType.instance.decompose(11L), System.currentTimeMillis()));
 
         Assert.assertFalse(op.satisfiedBy(row, staticRow, false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
         row = buildRow(buildCell(age, Int32Type.instance.decompose(5), System.currentTimeMillis()),
                                   buildCell(timestamp, LongType.instance.decompose(22L), System.currentTimeMillis()));
@@ -381,6 +384,7 @@ public class OperationTest extends SchemaLoader
                                   buildCell(timestamp, LongType.instance.decompose(9L), System.currentTimeMillis()));
 
         Assert.assertTrue(op.satisfiedBy(row, staticRow, false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
         row = buildRow(buildCell(age, Int32Type.instance.decompose(20), System.currentTimeMillis()),
                                   buildCell(timestamp, LongType.instance.decompose(11L), System.currentTimeMillis()));
@@ -408,6 +412,7 @@ public class OperationTest extends SchemaLoader
                           buildCell(age, Int32Type.instance.decompose(6), System.currentTimeMillis()));
 
         Assert.assertFalse(op.satisfiedBy(row, staticRow, false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
         row = buildRow(deletedCell(age, System.currentTimeMillis(), FBUtilities.nowInSeconds()));
 
@@ -424,6 +429,7 @@ public class OperationTest extends SchemaLoader
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
             Assert.assertFalse(op.satisfiedBy(buildRow(), staticRow, true));
         }
         catch (IllegalStateException e)
@@ -489,10 +495,12 @@ public class OperationTest extends SchemaLoader
     {
         final ColumnMetadata comment = getColumn(UTF8Type.instance.decompose("comment"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
         Unfiltered row = buildRow(buildCell(comment,UTF8Type.instance.decompose("software engineer is working on a project"),System.currentTimeMillis()));
         Row staticRow = buildRow(Clustering.STATIC_CLUSTERING);
 
         Operation.Builder builder = new Operation.Builder(OperationType.AND, controller,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                                             new SimpleExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("eng is a work")));
         Operation op = builder.complete();
 
@@ -513,10 +521,12 @@ public class OperationTest extends SchemaLoader
         ColumnMetadata height = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("height"));
         ColumnMetadata score = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("score"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9472
         Unfiltered row = buildRow(Clustering.make(UTF8Type.instance.fromString("US"), Int32Type.instance.decompose(27)),
                                   buildCell(height, Int32Type.instance.decompose(182), System.currentTimeMillis()),
                                   buildCell(score, DoubleType.instance.decompose(1.0d), System.currentTimeMillis()));
         Row staticRow = buildRow(Clustering.STATIC_CLUSTERING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
         Operation.Builder builder = new Operation.Builder(OperationType.AND, controller);
         builder.add(new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(27)));
@@ -583,6 +593,7 @@ public class OperationTest extends SchemaLoader
         final ColumnMetadata sensorType = getColumn(STATIC_BACKEND, UTF8Type.instance.decompose("sensor_type"));
         final ColumnMetadata value = getColumn(STATIC_BACKEND, UTF8Type.instance.decompose("value"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
         Unfiltered row = buildRow(Clustering.make(UTF8Type.instance.fromString("date"), LongType.instance.decompose(20160401L)),
                           buildCell(value, DoubleType.instance.decompose(24.56), System.currentTimeMillis()));
         Row staticRow = buildRow(Clustering.STATIC_CLUSTERING,
@@ -683,6 +694,7 @@ public class OperationTest extends SchemaLoader
 
     private static Cell buildCell(ColumnMetadata column, ByteBuffer value, long timestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         return BufferCell.live(column, timestamp, value);
     }
 

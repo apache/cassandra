@@ -63,6 +63,7 @@ public class CompressorTest
 
     public void testArrayUncompress(byte[] data, int off, int len) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         final int inOffset = 2;
         ByteBuffer src = makeBB(len + inOffset);
         src.position(inOffset);
@@ -84,11 +85,13 @@ public class CompressorTest
         // need byte[] representation which direct buffers don't have
         byte[] compressedBytes = new byte[compressed.capacity()];
         ByteBufferUtil.copyBytes(compressed, outOffset, compressedBytes, outOffset, compressed.limit() - outOffset);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         final int decompressedLength = compressor.uncompress(compressedBytes, outOffset, compressed.remaining(), restored, restoreOffset);
 
         assertEquals(decompressedLength, len);
         assertArrayEquals(Arrays.copyOfRange(data, off, off + len),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                           Arrays.copyOfRange(restored, restoreOffset, restoreOffset + decompressedLength));
     }
 
@@ -124,6 +127,7 @@ public class CompressorTest
         src.flip();
 
         // create a temp file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File temp = FileUtils.createTempFile("tempfile", ".tmp");
         temp.deleteOnExit();
 
@@ -131,6 +135,7 @@ public class CompressorTest
         final int outOffset = 3;
         byte[] garbage = new byte[outOffset + compressor.initialCompressedBufferLength(data.length)];
         new Random().nextBytes(garbage);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         ByteBuffer dest = makeBB(outOffset + compressor.initialCompressedBufferLength(data.length));
         dest.put(garbage);
         dest.clear();
@@ -182,6 +187,7 @@ public class CompressorTest
     @Test
     public void testZstdByteBuffers() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         compressor = ZstdCompressor.create(Collections.<String, String>emptyMap());
         testByteBuffers();
     }
@@ -195,6 +201,7 @@ public class CompressorTest
 
     private void testByteBuffers() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         assert compressor.supports(BufferType.OFF_HEAP);
         assert compressor.supports(compressor.preferredBufferType());
 

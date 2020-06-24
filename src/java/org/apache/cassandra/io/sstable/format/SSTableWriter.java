@@ -75,6 +75,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     }
 
     protected SSTableWriter(Descriptor descriptor,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                             long keyCount,
                             long repairedAt,
                             UUID pendingRepair,
@@ -87,11 +88,13 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         super(descriptor, components(metadata.get()), metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
         this.metadataCollector = metadataCollector;
         this.header = header;
         this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata.get(), descriptor.version, header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
         this.observers = observers == null ? Collections.emptySet() : observers;
     }
 
@@ -160,7 +163,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 Component.SUMMARY,
                 Component.TOC,
                 Component.DIGEST));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         if (metadata.params.bloomFilterFpChance < 1.0)
             components.add(Component.FILTER);
 
@@ -178,6 +183,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     }
 
     private static Collection<SSTableFlushObserver> observers(Descriptor descriptor,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                                               Collection<Index> indexes,
                                                               OperationType operationType)
     {
@@ -217,6 +223,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public long getEstimatedOnDiskBytesWritten()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         return getOnDiskFilePointer();
     }
 
@@ -224,6 +231,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public SSTableWriter setRepairedAt(long repairedAt)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         if (repairedAt > 0)
             this.repairedAt = repairedAt;
         return this;
@@ -264,6 +272,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     {
         setOpenResult(openResult);
         txnProxy.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
         observers.forEach(SSTableFlushObserver::complete);
         return finished();
     }
@@ -285,6 +294,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public final Throwable commit(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         try
         {
             return txnProxy.commit(accumulate);
@@ -312,9 +322,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                   pendingRepair,
                                                   isTransient,
                                                   header);
@@ -345,11 +357,15 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         public abstract SSTableWriter open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                            UUID pendingRepair,
                                            boolean isTransient,
                                            TableMetadataRef metadata,
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                            Collection<SSTableFlushObserver> observers,
                                            LifecycleNewTracker lifecycleNewTracker);
     }

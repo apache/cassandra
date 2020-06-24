@@ -131,5 +131,6 @@ public interface MessagingServiceMBean
 
     public int getVersion(String address) throws UnknownHostException;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14991
     void reloadSslCertificates() throws IOException;
 }

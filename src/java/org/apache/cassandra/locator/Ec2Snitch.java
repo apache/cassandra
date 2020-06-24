@@ -53,6 +53,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     private static final String DEFAULT_DC = "UNKNOWN-DC";
     private static final String DEFAULT_RACK = "UNKNOWN-RACK";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
     final String ec2region;
     private final String ec2zone;
     private final boolean usingLegacyNaming;
@@ -117,6 +118,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             byte[] b = new byte[cl];
             d = new DataInputStream((FilterInputStream) conn.getContent());
             d.readFully(b);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
             return new String(b, StandardCharsets.UTF_8);
         }
         finally
@@ -128,11 +130,14 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2zone;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5171
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5171
             if (savedEndpoints == null)
                 savedEndpoints = SystemKeyspace.loadDcRackInfo();
             if (savedEndpoints.containsKey(endpoint))
@@ -144,11 +149,14 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2region;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.DC) == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5171
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5171
             if (savedEndpoints == null)
                 savedEndpoints = SystemKeyspace.loadDcRackInfo();
             if (savedEndpoints.containsKey(endpoint))
@@ -161,6 +169,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     @Override
     public boolean validate(Set<String> datacenters, Set<String> racks)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7839
         return validate(datacenters, racks, usingLegacyNaming);
     }
 

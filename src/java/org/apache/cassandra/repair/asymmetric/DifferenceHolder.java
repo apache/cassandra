@@ -40,6 +40,7 @@ public class DifferenceHolder
 
     public DifferenceHolder(List<TreeResponse> trees)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         ImmutableMap.Builder<InetAddressAndPort, HostDifferences> diffBuilder = ImmutableMap.builder();
         for (int i = 0; i < trees.size() - 1; ++i)
         {
@@ -51,6 +52,7 @@ public class DifferenceHolder
                 TreeResponse r2 = trees.get(j);
                 hd.add(r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
             r1.trees.release();
             // and add them to the diff map
             diffBuilder.put(r1.endpoint, hd);
@@ -60,6 +62,7 @@ public class DifferenceHolder
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     DifferenceHolder(Map<InetAddressAndPort, HostDifferences> differences)
     {
         ImmutableMap.Builder<InetAddressAndPort, HostDifferences> diffBuilder = ImmutableMap.builder();

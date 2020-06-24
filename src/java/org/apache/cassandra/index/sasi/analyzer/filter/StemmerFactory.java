@@ -42,6 +42,7 @@ public class StemmerFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(StemmerFactory.class);
     private static final LoadingCache<Class, Constructor<?>> STEMMER_CONSTRUCTOR_CACHE = Caffeine.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             .executor(MoreExecutors.directExecutor())
             .build(new CacheLoader<Class, Constructor<?>>()
             {

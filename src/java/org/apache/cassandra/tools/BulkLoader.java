@@ -45,15 +45,18 @@ public class BulkLoader
 {
     public static void main(String args[]) throws BulkLoadException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10637
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
         load(options);
     }
 
     public static void load(LoaderOptions options) throws BulkLoadException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.toolInitialization();
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12609
                 options.directory.getAbsoluteFile(),
                 new ExternalClient(
                         options.hosts,
@@ -61,11 +64,16 @@ public class BulkLoader
                         options.authProvider,
                         options.sslStoragePort,
                         options.serverEncOptions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11708
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                         buildSSLOptions(options.clientEncOptions)),
                         handler,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13884
                         options.connectionsPerHost,
                         options.targetKeyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3752
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9708
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
         StreamResultFuture future = null;
 
@@ -84,6 +92,7 @@ public class BulkLoader
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             System.err.println(e.getMessage());
             if (e.getCause() != null)
@@ -111,6 +120,7 @@ public class BulkLoader
             System.err.println("Streaming to the following hosts failed:");
             System.err.println(loader.getFailedHosts());
             e.printStackTrace(System.err);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10637
             throw new BulkLoadException(e);
         }
     }
@@ -129,6 +139,7 @@ public class BulkLoader
 
         public ProgressIndicator()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
             start = lastTime = System.nanoTime();
         }
 
@@ -166,6 +177,7 @@ public class BulkLoader
 
                 boolean updateTotalFiles = totalFiles == 0;
                 // recalculate progress across all sessions in all hosts and display
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 for (InetAddressAndPort peer : sessionsByHost.keySet())
                 {
                     sb.append("[").append(peer).append("]");
@@ -176,6 +188,7 @@ public class BulkLoader
                         long current = 0;
                         int completed = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10637
                         if (progressInfo != null && session.peer.equals(progressInfo.peer) && session.sessionIndex == progressInfo.sessionIndex)
                         {
                             session.updateProgress(progressInfo);
@@ -208,6 +221,7 @@ public class BulkLoader
                 lastProgress = totalProgress;
 
                 sb.append("total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append("% ");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 sb.append(FBUtilities.prettyPrintMemoryPerSecond(deltaProgress, deltaTime));
                 long average = bytesPerSecond(totalProgress, time - start);
 
@@ -248,6 +262,7 @@ public class BulkLoader
 
         if (!clientEncryptionOptions.isEnabled())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
             return null;
         }
 
@@ -263,6 +278,7 @@ public class BulkLoader
 
         return JdkSSLOptions.builder()
                             .withSSLContext(sslContext)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                             .withCipherSuites(clientEncryptionOptions.cipher_suites.toArray(new String[0]))
                             .build();
     }
@@ -277,16 +293,19 @@ public class BulkLoader
                               AuthProvider authProvider,
                               int sslStoragePort,
                               EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                               SSLOptions sslOptions)
         {
             super(hosts, storagePort, authProvider, sslOptions);
             this.sslStoragePort = sslStoragePort;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10637
             serverEncOptions = serverEncryptionOptions;
         }
 
         @Override
         public StreamConnectionFactory getConnectionFactory()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new BulkLoadConnectionFactory(sslStoragePort, serverEncOptions, false);
         }
     }
@@ -319,6 +338,7 @@ public class BulkLoader
          */
         public Options addOptionList(String opt, String longOpt, String argName, String description)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             Option option = new Option(opt, longOpt, true, description);
             option.setArgName(argName);
             option.setArgs(Option.UNLIMITED_VALUES);

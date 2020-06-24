@@ -28,6 +28,7 @@ public abstract class UuidFcts
 {
     public static Collection<Function> all()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         return Collections.singleton(uuidFct);
     }
 

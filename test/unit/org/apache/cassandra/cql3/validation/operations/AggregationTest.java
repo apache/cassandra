@@ -67,6 +67,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidThrowMessage(String.format("Aggregate '%s.aggr_does_not_exist' doesn't exist", KEYSPACE),
                                   InvalidRequestException.class,
                                   "DROP AGGREGATE " + KEYSPACE + ".aggr_does_not_exist");
@@ -93,6 +94,7 @@ public class AggregationTest extends CQLTester
     public void testFunctions() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c double, d decimal, e smallint, f tinyint, primary key (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9671
 
         // Test with empty table
         assertColumnNames(execute("SELECT COUNT(*) FROM %s"), "count");
@@ -133,9 +135,12 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT COUNT(1) FROM %s"), row(4L));
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s"), row(4L, 3L, 3L, 3L));
         // Makes sure that LIMIT does not affect the result of aggregates
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10380
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10487
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s LIMIT 2"), row(4L, 3L, 3L, 3L));
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s WHERE a = 1 LIMIT 2"),
                    row(4L, 3L, 3L, 3L));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
         assertRows(execute("SELECT AVG(CAST(b AS double)) FROM %s"), row(11.0/4));
     }
 
@@ -143,6 +148,7 @@ public class AggregationTest extends CQLTester
     public void testCountStarFunction() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c double, primary key (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10114
 
         // Test with empty table
         assertColumnNames(execute("SELECT COUNT(*) FROM %s"), "count");
@@ -174,6 +180,8 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT max(b), b, COUNT(*) FROM %s"), row(5, 1, 4L));
         assertRows(execute("SELECT max(b), COUNT(1), b FROM %s"), row(5, 4L, 1));
         // Makes sure that LIMIT does not affect the result of aggregates
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10380
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10487
         assertRows(execute("SELECT max(b), COUNT(1), b FROM %s LIMIT 2"), row(5, 4L, 1));
         assertRows(execute("SELECT max(b), COUNT(1), b FROM %s WHERE a = 1 LIMIT 2"), row(5, 4L, 1));
     }
@@ -182,6 +190,7 @@ public class AggregationTest extends CQLTester
     public void testAggregateWithColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, primary key (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
 
         // Test with empty table
         assertColumnNames(execute("SELECT count(b), max(b) as max, b, c as first FROM %s"),
@@ -201,6 +210,8 @@ public class AggregationTest extends CQLTester
     public void testAggregateOnCounters() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b counter, primary key (a))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9977
 
         // Test with empty table
         assertColumnNames(execute("SELECT count(b), max(b) as max, b FROM %s"),
@@ -257,6 +268,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT count(b.x), max(b.x) as max, b.x, c.x as first FROM %s"),
                    row(3L, 8, 2, null));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Invalid field selection: system.max(b) of type blob is not a user type",
                              "SELECT max(b).x as max FROM %s");
     }
@@ -308,6 +320,7 @@ public class AggregationTest extends CQLTester
         long today = System.currentTimeMillis() * 1000;
         long yesterday = today - (DateUtils.MILLIS_PER_DAY * 1000);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9891
         final int secondsPerMinute = 60;
         execute("INSERT INTO %s (a, b, c) VALUES (1, 2, null) USING TTL " + (20 * secondsPerMinute));
         execute("INSERT INTO %s (a, b, c) VALUES (2, 4, 6) USING TTL " + (10 * secondsPerMinute));
@@ -319,6 +332,7 @@ public class AggregationTest extends CQLTester
         UntypedResultSet resultSet = execute("SELECT min(ttl(b)), ttl(b) FROM %s");
         assertEquals(1, resultSet.size());
         Row row = resultSet.one();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9891
         assertTrue(row.getInt("ttl(b)") > (10 * secondsPerMinute));
         assertTrue(row.getInt("system.min(ttl(b))") <= (10 * secondsPerMinute));
 
@@ -345,6 +359,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testReversedType() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10296
         createTable("CREATE TABLE %s (a int, b int, c int, primary key (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 10)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 2, 9)");
@@ -359,14 +374,17 @@ public class AggregationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int primary key, b timeuuid, c double, d double)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8053
         String copySign = createFunction(KEYSPACE,
                                          "double, double",
                                          "CREATE OR REPLACE FUNCTION %s(magnitude double, sign double) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS double " +
                                          "LANGUAGE JAVA " +
                                          "AS 'return Double.valueOf(Math.copySign(magnitude, sign));';");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         assertColumnNames(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), "system.max(a)", "system.max(system.tounixtimestamp(b))");
         assertRows(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), row(null, null));
         assertColumnNames(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), "system.max(a)", "system.tounixtimestamp(system.max(b))");
@@ -384,12 +402,15 @@ public class AggregationTest extends CQLTester
         Date date = format.parse("2011-02-03 04:10:00");
         date = DateUtils.truncate(date, Calendar.MILLISECOND);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         assertRows(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), row(3, date.getTime()));
         assertRows(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), row(3, date.getTime()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8053
         assertRows(execute("SELECT " + copySign + "(max(c), min(c)) FROM %s"), row(-1.4));
         assertRows(execute("SELECT " + copySign + "(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));
         assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row(1.4));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
         assertRows(execute("SELECT " + copySign + "(c, max(c)) FROM %s"), row(1.2));
         assertRows(execute("SELECT " + copySign + "(max(c), c) FROM %s"), row(-1.4));;
     }
@@ -397,6 +418,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testSchemaChange() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
         String f = createFunction(KEYSPACE,
                                   "double, double",
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
@@ -426,8 +448,11 @@ public class AggregationTest extends CQLTester
 
         schemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
                      "SFUNC " + shortFunctionName(f) + " " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                      "STYPE double " +
                      "INITCOND 1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         assertLastSchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.AGGREGATE,
                                KEYSPACE, parseFunctionName(a).name,
@@ -437,6 +462,7 @@ public class AggregationTest extends CQLTester
                                 "int",
                                 "CREATE OR REPLACE AGGREGATE %s(int) " +
                                 "SFUNC " + shortFunctionName(f) + " " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                 "STYPE int " +
                                 "INITCOND 0");
 
@@ -463,8 +489,11 @@ public class AggregationTest extends CQLTester
                                   "AS '\"string\";';");
 
         createFunctionOverload(f,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
                                "double, double",
                                "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                "RETURNS NULL ON NULL INPUT " +
                                "RETURNS int " +
                                "LANGUAGE javascript " +
@@ -473,11 +502,13 @@ public class AggregationTest extends CQLTester
         // DROP AGGREGATE must not succeed against a scalar
         assertInvalidMessage("matches multiple function definitions", "DROP AGGREGATE " + f);
         assertInvalidMessage("doesn't exist", "DROP AGGREGATE " + f + "(double, double)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         String a = createAggregate(KEYSPACE,
                                    "double",
                                    "CREATE OR REPLACE AGGREGATE %s(double) " +
                                    "SFUNC " + shortFunctionName(f) + " " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                    "STYPE double " +
                                    "INITCOND 0");
         createAggregateOverload(a,
@@ -490,6 +521,7 @@ public class AggregationTest extends CQLTester
         // DROP FUNCTION must not succeed against an aggregate
         assertInvalidMessage("matches multiple function definitions", "DROP FUNCTION " + a);
         assertInvalidMessage("doesn't exist", "DROP FUNCTION " + a + "(double)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // ambigious
         assertInvalidMessage("matches multiple function definitions", "DROP AGGREGATE " + a);
@@ -509,6 +541,9 @@ public class AggregationTest extends CQLTester
         String f = createFunction(KEYSPACE,
                                   "double, double",
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                   "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
                                   "LANGUAGE javascript " +
@@ -518,11 +553,13 @@ public class AggregationTest extends CQLTester
                                    "double",
                                    "CREATE OR REPLACE AGGREGATE %s(double) " +
                                    "SFUNC " + shortFunctionName(f) + " " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                    "STYPE double " +
                                    "INITCOND 0");
 
         // DROP FUNCTION must not succeed because the function is still referenced by the aggregate
         assertInvalidMessage("still referenced by", "DROP FUNCTION " + f);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
 
         execute("DROP AGGREGATE " + a + "(double)");
     }
@@ -625,6 +662,7 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         assertInvalidMessage("Invalid STRING constant (foobar)",
                              "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
                              "SFUNC " + shortFunctionName(fState) + " " +
@@ -655,6 +693,7 @@ public class AggregationTest extends CQLTester
         String fState2 = createFunction(KEYSPACE,
                                         "int, int",
                                         "CREATE FUNCTION %s(a double, b double) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                         "CALLED ON NULL INPUT " +
                                         "RETURNS double " +
                                         "LANGUAGE java " +
@@ -668,6 +707,7 @@ public class AggregationTest extends CQLTester
                                         "LANGUAGE java " +
                                         "AS 'return a.toString();'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("doesn't exist",
                              "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
                              "SFUNC " + shortFunctionName(fState) + " " +
@@ -724,7 +764,9 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("doesn't exist",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
                              "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
                              "SFUNC " + shortFunctionName(fState) + "_not_there " +
                              "STYPE int " +
@@ -754,6 +796,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
@@ -770,6 +813,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
@@ -805,6 +849,7 @@ public class AggregationTest extends CQLTester
                                     "FINALFUNC " + shortFunctionName(fFinalOK) + " " +
                                     "INITCOND null");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         assertInvalidThrowMessage("java.lang.RuntimeException", FunctionExecutionException.class, "SELECT " + a0 + "(b) FROM %s");
         assertInvalidThrowMessage("java.lang.RuntimeException", FunctionExecutionException.class, "SELECT " + a1 + "(b) FROM %s");
         assertRows(execute("SELECT " + a2 + "(b) FROM %s"), row("foobar"));
@@ -813,6 +858,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testJavaAggregateWithoutStateOrFinal() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("doesn't exist",
                              "CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE1(int) " +
                              "SFUNC jSumFooNEstate " +
@@ -821,12 +867,15 @@ public class AggregationTest extends CQLTester
         String f = createFunction(KEYSPACE,
                                   "int, int",
                                   "CREATE FUNCTION %s(a int, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                   "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS int " +
                                   "LANGUAGE java " +
                                   "AS 'return Integer.valueOf(a + b);'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("doesn't exist",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
                              "CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE2(int) " +
                              "SFUNC " + shortFunctionName(f) + " " +
                              "STYPE int " +
@@ -854,6 +903,13 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
@@ -867,6 +923,7 @@ public class AggregationTest extends CQLTester
                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
                                    "INITCOND 42");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(a)),
                    row("42"));
 
@@ -917,10 +974,18 @@ public class AggregationTest extends CQLTester
     public void testJavaAggregateEmpty() throws Throwable
     {
         createTable("CREATE TABLE %s (a int primary key, b int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13399
 
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
@@ -971,8 +1036,10 @@ public class AggregationTest extends CQLTester
         // double as finaltype
 
         String fState = createFunction(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                                        "tuple<bigint, int>, int",
                                        "CREATE FUNCTION %s(a tuple<bigint, int>, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS tuple<bigint, int> " +
                                        "LANGUAGE java " +
@@ -983,8 +1050,10 @@ public class AggregationTest extends CQLTester
                                        "'");
 
         String fFinal = createFunction(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                                        "tuple<bigint, int>",
                                        "CREATE FUNCTION %s(a tuple<bigint, int>) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS double " +
                                        "LANGUAGE java " +
@@ -998,10 +1067,12 @@ public class AggregationTest extends CQLTester
                                    "int",
                                    "CREATE AGGREGATE %s(int) " +
                                    "SFUNC " + shortFunctionName(fState) + " " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                                    "STYPE tuple<bigint, int> "+
                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
                                    "INITCOND (0, 0)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(a)),
                    row("(0, 0)"));
 
@@ -1029,6 +1100,8 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE javascript " +
@@ -1082,6 +1155,12 @@ public class AggregationTest extends CQLTester
 
         execute("DROP FUNCTION " + fState + "(int, int)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8528
         assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
@@ -1109,8 +1188,10 @@ public class AggregationTest extends CQLTester
                                        "SFUNC " + shortFunctionName(fState) + " " +
                                        "STYPE int");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             ResultMessage.Prepared prepared = QueryProcessor.prepare("SELECT " + a + "(b) FROM " + otherKS + ".jsdp", ClientState.forInternalCalls());
             assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
 
             execute("DROP AGGREGATE " + a + "(int)");
             assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
@@ -1121,8 +1202,10 @@ public class AggregationTest extends CQLTester
                     "SFUNC " + shortFunctionName(fState) + " " +
                     "STYPE int");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             prepared = QueryProcessor.prepare("SELECT " + a + "(b) FROM " + otherKS + ".jsdp", ClientState.forInternalCalls());
             assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
 
             execute("DROP KEYSPACE " + otherKS + ";");
 
@@ -1141,6 +1224,10 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE javascript " +
@@ -1152,6 +1239,7 @@ public class AggregationTest extends CQLTester
                                    "SFUNC " + shortFunctionName(fState) + " " +
                                    "STYPE int ");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("doesn't exist",
                              "CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
                              "SFUNC " + shortFunctionName(a) + " " +
@@ -1167,6 +1255,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testCalledOnNullInput() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
         String fStateNonNull = createFunction(KEYSPACE,
                                               "int, int",
                                               "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
@@ -1301,6 +1390,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testWrongStateType() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9321
         createTable("CREATE TABLE %s (key int primary key, val int)");
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1);
 
@@ -1321,6 +1411,7 @@ public class AggregationTest extends CQLTester
                                        "AS 'return Integer.valueOf(1);';");
 
         assertInvalidMessage("return type must be the same as the first argument type - check STYPE, argument and return types",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9409
                              "CREATE AGGREGATE %s(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE int " +
@@ -1353,6 +1444,7 @@ public class AggregationTest extends CQLTester
         String fStateWrong = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS double " +
                                        "LANGUAGE java " +
@@ -1361,11 +1453,14 @@ public class AggregationTest extends CQLTester
         String fFinalWrong = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf(1);';");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9542
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9542
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
                                            KEYSPACE_PER_TEST, KEYSPACE),
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
@@ -1377,13 +1472,17 @@ public class AggregationTest extends CQLTester
         assertInvalidMessage("mismatched input", // specifying a function using "keyspace.functionname" is a syntax error
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + fStateWrong + ' ' +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                              "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12598
         assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
                              "STYPE " + type + " " +
                              "FINALFUNC " + fFinalWrong + ' ' +
                              "INITCOND 1");
@@ -1392,6 +1491,7 @@ public class AggregationTest extends CQLTester
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + ' ' +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                              "FINALFUNC " + SchemaConstants.SYSTEM_KEYSPACE_NAME + ".min " +
                              "INITCOND 1");
     }
@@ -1399,6 +1499,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testFunctionWithFrozenSetType() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<set<int>>)");
         createIndex("CREATE INDEX ON %s (FULL(b))");
 
@@ -1423,8 +1524,11 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return state;'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("cannot be frozen",
                              "CREATE AGGREGATE %s(set<int>) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10040
                              "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<set<int>> " +
                              "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
@@ -1440,10 +1544,12 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregation)),
                    row((Object) null));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(set(7, 8, 9)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Argument 'frozen<set<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<set<int>>'",
                              "DROP AGGREGATE %s (frozen<set<int>>);");
     }
@@ -1475,8 +1581,11 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return state;'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("cannot be frozen",
                              "CREATE AGGREGATE %s(list<int>) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10040
                              "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<list<int>> " +
                              "FINALFUNC " + parseFunctionName(fFinal).name + " " +
@@ -1493,6 +1602,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(list(7, 8, 9)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Argument 'frozen<list<int>>' cannot be frozen; remove frozen<> modifier from 'frozen<list<int>>'",
                              "DROP AGGREGATE %s (frozen<list<int>>);");
     }
@@ -1524,8 +1634,11 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return state;'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("cannot be frozen",
                              "CREATE AGGREGATE %s(map<int, int>) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10040
                              "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<map<int, int>> " +
                              "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
@@ -1542,6 +1655,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(map(7, 8, 9, 10)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Argument 'frozen<map<int, int>>' cannot be frozen; remove frozen<> modifier from 'frozen<map<int, int>>'",
                              "DROP AGGREGATE %s (frozen<map<int, int>>);");
     }
@@ -1573,8 +1687,11 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return state;'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("cannot be frozen",
                              "CREATE AGGREGATE %s(tuple<int, int>) " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10040
                              "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<tuple<int, int>> " +
                              "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
@@ -1591,6 +1708,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(tuple(7, 8)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Argument 'tuple<int, int>' cannot be frozen; remove frozen<> modifier from 'tuple<int, int>'",
                              "DROP AGGREGATE %s (frozen<tuple<int, int>>);");
     }
@@ -1608,6 +1726,7 @@ public class AggregationTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 3, 7);
 
         String fState = createFunction(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10056
                                        myType + ',' + myType,
                                        "CREATE FUNCTION %s (state " + myType + ", values " + myType + ") " +
                                        "CALLED ON NULL INPUT " +
@@ -1623,8 +1742,11 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return state;'");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("cannot be frozen",
                              "CREATE AGGREGATE %s(" + myType + ") " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9771
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10040
                              "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<" + myType + "> " +
                              "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
@@ -1641,6 +1763,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aggregation + "(b).f FROM %s"),
                    row(7));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Argument 'frozen<%s>' cannot be frozen; remove frozen<> modifier from 'frozen<%s>'", myType, myType),
                              "DROP AGGREGATE %s (frozen<" + myType + ">);");
     }
@@ -1648,6 +1771,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testEmptyValues() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         createTable("CREATE TABLE %s (a int primary key, b text)");
         execute("INSERT INTO %s (a, b) VALUES (1, '')");
         execute("INSERT INTO %s (a, b) VALUES (2, '')");
@@ -1670,6 +1794,7 @@ public class AggregationTest extends CQLTester
                                      "AS 'return \"fin\" + a;'");
 
         String aCON = createAggregate(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9542
                                       "text",
                                       "CREATE AGGREGATE %s(text) " +
                                       "SFUNC " + shortFunctionName(fCON) + ' ' +
@@ -1677,10 +1802,12 @@ public class AggregationTest extends CQLTester
                                       "FINALFUNC " + shortFunctionName(fCONf) + ' ' +
                                       "INITCOND ''");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aCON)),
                    row("''"));
 
         String fRNON = createFunction(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10056
                                       "text, text",
                                       "CREATE FUNCTION %s(a text, b text) " +
                                       "RETURNS NULL ON NULL INPUT " +
@@ -1697,6 +1824,7 @@ public class AggregationTest extends CQLTester
                                       "AS 'return \"fin\" + a;'");
 
         String aRNON = createAggregate(KEYSPACE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10056
                                       "text",
                                       "CREATE AGGREGATE %s(text) " +
                                       "SFUNC " + shortFunctionName(fRNON) + ' ' +
@@ -1720,6 +1848,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testEmptyListAndNullInitcond() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10367
         String f = createFunction(KEYSPACE,
                                       "list, int",
                                       "CREATE FUNCTION %s(s list<text>, i int) " +
@@ -1735,6 +1864,7 @@ public class AggregationTest extends CQLTester
                                        "STYPE list<text> " +
                                        "INITCOND [  ]");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(a)),
                    row("[]"));
 
@@ -1792,6 +1922,7 @@ public class AggregationTest extends CQLTester
                                                        " STYPE map<text,bigint>\n" +
                                                        " INITCOND { };");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12535
             long tEnd = System.currentTimeMillis() + 150;
             while (System.currentTimeMillis() < tEnd)
             {
@@ -1816,6 +1947,7 @@ public class AggregationTest extends CQLTester
             if (turboFilter instanceof ReconfigureOnChangeFilter)
             {
                 ReconfigureOnChangeFilter reconfigureFilter = (ReconfigureOnChangeFilter) turboFilter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12535
                 reconfigureFilter.setContext(ctx);
                 reconfigureFilter.setRefreshPeriod(millis);
                 reconfigureFilter.stop();
@@ -1825,6 +1957,7 @@ public class AggregationTest extends CQLTester
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14183
         ReconfigureOnChangeTask roct = (ReconfigureOnChangeTask) ctx.getObject(RECONFIGURE_ON_CHANGE_TASK);
         if (roct != null)
         {
@@ -1840,6 +1973,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testOrReplaceOptionals() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10840
         String fState = createFunction(KEYSPACE,
                                        "list<text>, int",
                                        "CREATE FUNCTION %s(s list<text>, i int) " +
@@ -1902,6 +2036,7 @@ public class AggregationTest extends CQLTester
         {
             String type = "DynamicCompositeType(s => UTF8Type, i => Int32Type)";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             executeNet(ProtocolVersion.CURRENT,
                        "CREATE FUNCTION " + KEYSPACE + ".f11064(i 'DynamicCompositeType(s => UTF8Type, i => Int32Type)')\n" +
                        "RETURNS NULL ON NULL INPUT\n" +
@@ -1910,6 +2045,7 @@ public class AggregationTest extends CQLTester
                        "AS 'return i;'");
 
             // create aggregate using the 'composite syntax' for composite types
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             executeNet(ProtocolVersion.CURRENT,
                        "CREATE AGGREGATE " + KEYSPACE + ".a11064()\n" +
                        "SFUNC f11064 " +
@@ -1918,6 +2054,7 @@ public class AggregationTest extends CQLTester
 
             AbstractType<?> compositeType = TypeParser.parse(type);
             ByteBuffer compositeTypeValue = compositeType.fromString("s@foo:i@32");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             String compositeTypeString = compositeType.asCQL3Type().toCQLLiteral(compositeTypeValue, ProtocolVersion.CURRENT);
             // ensure that the composite type is serialized using the 'blob syntax'
             assertTrue(compositeTypeString.startsWith("0x"));
@@ -1927,6 +2064,7 @@ public class AggregationTest extends CQLTester
                        row(compositeTypeString));
 
             // create aggregate using the 'blob syntax' for composite types
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             executeNet(ProtocolVersion.CURRENT,
                        "CREATE AGGREGATE " + KEYSPACE + ".a11064_2()\n" +
                        "SFUNC f11064 " +
@@ -1966,6 +2104,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testArithmeticCorrectness() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11485
         createTable("create table %s (bucket int primary key, val decimal)");
         execute("insert into %s (bucket, val) values (1, 0.25)");
         execute("insert into %s (bucket, val) values (2, 0.25)");
@@ -1983,6 +2122,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testAggregatesWithoutOverflow() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
         createTable("create table %s (bucket int primary key, v1 tinyint, v2 smallint, v3 int, v4 bigint, v5 varint)");
         for (int i = 1; i <= 3; i++)
             execute("insert into %s (bucket, v1, v2, v3, v4, v5) values (?, ?, ?, ?, ?, ?)", i,
@@ -2056,6 +2196,7 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("select avg(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
                    row(Float.NaN, Double.NaN));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
         assertRows(execute("select sum(v1), sum(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
                    row(Float.NaN, Double.NaN));
     }
@@ -2077,6 +2218,7 @@ public class AggregationTest extends CQLTester
 
             assertRows(execute("select avg(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
                        row(FLOAT_INFINITY, DOUBLE_INFINITY));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
             assertRows(execute("select sum(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
                        row(FLOAT_INFINITY, DOUBLE_INFINITY));
 
@@ -2092,6 +2234,7 @@ public class AggregationTest extends CQLTester
         for (int i = 1; i <= 17; i++)
             execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", i, (float) (i / 10.0), i / 10.0, BigDecimal.valueOf(i / 10.0));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12417
         assertRows(execute("select sum(v1), sum(v2), sum(v3) from %s;"),
                    row((float) 15.3, 15.3, BigDecimal.valueOf(15.3)));
     }

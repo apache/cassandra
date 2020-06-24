@@ -25,6 +25,7 @@ import org.apache.cassandra.utils.memory.BufferPool;
 /**
  * Primary {@link ByteBuf} / {@link ByteBuffer} allocator - using the global {@link BufferPool}.
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 class GlobalBufferPoolAllocator extends BufferPoolAllocator
 {
     static final GlobalBufferPoolAllocator instance = new GlobalBufferPoolAllocator();

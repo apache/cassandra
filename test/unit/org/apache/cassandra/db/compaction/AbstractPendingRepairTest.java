@@ -60,6 +60,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         LocalSessionAccessor.startup();
 
         // cutoff messaging service
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().outboundSink.add((message, to) -> false);
         MessagingService.instance().inboundSink.add((message) -> false);
     }
@@ -73,6 +74,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.id);
         csm = cfs.getCompactionStrategyManager();
         nextSSTableKey = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13224
         cfs.disableAutoCompaction();
     }
 

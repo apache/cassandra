@@ -27,6 +27,7 @@ public class RemoveCellTest extends CQLTester
     @Test
     public void testDeleteCell() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", 0, 0, 0, 0L);

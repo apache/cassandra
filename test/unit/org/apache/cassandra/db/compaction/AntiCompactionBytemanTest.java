@@ -126,6 +126,7 @@ public class AntiCompactionBytemanTest extends CQLTester
 
         try (LifecycleTransaction txn = getCurrentColumnFamilyStore().getTracker().tryModify(getCurrentColumnFamilyStore().getLiveSSTables(), OperationType.ANTICOMPACTION))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             CompactionManager.instance.antiCompactGroup(getCurrentColumnFamilyStore(), ranges, txn, UUID.randomUUID(), () -> false);
         }
         finished.set(true);

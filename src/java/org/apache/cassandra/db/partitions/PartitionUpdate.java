@@ -122,6 +122,7 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public static PartitionUpdate singleRowUpdate(TableMetadata metadata, DecoratedKey key, Row row, Row staticRow)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14568
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
         Holder holder = new Holder(
             new RegularAndStaticColumns(
@@ -181,6 +182,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         iterator = UnfilteredRowIterators.withOnlyQueriedData(iterator, filter);
         Holder holder = build(iterator, 16);
         MutableDeletionInfo deletionInfo = (MutableDeletionInfo) holder.deletionInfo;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
 
@@ -225,8 +227,10 @@ public class PartitionUpdate extends AbstractBTreePartition
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
             return serializer.deserialize(new DataInputBuffer(bytes, true),
                                           version,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                           DeserializationHelper.Flag.LOCAL);
         }
         catch (IOException e)
@@ -247,7 +251,9 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             serializer.serialize(update, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13298
             return out.buffer();
         }
         catch (IOException e)
@@ -309,7 +315,9 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public int operationCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         return rowCount()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10606
              + (staticRow().isEmpty() ? 0 : 1)
              + deletionInfo.rangeCount()
              + (deletionInfo.getPartitionDeletion().isLive() ? 0 : 1);
@@ -324,6 +332,8 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         int size = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15292
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15293
         if (holder.staticRow != null)
         {
             for (ColumnData cd : holder.staticRow.columnData())
@@ -352,11 +362,13 @@ public class PartitionUpdate extends AbstractBTreePartition
         // The superclass implementation calls holder(), but that triggers a build of the PartitionUpdate. But since
         // the columns are passed to the ctor, we know the holder always has the proper columns even if it doesn't have
         // the built rows yet, so just bypass the holder() method.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         return holder.columns;
     }
 
     protected Holder holder()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         return holder;
     }
 
@@ -375,6 +387,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         for (Row row : this)
         {
             metadata().comparator.validate(row.clustering());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             for (ColumnData cd : row)
                 cd.validate();
         }
@@ -387,6 +400,7 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public long maxTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         long maxTimestamp = deletionInfo.maxTimestamp();
         for (Row row : this)
         {
@@ -438,8 +452,10 @@ public class PartitionUpdate extends AbstractBTreePartition
         assert metadata().isCounter();
         // We will take aliases on the rows of this update, and update them in-place. So we should be sure the
         // update is now immutable for all intent and purposes.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12219
         List<CounterMark> marks = new ArrayList<>();
         addMarksForRow(staticRow(), marks);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         for (Row row : this)
             addMarksForRow(row, marks);
         return marks;
@@ -465,11 +481,13 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public static SimpleBuilder simpleBuilder(TableMetadata metadata, Object... partitionKeyValues)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         return new SimpleBuilders.PartitionUpdateBuilder(metadata, partitionKeyValues);
     }
 
     public void validateIndexedColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         IndexRegistry.obtain(metadata()).validate(this);
     }
 
@@ -629,6 +647,7 @@ public class PartitionUpdate extends AbstractBTreePartition
                 assert !iter.isReverseOrder();
 
                 update.metadata.id.serialize(out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                 UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, update.rowCount());
             }
         }
@@ -636,6 +655,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, flag);
             if (header.isEmpty)
                 return emptyUpdate(metadata, header.key);
@@ -644,6 +664,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             assert header.rowEstimate >= 0;
 
             MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(header.partitionDeletion, metadata.comparator, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             BTree.Builder<Row> rows = BTree.builder(metadata.comparator, header.rowEstimate);
             rows.auto(false);
 
@@ -660,8 +681,10 @@ public class PartitionUpdate extends AbstractBTreePartition
             }
 
             MutableDeletionInfo deletionInfo = deletionBuilder.build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
             return new PartitionUpdate(metadata,
                                        header.key,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
                                        new Holder(header.sHeader.columns(), rows.build(), deletionInfo, header.staticRow, header.sHeader.stats()),
                                        deletionInfo,
                                        false);
@@ -672,6 +695,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 return update.metadata.id.serializedSize()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }
         }
@@ -697,6 +721,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
         public Clustering clustering()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return row.clustering();
         }
 
@@ -721,6 +746,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         {
             // This is a bit of a giant hack as this is the only place where we mutate a Row object. This makes it more efficient
             // for counters however and this won't be needed post-#6506 so that's probably fine.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             assert row instanceof BTreeRow;
             ((BTreeRow)row).setValue(column, path, value);
         }
@@ -744,6 +770,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         private boolean isBuilt = false;
 
         public Builder(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                        DecoratedKey key,
                        RegularAndStaticColumns columns,
                        int initialRowCapacity,
@@ -819,6 +846,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             {
                 // this assert is expensive, and possibly of limited value; we should consider removing it
                 // or introducing a new class of assertions for test purposes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
                 assert columns().statics.containsAll(row.columns()) : columns().statics + " is not superset of " + row.columns();
                 staticRow = staticRow.isEmpty()
                             ? row
@@ -828,6 +856,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             {
                 // this assert is expensive, and possibly of limited value; we should consider removing it
                 // or introducing a new class of assertions for test purposes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
                 assert columns().regulars.containsAll(row.columns()) : columns().regulars + " is not superset of " + row.columns();
                 rowBuilder.add(row);
             }

@@ -34,6 +34,7 @@ public class FSReadError extends FSError
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2118
         return "FSReadError in " + path;
     }
 }

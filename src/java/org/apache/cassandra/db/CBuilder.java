@@ -173,6 +173,7 @@ public abstract class CBuilder
 
             if (size == 0)
                 return isStart ? ClusteringBound.BOTTOM : ClusteringBound.TOP;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
 
             return ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive),
                                 size == values.length ? values : Arrays.copyOfRange(values, 0, size));
@@ -193,6 +194,7 @@ public abstract class CBuilder
         public Clustering buildWith(ByteBuffer value)
         {
             assert size+1 <= type.size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
 
             ByteBuffer[] newValues = Arrays.copyOf(values, type.size());
             newValues[size] = value;
@@ -214,6 +216,7 @@ public abstract class CBuilder
         {
             ByteBuffer[] newValues = Arrays.copyOf(values, size+1);
             newValues[size] = value;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             return ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues);
         }
 

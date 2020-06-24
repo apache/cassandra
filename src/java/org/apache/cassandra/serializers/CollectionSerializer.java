@@ -38,6 +38,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
     {
         List<ByteBuffer> values = serializeValues(value);
         // See deserialize() for why using the protocol v3 variant is the right thing to do.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return pack(values, getElementCount(value), ProtocolVersion.V3);
     }
 
@@ -48,6 +49,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         //  1) when collections are frozen
         //  2) for internal calls.
         // In both case, using the protocol 3 version variant is the right thing to do.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         return deserializeForNativeProtocol(bytes, ProtocolVersion.V3);
     }
 
@@ -72,11 +74,13 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     protected static void writeCollectionSize(ByteBuffer output, int elements, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         output.putInt(elements);
     }
 
     public static int readCollectionSize(ByteBuffer input, ProtocolVersion version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10146
         return input.getInt();
     }
 
@@ -109,6 +113,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
     protected static void skipValue(ByteBuffer input, ProtocolVersion version)
     {
         int size = input.getInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         input.position(input.position() + size);
     }
 
@@ -147,6 +152,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
      * @return a serialized collection corresponding to slice {@code [from, to]} of {@code collection}.
      */
     public abstract ByteBuffer getSliceFromSerialized(ByteBuffer collection,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
                                                       ByteBuffer from,
                                                       ByteBuffer to,
                                                       AbstractType<?> comparator,
@@ -166,6 +172,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         ByteBuffer output = ByteBuffer.allocate(sizeLen + bodyLen);
         writeCollectionSize(output, count, version);
         output.position(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBufferUtil.copyBytes(input, startPos, output, sizeLen, bodyLen);
         return output;
     }

@@ -27,6 +27,7 @@ import io.netty.channel.ChannelHandler;
  * contains messages, serialized back to back.
  */
 @ChannelHandler.Sharable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 class FrameEncoderLegacy extends FrameEncoder
 {
     static final FrameEncoderLegacy instance = new FrameEncoderLegacy();

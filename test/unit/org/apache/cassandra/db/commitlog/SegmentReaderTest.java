@@ -58,12 +58,14 @@ public class SegmentReaderTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
     public void compressedSegmenter_LZ4() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
         compressedSegmenter(LZ4Compressor.create(Collections.emptyMap()));
     }
 
@@ -82,6 +84,7 @@ public class SegmentReaderTest
     @Test
     public void compressedSegmenter_Zstd() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         compressedSegmenter(ZstdCompressor.create(Collections.emptyMap()));
     }
 
@@ -101,6 +104,7 @@ public class SegmentReaderTest
         compressor.compress(plainTextBuffer, compBuffer);
         compBuffer.flip();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File compressedFile = FileUtils.createTempFile("compressed-segment-", ".log");
         compressedFile.deleteOnExit();
         FileOutputStream fos = new FileOutputStream(compressedFile);
@@ -126,6 +130,7 @@ public class SegmentReaderTest
     private ByteBuffer readBytes(FileDataInput input, int len)
     {
         byte[] buf = new byte[len];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11957
         try
         {
             input.readFully(buf);
@@ -188,6 +193,7 @@ public class SegmentReaderTest
 
         ByteBuffer compressedBuffer = EncryptionUtils.compress(plainTextBuffer, null, true, context.getCompressor());
         Cipher cipher = cipherFactory.getEncryptor(context.getTransparentDataEncryptionOptions().cipher, context.getTransparentDataEncryptionOptions().key_alias);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File encryptedFile = FileUtils.createTempFile("encrypted-segment-", ".log");
         encryptedFile.deleteOnExit();
         FileChannel channel = new RandomAccessFile(encryptedFile, "rw").getChannel();
@@ -203,6 +209,7 @@ public class SegmentReaderTest
 
             // EncryptedSegmenter includes the Sync header length in the syncSegment.endPosition (value)
             Assert.assertEquals(plainTextLength, syncSegment.endPosition - CommitLogSegment.SYNC_MARKER_SIZE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11957
             ByteBuffer fileBuffer = readFun.apply(syncSegment.input, plainTextLength);
             plainTextBuffer.position(0);
             Assert.assertEquals(plainTextBuffer, fileBuffer);

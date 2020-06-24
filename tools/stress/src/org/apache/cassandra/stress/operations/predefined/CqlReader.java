@@ -37,6 +37,7 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
 
     public CqlReader(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         super(Command.READ, timer, generator, seedManager, settings);
     }
 

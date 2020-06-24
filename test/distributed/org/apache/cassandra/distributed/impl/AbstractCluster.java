@@ -153,6 +153,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         protected IInvokableInstance delegate()
         {
             if (delegate == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15501
                 throw new IllegalStateException("Can't use shut down instances, delegate is null");
             return delegate;
         }
@@ -187,6 +188,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public boolean isShutdown()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
             return isShutdown;
         }
 
@@ -210,6 +212,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         @Override
         public synchronized Future<Void> shutdown()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
             return shutdown(true);
         }
 
@@ -226,6 +229,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public int liveMemberCount()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
             if (!isShutdown && delegate != null)
                 return delegate().liveMemberCount();
 
@@ -234,11 +238,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
             return delegate().nodetoolResult(withNotifications, commandAndArgs);
         }
 
         public long killAttempts()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
             IInvokableInstance local = delegate;
             // if shutdown cleared the delegate, then no longer know how many kill attempts happened, so return -1
             if (local == null)
@@ -271,6 +278,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public void uncaughtException(Thread thread, Throwable throwable)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
             IInvokableInstance delegate = this.delegate;
             if (delegate != null)
                 delegate.uncaughtException(thread, throwable);
@@ -303,6 +312,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             I instance = newInstanceWrapperInternal(generation, initialVersion, config);
             instances.add(instance);
             // we use the config().broadcastAddressAndPort() here because we have not initialised the Instance
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15501
             I prev = instanceMap.put(instance.config().broadcastAddress(), instance);
             if (null != prev)
                 throw new IllegalStateException("Cluster cannot have multiple nodes with same InetAddressAndPort: " + instance.broadcastAddress() + " vs " + prev.broadcastAddress());
@@ -344,6 +354,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected I newInstanceWrapperInternal(int generation, Versions.Version version, IInstanceConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
         config.validate();
         return newInstanceWrapper(generation, version, config);
     }
@@ -358,6 +369,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         instances.add(instance);
 
         I prev = instanceMap.put(config.broadcastAddress(), instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
 
         if (null != prev)
         {
@@ -382,6 +394,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
      */
     public I get(int node)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
         return instances.get(node - 1);
     }
 
@@ -402,6 +415,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public Stream<I> stream(String dcName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
         return instances.stream().filter(i -> i.config().localDatacenter().equals(dcName));
     }
 
@@ -413,6 +427,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void forEach(IIsolatedExecutor.SerializableRunnable runnable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
         forEach(i -> i.sync(runnable));
     }
 
@@ -428,6 +443,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void parallelForEach(IIsolatedExecutor.SerializableConsumer<? super I> consumer, long timeout, TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         parallelForEach(instances, consumer, timeout, unit);
     }
 
@@ -441,6 +457,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public IMessageFilters filters()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15505
         return filters;
     }
 
@@ -462,11 +479,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void schemaChange(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15014
         get(1).sync(() -> {
             try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
             {
                 // execute the schema change
                 coordinator(1).execute(query, ConsistencyLevel.ALL);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
                 monitor.waitForCompletion();
             }
         }).run();
@@ -474,13 +493,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void schemaChange(String statement, int instance)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         get(instance).schemaChangeInternal(statement);
     }
 
     private void updateMessagingVersions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
         for (IInstance reportTo : instances)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
             if (reportTo.isShutdown())
                 continue;
 
@@ -490,6 +512,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                     continue;
 
                 int minVersion = Math.min(reportFrom.getMessagingVersion(), reportTo.getMessagingVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
                 reportTo.setMessagingVersion(reportFrom.broadcastAddress(), minVersion);
             }
         }
@@ -497,6 +520,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public abstract class ChangeMonitor implements AutoCloseable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         final List<IListen.Cancel> cleanup;
         final SimpleCondition completed;
         private final long timeOut;
@@ -568,6 +592,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     {
         public SchemaChangeMonitor()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
             super(70, TimeUnit.SECONDS);
         }
 
@@ -612,8 +637,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void startup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         previousHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
         {
             // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
@@ -621,6 +649,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // and then start any instances with it disabled in parallel.
             List<I> startSequentially = new ArrayList<>();
             List<I> startParallel = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
             for (int i = 0; i < instances.size(); i++)
             {
                 I instance = instances.get(i);
@@ -639,6 +668,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     private void uncaughtExceptions(Thread thread, Throwable error)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
         {
             Thread.UncaughtExceptionHandler handler = previousHandler;
@@ -647,13 +678,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return;
         }
         InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15450
         get(cl.getInstanceId()).uncaughtException(thread, error);
     }
 
     @Override
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15014
         FBUtilities.waitOnFutures(instances.stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
                                            .filter(i -> !i.isShutdown())
                                            .map(IInstance::shutdown)
                                            .collect(Collectors.toList()),
@@ -662,6 +696,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         instances.clear();
         instanceMap.clear();
         // Make sure to only delete directory when threads are stopped
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         if (root.exists())
             FileUtils.deleteRecursive(root);
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
@@ -702,6 +738,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public List<Token> tokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return stream()
                .map(i ->
                     {

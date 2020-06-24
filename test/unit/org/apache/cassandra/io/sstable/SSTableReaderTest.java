@@ -74,6 +74,7 @@ public class SSTableReaderTest
 
     private IPartitioner partitioner;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
     Token t(int i)
     {
         return partitioner.getToken(ByteBufferUtil.bytes(String.valueOf(i)));
@@ -82,15 +83,19 @@ public class SSTableReaderTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED, true),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLOWINDEXINTERVAL)
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                                 .caching(CachingParams.CACHE_NOTHING));
     }
 
@@ -113,6 +118,7 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         // 1 key
@@ -120,13 +126,16 @@ public class SSTableReaderTest
         // 2 keys
         ranges.add(new Range<>(t(2), t(4)));
         // wrapping range from key to end
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         ranges.add(new Range<>(t(6), partitioner.getMinimumToken()));
         // empty range (should be ignored)
         ranges.add(new Range<>(t(9), t(91)));
 
         // confirm that positions increase continuously
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         long previous = -1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         for (SSTableReader.PartitionPositionBounds section : sstable.getPositionsForRanges(ranges))
         {
             assert previous <= section.lowerPosition : previous + " ! < " + section.lowerPosition;
@@ -143,9 +152,11 @@ public class SSTableReaderTest
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
             Keyspace keyspace = Keyspace.open(KEYSPACE1);
             ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
             partitioner = store.getPartitioner();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
             // insert a bunch of data and compact to a single sstable
             CompactionManager.instance.disableAutoCompaction();
@@ -159,13 +170,18 @@ public class SSTableReaderTest
             }
             store.forceBlockingFlush();
             CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
             // check that all our keys are found correctly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             SSTableReader sstable = store.getLiveSSTables().iterator().next();
             for (int j = 0; j < 100; j += 2)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-767
                 DecoratedKey dk = Util.dk(String.valueOf(j));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
                 FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ).position);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 DecoratedKey keyInDisk = sstable.decorateKey(ByteBufferUtil.readWithShortLength(file));
                 assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
             }
@@ -173,7 +189,9 @@ public class SSTableReaderTest
             // check no false positives
             for (int j = 1; j < 110; j += 2)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-767
                 DecoratedKey dk = Util.dk(String.valueOf(j));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
                 assert sstable.getPosition(dk, SSTableReader.Operator.EQ) == null;
             }
         }
@@ -201,7 +219,9 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3735
         clearAndLoad(store);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         assert store.metric.maxPartitionSize.getValue() != 0;
     }
 
@@ -222,6 +242,7 @@ public class SSTableReaderTest
         for (int j = 0; j < 10; j++)
         {
             new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -230,9 +251,11 @@ public class SSTableReaderTest
 
         store.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         assertEquals(0, sstable.getReadMeter().count());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DecoratedKey key = sstable.decorateKey(ByteBufferUtil.bytes("4"));
         Util.getAll(Util.cmd(store, key).build());
         assertEquals(1, sstable.getReadMeter().count());
@@ -244,10 +267,13 @@ public class SSTableReaderTest
     @Test
     public void testGetPositionsForRangesWithKeyCache()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         partitioner = store.getPartitioner();
         CacheService.instance.keyCache.setCapacity(100);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3143
 
         // insert data and compact to a single sstable
         CompactionManager.instance.disableAutoCompaction();
@@ -263,14 +289,18 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
         long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ).position;
         long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ).position;
         long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ).position;
         long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ).position;
 
         SSTableReader.PartitionPositionBounds p = sstable.getPositionsForRanges(makeRanges(t(2), t(6))).get(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
 
         // range are start exclusive so we should start at 3
         assert p.lowerPosition == p3;
@@ -284,6 +314,7 @@ public class SSTableReaderTest
     {
         // Create secondary index and flush to disk
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_INDEXED);
         partitioner = store.getPartitioner();
 
@@ -302,6 +333,9 @@ public class SSTableReaderTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         partitioner = store.getPartitioner();
         CacheService.instance.keyCache.setCapacity(1000);
 
@@ -317,7 +351,9 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
         assertEquals(0, sstable.getKeyCacheHit());
@@ -335,10 +371,12 @@ public class SSTableReaderTest
     @Test
     public void testOpeningSSTable() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String ks = KEYSPACE1;
         String cf = "Standard1";
 
         // clear and create just one sstable for this test
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(ks);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
         store.clearUnsafe();
@@ -358,6 +396,9 @@ public class SSTableReaderTest
 
 
             new RowUpdateBuilder(store.metadata(), timestamp, key.getKey())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
                 .clustering("col")
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
@@ -365,6 +406,7 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         Descriptor desc = sstable.descriptor;
 
@@ -374,6 +416,8 @@ public class SSTableReaderTest
         assert target.last.equals(lastKey);
 
         executeInternal(String.format("ALTER TABLE \"%s\".\"%s\" WITH bloom_filter_fp_chance = 0.3", ks, cf));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11163
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14166
 
         File summaryFile = new File(desc.filenameFor(Component.SUMMARY));
         Path bloomPath = new File(desc.filenameFor(Component.FILTER)).toPath();
@@ -383,6 +427,7 @@ public class SSTableReaderTest
         long summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
 
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14387
 
         // Offline tests
         // check that bloomfilter/summary ARE NOT regenerated
@@ -429,6 +474,7 @@ public class SSTableReaderTest
         summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
         summaryFile.delete();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14387
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
         bloomModified = Files.getLastModifiedTime(bloomPath).toMillis();
 
@@ -446,10 +492,12 @@ public class SSTableReaderTest
         summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
         target = SSTableReader.open(desc, components, store.metadata, false, false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14387
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
         assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
         assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         target.selfRef().release();
     }
 
@@ -469,13 +517,19 @@ public class SSTableReaderTest
 
         for(ColumnFamilyStore indexCfs : store.indexManager.getAllIndexColumnFamilyStores())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             assert indexCfs.isIndex();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
             assert sstable.first.getToken() instanceof LocalToken;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             sstable.saveSummary();
             SSTableReader reopened = SSTableReader.open(sstable.descriptor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             assert reopened.first.getToken() instanceof LocalToken;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
             reopened.selfRef().release();
         }
     }
@@ -487,8 +541,10 @@ public class SSTableReaderTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
         partitioner = store.getPartitioner();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         new RowUpdateBuilder(store.metadata(), 0, "k1")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             .clustering("xyz")
             .add("val", "abc")
             .build()
@@ -496,10 +552,13 @@ public class SSTableReaderTest
 
         store.forceBlockingFlush();
         boolean foundScanner = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader s : store.getLiveSSTables())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
             try (ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1))))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
                 scanner.next(); // throws exception pre 5407
                 foundScanner = true;
             }
@@ -510,9 +569,13 @@ public class SSTableReaderTest
     @Test
     public void testGetPositionsForRangesFromTableOpenedForBulkLoading() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
         partitioner = store.getPartitioner();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         // insert data and compact to a single sstable. The
         // number of keys inserted is greater than index_interval
@@ -522,6 +585,11 @@ public class SSTableReaderTest
         {
 
             new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -530,13 +598,16 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
         // construct a range which is present in the sstable, but whose
         // keys are not found in the first segment of the index.
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         ranges.add(new Range<Token>(t(98), t(99)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable" ;
 
@@ -544,9 +615,11 @@ public class SSTableReaderTest
         Set<Component> components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
         if (sstable.components.contains(Component.COMPRESSION_INFO))
             components.add(Component.COMPRESSION_INFO);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, store.metadata);
         sections = bulkLoaded.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable opened for bulk loading";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         bulkLoaded.selfRef().release();
     }
 
@@ -575,6 +648,7 @@ public class SSTableReaderTest
         final SSTableReader sstable = sstables.iterator().next();
 
         ThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<Future> futures = new ArrayList<>(NUM_PARTITIONS * 2);
         for (int i = 0; i < NUM_PARTITIONS; i++)
         {
@@ -586,6 +660,7 @@ public class SSTableReaderTest
                 public void run()
                 {
                     Row row = Util.getOnlyRowUnfiltered(Util.cmd(store, key).build());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                     assertEquals(0, ByteBufferUtil.compare(String.format("%3d", index).getBytes(), row.cells().iterator().next().value()));
                 }
             }));
@@ -595,12 +670,14 @@ public class SSTableReaderTest
                 public void run()
                 {
                     Iterable<DecoratedKey> results = store.keySamples(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                             new Range<>(sstable.getPartitioner().getMinimumToken(), sstable.getPartitioner().getToken(key)));
                     assertTrue(results.iterator().hasNext());
                 }
             }));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         SSTableReader replacement;
         try (LifecycleTransaction txn = store.getTracker().tryModify(Arrays.asList(sstable), OperationType.UNKNOWN))
         {
@@ -632,10 +709,12 @@ public class SSTableReaderTest
 
     private void testIndexSummaryUpsampleAndReload0() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore store = keyspace.getColumnFamilyStore("StandardLowIndexInterval"); // index interval of 8, no key caching
         CompactionManager.instance.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         final int NUM_PARTITIONS = 512;
         for (int j = 0; j < NUM_PARTITIONS; j++)
         {
@@ -648,7 +727,9 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> sstables = store.getLiveSSTables();
         assert sstables.size() == 1;
         final SSTableReader sstable = sstables.iterator().next();
@@ -677,6 +758,7 @@ public class SSTableReaderTest
                                              .columns("birthdate")
                                              .filterOn("birthdate", Operator.EQ, 1L)
                                              .build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         Index.Searcher searcher = rc.getIndex(indexedCFS).searcherFor(rc);
         assertNotNull(searcher);
         try (ReadExecutionController executionController = rc.executionController())
@@ -687,17 +769,20 @@ public class SSTableReaderTest
 
     private List<Range<Token>> makeRanges(Token left, Token right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5971
         return Arrays.asList(new Range<>(left, right));
     }
 
     private DecoratedKey k(int i)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         return new BufferDecoratedKey(t(i), ByteBufferUtil.bytes(String.valueOf(i)));
     }
 
     @Test(expected = RuntimeException.class)
     public void testMoveAndOpenLiveSSTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         SSTableReader sstable = getNewSSTable(cfs);
@@ -766,6 +851,7 @@ public class SSTableReaderTest
     @Test
     public void testGetApproximateKeyCount() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14647
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         cfs.discardSSTables(System.currentTimeMillis()); //Cleaning all existing SSTables.

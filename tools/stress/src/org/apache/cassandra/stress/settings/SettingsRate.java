@@ -42,6 +42,7 @@ public class SettingsRate implements Serializable
     {
         auto = false;
         threadCount = Integer.parseInt(options.threads.value());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         String throttleOpt = options.throttle.value();
         String fixedOpt = options.fixed.value();
         int throttle = Integer.parseInt(throttleOpt.substring(0, throttleOpt.length() - 2));
@@ -61,6 +62,7 @@ public class SettingsRate implements Serializable
         this.minThreads = Integer.parseInt(auto.minThreads.value());
         this.maxThreads = Integer.parseInt(auto.maxThreads.value());
         this.threadCount = -1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         this.opsPerSecond = 0;
         isFixed = false;
     }
@@ -84,6 +86,7 @@ public class SettingsRate implements Serializable
     private static final class ThreadOptions extends GroupedOptions
     {
         final OptionSimple threads = new OptionSimple("threads=", "[0-9]+", null, "run this many clients concurrently", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         final OptionSimple throttle = new OptionSimple("throttle=", "[0-9]+/s", "0/s", "throttle operations per second across all clients to a maximum rate (or less) with no implied schedule", false);
         final OptionSimple fixed = new OptionSimple("fixed=", "[0-9]+/s", "0/s", "expect fixed rate of operations per second across all clients with implied schedule", false);
 
@@ -98,6 +101,7 @@ public class SettingsRate implements Serializable
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.printf("  Auto: %b%n", auto);
         if (auto)
         {
@@ -117,6 +121,7 @@ public class SettingsRate implements Serializable
             switch (command.type)
             {
                 case WRITE:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6824
                 case COUNTER_WRITE:
                     if (command.count > 0)
                     {
@@ -151,6 +156,7 @@ public class SettingsRate implements Serializable
 
     public static Runnable helpPrinter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
         return SettingsRate::printHelp;
     }
 }

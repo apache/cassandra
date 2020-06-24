@@ -61,22 +61,26 @@ public abstract class CommitLogSegment
     private CDCState cdcState = CDCState.PERMITTED;
     public enum CDCState
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         PERMITTED,
         FORBIDDEN,
         CONTAINS
     }
     Object cdcStateLock = new Object();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12198
 
     private final static AtomicInteger nextId = new AtomicInteger(1);
     private static long replayLimitId;
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6974
         long maxId = Long.MIN_VALUE;
         for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
         {
             if (CommitLogDescriptor.isValid(file.getName()))
                 maxId = Math.max(CommitLogDescriptor.fromFileName(file.getName()).id, maxId);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11743
         replayLimitId = idBase = Math.max(System.currentTimeMillis(), maxId + 1);
     }
 
@@ -96,6 +100,7 @@ public abstract class CommitLogSegment
     // sync marker in a segment will be zeroed out, or point to a position too close to the EOF to fit a marker.
     @VisibleForTesting
     volatile int lastSyncedOffset;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
 
     /**
      * Everything before this offset has it's markers written into the {@link #buffer}, but has not necessarily
@@ -133,6 +138,7 @@ public abstract class CommitLogSegment
     static CommitLogSegment createSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         Configuration config = commitLog.configuration;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
                                                           : config.useCompression() ? new CompressedSegment(commitLog, manager)
                                                                                     : new MemoryMappedSegment(commitLog, manager);
@@ -160,10 +166,12 @@ public abstract class CommitLogSegment
     /**
      * Constructs a new segment file.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
     CommitLogSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         this.manager = manager;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4601
         id = getNextId();
         descriptor = new CommitLogDescriptor(id,
                                              commitLog.configuration.getCompressorClass(),
@@ -173,10 +181,12 @@ public abstract class CommitLogSegment
         try
         {
             channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             fd = NativeLibrary.getfd(channel);
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             throw new FSWriteError(e, logFile);
         }
 
@@ -186,11 +196,13 @@ public abstract class CommitLogSegment
     /**
      * Deferred writing of the commit log header until subclasses have had a chance to initialize
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
     void writeLogHeader()
     {
         CommitLogDescriptor.writeHeader(buffer, descriptor, additionalHeaderParameters());
         endOfBuffer = buffer.capacity();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
         lastSyncedOffset = lastMarkerOffset = buffer.position();
         allocatePosition.set(lastSyncedOffset + SYNC_MARKER_SIZE);
         headerWritten = true;
@@ -211,6 +223,7 @@ public abstract class CommitLogSegment
      * Returns null if there is not enough space in this segment, and a new segment is needed.
      */
     @SuppressWarnings("resource") //we pass the op order around
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7515
     Allocation allocate(Mutation mutation, int size)
     {
         final OpOrder.Group opGroup = appendOrder.start();
@@ -223,6 +236,7 @@ public abstract class CommitLogSegment
                 return null;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
             for (PartitionUpdate update : mutation.getPartitionUpdates())
                 coverInMap(tableDirty, update.metadata().id, position);
 
@@ -237,6 +251,7 @@ public abstract class CommitLogSegment
 
     static boolean shouldReplay(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11743
         return CommitLogDescriptor.fromFileName(name).id < replayLimitId;
     }
 
@@ -255,6 +270,7 @@ public abstract class CommitLogSegment
         {
             int prev = allocatePosition.get();
             int next = prev + size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
             if (next >= endOfBuffer)
                 return -1;
             if (allocatePosition.compareAndSet(prev, next))
@@ -273,6 +289,7 @@ public abstract class CommitLogSegment
         // This actually isn't strictly necessary, as currently all calls to discardUnusedTail are executed either by the thread
         // running sync or within a mutation already protected by this OpOrdering, but to prevent future potential mistakes,
         // we duplicate the protection here so that the contract between discardUnusedTail() and sync() is more explicit.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6901
         try (OpOrder.Group group = appendOrder.start())
         {
             while (true)
@@ -300,6 +317,7 @@ public abstract class CommitLogSegment
     /**
      * Wait for any appends or discardUnusedTail() operations started before this method was called
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7437
     void waitForModifications()
     {
         // issue a barrier and wait for it
@@ -311,8 +329,10 @@ public abstract class CommitLogSegment
      *
      * @param flush true if the segment should flush to disk; else, false for just updating the chained markers.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
     synchronized void sync(boolean flush)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         if (!headerWritten)
             throw new IllegalStateException("commit log header has not been written");
         assert lastMarkerOffset >= lastSyncedOffset : String.format("commit log segment positions are incorrect: last marked = %d, last synced = %d",
@@ -331,6 +351,7 @@ public abstract class CommitLogSegment
         boolean close = false;
         int startMarker = lastMarkerOffset;
         int nextMarker, sectionEnd;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
         if (needToMarkData)
         {
             // Allocate a new sync marker; this is both necessary in itself, but also serves to demarcate
@@ -367,10 +388,12 @@ public abstract class CommitLogSegment
         if (flush || close)
         {
             flush(startMarker, sectionEnd);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
             if (cdcState == CDCState.CONTAINS)
                 writeCDCIndexFile(descriptor, sectionEnd, close);
             lastSyncedOffset = lastMarkerOffset = nextMarker;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14194
             if (close)
                 internalClose();
 
@@ -385,6 +408,7 @@ public abstract class CommitLogSegment
      */
     public static void writeCDCIndexFile(CommitLogDescriptor desc, int offset, boolean complete)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         try(FileWriter writer = new FileWriter(new File(DatabaseDescriptor.getCDCLogLocation(), desc.cdcIndexFileName())))
         {
             writer.write(String.valueOf(offset));
@@ -411,8 +435,10 @@ public abstract class CommitLogSegment
      */
     protected static void writeSyncMarker(long id, ByteBuffer buffer, int offset, int filePos, int nextMarker)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         if (filePos > nextMarker)
             throw new IllegalArgumentException(String.format("commit log sync marker's current file position %d is greater than next file position %d", filePos, nextMarker));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9650
         CRC32 crc = new CRC32();
         updateChecksumInt(crc, (int) (id & 0xFFFFFFFFL));
         updateChecksumInt(crc, (int) (id >>> 32));
@@ -424,6 +450,7 @@ public abstract class CommitLogSegment
     abstract void write(int lastSyncedOffset, int nextMarker);
 
     abstract void flush(int startMarker, int nextMarker);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
 
     public boolean isStillAllocating()
     {
@@ -434,9 +461,12 @@ public abstract class CommitLogSegment
      * Discards a segment file when the log no longer requires it. The file may be left on disk if the archive script
      * requires it. (Potentially blocking operation)
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
     void discard(boolean deleteFile)
     {
         close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         if (deleteFile)
             FileUtils.deleteWithConfirm(logFile);
         manager.addSize(-onDiskSize());
@@ -447,6 +477,7 @@ public abstract class CommitLogSegment
      */
     public CommitLogPosition getCurrentCommitLogPosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return new CommitLogPosition(id, allocatePosition.get());
     }
 
@@ -471,6 +502,7 @@ public abstract class CommitLogSegment
      */
     public File getCDCFile()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         return new File(DatabaseDescriptor.getCDCLogLocation(), logFile.getName());
     }
 
@@ -482,11 +514,13 @@ public abstract class CommitLogSegment
         return new File(DatabaseDescriptor.getCDCLogLocation(), descriptor.cdcIndexFileName());
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6974
     void waitForFinalSync()
     {
         while (true)
         {
             WaitQueue.Signal signal = syncComplete.register();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
             if (lastSyncedOffset < endOfBuffer)
             {
                 signal.awaitUninterruptibly();
@@ -499,6 +533,7 @@ public abstract class CommitLogSegment
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
     void waitForSync(int position, Timer waitingOnCommit)
     {
         while (lastSyncedOffset < position)
@@ -519,6 +554,7 @@ public abstract class CommitLogSegment
     synchronized void close()
     {
         discardUnusedTail();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13987
         sync(true);
         assert buffer == null;
     }
@@ -530,17 +566,20 @@ public abstract class CommitLogSegment
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
             channel.close();
             buffer = null;
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             throw new FSWriteError(e, getPath());
         }
     }
 
     public static<K> void coverInMap(ConcurrentMap<K, IntegerInterval> map, K key, int value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         IntegerInterval i = map.get(key);
         if (i == null)
         {
@@ -621,6 +660,7 @@ public abstract class CommitLogSegment
     {
         // if room to allocate, we're still in use as the active allocatingFrom,
         // so we don't want to race with updates to tableClean with removeCleanFromDirty
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         if (isStillAllocating())
             return false;
 
@@ -636,6 +676,7 @@ public abstract class CommitLogSegment
      */
     public boolean contains(CommitLogPosition context)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return context.segmentId == id;
     }
 
@@ -655,6 +696,7 @@ public abstract class CommitLogSegment
     }
 
     abstract public long onDiskSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9095
 
     public long contentSize()
     {
@@ -671,14 +713,17 @@ public abstract class CommitLogSegment
     {
         public int compare(File f, File f2)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4793
             CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(f.getName());
             CommitLogDescriptor desc2 = CommitLogDescriptor.fromFileName(f2.getName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7992
             return Long.compare(desc.id, desc2.id);
         }
     }
 
     public CDCState getCDCState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         return cdcState;
     }
 
@@ -692,6 +737,7 @@ public abstract class CommitLogSegment
             return;
 
         // Also synchronized in CDCSizeTracker.processNewSegment and .processDiscardedSegment
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12198
         synchronized(cdcStateLock)
         {
             // Need duplicate CONTAINS to be idempotent since 2 threads can race on this lock
@@ -715,6 +761,7 @@ public abstract class CommitLogSegment
         private final int position;
         private final ByteBuffer buffer;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7515
         Allocation(CommitLogSegment segment, OpOrder.Group appendOp, int position, ByteBuffer buffer)
         {
             this.segment = segment;
@@ -737,9 +784,11 @@ public abstract class CommitLogSegment
         // but must not be called more than once
         void markWritten()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6901
             appendOp.close();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         void awaitDiskSync(Timer waitingOnCommit)
         {
             segment.waitForSync(position, waitingOnCommit);
@@ -750,6 +799,7 @@ public abstract class CommitLogSegment
          */
         public CommitLogPosition getCommitLogPosition()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             return new CommitLogPosition(segment.id, buffer.limit());
         }
     }

@@ -33,6 +33,7 @@ import org.yaml.snakeyaml.Yaml;
 public interface StatsPrinter<T extends StatsHolder>
 {
     void print(T data, PrintStream out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12035
 
     static class JsonPrinter<T extends StatsHolder> implements StatsPrinter<T>
     {

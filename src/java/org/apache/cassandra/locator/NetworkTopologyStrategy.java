@@ -60,6 +60,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     public NetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
         int replicas = 0;
         int trans = 0;
@@ -81,6 +82,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
         aggregateRf = ReplicationFactor.withTransient(replicas, trans);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
@@ -91,6 +93,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         /** List accepted endpoints get pushed into. */
         EndpointsForRange.Builder replicas;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         /**
          * Racks encountered so far. Replicas are put into separate racks while possible.
@@ -98,12 +101,14 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
          * clashing names aren't a problem.
          */
         Set<Pair<String, String>> racks;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10200
 
         /** Number of replicas left to fill from this DC. */
         int rfLeft;
         int acceptableRackRepeats;
         int transients;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, EndpointsForRange.Builder replicas, Set<Pair<String, String>> racks)
         {
             this.replicas = replicas;
@@ -171,6 +176,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         Token replicaStart = tokenMetadata.getPredecessor(replicaEnd);
         Range<Token> replicatedRange = new Range<>(replicaStart, replicaEnd);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsForRange.Builder builder = new EndpointsForRange.Builder(replicatedRange);
         Set<Pair<String, String>> seenRacks = new HashSet<>();
 
@@ -203,12 +209,14 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         while (dcsToFill > 0 && tokenIter.hasNext())
         {
             Token next = tokenIter.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort ep = tokenMetadata.getEndpoint(next);
             Pair<String, String> location = topology.getLocation(ep);
             DatacenterEndpoints dcEndpoints = dcs.get(location.left);
             if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location, replicatedRange))
                 --dcsToFill;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return builder.build();
     }
 
@@ -241,6 +249,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     public Collection<String> recognizedOptions()
     {
         // only valid options are valid DC names.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         return Datacenters.getValidDatacenters();
     }
 
@@ -293,6 +302,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
     public void validateOptions() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         for (Entry<String, String> e : this.configOptions.entrySet())
         {
             // prepareOptions should have transformed any "replication_factor" by now
@@ -305,6 +315,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     @Override
     public boolean hasSameSettings(AbstractReplicationStrategy other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10176
         return super.hasSameSettings(other) && ((NetworkTopologyStrategy) other).datacenters.equals(datacenters);
     }
 }

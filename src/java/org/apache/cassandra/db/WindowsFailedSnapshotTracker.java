@@ -52,6 +52,7 @@ public class WindowsFailedSnapshotTracker
         {
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
                 try (BufferedReader reader = new BufferedReader(new FileReader(TODELETEFILE)))
                 {
                     String snapshotDirectory;
@@ -101,6 +102,7 @@ public class WindowsFailedSnapshotTracker
 
     public static synchronized void handleFailedSnapshot(File dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10222
         assert _failedSnapshotFile != null : "_failedSnapshotFile not initialized within WindowsFailedSnapshotTracker";
         FileUtils.deleteRecursiveOnExit(dir);
         _failedSnapshotFile.println(dir.toString());

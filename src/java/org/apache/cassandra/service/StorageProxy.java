@@ -209,13 +209,18 @@ public class StorageProxy implements StorageProxyMBean
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         HintsService.instance.registerMBean();
         HintedHandOffManager.instance.registerMBean();
 
         standardWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
             assert mutation instanceof Mutation;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             sendToHintedReplicas((Mutation) mutation, targets, responseHandler, localDataCenter, Stage.MUTATION);
         };
 
@@ -227,6 +232,8 @@ public class StorageProxy implements StorageProxyMBean
          */
         counterWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
             counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter).run();
@@ -236,16 +243,21 @@ public class StorageProxy implements StorageProxyMBean
         {
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             Stage.COUNTER_MUTATION.executor()
                                   .execute(counterWriteTask(mutation, targets.withContact(selected), responseHandler, localDataCenter));
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
         for(ConsistencyLevel level : ConsistencyLevel.values())
         {
             readMetricsMap.put(level, new ClientRequestMetrics("Read-" + level.name()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
             writeMetricsMap.put(level, new ClientWriteRequestMetrics("Write-" + level.name()));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
         ReadRepairMetrics.init();
     }
 
@@ -291,17 +303,22 @@ public class StorageProxy implements StorageProxyMBean
      * (since, if the CAS doesn't succeed, it means the current value do not match the conditions).
      */
     public static RowIterator cas(String keyspaceName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                   String cfName,
                                   DecoratedKey key,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7499
                                   CASRequest request,
                                   ConsistencyLevel consistencyForPaxos,
                                   ConsistencyLevel consistencyForCommit,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                   ClientState state,
                                   int nowInSeconds,
                                   long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
         final long startTimeForMetrics = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
         int contentions = 0;
         try
@@ -309,11 +326,14 @@ public class StorageProxy implements StorageProxyMBean
             consistencyForPaxos.validateForCas();
             consistencyForCommit.validateForCasCommit(keyspaceName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
             while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
             {
                 // for simplicity, we'll do a single liveness check at the start of each attempt
                 ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(keyspaceName), key, consistencyForPaxos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
                 final PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, replicaPlan, consistencyForPaxos, consistencyForCommit, true, state);
                 final UUID ballot = pair.ballot;
@@ -321,10 +341,12 @@ public class StorageProxy implements StorageProxyMBean
 
                 // read the current values and check they validate the conditions
                 Tracing.trace("Reading existing values for CAS precondition");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
                 ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
 
                 FilteredPartition current;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                 try (RowIterator rowIter = readOne(readCommand, readConsistency, queryStartNanoTime))
                 {
                     current = FilteredPartition.create(rowIter);
@@ -341,6 +363,7 @@ public class StorageProxy implements StorageProxyMBean
                 // TODO turn null updates into delete?
                 PartitionUpdate updates = request.makeUpdates(current);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
                 long size = updates.dataSize();
                 casWriteMetrics.mutationSize.update(size);
                 writeMetricsMap.get(consistencyForPaxos).mutationSize.update(size);
@@ -354,24 +377,31 @@ public class StorageProxy implements StorageProxyMBean
                 // InvalidRequestException) any which aren't.
                 updates = TriggerExecutor.instance.execute(updates);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
                 Commit proposal = Commit.newProposal(ballot, updates);
                 Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
                 {
                     commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
                     Tracing.trace("CAS successful");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5619
                     return null;
                 }
 
                 Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
                 contentions++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
                 // continue to retry
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6595
             throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         catch (CasWriteUnknownResultException e)
         {
             casWriteMetrics.unknownResult.mark();
@@ -389,12 +419,14 @@ public class StorageProxy implements StorageProxyMBean
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
         catch (WriteFailureException|ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
             writeMetricsMap.get(consistencyForPaxos).failures.mark();
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         catch (UnavailableException e)
         {
             casWriteMetrics.unavailables.mark();
@@ -403,8 +435,11 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12626
             recordCasContention(contentions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14436
             Keyspace.open(keyspaceName).getColumnFamilyStore(cfName).metric.topCasPartitionContention.addSample(key.getKey(), contentions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             final long latency = System.nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
             writeMetricsMap.get(consistencyForPaxos).addNano(latency);
@@ -424,16 +459,21 @@ public class StorageProxy implements StorageProxyMBean
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
     private static PaxosBallotAndContention beginAndRepairPaxos(long queryStartNanoTime,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                                                 DecoratedKey key,
                                                                 TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                                                 ReplicaPlan.ForPaxosWrite paxosPlan,
                                                                 ConsistencyLevel consistencyForPaxos,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7801
                                                                 ConsistencyLevel consistencyForCommit,
                                                                 final boolean isWrite,
                                                                 ClientState state)
     throws WriteTimeoutException, WriteFailureException
     {
         long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         PrepareCallback summary = null;
         int contentions = 0;
@@ -452,16 +492,21 @@ public class StorageProxy implements StorageProxyMBean
             // prepare
             Tracing.trace("Preparing {}", ballot);
             Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime);
             if (!summary.promised)
             {
                 Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
                 contentions++;
                 // sleep a random amount to give the other proposer a chance to finish
                 Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
                 continue;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6012
             Commit inProgress = summary.mostRecentInProgressCommitWithUpdate;
             Commit mostRecent = summary.mostRecentCommit;
 
@@ -470,11 +515,16 @@ public class StorageProxy implements StorageProxyMBean
             if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
             {
                 Tracing.trace("Finishing incomplete paxos round {}", inProgress);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
                 if(isWrite)
                     casWriteMetrics.unfinishedCommit.inc();
                 else
                     casReadMetrics.unfinishedCommit.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
                 {
                     try
@@ -483,6 +533,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (WriteTimeoutException e)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12626
                         recordCasContention(contentions);
                         // We're still doing preparation for the paxos rounds, so we want to use the CAS (see CASSANDRA-8672)
                         throw new WriteTimeoutException(WriteType.CAS, e.consistency, e.received, e.blockFor);
@@ -492,7 +543,11 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
                     // sleep a random amount to give the other proposer a chance to finish
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7341
                     contentions++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
                 }
                 continue;
@@ -503,6 +558,7 @@ public class StorageProxy implements StorageProxyMBean
             // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
             // mean we lost messages), we pro-actively "repair" those nodes, and retry.
             int nowInSec = Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(ballotMicros));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             Iterable<InetAddressAndPort> missingMRC = summary.replicasMissingMostRecentCommit(metadata, nowInSec);
             if (Iterables.size(missingMRC) > 0)
             {
@@ -515,9 +571,11 @@ public class StorageProxy implements StorageProxyMBean
                 continue;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             return new PaxosBallotAndContention(ballot, contentions);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12626
         recordCasContention(contentions);
         throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.keyspace)));
     }
@@ -527,6 +585,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void sendCommit(Commit commit, Iterable<InetAddressAndPort> replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<Commit> message = Message.out(PAXOS_COMMIT_REQ, commit);
         for (InetAddressAndPort target : replicas)
             MessagingService.instance().send(message, target);
@@ -535,12 +594,16 @@ public class StorageProxy implements StorageProxyMBean
     private static PrepareCallback preparePaxos(Commit toPrepare, ReplicaPlan.ForPaxosWrite replicaPlan, long queryStartNanoTime)
     throws WriteTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), replicaPlan.requiredParticipants(), replicaPlan.consistencyLevel(), queryStartNanoTime);
         Message<Commit> message = Message.out(PAXOS_PREPARE_REQ, toPrepare);
         for (Replica replica: replicaPlan.contacts())
         {
             if (replica.isSelf())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 PAXOS_PREPARE_REQ.stage.execute(() -> {
                     try
                     {
@@ -548,6 +611,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (Exception ex)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14105
                         logger.error("Failed paxos prepare locally", ex);
                     }
                 });
@@ -567,14 +631,18 @@ public class StorageProxy implements StorageProxyMBean
      * The result of the cooresponding CAS in uncertain as the accepted proposal may or may not be spread to other nodes in later rounds.
      */
     private static boolean proposePaxos(Commit proposal, ReplicaPlan.ForPaxosWrite replicaPlan, boolean backoffIfPartial, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
     throws WriteTimeoutException, CasWriteUnknownResultException
     {
         ProposeCallback callback = new ProposeCallback(replicaPlan.contacts().size(), replicaPlan.requiredParticipants(), !backoffIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<Commit> message = Message.out(PAXOS_PROPOSE_REQ, proposal);
         for (Replica replica : replicaPlan.contacts())
         {
             if (replica.isSelf())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 PAXOS_PROPOSE_REQ.stage.execute(() -> {
                     try
                     {
@@ -583,6 +651,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (Exception ex)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14105
                         logger.error("Failed paxos propose locally", ex);
                     }
                 });
@@ -597,6 +666,7 @@ public class StorageProxy implements StorageProxyMBean
         if (callback.isSuccessful())
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15350
         if (backoffIfPartial && !callback.isFullyRefused())
             throw new CasWriteUnknownResultException(replicaPlan.consistencyLevel(), callback.getAcceptCount(), replicaPlan.requiredParticipants());
 
@@ -609,17 +679,23 @@ public class StorageProxy implements StorageProxyMBean
         Keyspace keyspace = Keyspace.open(proposal.update.metadata().keyspace);
 
         Token tk = proposal.update.partitionKey().getToken();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
         AbstractWriteResponseHandler<Commit> responseHandler = null;
         // NOTE: this ReplicaPlan is a lie, this usage of ReplicaPlan could do with being clarified - the selected() collection is essentially (I think) never used
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
         if (shouldBlock)
         {
             AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
             responseHandler = rs.getWriteResponseHandler(replicaPlan, null, WriteType.SIMPLE, queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
             responseHandler.setSupportsBackPressure(false);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<Commit> message = Message.outWithFlag(PAXOS_COMMIT_REQ, proposal, MessageFlag.CALL_BACK_ON_FAILURE);
         for (Replica replica : replicaPlan.liveAndDown())
         {
@@ -630,9 +706,11 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (shouldBlock)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                     if (replica.isSelf())
                         commitPaxosLocal(replica, message, responseHandler);
                     else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler, allowHints && shouldHint(replica));
                 }
                 else
@@ -664,6 +742,8 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void commitPaxosLocal(Replica localReplica, final Message<Commit> message, final AbstractWriteResponseHandler<?> responseHandler)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         PAXOS_COMMIT_REQ.stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
@@ -672,11 +752,13 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     PaxosState.commit(message.payload);
                     if (responseHandler != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         responseHandler.onResponse(null);
                 }
                 catch (Exception ex)
                 {
                     if (!(ex instanceof WriteTimeoutException))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13551
                         logger.error("Failed to apply paxos commit locally : ", ex);
                     responseHandler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.forException(ex));
                 }
@@ -701,6 +783,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed
      */
     public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
     throws UnavailableException, OverloadedException, WriteTimeoutException, WriteFailureException
     {
         Tracing.trace("Determining replicas for mutation");
@@ -718,6 +801,8 @@ public class StorageProxy implements StorageProxyMBean
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, queryStartNanoTime));
                 else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                     responseHandlers.add(performWrite(mutation, consistencyLevel, localDataCenter, standardWritePerformer, null, plainWriteType, queryStartNanoTime));
             }
 
@@ -729,11 +814,15 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             // wait for writes.  throws TimeoutException if necessary
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
             for (AbstractWriteResponseHandler<IMutation> responseHandler : responseHandlers)
                 responseHandler.get();
         }
         catch (WriteTimeoutException|WriteFailureException ex)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5967
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             if (consistencyLevel == ConsistencyLevel.ANY)
             {
                 hintMutations(mutations);
@@ -743,14 +832,19 @@ public class StorageProxy implements StorageProxyMBean
                 if (ex instanceof WriteFailureException)
                 {
                     writeMetrics.failures.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                     writeMetricsMap.get(consistencyLevel).failures.mark();
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
                                   fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
                 }
                 else
                 {
                     writeMetrics.timeouts.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                     writeMetricsMap.get(consistencyLevel).timeouts.mark();
                     WriteTimeoutException te = (WriteTimeoutException)ex;
                     Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
@@ -761,12 +855,16 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             writeMetricsMap.get(consistencyLevel).unavailables.mark();
             Tracing.trace("Unavailable");
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         catch (OverloadedException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
             writeMetrics.unavailables.mark();
             writeMetricsMap.get(consistencyLevel).unavailables.mark();
             Tracing.trace("Overloaded");
@@ -776,6 +874,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             long latency = System.nanoTime() - startTime;
             writeMetrics.addNano(latency);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             writeMetricsMap.get(consistencyLevel).addNano(latency);
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
@@ -806,6 +906,8 @@ public class StorageProxy implements StorageProxyMBean
 
         // local writes can timeout, but cannot be dropped (see LocalMutationRunnable and CASSANDRA-6510),
         // so there is no need to hint or retry.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         EndpointsForToken replicasToHint = ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
                 .all()
                 .filter(StorageProxy::shouldHint);
@@ -818,7 +920,10 @@ public class StorageProxy implements StorageProxyMBean
         String keyspaceName = mutation.getKeyspaceName();
         Token token = mutation.key().getToken();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
                 .all().endpoints().contains(local);
     }
@@ -833,10 +938,14 @@ public class StorageProxy implements StorageProxyMBean
      * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed
      */
     public static void mutateMV(ByteBuffer dataKey, Collection<Mutation> mutations, boolean writeCommitLog, AtomicLong baseComplete, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4861
         Tracing.trace("Determining replicas for mutation");
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
 
         long startTime = System.nanoTime();
 
@@ -846,6 +955,7 @@ public class StorageProxy implements StorageProxyMBean
             // if we haven't joined the ring, write everything to batchlog because paired replicas may be stale
             final UUID batchUUID = UUIDGen.getTimeUUID();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10621
             if (StorageService.instance.isStarting() || StorageService.instance.isJoining() || StorageService.instance.isMoving())
             {
                 BatchlogManager.store(Batch.createLocal(batchUUID, FBUtilities.timestampMicros(),
@@ -857,10 +967,12 @@ public class StorageProxy implements StorageProxyMBean
                 //non-local mutations rely on the base mutation commit-log entry for eventual consistency
                 Set<Mutation> nonLocalMutations = new HashSet<>(mutations);
                 Token baseToken = StorageService.instance.getTokenMetadata().partitioner.getToken(dataKey);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
                 ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
 
                 //Since the base -> view replication is 1:1 we only need to store the BL locally
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                 ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forLocalBatchlogWrite();
                 BatchlogCleanup cleanup = new BatchlogCleanup(mutations.size(),
                                                               () -> asyncRemoveFromBatchlog(replicaPlan, batchUUID));
@@ -874,6 +986,7 @@ public class StorageProxy implements StorageProxyMBean
                     EndpointsForToken pendingReplicas = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(tk, keyspaceName);
 
                     // if there are no paired endpoints there are probably range movements going on, so we write to the local batchlog to replay later
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13069
                     if (!pairedEndpoint.isPresent())
                     {
                         if (pendingReplicas.isEmpty())
@@ -888,9 +1001,11 @@ public class StorageProxy implements StorageProxyMBean
                     // When local node is the endpoint we can just apply the mutation locally,
                     // unless there are pending endpoints, in which case we want to do an ordinary
                     // write so the view mutation is sent to the pending endpoint
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                     if (pairedEndpoint.get().isSelf() && StorageService.instance.isJoined()
                         && pendingReplicas.isEmpty())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10796
                         try
                         {
                             mutation.apply(writeCommitLog);
@@ -910,8 +1025,10 @@ public class StorageProxy implements StorageProxyMBean
                                                                   consistencyLevel,
                                                                   EndpointsForToken.of(tk, pairedEndpoint.get()),
                                                                   pendingReplicas,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
                                                                   baseComplete,
                                                                   WriteType.BATCH,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                                   cleanup,
                                                                   queryStartNanoTime));
                     }
@@ -923,6 +1040,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 // Perform remote writes
                 if (!wrappers.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
                     asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.VIEW_MUTATION);
             }
         }
@@ -936,20 +1054,24 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutateWithTriggers(List<? extends IMutation> mutations,
                                           ConsistencyLevel consistencyLevel,
                                           boolean mutateAtomically,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                           long queryStartNanoTime)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
         Collection<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
 
         boolean updatesView = Keyspace.open(mutations.iterator().next().getKeyspaceName())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
                               .viewManager
                               .updatesAffectView(mutations, true);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12649
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
         writeMetricsMap.get(consistencyLevel).mutationSize.update(size);
 
         if (augmented != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
         else
         {
@@ -972,13 +1094,20 @@ public class StorageProxy implements StorageProxyMBean
      * @param queryStartNanoTime the value of System.nanoTime() when the query started to be processed
      */
     public static void mutateAtomically(Collection<Mutation> mutations,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4753
                                         ConsistencyLevel consistency_level,
                                         boolean requireQuorumForRemove,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                         long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4723
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4861
         Tracing.trace("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-733
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-733
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-733
 
         List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
 
@@ -1002,6 +1131,7 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
 
             final UUID batchUUID = UUIDGen.getTimeUUID();
             BatchlogCleanup cleanup = new BatchlogCleanup(mutations.size(),
@@ -1022,24 +1152,31 @@ public class StorageProxy implements StorageProxyMBean
 
             // write to the batchlog
             syncWriteToBatchlog(mutations, replicaPlan, batchUUID, queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
 
             // now actually perform the writes and wait for them to complete
             syncWriteBatchedMutations(wrappers, Stage.MUTATION);
         }
         catch (UnavailableException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
             writeMetrics.unavailables.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
             writeMetricsMap.get(consistency_level).unavailables.mark();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (WriteTimeoutException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
             writeMetrics.timeouts.mark();
             writeMetricsMap.get(consistency_level).timeouts.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5520
             Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
         catch (WriteFailureException e)
         {
             writeMetrics.failures.mark();
@@ -1052,6 +1189,8 @@ public class StorageProxy implements StorageProxyMBean
             long latency = System.nanoTime() - startTime;
             writeMetrics.addNano(latency);
             writeMetricsMap.get(consistency_level).addNano(latency);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14232
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
@@ -1067,6 +1206,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             //We could potentially pass a callback into performWrite. And add callback provision for mutateCounter or mutateAtomically (sendToHintedEndPoints)
             //However, Trade off between write metric per CF accuracy vs performance hit due to callbacks. Similar issue exists with CoordinatorReadLatency metric.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15569
             mutations.stream()
                      .flatMap(m -> m.getTableIds().stream().map(tableId -> Keyspace.open(m.getKeyspaceName()).getColumnFamilyStore(tableId)))
                      .distinct()
@@ -1079,13 +1219,16 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static void syncWriteToBatchlog(Collection<Mutation> mutations, ReplicaPlan.ForTokenWrite replicaPlan, UUID uuid, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
     throws WriteTimeoutException, WriteFailureException
     {
         WriteResponseHandler<?> handler = new WriteResponseHandler(replicaPlan,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                                    WriteType.BATCH_LOG,
                                                                    queryStartNanoTime);
 
         Batch batch = Batch.createLocal(uuid, FBUtilities.timestampMicros(), mutations);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<Batch> message = Message.out(BATCH_STORE_REQ, batch);
         for (Replica replica : replicaPlan.liveAndDown())
         {
@@ -1096,12 +1239,14 @@ public class StorageProxy implements StorageProxyMBean
             else
                 MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         handler.get();
     }
 
     private static void asyncRemoveFromBatchlog(ReplicaPlan.ForTokenWrite replicaPlan, UUID uuid)
     {
         Message<UUID> message = Message.out(Verb.BATCH_REMOVE_REQ, uuid);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         for (Replica target : replicaPlan.contacts())
         {
             if (logger.isTraceEnabled())
@@ -1110,6 +1255,7 @@ public class StorageProxy implements StorageProxyMBean
             if (target.isSelf())
                 performLocally(Stage.MUTATION, target, () -> BatchlogManager.remove(uuid));
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 MessagingService.instance().send(message, target.endpoint());
         }
     }
@@ -1118,6 +1264,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             Replicas.temporaryAssertFull(wrapper.handler.replicaPlan.liveAndDown());  // TODO: CASSANDRA-14549
             ReplicaPlan.ForTokenWrite replicas = wrapper.handler.replicaPlan.withContact(wrapper.handler.replicaPlan.liveAndDown());
 
@@ -1127,24 +1275,30 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (OverloadedException | WriteTimeoutException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 wrapper.handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.forException(e));
             }
         }
     }
 
     private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers, Stage stage)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4723
     throws WriteTimeoutException, OverloadedException
     {
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             EndpointsForToken sendTo = wrapper.handler.replicaPlan.liveAndDown();
             Replicas.temporaryAssertFull(sendTo); // TODO: CASSANDRA-14549
             sendToHintedReplicas(wrapper.mutation, wrapper.handler.replicaPlan.withContact(sendTo), wrapper.handler, localDataCenter, stage);
         }
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4723
             wrapper.handler.get();
     }
 
@@ -1164,6 +1318,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static AbstractWriteResponseHandler<IMutation> performWrite(IMutation mutation,
                                                                        ConsistencyLevel consistencyLevel,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                                        String localDataCenter,
                                                                        WritePerformer performer,
                                                                        Runnable callback,
@@ -1176,6 +1331,8 @@ public class StorageProxy implements StorageProxyMBean
 
         Token tk = mutation.key().getToken();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
         AbstractWriteResponseHandler<IMutation> responseHandler = rs.getWriteResponseHandler(replicaPlan, callback, writeType, queryStartNanoTime);
 
@@ -1194,7 +1351,12 @@ public class StorageProxy implements StorageProxyMBean
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
         AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
         Token tk = mutation.key().getToken();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
         AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan,null, writeType, queryStartNanoTime);
         BatchlogResponseHandler<IMutation> batchHandler = new BatchlogResponseHandler<>(writeHandler, batchConsistencyLevel.blockFor(keyspace), cleanup, queryStartNanoTime);
@@ -1210,20 +1372,27 @@ public class StorageProxy implements StorageProxyMBean
                                                                             ConsistencyLevel batchConsistencyLevel,
                                                                             EndpointsForToken naturalEndpoints,
                                                                             EndpointsForToken pendingEndpoints,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
                                                                             AtomicLong baseComplete,
                                                                             WriteType writeType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                                             BatchlogResponseHandler.BatchlogCleanup cleanup,
                                                                             long queryStartNanoTime)
     {
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
         AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(naturalEndpoints, pendingEndpoints);
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, liveAndDown, ReplicaPlans.writeAll);
 
         AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan, () -> {
             long delay = Math.max(0, System.currentTimeMillis() - baseComplete.get());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         }, writeType, queryStartNanoTime);
         BatchlogResponseHandler<IMutation> batchHandler = new ViewWriteMetricsWrapped(writeHandler, batchConsistencyLevel.blockFor(keyspace), cleanup, queryStartNanoTime);
         return new WriteResponseHandlerWrapper(batchHandler, mutation);
@@ -1260,10 +1429,16 @@ public class StorageProxy implements StorageProxyMBean
      * @throws OverloadedException if the hints cannot be written/enqueued
      */
     public static void sendToHintedReplicas(final Mutation mutation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                             ReplicaPlan.ForTokenWrite plan,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
                                             AbstractWriteResponseHandler<IMutation> responseHandler,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6477
                                             String localDataCenter,
                                             Stage stage)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4753
     throws OverloadedException
     {
         // this dc replicas:
@@ -1272,6 +1447,7 @@ public class StorageProxy implements StorageProxyMBean
         Map<String, Collection<Replica>> dcGroups = null;
         // only need to create a Message for non-local writes
         Message<Mutation> message = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         boolean insertLocal = false;
         Replica localReplica = null;
@@ -1279,31 +1455,42 @@ public class StorageProxy implements StorageProxyMBean
 
         List<InetAddressAndPort> backPressureHosts = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         for (Replica destination : plan.contacts())
         {
             checkHintOverload(destination);
 
             if (plan.isAlive(destination))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                 if (destination.isSelf())
                 {
                     insertLocal = true;
                     localReplica = destination;
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
                 else
                 {
                     // belongs on a different server
                     if (message == null)
                         message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
                     String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3440
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
 
                     // direct writes to local DC or old Cassandra versions
                     // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5960
                     if (localDataCenter.equals(dc))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
                         if (localDc == null)
                             localDc = new ArrayList<>(plan.contacts().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
                         localDc.add(destination);
                     }
@@ -1321,13 +1508,17 @@ public class StorageProxy implements StorageProxyMBean
 
                     if (backPressureHosts == null)
                         backPressureHosts = new ArrayList<>(plan.contacts().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
                     backPressureHosts.add(destination.endpoint());
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
             else
             {
                 //Immediately mark the response as expired since the request will not be sent
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
                 responseHandler.expired();
                 if (shouldHint(destination))
                 {
@@ -1341,6 +1532,7 @@ public class StorageProxy implements StorageProxyMBean
 
         if (backPressureHosts != null)
             MessagingService.instance().applyBackPressure(backPressureHosts, responseHandler.currentTimeoutNanos());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         if (endpointsToHint != null)
             submitHint(mutation, EndpointsForToken.copyOf(mutation.key().getToken(), endpointsToHint), responseHandler);
@@ -1348,6 +1540,7 @@ public class StorageProxy implements StorageProxyMBean
         if (insertLocal)
         {
             Preconditions.checkNotNull(localReplica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             performLocally(stage, localReplica, mutation::apply, responseHandler);
         }
 
@@ -1388,6 +1581,7 @@ public class StorageProxy implements StorageProxyMBean
                                                  AbstractWriteResponseHandler<IMutation> handler)
     {
         final Replica target;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15318
 
         if (targets.size() > 1)
         {
@@ -1406,6 +1600,7 @@ public class StorageProxy implements StorageProxyMBean
 
             message = message.withForwardTo(new ForwardingInfo(forwardToReplicas.endpointList(), messageIds));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15318
         else
         {
             target = targets.get(0);
@@ -1434,6 +1629,7 @@ public class StorageProxy implements StorageProxyMBean
             @Override
             protected Verb verb()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 return Verb.MUTATION_REQ;
             }
         });
@@ -1441,6 +1637,10 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, final RequestCallback<?> handler)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
             public void runMayThrow()
@@ -1453,6 +1653,8 @@ public class StorageProxy implements StorageProxyMBean
                 catch (Exception ex)
                 {
                     if (!(ex instanceof WriteTimeoutException))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13551
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13551
                         logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.forException(ex));
                 }
@@ -1484,8 +1686,13 @@ public class StorageProxy implements StorageProxyMBean
     {
         Replica replica = findSuitableReplica(cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         if (replica.isSelf())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             return applyCounterMutationOnCoordinator(cm, localDataCenter, queryStartNanoTime);
         }
         else
@@ -1494,15 +1701,18 @@ public class StorageProxy implements StorageProxyMBean
             String keyspaceName = cm.getKeyspaceName();
             Keyspace keyspace = Keyspace.open(keyspaceName);
             Token tk = cm.key().getToken();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             // we build this ONLY to perform the sufficiency check that happens on construction
             ReplicaPlans.forWrite(keyspace, cm.consistency(), tk, ReplicaPlans.writeAll);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
 
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(ReplicaPlans.forForwardingCounterWrite(keyspace, tk, replica),
                                                                                                  WriteType.COUNTER, queryStartNanoTime);
 
             Tracing.trace("Enqueuing counter update to {}", replica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Message message = Message.outWithFlag(Verb.COUNTER_MUTATION_REQ, cm, MessageFlag.CALL_BACK_ON_FAILURE);
             MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler, false);
             return responseHandler;
@@ -1524,6 +1734,8 @@ public class StorageProxy implements StorageProxyMBean
         Keyspace keyspace = Keyspace.open(keyspaceName);
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         EndpointsForToken replicas = keyspace.getReplicationStrategy().getNaturalReplicasForToken(key);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
@@ -1557,6 +1769,7 @@ public class StorageProxy implements StorageProxyMBean
     public static AbstractWriteResponseHandler<IMutation> applyCounterMutationOnLeader(CounterMutation cm, String localDataCenter, Runnable callback, long queryStartNanoTime)
     throws UnavailableException, OverloadedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return performWrite(cm, cm.consistency(), localDataCenter, counterWritePerformer, callback, WriteType.COUNTER, queryStartNanoTime);
     }
 
@@ -1569,10 +1782,14 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static Runnable counterWriteTask(final IMutation mutation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                              final ReplicaPlan.ForTokenWrite replicaPlan,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
                                              final AbstractWriteResponseHandler<IMutation> responseHandler,
                                              final String localDataCenter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new DroppableRunnable(Verb.COUNTER_MUTATION_REQ)
         {
             @Override
@@ -1580,8 +1797,12 @@ public class StorageProxy implements StorageProxyMBean
             {
                 assert mutation instanceof CounterMutation;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
                 Mutation result = ((CounterMutation) mutation).applyCounterMutation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 responseHandler.onResponse(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 sendToHintedReplicas(result, replicaPlan, responseHandler, localDataCenter, Stage.COUNTER_MUTATION);
             }
         };
@@ -1598,6 +1819,7 @@ public class StorageProxy implements StorageProxyMBean
     public static RowIterator readOne(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return readOne(command, consistencyLevel, null, queryStartNanoTime);
     }
 
@@ -1608,6 +1830,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
         // When using serial CL, the ClientState should be provided
@@ -1620,24 +1843,30 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, ClientState state, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(group.queries))
         {
             readMetrics.unavailables.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
             readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw new IsBootstrappingException();
         }
 
         return consistencyLevel.isSerialConsistency()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
              ? readWithPaxos(group, consistencyLevel, state, queryStartNanoTime)
              : readRegular(group, consistencyLevel, queryStartNanoTime);
     }
 
     private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, ClientState state, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         assert state != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
 
@@ -1651,6 +1880,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
             ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(metadata.keyspace), key, consistencyLevel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
             // does the work of applying in-progress writes; throws UAE or timeout if it can't
             final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -1659,6 +1890,8 @@ public class StorageProxy implements StorageProxyMBean
 
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 final PaxosBallotAndContention pair = beginAndRepairPaxos(start, key, metadata, replicaPlan, consistencyLevel, consistencyForCommitOrFetch, false, state);
                 if (pair.contentions > 0)
                     casReadMetrics.contention.update(pair.contentions);
@@ -1669,15 +1902,18 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (WriteFailureException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12311
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             result = fetchRows(group.queries, consistencyForCommitOrFetch, queryStartNanoTime);
         }
         catch (UnavailableException e)
         {
             readMetrics.unavailables.mark();
             casReadMetrics.unavailables.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
             readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw e;
         }
@@ -1688,6 +1924,7 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsMap.get(consistencyLevel).timeouts.mark();
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
@@ -1709,11 +1946,13 @@ public class StorageProxy implements StorageProxyMBean
 
     @SuppressWarnings("resource")
     private static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         long start = System.nanoTime();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, queryStartNanoTime);
             // Note that the only difference between the command in a group must be the partition key on which
             // they applied.
@@ -1726,16 +1965,21 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (UnavailableException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4009
             readMetrics.unavailables.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
             readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9507
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
             readMetricsMap.get(consistencyLevel).timeouts.mark();
             throw e;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
@@ -1746,8 +1990,10 @@ public class StorageProxy implements StorageProxyMBean
         {
             long latency = System.nanoTime() - start;
             readMetrics.addNano(latency);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7384
             readMetricsMap.get(consistencyLevel).addNano(latency);
             // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             for (ReadCommand command : group.queries)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
@@ -1756,6 +2002,7 @@ public class StorageProxy implements StorageProxyMBean
     private static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair> repairs)
     {
         PartitionIterator concatenated = PartitionIterators.concat(iterators);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
 
         if (repairs.isEmpty())
             return concatenated;
@@ -1793,11 +2040,14 @@ public class StorageProxy implements StorageProxyMBean
      * 5. else carry out read repair by getting data from all the nodes.
      */
     private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         int cmdCount = commands.size();
 
         AbstractReadExecutor[] reads = new AbstractReadExecutor[cmdCount];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         // Get the replica locations, sorted by response time according to the snitch, and create a read executor
         // for type of speculation we'll use in this read
@@ -1831,6 +2081,7 @@ public class StorageProxy implements StorageProxyMBean
         // an additional request to any remaining replicas we haven't contacted (if there are any)
         for (int i=0; i<cmdCount; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
             reads[i].maybeSendAdditionalDataRequests();
         }
 
@@ -1861,6 +2112,7 @@ public class StorageProxy implements StorageProxyMBean
 
         public LocalReadRunnable(ReadCommand command, ReadCallback handler)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             super(Verb.READ_REQ);
             this.command = command;
             this.handler = handler;
@@ -1871,6 +2123,7 @@ public class StorageProxy implements StorageProxyMBean
             try
             {
                 command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
                 ReadResponse response;
                 try (ReadExecutionController executionController = command.executionController();
@@ -1885,6 +2138,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     MessagingService.instance().metrics.recordSelfDroppedMessage(verb, MonotonicClock.approxTime.now() - approxCreationTimeNanos, NANOSECONDS);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                 }
@@ -1900,6 +2154,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                     throw t;
                 }
@@ -1916,6 +2171,7 @@ public class StorageProxy implements StorageProxyMBean
     private static float estimateResultsPerRange(PartitionRangeReadCommand command, Keyspace keyspace)
     {
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         Index index = command.getIndex(cfs);
         float maxExpectedResults = index == null
                                  ? command.limits().estimateTotalResults(cfs)
@@ -1989,6 +2245,8 @@ public class StorageProxy implements StorageProxyMBean
                 // Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
                 // the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
                 // wire compatibility, so It's likely easier not to bother;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 if (current.range().right.isMinimum())
                     break;
 
@@ -2015,6 +2273,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             this.resolver = resolver;
             this.handler = handler;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
             this.readRepair = readRepair;
         }
 
@@ -2023,6 +2282,7 @@ public class StorageProxy implements StorageProxyMBean
             if (result != null)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
             handler.awaitResults();
             result = resolver.resolve();
         }
@@ -2073,6 +2333,7 @@ public class StorageProxy implements StorageProxyMBean
             this.startTime = System.nanoTime();
             this.ranges = ranges;
             this.totalRangeCount = totalRangeCount;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             this.queryStartNanoTime = queryStartNanoTime;
             this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         }
@@ -2090,6 +2351,7 @@ public class StorageProxy implements StorageProxyMBean
                     // else, sends the next batch of concurrent queries (after having close the previous iterator)
                     if (sentQueryIterator != null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                         liveReturned += counter.counted();
                         sentQueryIterator.close();
 
@@ -2102,6 +2364,8 @@ public class StorageProxy implements StorageProxyMBean
 
                 return sentQueryIterator.next();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3671
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3671
             catch (UnavailableException e)
             {
                 rangeMetrics.unavailables.mark();
@@ -2142,6 +2406,7 @@ public class StorageProxy implements StorageProxyMBean
             int remainingRows = limit - liveReturned;
             float rowsPerRange = (float)liveReturned / (float)rangesQueried;
             int concurrencyFactor = Math.max(1, Math.min(maxConcurrencyFactor, Math.round(remainingRows / rowsPerRange)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
                          rowsPerRange, remainingRows, concurrencyFactor);
             return concurrencyFactor;
@@ -2161,6 +2426,7 @@ public class StorageProxy implements StorageProxyMBean
             PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
             // If enabled, request repaired data tracking info from full replicas but
             // only if there are multiple full replicas to compare results from
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15019
             if (DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
                 && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
             {
@@ -2177,8 +2443,11 @@ public class StorageProxy implements StorageProxyMBean
                     = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
             if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                 Stage.READ.execute(new LocalReadRunnable(rangeCommand, handler));
             }
             else
@@ -2186,12 +2455,15 @@ public class StorageProxy implements StorageProxyMBean
                 for (Replica replica : replicaPlan.contacts())
                 {
                     Tracing.trace("Enqueuing request to {}", replica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14750
                     ReadCommand command = replica.isFull() ? rangeCommand : rangeCommand.copyAsTransientQuery(replica);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && replica.isFull());
                     MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
             return new SingleRangeResponse(resolver, handler, readRepair);
         }
 
@@ -2227,6 +2499,7 @@ public class StorageProxy implements StorageProxyMBean
             // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor) but we don't want to
             // enforce any particular limit at this point (this could break code than rely on postReconciliationProcessing), hence the DataLimits.NONE.
             counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10726
             return counter.applyTo(concatAndBlockOnRepair(concurrentQueries, readRepairs));
         }
 
@@ -2262,6 +2535,7 @@ public class StorageProxy implements StorageProxyMBean
     public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     {
         Tracing.trace("Computing ranges to query");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7599
 
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         RangeIterator ranges = new RangeIterator(command, keyspace, consistencyLevel);
@@ -2295,6 +2569,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public Map<String, List<String>> getSchemaVersions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return describeSchemaVersions(false);
     }
 
@@ -2311,10 +2586,12 @@ public class StorageProxy implements StorageProxyMBean
     public static Map<String, List<String>> describeSchemaVersions(boolean withPort)
     {
         final String myVersion = Schema.instance.getVersion().toString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final Map<InetAddressAndPort, UUID> versions = new ConcurrentHashMap<>();
         final Set<InetAddressAndPort> liveHosts = Gossiper.instance.getLiveMembers();
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         RequestCallback<UUID> cb = message ->
         {
             // record the response from the remote node.
@@ -2323,6 +2600,7 @@ public class StorageProxy implements StorageProxyMBean
         };
         // an empty message acts as a request to the SchemaVersionVerbHandler.
         Message message = Message.out(Verb.SCHEMA_VERSION_REQ, noPayload);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort endpoint : liveHosts)
             MessagingService.instance().sendWithCallback(message, endpoint, cb);
 
@@ -2338,6 +2616,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // maps versions to hosts that are on that version.
         Map<String, List<String>> results = new HashMap<String, List<String>>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Iterable<InetAddressAndPort> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
         for (InetAddressAndPort host : allHosts)
         {
@@ -2349,11 +2628,14 @@ public class StorageProxy implements StorageProxyMBean
                 hosts = new ArrayList<String>();
                 results.put(stringVersion, hosts);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             hosts.add(host.getHostAddress(withPort));
         }
 
         // we're done: the results map is ready to return to the client.  the rest is just debug logging:
         if (results.get(UNREACHABLE) != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3381
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             logger.debug("Hosts not in agreement. Didn't get a response from everybody: {}", StringUtils.join(results.get(UNREACHABLE), ","));
         for (Map.Entry<String, List<String>> entry : results.entrySet())
         {
@@ -2376,6 +2658,7 @@ public class StorageProxy implements StorageProxyMBean
     static <T extends RingPosition<T>> List<AbstractBounds<T>> getRestrictedRanges(final AbstractBounds<T> queryRange)
     {
         // special case for bounds containing exactly 1 (non-minimum) token
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.isMinimum())
         {
             return Collections.singletonList(queryRange);
@@ -2399,6 +2682,7 @@ public class StorageProxy implements StorageProxyMBean
              *     keys having 15 as token and B include none of those (since that is what our node owns).
              * asSplitValue() abstracts that choice.
              */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3749
             Token upperBoundToken = ringIter.next();
             T upperBound = (T)upperBoundToken.upperBound(queryRange.left.getClass());
             if (!remainder.left.equals(upperBound) && !remainder.contains(upperBound))
@@ -2418,11 +2702,13 @@ public class StorageProxy implements StorageProxyMBean
 
     public boolean getHintedHandoffEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4479
         return DatabaseDescriptor.hintedHandoffEnabled();
     }
 
     public void setHintedHandoffEnabled(boolean b)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12509
         synchronized (StorageService.instance)
         {
             if (b)
@@ -2434,6 +2720,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public void enableHintsForDC(String dc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9035
         DatabaseDescriptor.enableHintsForDC(dc);
     }
 
@@ -2461,6 +2748,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (!DatabaseDescriptor.hintedHandoffEnabled())
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         if (replica.isTransient() || replica.isSelf())
             return false;
 
@@ -2471,6 +2759,8 @@ public class StorageProxy implements StorageProxyMBean
             if (disabledDCs.contains(dc))
             {
                 Tracing.trace("Not hinting {} since its data center {} has been disabled {}", replica, dc, disabledDCs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2069
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                 return false;
             }
         }
@@ -2494,6 +2784,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException
     {
         logger.debug("Starting a blocking truncate operation on keyspace {}, CF {}", keyspace, cfname);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6864
         if (isAnyStorageHostDown())
         {
             logger.info("Cannot perform truncate, some hosts are down");
@@ -2505,21 +2796,27 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         Set<InetAddressAndPort> allEndpoints = StorageService.instance.getLiveRingMembers(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         int blockFor = allEndpoints.size();
         final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor);
 
         // Send out the truncate calls and track the responses with the callbacks.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5638
         Tracing.trace("Enqueuing truncate messages to hosts {}", allEndpoints);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<TruncateRequest> message = Message.out(TRUNCATE_REQ, new TruncateRequest(keyspace, cfname));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort endpoint : allEndpoints)
             MessagingService.instance().sendWithCallback(message, endpoint, responseHandler);
 
         // Wait for all
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5520
         try
         {
             responseHandler.get();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-130
         catch (TimeoutException e)
         {
             Tracing.trace("Timed out");
@@ -2533,13 +2830,19 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static boolean isAnyStorageHostDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6864
         return !Gossiper.instance.getUnreachableTokenOwners().isEmpty();
     }
 
     public interface WritePerformer
     {
         public void apply(IMutation mutation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                           ReplicaPlan.ForTokenWrite targets,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
                           AbstractWriteResponseHandler<IMutation> responseHandler,
                           String localDataCenter) throws OverloadedException;
     }
@@ -2551,12 +2854,16 @@ public class StorageProxy implements StorageProxyMBean
     {
         public ViewWriteMetricsWrapped(AbstractWriteResponseHandler<IMutation> writeHandler, int i, BatchlogCleanup cleanup, long queryStartNanoTime)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             super(writeHandler, i, cleanup, queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             viewWriteMetrics.viewReplicasAttempted.inc(candidateReplicaCount());
         }
 
         public void onResponse(Message<IMutation> msg)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             super.onResponse(msg);
             viewWriteMetrics.viewReplicasSuccess.inc();
         }
@@ -2567,6 +2874,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class DroppableRunnable implements Runnable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         final long approxCreationTimeNanos;
         final Verb verb;
 
@@ -2609,6 +2917,7 @@ public class StorageProxy implements StorageProxyMBean
 
         private final Replica localReplica;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         LocalMutationRunnable(Replica localReplica)
         {
             this.localReplica = localReplica;
@@ -2628,6 +2937,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     protected void runMayThrow() throws Exception
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4753
                         LocalMutationRunnable.this.runMayThrow();
                     }
                 };
@@ -2645,6 +2955,7 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         abstract protected Verb verb();
         abstract protected void runMayThrow() throws Exception;
     }
@@ -2668,6 +2979,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 runMayThrow();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7886
             catch (Exception e)
             {
                 throw new RuntimeException(e);
@@ -2676,6 +2988,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 StorageMetrics.totalHintsInProgress.dec(targets.size());
                 for (InetAddressAndPort target : targets.endpoints())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6007
                     getHintsInProgressFor(target).decrementAndGet();
             }
         }
@@ -2685,11 +2998,13 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getTotalHints()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return StorageMetrics.totalHints.getCount();
     }
 
     public int getMaxHintsInProgress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2034
         return maxHintsInProgress;
     }
 
@@ -2700,6 +3015,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public int getHintsInProgress()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return (int) StorageMetrics.totalHintsInProgress.getCount();
     }
 
@@ -2711,12 +3027,14 @@ public class StorageProxy implements StorageProxyMBean
 
     private static AtomicInteger getHintsInProgressFor(InetAddressAndPort destination)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6007
         try
         {
             return hintsInProgress.load(destination);
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2494
             throw new AssertionError(e);
         }
     }
@@ -2752,7 +3070,10 @@ public class StorageProxy implements StorageProxyMBean
                 HintsService.instance.write(hostIds, Hint.create(mutation, System.currentTimeMillis()));
                 validTargets.forEach(HintsService.instance.metrics::incrCreatedHints);
                 // Notify the handler only for CL == ANY
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 if (responseHandler != null && responseHandler.replicaPlan.consistencyLevel() == ConsistencyLevel.ANY)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     responseHandler.onResponse(null);
             }
         };
@@ -2765,6 +3086,8 @@ public class StorageProxy implements StorageProxyMBean
         StorageMetrics.totalHintsInProgress.inc(runnable.targets.size());
         for (Replica target : runnable.targets)
             getHintsInProgressFor(target.endpoint()).incrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return (Future<Void>) Stage.MUTATION.submit(runnable);
     }
 
@@ -2799,6 +3122,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getReadRepairAttempted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         return ReadRepairMetrics.attempted.getCount();
     }
 
@@ -2814,11 +3138,13 @@ public class StorageProxy implements StorageProxyMBean
 
     public int getNumberOfTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11880
         return Schema.instance.getNumberOfTables();
     }
 
     public String getIdealConsistencyLevel()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13289
         return DatabaseDescriptor.getIdealConsistencyLevel().toString();
     }
 
@@ -2832,6 +3158,7 @@ public class StorageProxy implements StorageProxyMBean
 
     @Deprecated
     public int getOtcBacklogExpirationInterval() {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return 0;
     }
 

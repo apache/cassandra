@@ -41,11 +41,13 @@ public abstract class AbstractMarker extends Term.NonTerminal
 
     public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6033
         boundNames.add(bindIndex, receiver);
     }
 
     public boolean containsBindMarker()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5795
         return true;
     }
 
@@ -97,12 +99,14 @@ public abstract class AbstractMarker extends Term.NonTerminal
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             return null;
         }
 
         @Override
         public String getText()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return "?";
         }
     }
@@ -124,6 +128,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
         }
 
@@ -150,6 +155,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
         private static ColumnSpecification makeInReceiver(ColumnSpecification receiver)
         {
             ColumnIdentifier inName = new ColumnIdentifier("in(" + receiver.name + ")", true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             return new ColumnSpecification(receiver.ksName, receiver.cfName, inName, ListType.getInstance(receiver.type, false));
         }
 

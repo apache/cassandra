@@ -38,6 +38,7 @@ public final class OperationFcts
         ADDITION('+', "_add")
         {
             protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                                                    NumberType<?> leftType,
                                                    ByteBuffer left,
                                                    NumberType<?> rightType,
@@ -67,6 +68,7 @@ public final class OperationFcts
 
             @Override
             protected ByteBuffer executeOnTemporals(TemporalType<?> type,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                                                     ByteBuffer temporal,
                                                     ByteBuffer duration)
             {
@@ -134,6 +136,7 @@ public final class OperationFcts
          * @return the operation result
          */
         protected abstract ByteBuffer executeOnNumerics(NumberType<?> resultType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                                                         NumberType<?> leftType,
                                                         ByteBuffer left,
                                                         NumberType<?> rightType,
@@ -209,6 +212,7 @@ public final class OperationFcts
             for (NumberType<?> right : numericTypes)
             {
                 NumberType<?> returnType = returnType(left, right);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                 for (OPERATION operation : OPERATION.values())
                     functions.add(new NumericOperationFunction(returnType, left, operation, right));
             }
@@ -299,6 +303,7 @@ public final class OperationFcts
 
         // tinyint and smallint type are not fixed length types even if they should be.
         // So we need to handle them in a special way.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         if (type == ByteType.instance)
             return 1;
 
@@ -348,6 +353,7 @@ public final class OperationFcts
         private final OPERATION operation;
 
         public OperationFunction(AbstractType<?> returnType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                                  AbstractType<?> left,
                                  OPERATION operation,
                                  AbstractType<?> right)
@@ -371,6 +377,7 @@ public final class OperationFcts
 
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                 return doExecute(left, operation, right);
             }
             catch (Exception e)
@@ -397,6 +404,7 @@ public final class OperationFcts
     private static class NumericOperationFunction extends OperationFunction
     {
         public NumericOperationFunction(NumberType<?> returnType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
                                         NumberType<?> left,
                                         OPERATION operation,
                                         NumberType<?> right)

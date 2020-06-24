@@ -35,6 +35,7 @@ public class OverlapIterator<I extends Comparable<? super I>, V>
 {
     // indexing into sortedByMin, tracks the next interval to include
     int nextToInclude;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8920
     final List<Interval<I, V>> sortedByMin;
     // indexing into sortedByMax, tracks the next interval to exclude
     int nextToExclude;

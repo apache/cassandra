@@ -62,6 +62,7 @@ public final class Hint
     final Mutation mutation;
     final long creationTime;  // time of hint creation (in milliseconds)
     final int gcgs; // the smallest gc gs of all involved tables (in seconds)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
 
     private Hint(Mutation mutation, long creationTime, int gcgs)
     {
@@ -92,6 +93,7 @@ public final class Hint
     /**
      * Applies the contained mutation unless it's expired, filtering out any updates for truncated tables
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12905
     CompletableFuture<?> applyFuture()
     {
         if (isLive())
@@ -126,6 +128,7 @@ public final class Hint
      */
     int ttl()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
         return Math.min(gcgs, mutation.smallestGCGS());
     }
 
@@ -148,7 +151,9 @@ public final class Hint
         public long serializedSize(Hint hint, int version)
         {
             long size = sizeof(hint.creationTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             size += sizeofUnsignedVInt(hint.gcgs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             size += hint.mutation.serializedSize(version);
             return size;
         }
@@ -156,6 +161,7 @@ public final class Hint
         public void serialize(Hint hint, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(hint.creationTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             out.writeUnsignedVInt(hint.gcgs);
             Mutation.serializer.serialize(hint.mutation, out, version);
         }
@@ -169,6 +175,7 @@ public final class Hint
 
         public long getHintCreationTime(ByteBuffer hintBuffer, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13234
             return hintBuffer.getLong(0);
         }
 
@@ -181,6 +188,7 @@ public final class Hint
          * @return null if the hint is definitely dead, a Hint instance if it's likely live
          */
         @Nullable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12982
         Hint deserializeIfLive(DataInputPlus in, long now, long size, int version) throws IOException
         {
             long creationTime = in.readLong();

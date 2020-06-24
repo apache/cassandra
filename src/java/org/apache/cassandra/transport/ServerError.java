@@ -27,6 +27,7 @@ public class ServerError extends RuntimeException implements TransportException
 {
     public ServerError(Throwable e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(e.toString());
     }
 

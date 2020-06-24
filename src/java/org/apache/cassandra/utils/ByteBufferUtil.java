@@ -86,6 +86,7 @@ public class ByteBufferUtil
     @Inline
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         return FastByteOperations.compareUnsigned(o1, o2);
     }
 
@@ -103,6 +104,7 @@ public class ByteBufferUtil
 
     public static int compare(ByteBuffer o1, int s1, int l1, byte[] o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return FastByteOperations.compareUnsigned(o1, s1, l1, o2, 0, o2.length);
     }
 
@@ -120,6 +122,7 @@ public class ByteBufferUtil
      */
     public static String string(ByteBuffer buffer) throws CharacterCodingException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         return string(buffer, StandardCharsets.UTF_8);
     }
 
@@ -134,6 +137,7 @@ public class ByteBufferUtil
      */
     public static String string(ByteBuffer buffer, int position, int length) throws CharacterCodingException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         return string(buffer, position, length, StandardCharsets.UTF_8);
     }
 
@@ -151,6 +155,7 @@ public class ByteBufferUtil
         ByteBuffer copy = buffer.duplicate();
         copy.position(position);
         copy.limit(copy.position() + length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return string(copy, charset);
     }
 
@@ -171,6 +176,7 @@ public class ByteBufferUtil
      */
     public static byte[] getArray(ByteBuffer buffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return getArray(buffer, buffer.position(), buffer.remaining());
     }
 
@@ -215,6 +221,7 @@ public class ByteBufferUtil
             startIndex = buffer.limit() - 1;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         for (int i = startIndex; i >= buffer.position(); i--)
         {
             if (valueToFind == buffer.get(i))
@@ -232,6 +239,7 @@ public class ByteBufferUtil
      */
     public static ByteBuffer bytes(String s)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         return ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -244,6 +252,9 @@ public class ByteBufferUtil
      */
     public static ByteBuffer bytes(String s, Charset charset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2367
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2367
         return ByteBuffer.wrap(s.getBytes(charset));
     }
 
@@ -255,6 +266,7 @@ public class ByteBufferUtil
     public static ByteBuffer clone(ByteBuffer buffer)
     {
         assert buffer != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         if (buffer.remaining() == 0)
             return EMPTY_BYTE_BUFFER;
@@ -291,13 +303,16 @@ public class ByteBufferUtil
      */
     public static void copyBytes(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
 
     public static int put(ByteBuffer src, ByteBuffer trg)
     {
         int length = Math.min(src.remaining(), trg.remaining());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         copyBytes(src, src.position(), trg, trg.position(), length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4050
         trg.position(trg.position() + length);
         src.position(src.position() + length);
         return length;
@@ -336,12 +351,15 @@ public class ByteBufferUtil
 
     public static void writeWithVIntLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         out.writeUnsignedVInt(bytes.remaining());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         out.write(bytes);
     }
 
     public static void writeWithLength(byte[] bytes, DataOutput out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3966
         out.writeInt(bytes.length);
         out.write(bytes);
     }
@@ -352,6 +370,7 @@ public class ByteBufferUtil
         assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT
             : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
         out.writeShort(length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         out.write(buffer);
     }
 
@@ -360,6 +379,7 @@ public class ByteBufferUtil
         int length = buffer.length;
         assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT
             : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4138
         out.writeShort(length);
         out.write(buffer);
     }
@@ -378,6 +398,7 @@ public class ByteBufferUtil
     public static ByteBuffer readWithVIntLength(DataInputPlus in) throws IOException
     {
         int length = (int)in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
@@ -387,12 +408,14 @@ public class ByteBufferUtil
     public static int serializedSizeWithLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return TypeSizes.sizeof(size) + size;
     }
 
     public static int serializedSizeWithVIntLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         return TypeSizes.sizeofUnsignedVInt(size) + size;
     }
 
@@ -402,12 +425,14 @@ public class ByteBufferUtil
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
         in.skipBytesFully(length);
     }
 
     /* @return An unsigned short in an integer. */
     public static int readShortLength(DataInput in) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4138
         return in.readUnsignedShort();
     }
 
@@ -424,6 +449,7 @@ public class ByteBufferUtil
     public static int serializedSizeWithShortLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return TypeSizes.sizeof((short)size) + size;
     }
 
@@ -434,13 +460,17 @@ public class ByteBufferUtil
     public static void skipShortLength(DataInputPlus in) throws IOException
     {
         int skip = readShortLength(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
         in.skipBytesFully(skip);
     }
 
     public static ByteBuffer read(DataInput in, int length) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3885
         if (length == 0)
             return EMPTY_BYTE_BUFFER;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1998
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         byte[] buff = new byte[length];
         in.readFully(buff);
@@ -449,7 +479,9 @@ public class ByteBufferUtil
 
     public static byte[] readBytes(DataInput in, int length) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5965
         assert length > 0 : "length is not > 0: " + length;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5506
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return bytes;
@@ -458,6 +490,7 @@ public class ByteBufferUtil
     public static byte[] readBytesWithLength(DataInput in) throws IOException
     {
         int length = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
@@ -473,6 +506,8 @@ public class ByteBufferUtil
      */
     public static int toInt(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2009
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return bytes.getInt(bytes.position());
     }
 
@@ -485,6 +520,7 @@ public class ByteBufferUtil
      */
     public static short toShort(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8951
         return bytes.getShort(bytes.position());
     }
 
@@ -497,11 +533,13 @@ public class ByteBufferUtil
      */
     public static byte toByte(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return bytes.get(bytes.position());
     }
 
     public static long toLong(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         return bytes.getLong(bytes.position());
     }
 
@@ -517,6 +555,8 @@ public class ByteBufferUtil
 
     public static ByteBuffer objectToBytes(Object obj)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         if (obj instanceof Integer)
             return ByteBufferUtil.bytes((int) obj);
         else if (obj instanceof Byte)
@@ -543,11 +583,13 @@ public class ByteBufferUtil
 
     public static ByteBuffer bytes(byte b)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return ByteBuffer.allocate(1).put(0, b);
     }
 
     public static ByteBuffer bytes(short s)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8951
         return ByteBuffer.allocate(2).putShort(0, s);
     }
 
@@ -574,6 +616,8 @@ public class ByteBufferUtil
     public static InputStream inputStream(ByteBuffer bytes)
     {
         final ByteBuffer copy = bytes.duplicate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2009
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         return new InputStream()
         {
@@ -582,12 +626,16 @@ public class ByteBufferUtil
                 if (!copy.hasRemaining())
                     return -1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2165
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                 return copy.get() & 0xFF;
             }
 
             @Override
             public int read(byte[] bytes, int off, int len)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2365
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                 if (!copy.hasRemaining())
                     return -1;
 
@@ -599,6 +647,8 @@ public class ByteBufferUtil
             @Override
             public int available()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2165
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                 return copy.remaining();
             }
         };
@@ -612,6 +662,7 @@ public class ByteBufferUtil
     {
         if (bytes.hasArray())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9241
             return Hex.bytesToHex(bytes.array(), bytes.arrayOffset() + bytes.position(), bytes.remaining());
         }
 
@@ -621,6 +672,9 @@ public class ByteBufferUtil
         for (int i = 0; i < size; i++)
         {
             final int bint = bytes.get(i+offset);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3299
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3299
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             c[i * 2] = Hex.byteToChar[(bint & 0xf0) >> 4];
             c[1 + i * 2] = Hex.byteToChar[bint & 0x0f];
         }
@@ -665,6 +719,7 @@ public class ByteBufferUtil
 
     public static ByteBuffer bytes(InetAddress address)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1123
         return ByteBuffer.wrap(address.getAddress());
     }
 
@@ -676,6 +731,7 @@ public class ByteBufferUtil
     // Returns whether {@code prefix} is a prefix of {@code value}.
     public static boolean isPrefix(ByteBuffer prefix, ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5125
         if (prefix.remaining() > value.remaining())
             return false;
 
@@ -685,12 +741,14 @@ public class ByteBufferUtil
 
     public static boolean canMinimize(ByteBuffer buf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15400
         return buf != null && (buf.capacity() > buf.remaining() || !buf.hasArray());
     }
 
     /** trims size of bytebuffer to exactly number of bytes in it, to do not hold too much memory */
     public static ByteBuffer minimalBufferFor(ByteBuffer buf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6689
         return buf.capacity() > buf.remaining() || !buf.hasArray() ? ByteBuffer.wrap(getArray(buf)) : buf;
     }
 
@@ -760,6 +818,7 @@ public class ByteBufferUtil
      */
     public static ByteBuffer ensureCapacity(ByteBuffer buf, int outputLength, boolean allowBufferResize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         BufferType bufferType = buf != null ? BufferType.typeOf(buf) : BufferType.ON_HEAP;
         return ensureCapacity(buf, outputLength, allowBufferResize, bufferType);
     }
@@ -803,6 +862,7 @@ public class ByteBufferUtil
     public static boolean contains(ByteBuffer buffer, ByteBuffer subBuffer)
     {
         int len = subBuffer.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         if (buffer.remaining() - len < 0)
             return false;
 
@@ -836,6 +896,7 @@ public class ByteBufferUtil
 
     public static boolean startsWith(ByteBuffer src, ByteBuffer prefix)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return startsWith(src, prefix, 0);
     }
 

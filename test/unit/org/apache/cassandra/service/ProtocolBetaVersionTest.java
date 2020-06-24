@@ -40,6 +40,7 @@ public class ProtocolBetaVersionTest extends CQLTester
 
     private ProtocolVersion getBetaVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         ProtocolVersion betaVersion = ProtocolVersion.BETA.orElse(null);
         if (betaVersion == null)
         {
@@ -68,8 +69,10 @@ public class ProtocolBetaVersionTest extends CQLTester
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
         assertTrue(betaVersion.isBeta()); // change to another beta version or remove test if no beta version
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, true, new EncryptionOptions()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             client.connect(false, false);
             for (int i = 0; i < 10; i++)
             {
@@ -95,6 +98,7 @@ public class ProtocolBetaVersionTest extends CQLTester
     @Test
     public void unforcedProtocolVersionTest() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         ProtocolVersion betaVersion = getBetaVersion();
         if (betaVersion == null)
         {
@@ -103,13 +107,17 @@ public class ProtocolBetaVersionTest extends CQLTester
         }
 
         assertTrue(betaVersion.isBeta()); // change to another beta version or remove test if no beta version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, false, new EncryptionOptions()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             client.connect(false, false);
             fail("Exception should have been thrown");
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14211
             assertEquals("Beta version of server used (5/v5-beta), but USE_BETA flag is not set",
                          e.getMessage());
         }

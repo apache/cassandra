@@ -31,6 +31,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 
 public enum PreviewKind
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
     NONE(0, (sstable) -> {
         throw new RuntimeException("Can't get preview predicate for preview kind NONE");
     }),
@@ -75,6 +76,7 @@ public enum PreviewKind
 
     public Predicate<SSTableReader> predicate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
         return predicate;
     }
 

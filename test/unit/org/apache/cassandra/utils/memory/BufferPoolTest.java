@@ -40,6 +40,7 @@ public class BufferPoolTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -69,11 +70,13 @@ public class BufferPoolTest
     {
         final int size = RandomAccessReader.DEFAULT_BUFFER_SIZE;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
         assertNotNull(buffer);
         assertEquals(size, buffer.capacity());
         assertEquals(true, buffer.isDirect());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         BufferPool.Chunk chunk = BufferPool.unsafeCurrentChunk();
         assertNotNull(chunk);
         assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, BufferPool.sizeInBytes());
@@ -89,6 +92,7 @@ public class BufferPoolTest
     {
         final int size = 1024;
         for (int i = size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                  i <= BufferPool.NORMAL_CHUNK_SIZE;
                  i += size)
         {
@@ -98,6 +102,7 @@ public class BufferPoolTest
 
     private void checkPageAligned(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
         assertNotNull(buffer);
         assertEquals(size, buffer.capacity());
@@ -115,6 +120,7 @@ public class BufferPoolTest
         final int size1 = 1024;
         final int size2 = 2048;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer1 = BufferPool.get(size1, BufferType.OFF_HEAP);
         assertNotNull(buffer1);
         assertEquals(size1, buffer1.capacity());
@@ -123,6 +129,7 @@ public class BufferPoolTest
         assertNotNull(buffer2);
         assertEquals(size2, buffer2.capacity());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         BufferPool.Chunk chunk = BufferPool.unsafeCurrentChunk();
         assertNotNull(chunk);
         assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, BufferPool.sizeInBytes());
@@ -163,6 +170,7 @@ public class BufferPoolTest
     @Test
     public void testRecycle()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         requestUpToSize(RandomAccessReader.DEFAULT_BUFFER_SIZE, 3 * BufferPool.NORMAL_CHUNK_SIZE);
     }
 
@@ -178,6 +186,7 @@ public class BufferPoolTest
         List<ByteBuffer> buffers = new ArrayList<>(numBuffers);
         for (int i = 0; i < numBuffers; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             ByteBuffer buffer = BufferPool.get(bufferSize, BufferType.OFF_HEAP);
             assertNotNull(buffer);
             assertEquals(bufferSize, buffer.capacity());
@@ -193,6 +202,7 @@ public class BufferPoolTest
     public void testBigRequest()
     {
         final int size = BufferPool.NORMAL_CHUNK_SIZE + 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
         assertNotNull(buffer);
@@ -205,11 +215,13 @@ public class BufferPoolTest
     {
         final int size = RandomAccessReader.DEFAULT_BUFFER_SIZE;
         final int numBuffers = BufferPool.NORMAL_CHUNK_SIZE / size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         List<ByteBuffer> buffers1 = new ArrayList<>(numBuffers);
         List<ByteBuffer> buffers2 = new ArrayList<>(numBuffers);
         for (int i = 0; i < numBuffers; i++)
             buffers1.add(BufferPool.get(size, BufferType.OFF_HEAP));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
 
         BufferPool.Chunk chunk1 = BufferPool.unsafeCurrentChunk();
         assertNotNull(chunk1);
@@ -263,6 +275,7 @@ public class BufferPoolTest
     {
         doTestRandomFrees(12345567878L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         BufferPool.unsafeReset();
         doTestRandomFrees(20452249587L);
 
@@ -272,6 +285,7 @@ public class BufferPoolTest
         BufferPool.unsafeReset();
         doTestRandomFrees(98759284579L);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         BufferPool.unsafeReset();
         doTestRandomFrees(19475257244L);
     }
@@ -280,6 +294,8 @@ public class BufferPoolTest
     {
         final int size = 4096;
         final int maxFreeSlots = BufferPool.NORMAL_CHUNK_SIZE / size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         final int[] idxs = new int[maxFreeSlots];
         for (int i = 0; i < maxFreeSlots; i++)
@@ -303,9 +319,11 @@ public class BufferPoolTest
         List<ByteBuffer> buffers = new ArrayList<>(maxFreeSlots);
         for (int i = 0; i < maxFreeSlots; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             buffers.add(BufferPool.get(size, BufferType.OFF_HEAP));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         BufferPool.Chunk chunk = BufferPool.unsafeCurrentChunk();
         assertFalse(chunk.isFree());
 
@@ -346,6 +364,7 @@ public class BufferPoolTest
             assertTrue(buffer.capacity() >= sizes[i]);
             buffers.add(buffer);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             sum += BufferPool.unsafeCurrentChunk().roundUp(buffer.capacity());
         }
 
@@ -381,6 +400,8 @@ public class BufferPoolTest
         List<ByteBuffer> buffers = new ArrayList<>(sizes.length);
         for (int i = 0; i < sizes.length; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             ByteBuffer buffer = BufferPool.get(sizes[i], BufferType.OFF_HEAP);
             assertNotNull(buffer);
             assertTrue(buffer.capacity() >= sizes[i]);
@@ -400,6 +421,7 @@ public class BufferPoolTest
             BufferPool.put(buffers.get(i));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         assertEquals(null, BufferPool.unsafeCurrentChunk());
         assertEquals(0, chunk.free());
     }
@@ -415,6 +437,7 @@ public class BufferPoolTest
 
         for (int i = 0; i < numBuffersInChunk; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
             buffers.add(buffer);
             addresses.add(MemoryUtil.getAddress(buffer));
@@ -427,6 +450,8 @@ public class BufferPoolTest
 
         for (int i = 0; i < numBuffersInChunk; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
             assertNotNull(buffer);
             assertEquals(size, buffer.capacity());
@@ -497,9 +522,11 @@ public class BufferPoolTest
 
     private void checkBuffer(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
         assertEquals(size, buffer.capacity());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         if (size > 0 && size < BufferPool.NORMAL_CHUNK_SIZE)
         {
             BufferPool.Chunk chunk = BufferPool.unsafeCurrentChunk();
@@ -525,6 +552,7 @@ public class BufferPoolTest
 
         for (int size : sizes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
             assertEquals(size, buffer.capacity());
 
@@ -545,13 +573,17 @@ public class BufferPoolTest
     {
         //first allocate to make sure there is a chunk
         ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
 
         // now get the current chunk and override the free slots mask
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         BufferPool.Chunk chunk = BufferPool.unsafeCurrentChunk();
         assertNotNull(chunk);
         long oldFreeSlots = chunk.setFreeSlots(freeSlots);
 
         // now check we can still get the buffer with the free slots mask changed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer2 = BufferPool.get(size, BufferType.OFF_HEAP);
         assertEquals(size, buffer.capacity());
         BufferPool.put(buffer2);
@@ -564,6 +596,7 @@ public class BufferPoolTest
     @Test
     public void testZeroSizeRequest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer = BufferPool.get(0, BufferType.OFF_HEAP);
         assertNotNull(buffer);
         assertEquals(0, buffer.capacity());
@@ -573,6 +606,7 @@ public class BufferPoolTest
     @Test(expected = IllegalArgumentException.class)
     public void testNegativeSizeRequest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         BufferPool.get(-1, BufferType.OFF_HEAP);
     }
 
@@ -689,6 +723,7 @@ public class BufferPoolTest
 
                         for (int j = 0; j < threadSizes.length; j++)
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
                             ByteBuffer buffer = BufferPool.get(threadSizes[j], BufferType.OFF_HEAP);
                             assertNotNull(buffer);
                             assertEquals(threadSizes[j], buffer.capacity());
@@ -758,9 +793,11 @@ public class BufferPoolTest
         int sum = 0;
         for (int i = 0; i < sizes.length; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
             buffers[i] = BufferPool.get(sizes[i], BufferType.OFF_HEAP);
             assertNotNull(buffers[i]);
             assertEquals(sizes[i], buffers[i].capacity());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             sum += BufferPool.unsafeCurrentChunk().roundUp(buffers[i].capacity());
         }
 
@@ -786,6 +823,7 @@ public class BufferPoolTest
                 {
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         assertNotSame(chunk, BufferPool.unsafeCurrentChunk());
                         BufferPool.put(buffer);
                     }
@@ -817,8 +855,10 @@ public class BufferPoolTest
         System.gc();
 
         assertTrue(BufferPool.unsafeCurrentChunk().isFree());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         //make sure the main thread can still allocate buffers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
         ByteBuffer buffer = BufferPool.get(sizes[0], BufferType.OFF_HEAP);
         assertNotNull(buffer);
         assertEquals(sizes[0], buffer.capacity());

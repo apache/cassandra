@@ -38,6 +38,7 @@ public class ClusteringBound extends ClusteringBoundOrBoundary
 
     protected ClusteringBound(Kind kind, ByteBuffer[] values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         super(kind, values);
     }
 

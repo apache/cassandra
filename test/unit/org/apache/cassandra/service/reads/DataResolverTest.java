@@ -91,6 +91,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     private EndpointsForRange makeReplicas(int num)
     {
         StorageService.instance.getTokenMetadata().clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
 
         switch (num)
         {
@@ -108,6 +109,8 @@ public class DataResolverTest extends AbstractReadResponseTest
 
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
         command.trackRepairedStatus();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         readRepair = new TestableReadRepair(command);
         Token token = Murmur3Partitioner.instance.getMinimumToken();
         EndpointsForRange.Builder replicas = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE, num);
@@ -152,6 +155,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         assertEquals(1, readRepair.sent.size());
         // peer 1 just needs to repair with the row from peer 2
         Mutation mutation = readRepair.getForEndpoint(peer1);
@@ -175,6 +179,7 @@ public class DataResolverTest extends AbstractReadResponseTest
                                                                                                      .add("c2", "v2")
                                                                                                      .buildUpdate())));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
         try(PartitionIterator data = resolver.resolve())
         {
             try (RowIterator rows = Iterators.getOnlyElement(data))
@@ -186,6 +191,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         assertEquals(2, readRepair.sent.size());
         // each peer needs to repair with each other's column
         Mutation mutation = readRepair.getForEndpoint(peer1);
@@ -231,6 +237,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         assertEquals(2, readRepair.sent.size());
         // each peer needs to repair the row from the other
         Mutation mutation = readRepair.getForEndpoint(peer1);
@@ -252,6 +259,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
         RangeTombstone tombstone1 = tombstone("1", "11", 1, nowInSec);
         RangeTombstone tombstone2 = tombstone("3", "31", 1, nowInSec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         PartitionUpdate update = new RowUpdateBuilder(cfm3, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
                                                                             .addRangeTombstone(tombstone2)
                                                                             .buildUpdate();
@@ -297,6 +305,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         assertEquals(4, readRepair.sent.size());
         // peer1 needs the rows from peers 2 and 4
         Mutation mutation = readRepair.getForEndpoint(peer1);
@@ -337,6 +346,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
         resolver.preprocess(response(command, peer2, EmptyIterators.unfilteredPartition(cfm)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
         try(PartitionIterator data = resolver.resolve())
         {
             try (RowIterator rows = Iterators.getOnlyElement(data))
@@ -359,6 +369,8 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveWithBothEmpty()
     {
         EndpointsForRange replicas = makeReplicas(2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         TestableReadRepair readRepair = new TestableReadRepair(command);
         DataResolver resolver = new DataResolver(command, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
         resolver.preprocess(response(command, replicas.get(0).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
@@ -391,6 +403,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         // peer1 should get the deletion from peer2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         assertEquals(1, readRepair.sent.size());
         Mutation mutation = readRepair.getForEndpoint(peer1);
         assertRepairMetadata(mutation);
@@ -420,6 +433,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         InetAddressAndPort peer4 = replicas.get(3).endpoint();
         resolver.preprocess(response(command, peer4, fullPartitionDelete(cfm, dk, 2, nowInSec)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
         try(PartitionIterator data = resolver.resolve())
         {
             try (RowIterator rows = Iterators.getOnlyElement(data))
@@ -431,6 +445,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         // peer 1 needs to get the partition delete from peer 4 and the row from peer 3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         assertEquals(4, readRepair.sent.size());
         Mutation mutation = readRepair.getForEndpoint(peer1);
         assertRepairMetadata(mutation);
@@ -459,6 +474,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     @Test
     public void testResolveRangeTombstonesOnBoundaryRightWins() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12263
         resolveRangeTombstonesOnBoundary(1, 2);
     }
 
@@ -517,6 +533,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         assertEquals(2, readRepair.sent.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         Mutation msg1 = readRepair.getForEndpoint(peer1);
         assertRepairMetadata(msg1);
@@ -547,6 +564,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testRepairRangeTombstoneBoundary() throws UnknownHostException
     {
         testRepairRangeTombstoneBoundary(1, 0, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         readRepair.sent.clear();
         testRepairRangeTombstoneBoundary(1, 1, 0);
         readRepair.sent.clear();
@@ -589,6 +607,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         assertEquals(shouldHaveRepair? 1 : 0, readRepair.sent.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         if (!shouldHaveRepair)
             return;
@@ -638,6 +657,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         assertEquals(1, readRepair.sent.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         Mutation mutation = readRepair.getForEndpoint(peer2);
         assertRepairMetadata(mutation);
@@ -684,6 +704,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         assertEquals(1, readRepair.sent.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         Mutation mutation = readRepair.getForEndpoint(peer2);
         assertRepairMetadata(mutation);
@@ -728,6 +749,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private Cell mapCell(int k, int v, long ts)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         return BufferCell.live(m, ts, bb(v), CellPath.create(bb(k)));
     }
 
@@ -758,6 +780,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
         resolver.preprocess(response(cmd, peer2, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build()))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
         try(PartitionIterator data = resolver.resolve())
         {
             try (RowIterator rows = Iterators.getOnlyElement(data))
@@ -813,6 +836,8 @@ public class DataResolverTest extends AbstractReadResponseTest
             assertFalse(data.hasNext());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         Mutation mutation = readRepair.getForEndpoint(peer1);
         Iterator<Row> rowIter = mutation.getPartitionUpdate(cfm2).iterator();
         assertTrue(rowIter.hasNext());
@@ -864,6 +889,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         Assert.assertNull(readRepair.sent.get(peer1));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         Mutation mutation = readRepair.getForEndpoint(peer2);
         Iterator<Row> rowIter = mutation.getPartitionUpdate(cfm2).iterator();
@@ -882,6 +908,14 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ConsistencyLevel.ALL), readRepair, System.nanoTime());
 
@@ -905,6 +939,8 @@ public class DataResolverTest extends AbstractReadResponseTest
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
         resolver.preprocess(response(cmd, peer2, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build()))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13115
         try(PartitionIterator data = resolver.resolve())
         {
             try (RowIterator rows = Iterators.getOnlyElement(data))
@@ -917,6 +953,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         Row row = Iterators.getOnlyElement(readRepair.getForEndpoint(peer1).getPartitionUpdate(cfm2).iterator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
 
         ComplexColumnData cd = row.getComplexColumnData(m);
 
@@ -1206,6 +1243,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void responsesFromTransientReplicasAreNotTracked()
     {
         EndpointsForRange replicas = makeReplicas(2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsForRange.Builder mutable = replicas.newBuilder(2);
         mutable.add(replicas.get(0));
         mutable.add(Replica.transientReplica(replicas.get(1).endpoint(), replicas.range()));
@@ -1245,6 +1283,8 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                               final ReplicaPlan.SharedForRangeRead plan,
                                               final ReadRepair readRepair,
                                               final long queryStartNanoTime,
@@ -1271,6 +1311,7 @@ public class DataResolverTest extends AbstractReadResponseTest
                                                DeletionTime deletionTime,
                                                RangeTombstone...rangeTombstones)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         DeletionInfo deletionInfo = update.deletionInfo();
         if (deletionTime != null)
@@ -1281,6 +1322,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         int i = 0;
         while (ranges.hasNext())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12263
             RangeTombstone expected = rangeTombstones[i++];
             RangeTombstone actual = ranges.next();
             String msg = String.format("Expected %s, but got %s", expected.toString(cfm.comparator), actual.toString(cfm.comparator));
@@ -1290,6 +1332,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private void assertRepairContainsNoDeletions(Mutation mutation)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         assertTrue(update.deletionInfo().isLive());
     }
@@ -1315,6 +1358,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     private void assertRepairMetadata(Mutation mutation)
     {
         PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         assertEquals(update.metadata().keyspace, ks.getName());
         assertEquals(update.metadata().name, cfm.name);
     }

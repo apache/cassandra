@@ -76,6 +76,7 @@ public class StreamingTest extends TestBaseImpl
 
             // collect message and state
             registerSink(cluster, nodes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
 
             cluster.get(nodes).runOnInstance(() -> StorageService.instance.rebuild(null, KEYSPACE, null, null));
             {
@@ -100,6 +101,7 @@ public class StreamingTest extends TestBaseImpl
 
     public static void registerSink(Cluster cluster, int initiatorNodeId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         IInvokableInstance initiatorNode = cluster.get(initiatorNodeId);
         InetSocketAddress initiator = initiatorNode.broadcastAddress();
         MessageStateSinkImpl initiatorSink = new MessageStateSinkImpl();

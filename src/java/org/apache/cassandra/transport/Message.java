@@ -70,6 +70,7 @@ public abstract class Message
      * are generally caused by unclean client disconnects rather than an actual problem.
      */
     private static final Set<String> ioExceptionsAtDebugLevel = ImmutableSet.<String>builder().
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7849
             add("Connection reset by peer").
             add("Broken pipe").
             add("Connection timed out").
@@ -94,10 +95,12 @@ public abstract class Message
 
     public enum Type
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5545
         ERROR          (0,  Direction.RESPONSE, ErrorMessage.codec),
         STARTUP        (1,  Direction.REQUEST,  StartupMessage.codec),
         READY          (2,  Direction.RESPONSE, ReadyMessage.codec),
         AUTHENTICATE   (3,  Direction.RESPONSE, AuthenticateMessage.codec),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13662
         CREDENTIALS    (4,  Direction.REQUEST,  UnsupportedMessageCodec.instance),
         OPTIONS        (5,  Direction.REQUEST,  OptionsMessage.codec),
         SUPPORTED      (6,  Direction.RESPONSE, SupportedMessage.codec),
@@ -111,6 +114,7 @@ public abstract class Message
         AUTH_CHALLENGE (14, Direction.RESPONSE, AuthChallenge.codec),
         AUTH_RESPONSE  (15, Direction.REQUEST,  AuthResponse.codec),
         AUTH_SUCCESS   (16, Direction.RESPONSE, AuthSuccess.codec);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5714
 
         public final int opcode;
         public final Direction direction;
@@ -131,6 +135,7 @@ public abstract class Message
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         Type(int opcode, Direction direction, Codec<?> codec)
         {
             this.opcode = opcode;
@@ -140,6 +145,7 @@ public abstract class Message
 
         public static Type fromOpcode(int opcode, Direction direction)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7440
             if (opcode >= opcodeIdx.length)
                 throw new ProtocolException(String.format("Unknown opcode %d", opcode));
             Type t = opcodeIdx[opcode];
@@ -179,6 +185,7 @@ public abstract class Message
 
     public Message setStreamId(int streamId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4473
         this.streamId = streamId;
         return this;
     }
@@ -190,6 +197,7 @@ public abstract class Message
 
     public void setSourceFrame(Frame sourceFrame)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6861
         this.sourceFrame = sourceFrame;
     }
 
@@ -200,6 +208,7 @@ public abstract class Message
 
     public Map<String, ByteBuffer> getCustomPayload()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8553
         return customPayload;
     }
 
@@ -222,6 +231,7 @@ public abstract class Message
 
         protected boolean isTraceable()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
             return false;
         }
 
@@ -288,8 +298,10 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         Message setTracingId(UUID tracingId)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4699
             this.tracingId = tracingId;
             return this;
         }
@@ -301,6 +313,7 @@ public abstract class Message
 
         Message setWarnings(List<String> warnings)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8930
             this.warnings = warnings;
             return this;
         }
@@ -321,24 +334,33 @@ public abstract class Message
             boolean isCustomPayload = frame.header.flags.contains(Frame.Header.Flag.CUSTOM_PAYLOAD);
             boolean hasWarning = frame.header.flags.contains(Frame.Header.Flag.WARNING);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5664
             UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUUID(frame.body);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8930
             List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(frame.body);
             Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(frame.body);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5164
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (isCustomPayload && frame.header.version.isSmallerThan(ProtocolVersion.V4))
                     throw new ProtocolException("Received frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
 
                 Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4473
                 message.setStreamId(frame.header.streamId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6861
                 message.setSourceFrame(frame);
                 message.setCustomPayload(customPayload);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4699
                 if (isRequest)
                 {
                     assert message instanceof Request;
                     Request req = (Request)message;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
                     Connection connection = ctx.channel().attr(Connection.attributeKey).get();
                     req.attach(connection);
                     if (isTracing)
@@ -349,12 +371,16 @@ public abstract class Message
                     assert message instanceof Response;
                     if (isTracing)
                         ((Response)message).setTracingId(tracingId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8930
                     if (hasWarning)
                         ((Response)message).setWarnings(warnings);
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
                 results.add(message);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6861
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7470
             catch (Throwable ex)
             {
                 frame.release();
@@ -369,12 +395,16 @@ public abstract class Message
     {
         public void encode(ChannelHandlerContext ctx, Message message, List results)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6236
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4699
 
             Codec<Message> codec = (Codec<Message>)message.type.codec;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7484
             try
             {
                 int messageSize = codec.encodedSize(message, version);
@@ -382,12 +412,16 @@ public abstract class Message
                 if (message instanceof Response)
                 {
                     UUID tracingId = ((Response)message).getTracingId();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                     Map<String, ByteBuffer> customPayload = message.getCustomPayload();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8553
                     if (tracingId != null)
                         messageSize += CBUtil.sizeOfUUID(tracingId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8930
                     List<String> warnings = ((Response)message).getWarnings();
                     if (warnings != null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                         if (version.isSmallerThan(ProtocolVersion.V4))
                             throw new ProtocolException("Must not send frame with WARNING flag for native protocol version < 4");
                         messageSize += CBUtil.sizeOfStringList(warnings);
@@ -404,6 +438,7 @@ public abstract class Message
                         CBUtil.writeUUID(tracingId, body);
                         flags.add(Frame.Header.Flag.TRACING);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8930
                     if (warnings != null)
                     {
                         CBUtil.writeStringList(warnings, body);
@@ -420,6 +455,7 @@ public abstract class Message
                     assert message instanceof Request;
                     if (((Request)message).isTracingRequested())
                         flags.add(Frame.Header.Flag.TRACING);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                     Map<String, ByteBuffer> payload = message.getCustomPayload();
                     if (payload != null)
                         messageSize += CBUtil.sizeOfBytesMap(payload);
@@ -443,6 +479,7 @@ public abstract class Message
 
                 // if the driver attempted to connect with a protocol version lower than the minimum supported
                 // version, respond with a protocol error message with the correct frame header for that version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 ProtocolVersion responseVersion = message.forcedProtocolVersion == null
                                     ? version
                                     : message.forcedProtocolVersion;
@@ -462,7 +499,10 @@ public abstract class Message
     public static class Dispatcher extends SimpleChannelInboundHandler<Request>
     {
         private static final LocalAwareExecutorService requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
                                                                                             DatabaseDescriptor::setNativeTransportMaxThreads,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
                                                                                             Integer.MAX_VALUE,
                                                                                             "transport",
                                                                                             "Native-Transport-Requests");
@@ -503,6 +543,9 @@ public abstract class Message
         {
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13651
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14855
             final AtomicBoolean scheduled = new AtomicBoolean(false);
             final HashSet<ChannelHandlerContext> channels = new HashSet<>();
             final List<FlushItem> flushed = new ArrayList<>();
@@ -567,6 +610,9 @@ public abstract class Message
                     // either reschedule or cancel
                     if (++runsWithNoWork > 5)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13651
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14855
                         scheduled.set(false);
                         if (queued.isEmpty() || !scheduled.compareAndSet(false, true))
                             return;
@@ -581,6 +627,9 @@ public abstract class Message
         {
             private ImmediateFlusher(EventLoop eventLoop)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13651
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14855
                 super(eventLoop);
             }
 
@@ -604,6 +653,8 @@ public abstract class Message
                         channel.flush();
                     for (FlushItem item : flushed)
                         item.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
 
                     channels.clear();
                     flushed.clear();
@@ -617,8 +668,10 @@ public abstract class Message
 
         public Dispatcher(boolean useLegacyFlusher, Server.EndpointPayloadTracker endpointPayloadTracker)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6861
             super(false);
             this.useLegacyFlusher = useLegacyFlusher;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
@@ -710,37 +763,50 @@ public abstract class Message
             final Response response;
             final ServerConnection connection;
             long queryStartNanoTime = System.nanoTime();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
 
             try
             {
                 assert request.connection() instanceof ServerConnection;
                 connection = (ServerConnection)request.connection();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
                     ClientWarn.instance.captureWarnings();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
 
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13665
                 connection.requests.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                 response = request.execute(qstate, queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4473
                 response.setStreamId(request.getStreamId());
                 response.setWarnings(ClientWarn.instance.getWarnings());
                 response.attach(connection);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4480
                 connection.applyStateTransition(request.type, response.type);
             }
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
                 UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
                 flush(new FlushItem(ctx, ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId()), request.getSourceFrame(), this));
                 return;
             }
             finally
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
                 ClientWarn.instance.resetWarnings();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Responding: {}, v={}", response, connection.getVersion());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
             flush(new FlushItem(ctx, response, request.getSourceFrame(), this));
         }
 
@@ -762,18 +828,23 @@ public abstract class Message
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13651
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14855
                 Flusher created = useLegacyFlusher ? new LegacyFlusher(loop) : new ImmediateFlusher(loop);
                 Flusher alt = flusherLookup.putIfAbsent(loop, flusher = created);
                 if (alt != null)
                     flusher = alt;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7743
             flusher.queued.add(item);
             flusher.start();
         }
 
         public static void shutdown()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
             if (requestExecutor != null)
             {
                 requestExecutor.shutdown();
@@ -789,6 +860,7 @@ public abstract class Message
         public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
         {
             // Provide error message to client in case channel is still open
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13114
             UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
             ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
             if (ctx.channel().isOpen())
@@ -819,6 +891,7 @@ public abstract class Message
         private final Channel channel;
         private final boolean alwaysLogAtError;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7849
         UnexpectedChannelExceptionHandler(Channel channel, boolean alwaysLogAtError)
         {
             this.channel = channel;
@@ -841,8 +914,10 @@ public abstract class Message
 
             // netty wraps SSL errors in a CodecExcpetion
             boolean isIOException = exception instanceof IOException || (exception.getCause() instanceof IOException);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
             if (!alwaysLogAtError && isIOException)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14909
                 String errorMessage = exception.getMessage();
                 boolean logAtTrace = false;
 
@@ -860,6 +935,7 @@ public abstract class Message
                 if (logAtTrace)
                 {
                     // Likely unclean client disconnects
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace(message, exception);
                 }
                 else

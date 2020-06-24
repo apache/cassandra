@@ -571,6 +571,7 @@ public class ConnectionTest
     @Test
     public void testPendingOutboundConnectionUpdatesMessageVersionOnReconnectAttempt() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
         final String storagePortProperty = Config.PROPERTY_PREFIX + "ssl_storage_port";
         final String originalStoragePort = System.getProperty(storagePortProperty);
         try
@@ -708,6 +709,7 @@ public class ConnectionTest
                 inbound.open().sync();
                 CountDownLatch deliveryDone = new CountDownLatch(1);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15338
                 unsafeSetHandler(Verb._TEST_1, () -> msg -> {
                     outbound.unsafeRunOnDelivery(deliveryDone::countDown);
                 });
@@ -867,6 +869,7 @@ public class ConnectionTest
         test((inbound, outbound, endpoint) -> {
             // max capacity equals to permit-free sendQueueCapcity + the minimun of endpoint and global reserve
             double maxSendQueueCapacity = outbound.settings().applicationSendQueueCapacityInBytes +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15308
                                           Double.min(outbound.settings().applicationSendQueueReserveEndpointCapacityInBytes,
                                                      outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());
             int concurrency = 100;
@@ -909,6 +912,7 @@ public class ConnectionTest
 
                 executor.shutdown();
                 Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
 
                 Assert.assertEquals(acquireCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
                 Assert.assertEquals(acquireCount - acquisitionFailures.get(), outbound.pendingCount());

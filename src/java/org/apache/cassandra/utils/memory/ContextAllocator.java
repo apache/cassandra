@@ -41,6 +41,7 @@ public final class ContextAllocator extends AbstractAllocator
     @Override
     public ByteBuffer clone(ByteBuffer buffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         assert buffer != null;
         if (buffer.remaining() == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;

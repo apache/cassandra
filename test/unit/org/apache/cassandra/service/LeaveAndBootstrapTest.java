@@ -62,15 +62,19 @@ public class LeaveAndBootstrapTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         partitionerSwitcher = Util.switchPartitioner(partitioner);
         SchemaLoader.loadSchema();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.schemaDefinition("LeaveAndBootstrapTest");
     }
 
     @AfterClass
     public static void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         partitionerSwitcher.close();
     }
 
@@ -111,10 +115,12 @@ public class LeaveAndBootstrapTest
 
         // Third node leaves
         ss.onChange(hosts.get(LEAVING_NODE),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     ApplicationState.STATUS_WITH_PORT,
                     valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         ss.onChange(hosts.get(LEAVING_NODE),
                     ApplicationState.STATUS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
                     valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
@@ -122,6 +128,8 @@ public class LeaveAndBootstrapTest
         PendingRangeCalculatorService.instance.blockUntilFinished();
 
         AbstractReplicationStrategy strategy;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             strategy = getStrategy(keyspaceName, tmd);
@@ -163,8 +171,11 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring or 10 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
@@ -183,6 +194,7 @@ public class LeaveAndBootstrapTest
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddressAndPort boot1 = InetAddressAndPort.getByName("127.0.1.1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.initializeNodeUnsafe(boot1, UUID.randomUUID(), 1);
         Gossiper.instance.injectApplicationState(boot1, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(5))));
         ss.onChange(boot1,
@@ -199,10 +211,12 @@ public class LeaveAndBootstrapTest
         Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
         for (int i=1; i<=4; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
             keyspaceStrategyMap.put("LeaveAndBootstrapTestKeyspace" + i, getStrategy("LeaveAndBootstrapTestKeyspace" + i, tmd));
         }
 
         // pre-calculate the results.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<String, Multimap<Token, InetAddressAndPort>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddressAndPort>>();
         expectedEndpoints.put(KEYSPACE1, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
@@ -215,6 +229,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         expectedEndpoints.put(KEYSPACE2, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
@@ -226,6 +241,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         expectedEndpoints.put(KEYSPACE3, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1", "127.0.0.8"));
@@ -237,6 +253,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.1.2", "127.0.0.4", "127.0.0.5"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         expectedEndpoints.put(KEYSPACE4, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE4).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4"));
         expectedEndpoints.get(KEYSPACE4).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5"));
@@ -350,8 +367,10 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[2])), Gossiper.computeExpireTime()));
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(5))));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         expectedEndpoints.get(KEYSPACE1).get(new BigIntegerToken("55")).removeAll(makeAddrs("127.0.0.7", "127.0.0.8"));
         expectedEndpoints.get(KEYSPACE1).get(new BigIntegerToken("85")).removeAll(makeAddrs("127.0.0.10"));
         expectedEndpoints.get(KEYSPACE2).get(new BigIntegerToken("55")).removeAll(makeAddrs("127.0.0.7", "127.0.0.8"));
@@ -468,11 +487,13 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring or 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 7);
 
         // node 2 leaves
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
                     valueFactory.leaving(Collections.singleton(endpointTokens.get(2))));
@@ -484,6 +505,7 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         // Bootstrap the node immedidiately to keyTokens.get(4) without going through STATE_LEFT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(4))));
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
@@ -505,6 +527,7 @@ public class LeaveAndBootstrapTest
         assertEquals(hosts.get(3), tmd.getBootstrapTokens().get(keyTokens.get(1)));
 
         // Bootstrap node hosts.get(2) further to keyTokens.get(3)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(3))));
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
@@ -517,6 +540,7 @@ public class LeaveAndBootstrapTest
         assertEquals(hosts.get(3), tmd.getBootstrapTokens().get(keyTokens.get(1)));
 
         // Go to normal again for both nodes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(3), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(3))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(3))));
@@ -545,6 +569,7 @@ public class LeaveAndBootstrapTest
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring or 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
@@ -556,9 +581,11 @@ public class LeaveAndBootstrapTest
         assertEquals(endpointTokens.get(2), tmd.getToken(hosts.get(2)));
 
         // back to normal
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
         assertEquals(keyTokens.get(2), tmd.getToken(hosts.get(2)));
 
@@ -566,10 +593,12 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(keyTokens.get(2)), Gossiper.computeExpireTime()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(4))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(4))));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
         assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
         assertEquals(keyTokens.get(4), tmd.getToken(hosts.get(2)));
     }
@@ -585,21 +614,28 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring or 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
         // node 2 leaves with _different_ token
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(0))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(0))));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
 
         assertEquals(keyTokens.get(0), tmd.getToken(hosts.get(2)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertNull(tmd.getEndpoint(endpointTokens.get(2)));
 
         // go to boostrap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(2),
                     ApplicationState.STATUS,
@@ -630,13 +666,21 @@ public class LeaveAndBootstrapTest
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
 
         // create a ring of 6 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 7);
@@ -648,6 +692,7 @@ public class LeaveAndBootstrapTest
         assertFalse(tmd.isMember(hosts.get(2)));
 
         // node hosts.get(4) goes to bootstrap
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4383
         Gossiper.instance.injectApplicationState(hosts.get(3), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(3), ApplicationState.STATUS, valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(1))));
 
@@ -659,6 +704,8 @@ public class LeaveAndBootstrapTest
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
                 valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.computeExpireTime()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
 
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
@@ -676,10 +723,12 @@ public class LeaveAndBootstrapTest
 
         // create a ring of 2 nodes
         ArrayList<Token> endpointTokens = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         List<InetAddressAndPort> hosts = new ArrayList<>();
         Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
 
         InetAddressAndPort toRemove = hosts.get(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
         SystemKeyspace.updatePeerInfo(toRemove, "data_center", "dc42");
         SystemKeyspace.updatePeerInfo(toRemove, "rack", "rack42");
         assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
@@ -702,6 +751,7 @@ public class LeaveAndBootstrapTest
         StorageService ss = StorageService.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
         Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(), new ArrayList<InetAddressAndPort>(), new ArrayList<UUID>(), 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // make a REMOVING state change on a non-member endpoint; without the CASSANDRA-6564 fix, this
         // would result in an ArrayIndexOutOfBoundsException
@@ -722,6 +772,7 @@ public class LeaveAndBootstrapTest
         KeyspaceMetadata ksmd = Schema.instance.getKeyspaceMetadata(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 keyspaceName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                 ksmd.params.replication.klass,
                 tmd,
                 new SimpleSnitch(),

@@ -41,13 +41,16 @@ public class DroppedMessageMetrics
 
     public DroppedMessageMetrics(Verb verb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13216
         this(new DefaultNameFactory("DroppedMessage", verb.toString()));
     }
 
     public DroppedMessageMetrics(MetricNameFactory factory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         dropped = Metrics.meter(factory.createMetricName("Dropped"));
         internalDroppedLatency = Metrics.timer(factory.createMetricName("InternalDroppedLatency"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10580
         crossNodeDroppedLatency = Metrics.timer(factory.createMetricName("CrossNodeDroppedLatency"));
     }
 }

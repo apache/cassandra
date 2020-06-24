@@ -43,6 +43,7 @@ public final class Indexes implements Iterable<IndexMetadata>
 
     private Indexes(Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         indexesByName = builder.indexesByName.build();
         indexesById = builder.indexesById.build();
     }
@@ -69,6 +70,7 @@ public final class Indexes implements Iterable<IndexMetadata>
 
     public Iterator<IndexMetadata> iterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         return indexesByName.values().iterator();
     }
 
@@ -95,6 +97,7 @@ public final class Indexes implements Iterable<IndexMetadata>
      */
     public Optional<IndexMetadata> get(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         return Optional.ofNullable(indexesByName.get(name));
     }
 
@@ -105,6 +108,7 @@ public final class Indexes implements Iterable<IndexMetadata>
      */
     public boolean has(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         return indexesByName.containsKey(name);
     }
 
@@ -162,6 +166,7 @@ public final class Indexes implements Iterable<IndexMetadata>
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         return this == o || (o instanceof Indexes && indexesByName.equals(((Indexes) o).indexesByName));
     }
 
@@ -184,6 +189,7 @@ public final class Indexes implements Iterable<IndexMetadata>
 
     public static final class Builder
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         final ImmutableMap.Builder<String, IndexMetadata> indexesByName = new ImmutableMap.Builder<>();
         final ImmutableMap.Builder<UUID, IndexMetadata> indexesById = new ImmutableMap.Builder<>();
 
@@ -198,6 +204,7 @@ public final class Indexes implements Iterable<IndexMetadata>
 
         public Builder add(IndexMetadata index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
             indexesByName.put(index.name, index);
             indexesById.put(index.id, index);
             return this;

@@ -46,6 +46,7 @@ public class AuthorizationProxyTest
     @BeforeClass
     public static void setup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -496,6 +497,7 @@ public class AuthorizationProxyTest
     {
         Function<RoleResource, Set<PermissionDetails>> getPermissions;
         Function<ObjectName, Set<ObjectName>> queryNames;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         Predicate<RoleResource> isSuperuser;
         BooleanSupplier isAuthzRequired;
         BooleanSupplier isAuthSetupComplete = () -> true;
@@ -533,6 +535,7 @@ public class AuthorizationProxyTest
             return this;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         ProxyBuilder isSuperuser(Predicate<RoleResource> f)
         {
             isSuperuser = f;
@@ -563,6 +566,7 @@ public class AuthorizationProxyTest
                 this.queryNames = f;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
             void setIsSuperuser(Predicate<RoleResource> f)
             {
                 this.isSuperuser = f;

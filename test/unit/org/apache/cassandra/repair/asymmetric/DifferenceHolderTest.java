@@ -43,6 +43,7 @@ public class DifferenceHolderTest
 {
     private static byte[] digest(String string)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         return Digest.forValidator()
                      .update(string.getBytes(), 0, string.getBytes().length)
                      .digest();
@@ -51,6 +52,7 @@ public class DifferenceHolderTest
     @Test
     public void testFromEmptyMerkleTrees() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort a1 = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort a2 = InetAddressAndPort.getByName("127.0.0.2");
 
@@ -72,6 +74,7 @@ public class DifferenceHolderTest
         IPartitioner partitioner = Murmur3Partitioner.instance;
         Range<Token> fullRange = new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
         int maxsize = 16;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort a1 = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort a2 = InetAddressAndPort.getByName("127.0.0.2");
         // merkle tree building stolen from MerkleTreesTest:
@@ -82,6 +85,7 @@ public class DifferenceHolderTest
         mt1.init();
         mt2.init();
         // add dummy hashes to both trees
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         for (MerkleTree.TreeRange range : mt1.rangeIterator())
             range.addAll(new MerkleTreesTest.HIterator(range.right));
         for (MerkleTree.TreeRange range : mt2.rangeIterator())
@@ -93,6 +97,7 @@ public class DifferenceHolderTest
         mt1.maxsize(fullRange, maxsize + 2); // give some room for splitting
 
         // split the leftmost
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         Iterator<MerkleTree.TreeRange> ranges = mt1.rangeIterator();
         leftmost = ranges.next();
         mt1.split(leftmost.right);

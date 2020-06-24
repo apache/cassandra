@@ -62,8 +62,10 @@ public class MutationBench
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12550
         DatabaseDescriptor.clientInitialization(false);
         // Partitioner is not set in client mode.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12677
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
@@ -80,6 +82,7 @@ public class MutationBench
     @State(Scope.Thread)
     public static class ThreadState
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Mutation in;
         int counter = 0;
     }
@@ -100,6 +103,7 @@ public class MutationBench
         Schema.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
 
         mutation = (Mutation)UpdateBuilder.create(metadata, 1L).newRow(1L).add("commentid", 32L).makeMutation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         buffer = ByteBuffer.allocate(mutation.serializedSize(MessagingService.current_version));
         outputBuffer = new DataOutputBufferFixed(buffer);
         inputBuffer = new DataInputBuffer(buffer, false);
@@ -119,6 +123,7 @@ public class MutationBench
     public void deserialize(ThreadState state) throws IOException
     {
         buffer.rewind();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         state.in = Mutation.serializer.deserialize(inputBuffer, MessagingService.current_version);
         state.counter++;
     }

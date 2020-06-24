@@ -286,6 +286,7 @@ public class StaticColumnsTest extends CQLTester
     public void testStaticColumnPurging() throws Throwable
     {
         createTable("CREATE TABLE %s (pkey text, ckey text, value text, static_value text static, PRIMARY KEY(pkey, ckey)) WITH gc_grace_seconds = 0");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11988
 
         execute("INSERT INTO %s (pkey, ckey, static_value, value) VALUES (?, ?, ?, ?)", "k1", "c1", "s1", "v1");
 
@@ -296,6 +297,7 @@ public class StaticColumnsTest extends CQLTester
         flush();
 
         Thread.sleep(1000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12336
 
         compact();
 

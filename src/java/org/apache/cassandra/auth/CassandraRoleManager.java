@@ -83,6 +83,7 @@ public class CassandraRoleManager implements IRoleManager
     // Transform a row in the AuthKeyspace.ROLES to a Role instance
     private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = row ->
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12700
         try
         {
             return new Role(row.getString("role"),
@@ -127,6 +128,7 @@ public class CassandraRoleManager implements IRoleManager
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator().getClass() == PasswordAuthenticator.class
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
                          ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD)
                          : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
         alterableOptions = DatabaseDescriptor.getAuthenticator().getClass().equals(PasswordAuthenticator.class)
@@ -160,9 +162,11 @@ public class CassandraRoleManager implements IRoleManager
     {
         String insertCql = options.getPassword().isPresent()
                          ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
                                          options.getSuperuser().or(false),
                                          options.getLogin().or(false),
                                          escape(hashpw(options.getPassword().get())))
@@ -192,7 +196,10 @@ public class CassandraRoleManager implements IRoleManager
         String assignments = optionsToAssignments(options.getOptions());
         if (!Strings.isNullOrEmpty(assignments))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9761
             process(String.format("UPDATE %s.%s SET %s WHERE role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                   AuthKeyspace.ROLES,
                                   assignments,
@@ -215,6 +222,7 @@ public class CassandraRoleManager implements IRoleManager
 
         modifyRoleMembership(grantee.getRoleName(), role.getRoleName(), "+");
         process(String.format("INSERT INTO %s.%s (role, member) values ('%s', '%s')",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
                               escape(role.getRoleName()),
@@ -232,6 +240,7 @@ public class CassandraRoleManager implements IRoleManager
 
         modifyRoleMembership(revokee.getRoleName(), role.getRoleName(), "-");
         process(String.format("DELETE FROM %s.%s WHERE role = '%s' and member = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
                               escape(role.getRoleName()),
@@ -270,6 +279,7 @@ public class CassandraRoleManager implements IRoleManager
 
     public boolean isSuper(RoleResource role)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15041
         try
         {
             return getRole(role.getRoleName()).isSuper;
@@ -296,6 +306,7 @@ public class CassandraRoleManager implements IRoleManager
 
     public Map<String, String> getCustomOptions(RoleResource role)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8761
         return Collections.emptyMap();
     }
 
@@ -306,6 +317,7 @@ public class CassandraRoleManager implements IRoleManager
 
     public Set<? extends IResource> protectedResources()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES),
                                DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_MEMBERS));
     }
@@ -321,6 +333,7 @@ public class CassandraRoleManager implements IRoleManager
      */
     private static void setupDefaultRole()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11381
         if (StorageService.instance.getTokenMetadata().sortedTokens().isEmpty())
             throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
 
@@ -330,6 +343,7 @@ public class CassandraRoleManager implements IRoleManager
             {
                 QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) " +
                                                      "VALUES ('%s', true, true, '%s')",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                      AuthKeyspace.ROLES,
                                                      DEFAULT_SUPERUSER_NAME,
@@ -341,6 +355,8 @@ public class CassandraRoleManager implements IRoleManager
         catch (RequestExecutionException e)
         {
             logger.warn("CassandraRoleManager skipped default role setup: some nodes were not ready");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9761
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9761
             throw e;
         }
     }
@@ -348,6 +364,7 @@ public class CassandraRoleManager implements IRoleManager
     private static boolean hasExistingRoles() throws RequestExecutionException
     {
         // Try looking up the 'cassandra' default role first, to avoid the range query if possible.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
         String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
         return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
@@ -376,6 +393,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return QueryProcessor.parseStatement(String.format(template, keyspace, table)).prepare(ClientState.forInternalCalls());
         }
         catch (RequestValidationException e)
@@ -413,6 +431,7 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(name),
                                                              Collections.singletonList(ByteBufferUtil.bytes(name)));
         ResultMessage.Rows rows = select(loadRoleStatement, options);
@@ -430,6 +449,8 @@ public class CassandraRoleManager implements IRoleManager
     throws RequestExecutionException
     {
         process(String.format("UPDATE %s.%s SET member_of = member_of %s {'%s'} WHERE role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
                               op,
@@ -458,6 +479,8 @@ public class CassandraRoleManager implements IRoleManager
 
         // Finally, remove the membership list for the dropped role
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
                               escape(role)),
@@ -517,6 +540,7 @@ public class CassandraRoleManager implements IRoleManager
     UntypedResultSet process(String query, ConsistencyLevel consistencyLevel)
     throws RequestValidationException, RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9761
         if (!isClusterReady)
             throw new InvalidRequestException("Cannot process role related query as the role manager isn't yet setup. "
                                             + "This is likely because some of nodes in the cluster are on version 2.1 or earlier. "
@@ -526,6 +550,7 @@ public class CassandraRoleManager implements IRoleManager
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
         return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());

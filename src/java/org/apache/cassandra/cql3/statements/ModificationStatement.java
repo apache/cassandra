@@ -71,6 +71,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public static final String CUSTOM_EXPRESSIONS_NOT_ALLOWED =
         "Custom index expressions cannot be used in WHERE clauses for UPDATE or DELETE statements";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
 
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
@@ -94,6 +95,7 @@ public abstract class ModificationStatement implements CQLStatement
     private final RegularAndStaticColumns requiresRead;
 
     public ModificationStatement(StatementType type,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                  VariableSpecifications bindVariables,
                                  TableMetadata metadata,
                                  Operations operations,
@@ -102,6 +104,7 @@ public abstract class ModificationStatement implements CQLStatement
                                  Attributes attrs)
     {
         this.type = type;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this.bindVariables = bindVariables;
         this.metadata = metadata;
         this.restrictions = restrictions;
@@ -150,6 +153,7 @@ public abstract class ModificationStatement implements CQLStatement
     @Override
     public List<ColumnSpecification> getBindVariables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return bindVariables.getBindVariables();
     }
 
@@ -162,6 +166,7 @@ public abstract class ModificationStatement implements CQLStatement
     @Override
     public Iterable<Function> getFunctions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
         return functions;
@@ -185,6 +190,7 @@ public abstract class ModificationStatement implements CQLStatement
      */
     public StatementRestrictions getRestrictions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
         return restrictions;
     }
 
@@ -214,11 +220,13 @@ public abstract class ModificationStatement implements CQLStatement
 
     public boolean isVirtual()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return metadata().isVirtual();
     }
 
     public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         return attrs.getTimestamp(now, options);
     }
 
@@ -235,6 +243,7 @@ public abstract class ModificationStatement implements CQLStatement
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         state.ensureTablePermission(metadata, Permission.MODIFY);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // CAS updates can be used to simulate a SELECT query, so should require Permission.SELECT as well.
         if (hasConditions())
@@ -261,7 +270,9 @@ public abstract class ModificationStatement implements CQLStatement
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         checkFalse(isView(), "Cannot directly modify a materialized view");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         checkFalse(isVirtual() && attrs.isTimeToLiveSet(), "Expiring columns are not supported by virtual tables");
         checkFalse(isVirtual() && hasConditions(), "Conditional updates are not supported by virtual tables");
     }
@@ -288,6 +299,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public boolean updatesStaticRow()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         return operations.appliesToStaticColumns();
     }
 
@@ -324,6 +336,7 @@ public abstract class ModificationStatement implements CQLStatement
     public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
     throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10338
         List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options);
         for (ByteBuffer key : partitionKeys)
             QueryProcessor.validateKey(key);
@@ -334,6 +347,7 @@ public abstract class ModificationStatement implements CQLStatement
     public NavigableSet<Clustering> createClustering(QueryOptions options)
     throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
         if (appliesOnlyToStaticColumns() && !restrictions.hasClusteringColumnsRestrictions())
             return FBUtilities.singleton(CBuilder.STATIC_BUILDER.build(), metadata().comparator);
 
@@ -364,6 +378,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         // Lists SET operation incurs a read.
         for (Operation op : allOperations())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7499
             if (op.requiresRead())
                 return true;
 
@@ -371,16 +386,20 @@ public abstract class ModificationStatement implements CQLStatement
     }
 
     private Map<DecoratedKey, Partition> readRequiredLists(Collection<ByteBuffer> partitionKeys,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
                                                            ClusteringIndexFilter filter,
                                                            DataLimits limits,
                                                            boolean local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                            ConsistencyLevel cl,
                                                            int nowInSeconds,
                                                            long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7499
         if (!requiresRead())
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4734
         try
         {
             cl.validateForRead(keyspace());
@@ -390,9 +409,11 @@ public abstract class ModificationStatement implements CQLStatement
             throw new InvalidRequestException(String.format("Write operation require a read but consistency %s is not supported on reads", cl));
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
         for (ByteBuffer key : partitionKeys)
             commands.add(SinglePartitionReadCommand.create(metadata(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                                            nowInSeconds,
                                                            ColumnFilter.selection(this.requiresRead),
                                                            RowFilter.NONE,
@@ -411,6 +432,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         try (PartitionIterator iter = group.execute(cl, null, queryStartNanoTime))
         {
             return asMaterializedMap(iter);
@@ -419,6 +441,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     private Map<DecoratedKey, Partition> asMaterializedMap(PartitionIterator iterator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
         Map<DecoratedKey, Partition> map = new HashMap<>();
         while (iterator.hasNext())
         {
@@ -432,11 +455,13 @@ public abstract class ModificationStatement implements CQLStatement
 
     public boolean hasConditions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         return !conditions.isEmpty();
     }
 
     public boolean hasSlices()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
         return type.allowClusteringColumnSlices()
                && getRestrictions().hasClusteringColumnsRestrictions()
                && getRestrictions().isColumnRange();
@@ -449,6 +474,7 @@ public abstract class ModificationStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty consistency level");
 
         return hasConditions()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
              ? executeWithCondition(queryState, options, queryStartNanoTime)
              : executeWithoutCondition(queryState, options, queryStartNanoTime);
     }
@@ -456,6 +482,7 @@ public abstract class ModificationStatement implements CQLStatement
     private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (isVirtual())
             return executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
 
@@ -466,6 +493,7 @@ public abstract class ModificationStatement implements CQLStatement
             cl.validateForWrite(metadata.keyspace);
 
         List<? extends IMutation> mutations =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
             getMutations(options,
                          false,
                          options.getTimestamp(queryState),
@@ -481,13 +509,16 @@ public abstract class ModificationStatement implements CQLStatement
     {
         CQL3CasRequest request = makeCasRequest(queryState, options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         try (RowIterator result = StorageProxy.cas(keyspace(),
                                                    columnFamily(),
                                                    request.key,
                                                    request,
                                                    options.getSerialConsistency(),
                                                    options.getConsistency(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                    queryState.getClientState(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                                    options.getNowInSeconds(queryState),
                                                    queryStartNanoTime))
         {
@@ -504,6 +535,7 @@ public abstract class ModificationStatement implements CQLStatement
                    type.isUpdate()? "updates" : "deletions");
 
         DecoratedKey key = metadata().partitioner.decorateKey(keys.get(0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         long timestamp = options.getTimestamp(queryState);
         int nowInSeconds = options.getNowInSeconds(queryState);
 
@@ -540,6 +572,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     private ResultSet buildCasResultSet(RowIterator partition, QueryState state, QueryOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         return buildCasResultSet(keyspace(), columnFamily(), partition, getColumnsWithConditions(), false, state, options);
     }
 
@@ -557,6 +590,7 @@ public abstract class ModificationStatement implements CQLStatement
         List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
 
         ResultSet rs = new ResultSet(metadata, rows);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         return success ? rs : merge(rs, buildCasFailureResultSet(partition, columnsWithConditions, isBatch, options, options.getNowInSeconds(state)));
     }
 
@@ -584,6 +618,7 @@ public abstract class ModificationStatement implements CQLStatement
     }
 
     private static ResultSet buildCasFailureResultSet(RowIterator partition,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                                       Iterable<ColumnMetadata> columnsWithConditions,
                                                       boolean isBatch,
                                                       QueryOptions options,
@@ -593,6 +628,7 @@ public abstract class ModificationStatement implements CQLStatement
         Selection selection;
         if (columnsWithConditions == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             selection = Selection.wildcard(metadata, false);
         }
         else
@@ -609,8 +645,10 @@ public abstract class ModificationStatement implements CQLStatement
 
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         Selectors selectors = selection.newSelectors(options);
         ResultSetBuilder builder = new ResultSetBuilder(selection.getResultMetadata(), selectors);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         SelectStatement.forSelection(metadata, selection)
                        .processPartition(partition, options, builder, nowInSeconds);
 
@@ -625,11 +663,13 @@ public abstract class ModificationStatement implements CQLStatement
     }
 
     public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
     throws RequestValidationException, RequestExecutionException
     {
         long timestamp = options.getTimestamp(queryState);
         int nowInSeconds = options.getNowInSeconds(queryState);
         for (IMutation mutation : getMutations(options, true, timestamp, nowInSeconds, queryStartNanoTime))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             mutation.apply();
         return null;
     }
@@ -678,10 +718,12 @@ public abstract class ModificationStatement implements CQLStatement
      */
     private List<? extends IMutation> getMutations(QueryOptions options,
                                                          boolean local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                                          long timestamp,
                                                          int nowInSeconds,
                                                          long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
         addUpdates(collector, options, local, timestamp, nowInSeconds, queryStartNanoTime);
         return collector.toMutations();
@@ -696,6 +738,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
         if (hasSlices())
         {
             Slices slices = createSlices(options);
@@ -709,7 +752,9 @@ public abstract class ModificationStatement implements CQLStatement
                                                            options,
                                                            DataLimits.NONE,
                                                            local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                                            timestamp,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                                            nowInSeconds,
                                                            queryStartNanoTime);
             for (ByteBuffer key : keys)
@@ -718,6 +763,7 @@ public abstract class ModificationStatement implements CQLStatement
                 DecoratedKey dk = metadata().partitioner.decorateKey(key);
 
                 PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
                 for (Slice slice : slices)
                     addUpdateForKey(updateBuilder, slice, params);
@@ -732,6 +778,7 @@ public abstract class ModificationStatement implements CQLStatement
                 return;
 
             UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
 
             for (ByteBuffer key : keys)
             {
@@ -739,7 +786,9 @@ public abstract class ModificationStatement implements CQLStatement
                 DecoratedKey dk = metadata().partitioner.decorateKey(key);
 
                 PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
                 if (!restrictions.hasClusteringColumnsRestrictions())
                 {
                     addUpdateForKey(updateBuilder, Clustering.EMPTY, params);
@@ -762,8 +811,10 @@ public abstract class ModificationStatement implements CQLStatement
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
     Slices createSlices(QueryOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
         SortedSet<ClusteringBound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
 
@@ -774,6 +825,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                   NavigableSet<Clustering> clusterings,
                                                   QueryOptions options,
                                                   boolean local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                                   long timestamp,
                                                   int nowInSeconds,
                                                   long queryStartNanoTime)
@@ -784,7 +836,9 @@ public abstract class ModificationStatement implements CQLStatement
                                         options,
                                         DataLimits.cqlLimits(1),
                                         local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                         timestamp,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                                         nowInSeconds,
                                         queryStartNanoTime);
 
@@ -793,6 +847,7 @@ public abstract class ModificationStatement implements CQLStatement
                                     options,
                                     DataLimits.NONE,
                                     local,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14664
                                     timestamp,
                                     nowInSeconds,
                                     queryStartNanoTime);
@@ -808,12 +863,14 @@ public abstract class ModificationStatement implements CQLStatement
                                                   long queryStartNanoTime)
     {
         // Some lists operation requires reading
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         Map<DecoratedKey, Partition> lists =
             readRequiredLists(keys,
                               filter,
                               limits,
                               local,
                               options.getConsistency(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
                               nowInSeconds,
                               queryStartNanoTime);
 
@@ -832,6 +889,7 @@ public abstract class ModificationStatement implements CQLStatement
 
         Slices.Builder builder = new Slices.Builder(metadata().comparator);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         Iterator<ClusteringBound> starts = startBounds.iterator();
         Iterator<ClusteringBound> ends = endBounds.iterator();
 
@@ -865,6 +923,7 @@ public abstract class ModificationStatement implements CQLStatement
             super(name);
             this.type = type;
             this.attrs = attrs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             this.conditions = conditions == null ? Collections.emptyList() : conditions;
             this.ifNotExists = ifNotExists;
             this.ifExists = ifExists;
@@ -915,6 +974,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (conditions.isEmpty())
                 return Conditions.EMPTY_CONDITION;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return prepareColumnConditions(metadata, bindVariables);
         }
 
@@ -936,14 +996,17 @@ public abstract class ModificationStatement implements CQLStatement
                 ColumnMetadata def = entry.left.prepare(metadata);
                 ColumnCondition condition = entry.right.prepare(keyspace(), def, metadata);
                 condition.collectMarkerSpecification(bindVariables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY column '%s' cannot have IF conditions", def.name);
                 builder.add(condition);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             return builder.build();
         }
 
         protected abstract ModificationStatement prepareInternal(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                                  VariableSpecifications bindVariables,
                                                                  Conditions conditions,
                                                                  Attributes attrs);
@@ -961,6 +1024,7 @@ public abstract class ModificationStatement implements CQLStatement
         protected StatementRestrictions newRestrictions(TableMetadata metadata,
                                                         VariableSpecifications boundNames,
                                                         Operations operations,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                                                         WhereClause where,
                                                         Conditions conditions)
         {
@@ -986,7 +1050,9 @@ public abstract class ModificationStatement implements CQLStatement
         public List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> getConditions()
         {
             ImmutableList.Builder<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> builder = ImmutableList.builderWithExpectedSize(conditions.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             for (Pair<ColumnMetadata.Raw, ColumnCondition.Raw> condition : conditions)
                 builder.add(Pair.create(condition.left, condition.right));
 

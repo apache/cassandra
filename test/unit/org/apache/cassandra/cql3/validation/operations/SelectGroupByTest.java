@@ -78,6 +78,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, 2, 12));
 
         // Range queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a, b, c"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12),
@@ -131,6 +132,7 @@ public class SelectGroupByTest extends CQLTester
                    row(2, 2, 3, 3));
 
         // Range queries with wildcard and with LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a, b, c LIMIT 3"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12),
@@ -155,6 +157,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, 2, 12));
 
         // Range queries with wildcard and with PER PARTITION LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12),
@@ -244,6 +247,7 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 4, 2, 6));
 
         // Single partition queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12),
@@ -299,6 +303,7 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 2, 2, 6));
 
         // Single partition queries with wildcard and with LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c LIMIT 2"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12));
@@ -319,6 +324,7 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 2, 2, 6));
 
         // Single partition queries with wildcard and with PER PARTITION LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c PER PARTITION LIMIT 2"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12));
@@ -372,6 +378,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, 2, 12));
 
         // Multi-partitions with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12),
@@ -415,6 +422,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, 24, 1L, 24));
 
         // Multi-partitions with wildcard and PER PARTITION LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c PER PARTITION LIMIT 2"),
                    row(1, 2, 1, 3, 6),
                    row(1, 2, 2, 6, 12),
@@ -450,6 +458,7 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 4, 2, 12));
 
         // Multi-partitions with wildcard, ORDER BY and LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c ORDER BY b DESC, c DESC LIMIT 3"),
                    row(4, 8, 2, 12, 24),
                    row(2, 4, 3, 6, 12),
@@ -634,6 +643,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, null, 3));
 
         // Range query with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a, b"),
                    row(1, null, null, 1, null),
                    row(2, null, null, 2, null),
@@ -673,6 +683,7 @@ public class SelectGroupByTest extends CQLTester
                    row(1, null, 1));
 
         // Single partition query with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b"),
                    row(1, null, null, 1, null));
 
@@ -706,6 +717,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, null, 3));
 
         // Multi-partitions query with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a, b"),
                    row(1, null, null, 1, null),
                    row(2, null, null, 2, null),
@@ -788,6 +800,7 @@ public class SelectGroupByTest extends CQLTester
                    row(3, null, 3));
 
         // Range queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a"),
                    row(1, 2, 1, 1, 3),
                    row(2, 2, 3, 2, 3),
@@ -834,6 +847,7 @@ public class SelectGroupByTest extends CQLTester
                    row(3, null, 3));
 
         // Range queries with wildcard and with LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a LIMIT 2"),
                    row(1, 2, 1, 1, 3),
                    row(2, 2, 3, 2, 3));
@@ -854,6 +868,7 @@ public class SelectGroupByTest extends CQLTester
                    row(3, null, 3));
 
         // Range queries with wildcard and with PER PARTITION LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1"),
                    row(1, 2, 1, 1, 3),
                    row(2, 2, 3, 2, 3),
@@ -904,6 +919,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, null));
 
         // Single partition queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a"),
                    row(1, 2, 1, 1, 3));
 
@@ -981,6 +997,7 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, null));
 
         // Multi-partitions queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
         assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a"),
                    row(1, 2, 1, 1, 3),
                    row(2, 2, 3, 2, 3),
@@ -1128,6 +1145,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, 2, 12));
 
             // Range queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c", pageSize),
                           row(1, 2, 1, 3, 6),
                           row(1, 2, 2, 6, 12),
@@ -1197,6 +1215,7 @@ public class SelectGroupByTest extends CQLTester
                           row(2, 2, 3, 3));
 
             // Range queries with wildcard and with LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c LIMIT 3", pageSize),
                           row(1, 2, 1, 3, 6),
                           row(1, 2, 2, 6, 12),
@@ -1221,6 +1240,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, 2, 12, 24));
 
             // Range queries with wildcard, with PER PARTITION LIMIT and LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2 LIMIT 3", pageSize),
                           row(1, 2, 1, 3, 6),
                           row(1, 2, 2, 6, 12),
@@ -1277,6 +1297,7 @@ public class SelectGroupByTest extends CQLTester
                           row(1, 4, 2, 6));
 
             // Single partition queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c", pageSize),
                        row(1, 2, 1, 3, 6),
                        row(1, 2, 2, 6, 12),
@@ -1337,6 +1358,7 @@ public class SelectGroupByTest extends CQLTester
                           row(1, 2, 2, 6));
 
             // Single partition queries with wildcard and with LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c LIMIT 2", pageSize),
                        row(1, 2, 1, 3, 6),
                        row(1, 2, 2, 6, 12));
@@ -1437,6 +1459,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, 2, 12));
 
             // Multi-partitions with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c", pageSize),
                        row(1, 2, 1, 3, 6),
                        row(1, 2, 2, 6, 12),
@@ -1583,6 +1606,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, null, 3));
 
             // Range query with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b", pageSize),
                        row(1, null, null, 1, null),
                        row(2, null, null, 2, null),
@@ -1642,6 +1666,7 @@ public class SelectGroupByTest extends CQLTester
                           row(1, null, 1));
 
             // Single partition query with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b", pageSize),
                        row(1, null, null, 1, null));
 
@@ -1797,6 +1822,7 @@ public class SelectGroupByTest extends CQLTester
                           row(3, null, 3));
 
             // Range queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a", pageSize),
                        row(1, 2, 1, 1, 3),
                        row(2, 2, 3, 2, 3),
@@ -1834,6 +1860,7 @@ public class SelectGroupByTest extends CQLTester
                           row(3, null, 3));
 
             // Range queries with wildcard and with LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a LIMIT 2", pageSize),
                        row(1, 2, 1, 1, 3),
                        row(2, 2, 3, 2, 3));
@@ -1862,6 +1889,7 @@ public class SelectGroupByTest extends CQLTester
                           row(3, null, 3, 0L, 1L));
 
             // Range queries with wildcard and PER PARTITION LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1", pageSize),
                        row(1, 2, 1, 1, 3),
                        row(2, 2, 3, 2, 3),
@@ -1880,6 +1908,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, null, 1L, 0L));
 
             // Range queries with wildcard, PER PARTITION LIMIT and LIMIT
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1 LIMIT 2", pageSize),
                        row(1, 2, 1, 1, 3),
                        row(2, 2, 3, 2, 3));
@@ -1939,6 +1968,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, null));
 
             // Single partition queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a", pageSize),
                        row(1, 2, 1, 1, 3));
 
@@ -2037,6 +2067,7 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, null));
 
             // Multi-partitions queries with wildcard
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14209
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a", pageSize),
                        row(1, 2, 1, 1, 3),
                        row(2, 2, 3, 2, 3),

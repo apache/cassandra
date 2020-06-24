@@ -33,6 +33,7 @@ class PeriodicCommitLogService extends AbstractCommitLogService
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         long expectedSyncTime = System.nanoTime() - blockWhenSyncLagsNanos;
         if (lastSyncedAt < expectedSyncTime)
         {

@@ -60,6 +60,7 @@ public class BatchTests extends  CQLTester
                 "  id int PRIMARY KEY,\n" +
                 "  val counter,\n" +
                 ");");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
         session.execute("CREATE TABLE junit.clustering (\n" +
                 "  id int,\n" +
                 "  clustering1 int,\n" +
@@ -138,6 +139,7 @@ public class BatchTests extends  CQLTester
     @Test
     public void testEmptyBatch()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10711
         session.execute("BEGIN BATCH APPLY BATCH");
         session.execute("BEGIN UNLOGGED BATCH APPLY BATCH");
     }
@@ -145,6 +147,7 @@ public class BatchTests extends  CQLTester
     @Test(expected = InvalidQueryException.class)
     public void testCounterInLoggedBatch()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
         sendBatch(BatchStatement.Type.LOGGED, true, false, false);
     }
 
@@ -152,6 +155,7 @@ public class BatchTests extends  CQLTester
     public void testOversizedBatch()
     {
         int SIZE_FOR_FAILURE = 2500;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8011
         BatchStatement b = new BatchStatement(BatchStatement.Type.UNLOGGED);
         for (int i = 0; i < SIZE_FOR_FAILURE; i++)
         {
@@ -163,6 +167,7 @@ public class BatchTests extends  CQLTester
     public void sendBatch(BatchStatement.Type type, boolean addCounter, boolean addNonCounter, boolean addClustering)
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
         assert addCounter || addNonCounter || addClustering;
         BatchStatement b = new BatchStatement(type);
 
@@ -174,6 +179,7 @@ public class BatchTests extends  CQLTester
             if (addCounter)
                 b.add(counter.bind((long)i, i));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13655
             if (addClustering)
             {
                 b.add(clustering.bind(i, i, i, i, "foo"));

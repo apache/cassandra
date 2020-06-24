@@ -38,6 +38,7 @@ public class WithOnlyQueriedData<I extends BaseRowIterator<?>> extends Transform
     @Override
     protected RegularAndStaticColumns applyToPartitionColumns(RegularAndStaticColumns columns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12697
         return filter.queriedColumns();
     }
 

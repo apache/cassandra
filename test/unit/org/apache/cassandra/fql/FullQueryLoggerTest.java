@@ -88,6 +88,7 @@ public class FullQueryLoggerTest extends CQLTester
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.stop();
         FullQueryLogger.instance.reset(tempDir.toString());
     }
@@ -125,8 +126,10 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = IllegalArgumentException.class)
     public void testConfigureOverExistingFile()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("foo", "bar");
         f.deleteOnExit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.enable(f.toPath(), "TEST_SECONDLY", true, 1, 1, StringUtils.EMPTY, 10);
     }
 
@@ -175,6 +178,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testResetWithoutConfigure() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.reset(tempDir.toString());
         FullQueryLogger.instance.reset(tempDir.toString());
     }
@@ -196,6 +200,7 @@ public class FullQueryLoggerTest extends CQLTester
         File tempA = File.createTempFile("foo", "bar", tempDir.toFile());
         assertTrue(tempA.exists());
         File tempB = File.createTempFile("foo", "bar", BinLogTest.tempDir().toFile());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.reset(tempB.getParent());
         assertFalse(tempA.exists());
         assertFalse(tempB.exists());
@@ -210,6 +215,7 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         File tempA = File.createTempFile("foo", "bar", tempDir.toFile());
         assertTrue(tempA.exists());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.reset(tempA.getParent());
         assertFalse(tempA.exists());
     }
@@ -233,6 +239,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testEnabledReset() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         assertFalse(FullQueryLogger.instance.isEnabled());
         configureFQL();
         assertTrue(FullQueryLogger.instance.isEnabled());
@@ -338,6 +345,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test
     public void testNonBlocking() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.enable(tempDir, "TEST_SECONDLY", false, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
         //Prevent the bin log thread from making progress, causing the task queue to refuse tasks
         Semaphore blockBinLog = new Semaphore(0);
@@ -345,6 +353,7 @@ public class FullQueryLoggerTest extends CQLTester
         {
             //Find out when the bin log thread has been blocked, necessary to not run into batch task drain behavior
             Semaphore binLogBlocked = new Semaphore(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             FullQueryLogger.instance.binLog.put(new Query("foo1", QueryOptions.DEFAULT, queryState(), 1)
             {
 
@@ -379,10 +388,14 @@ public class FullQueryLoggerTest extends CQLTester
             //This sample should get dropped AKA released without being written
             AtomicInteger releasedCount = new AtomicInteger(0);
             AtomicInteger writtenCount = new AtomicInteger(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             FullQueryLogger.instance.binLog.logRecord(new Query("foo3", QueryOptions.DEFAULT, queryState(), 1) {
                 public void writeMarshallablePayload(WireOut wire)
                 {
                     writtenCount.incrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                     super.writeMarshallablePayload(wire);
                 }
 
@@ -392,6 +405,7 @@ public class FullQueryLoggerTest extends CQLTester
                     super.release();
                 }
             });
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
             Util.spinAssertEquals(1, releasedCount::get, 60);
             assertEquals(0, writtenCount.get());
@@ -413,6 +427,7 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         logQuery("foo");
         Util.spinAssertEquals(true, () -> checkForQueries(Arrays.asList("foo")), 60);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
         assertRoundTripQuery(null);
     }
 
@@ -430,6 +445,7 @@ public class FullQueryLoggerTest extends CQLTester
         try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
             assertTrue(tailer.readDocument(wire ->
             {
                 assertEquals(0, wire.read(VERSION).int16());
@@ -443,6 +459,7 @@ public class FullQueryLoggerTest extends CQLTester
                 QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wire.read(QUERY_OPTIONS).bytes()), protocolVersion);
                 compareQueryOptions(QueryOptions.DEFAULT, queryOptions);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
                 String wireKeyspace = wire.read(FullQueryLogger.KEYSPACE).text();
                 assertEquals(keyspace, wireKeyspace);
 
@@ -455,6 +472,7 @@ public class FullQueryLoggerTest extends CQLTester
     public void testRoundTripBatchWithKeyspace() throws Exception
     {
         configureFQL();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         logBatch(Type.UNLOGGED,
                  Arrays.asList("foo1", "foo2"),
                  Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
@@ -479,7 +497,9 @@ public class FullQueryLoggerTest extends CQLTester
     public void testRoundTripBatchWithKeyspaceNull() throws Exception
     {
         configureFQL();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         logBatch(Type.UNLOGGED,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
                  Arrays.asList("foo1", "foo2"),
                  Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
                                              ByteBuffer.allocateDirect(2)),
@@ -496,6 +516,7 @@ public class FullQueryLoggerTest extends CQLTester
             }
         }, 60);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
         assertRoundTripBatch(null);
     }
 
@@ -506,11 +527,14 @@ public class FullQueryLoggerTest extends CQLTester
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
                 assertEquals(0, wire.read(VERSION).int16());
                 assertEquals(BATCH, wire.read(TYPE).text());
 
                 assertEquals(1L, wire.read(QUERY_START_TIME).int64());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
                 ProtocolVersion protocolVersion = ProtocolVersion.decode(wire.read(PROTOCOL_VERSION).int32(), true);
                 assertEquals(ProtocolVersion.CURRENT, protocolVersion);
 
@@ -519,6 +543,7 @@ public class FullQueryLoggerTest extends CQLTester
 
                 assertEquals(Long.MIN_VALUE, wire.read(GENERATED_TIMESTAMP).int64());
                 assertEquals(Integer.MIN_VALUE, wire.read(GENERATED_NOW_IN_SECONDS).int32());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
                 assertEquals(keyspace, wire.read(FullQueryLogger.KEYSPACE).text());
                 assertEquals("UNLOGGED", wire.read(BATCH_TYPE).text());
                 ValueIn in = wire.read(QUERIES);
@@ -540,6 +565,7 @@ public class FullQueryLoggerTest extends CQLTester
     public void testQueryWeight()
     {
         //Empty query should have some weight
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         Query query = new Query("", QueryOptions.DEFAULT, queryState(), 1);
         assertTrue(query.weight() >= 95);
 
@@ -549,6 +575,7 @@ public class FullQueryLoggerTest extends CQLTester
             sb.append('a');
         }
         query = new Query(sb.toString(), QueryOptions.DEFAULT, queryState(), 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
 
         //A large query should be reflected in the size, * 2 since characters are still two bytes
         assertTrue(query.weight() > ObjectSizes.measureDeep(sb.toString()));
@@ -564,10 +591,12 @@ public class FullQueryLoggerTest extends CQLTester
     public void testBatchWeight()
     {
         //An empty batch should have weight
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         Batch batch = new Batch(Type.UNLOGGED, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
         assertTrue(batch.weight() > 0);
 
         // make sure that a batch with keyspace set has a higher weight
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
         Batch batch2 = new Batch(Type.UNLOGGED, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState("ABABA"), 1);
         assertTrue(batch.weight() < batch2.weight());
 
@@ -583,6 +612,7 @@ public class FullQueryLoggerTest extends CQLTester
         {
             bigList.add("");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         batch = new Batch(Type.UNLOGGED, bigList, new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
         assertTrue(batch.weight() > ObjectSizes.measureDeep(bigList));
 
@@ -612,6 +642,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullType() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         logBatch(null, new ArrayList<>(), new ArrayList<>(), QueryOptions.DEFAULT, queryState(), 1);
     }
 
@@ -683,6 +714,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void configureFQL() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         FullQueryLogger.instance.enable(tempDir, "TEST_SECONDLY", true, 1, 1024 * 1024 * 256, StringUtils.EMPTY, 10);
     }
 
@@ -723,12 +755,14 @@ public class FullQueryLoggerTest extends CQLTester
 
     private QueryState queryState(String keyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14656
         ClientState clientState = ClientState.forInternalCalls(keyspace);
         return new QueryState(clientState);
     }
 
     private QueryState queryState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         return new QueryState(ClientState.forInternalCalls());
     }
 }

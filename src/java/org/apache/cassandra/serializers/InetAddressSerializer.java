@@ -30,6 +30,7 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
 
     public InetAddress deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         if (bytes.remaining() == 0)
             return null;
 
@@ -45,6 +46,7 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
 
     public ByteBuffer serialize(InetAddress value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBuffer.wrap(value.getAddress());
     }
 
@@ -65,6 +67,7 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
 
     public String toString(InetAddress value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return value == null ? "" : value.getHostAddress();
     }
 

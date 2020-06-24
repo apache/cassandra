@@ -68,6 +68,7 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
         UUID prsid = prepareSession();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Lists.newArrayList(cfs, cfs2), atEndpoint(ranges, NO_RANGES), es, () -> false);
             pac.run().get();
             fail("PAC should throw exception when anticompaction throws exception!");
@@ -78,6 +79,7 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
         }
         // Note that since we fail the PAC immediately when any of the anticompactions fail we need to wait for the other
         // AC to finish as well before asserting that we have nothing compacting.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15552
         CompactionManager.instance.waitForCessation(Lists.newArrayList(cfs, cfs2), (sstable) -> true);
         // and make sure nothing is marked compacting
         assertTrue(cfs.getTracker().getCompacting().isEmpty());

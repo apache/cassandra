@@ -74,6 +74,7 @@ class PendingRepairManager
     {
         public IllegalSSTableArgumentException(String s)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
             super(s);
         }
     }
@@ -103,6 +104,7 @@ class PendingRepairManager
 
     AbstractCompactionStrategy getOrCreate(UUID id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
         checkPendingID(id);
         assert id != null;
         AbstractCompactionStrategy strategy = get(id);
@@ -125,6 +127,7 @@ class PendingRepairManager
 
     private static void checkPendingID(UUID pendingID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
         if (pendingID == null)
         {
             throw new IllegalSSTableArgumentException("sstable is not pending repair");
@@ -138,6 +141,7 @@ class PendingRepairManager
 
     private synchronized void removeSessionIfEmpty(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13688
         if (!strategies.containsKey(sessionID) || !strategies.get(sessionID).getSSTables().isEmpty())
             return;
 
@@ -147,6 +151,7 @@ class PendingRepairManager
 
     synchronized void removeSSTable(SSTableReader sstable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14780
         for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
             entry.getValue().removeSSTable(sstable);
@@ -155,6 +160,7 @@ class PendingRepairManager
     }
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
     void removeSSTables(Iterable<SSTableReader> removed)
     {
         for (SSTableReader sstable : removed)
@@ -211,6 +217,7 @@ class PendingRepairManager
             else
                 strategy.addSSTables(groupAdded);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14780
             removeSessionIfEmpty(entry.getKey());
         }
     }
@@ -311,6 +318,7 @@ class PendingRepairManager
             sessions.add(entry.getKey());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13769
         if (sessions.isEmpty())
             return null;
 
@@ -370,6 +378,7 @@ class PendingRepairManager
         for (SSTableReader sstable : sstables)
         {
             UUID sessionID = sstable.getSSTableMetadata().pendingRepair;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
             checkPendingID(sessionID);
             sessionSSTables.computeIfAbsent(sessionID, k -> new HashSet<>()).add(sstable);
         }
@@ -379,6 +388,7 @@ class PendingRepairManager
         {
             for (Map.Entry<UUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13659
                 scanners.addAll(getOrCreate(entry.getKey()).getScanners(entry.getValue(), ranges).scanners);
             }
         }
@@ -396,6 +406,7 @@ class PendingRepairManager
 
     public synchronized boolean hasDataForSession(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13758
         return strategies.keySet().contains(sessionID);
     }
 
@@ -443,12 +454,14 @@ class PendingRepairManager
             {
                 if (obsoleteSSTables)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                     logger.info("Obsoleting transient repaired sstables for {}", sessionID);
                     Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isTransient));
                     transaction.obsoleteOriginals();
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
                     logger.info("Moving {} from pending to repaired with repaired at = {} and session id = {}", transaction.originals(), repairedAt, sessionID);
                     cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
                 }
@@ -469,6 +482,7 @@ class PendingRepairManager
                 }
                 if (completed)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14780
                     removeSessionIfEmpty(sessionID);
                 }
             }

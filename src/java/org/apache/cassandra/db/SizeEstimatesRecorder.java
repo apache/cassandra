@@ -60,6 +60,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
     public void run()
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!metadata.isMember(FBUtilities.getBroadcastAddressAndPort()))
         {
             logger.debug("Node is not part of the ring; not recording size estimates");
@@ -68,6 +69,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
 
         logger.trace("Recording size estimates");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
             // In tools the call to describe_splits_ex() used to be coupled with the call to describe_local_ring() so
@@ -104,7 +106,9 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
                 SystemKeyspace.updateTableEstimates(table.metadata.keyspace, table.metadata.name, SystemKeyspace.TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, estimates);
 
                 long passed = System.nanoTime() - start;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
                 if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("Spent {} milliseconds on estimating {}.{} size",
                                  TimeUnit.NANOSECONDS.toMillis(passed),
                                  table.metadata.keyspace,
@@ -120,6 +124,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
         Map<Range<Token>, Pair<Long, Long>> estimates = new HashMap<>(ranges.size());
         for (Range<Token> localRange : ranges)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9639
             for (Range<Token> unwrappedRange : localRange.unwrap())
             {
                 // filter sstables that have partitions in this range.
@@ -167,6 +172,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
         long sum = 0, count = 0;
         for (SSTableReader sstable : sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
             long n = sstable.getEstimatedPartitionSize().count();
             sum += sstable.getEstimatedPartitionSize().mean() * n;
             count += n;

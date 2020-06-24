@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.net;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 class PingVerbHandler implements IVerbHandler<PingRequest>
 {
     static final PingVerbHandler instance = new PingVerbHandler();

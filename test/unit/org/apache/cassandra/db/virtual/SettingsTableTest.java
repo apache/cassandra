@@ -186,6 +186,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "enabled", "true");
 
         check(pre + "logger", "BinAuditLogger");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         config.audit_logging_options.logger = new ParameterizedClass("logger", null);
         check(pre + "logger", "logger");
 

@@ -49,6 +49,10 @@ public class TypeCompareTest
     public void testBytes()
     {
         BytesType comparator = new BytesType();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1998
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1998
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         assert comparator.compare(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("asdf")) < 0;
         assert comparator.compare(ByteBufferUtil.bytes("asdf"), ByteBufferUtil.EMPTY_BYTE_BUFFER) > 0;
         assert comparator.compare(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER) == 0;
@@ -62,6 +66,8 @@ public class TypeCompareTest
     public void testUTF8()
     {
         UTF8Type comparator = new UTF8Type();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1998
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         assert comparator.compare(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("asdf")) < 0;
         assert comparator.compare(ByteBufferUtil.bytes("asdf"), ByteBufferUtil.EMPTY_BYTE_BUFFER) > 0;
         assert comparator.compare(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER) == 0;
@@ -86,6 +92,7 @@ public class TypeCompareTest
         for (int i = 1; i < data.length; i++)
         {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             long l0 = data[i - 1].getLong(data[i - 1].position());
             long l1 = data[i].getLong(data[i].position());
             assert l0 <= l1;
@@ -95,6 +102,8 @@ public class TypeCompareTest
     @Test
     public void testInt()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3031
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         Random rng = new Random();
         ByteBuffer[] data = new ByteBuffer[1000];
         for (int i = 0; i < data.length; i++)

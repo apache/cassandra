@@ -36,6 +36,7 @@ public interface ReadQuery
 {
     public static ReadQuery empty(final TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return new ReadQuery()
         {
             public TableMetadata metadata()
@@ -50,6 +51,7 @@ public interface ReadQuery
 
             public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                 return EmptyIterators.partition();
             }
 
@@ -78,6 +80,7 @@ public interface ReadQuery
 
             public boolean selectsKey(DecoratedKey key)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
                 return false;
             }
 

@@ -46,6 +46,7 @@ public class ClusteringColumnRestrictionsTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -102,6 +103,8 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), true, clustering_0);
@@ -128,6 +131,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(in);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
@@ -329,6 +333,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(in);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value1);
@@ -360,6 +365,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value3, value1);
@@ -469,6 +475,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(in);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
@@ -583,6 +590,8 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
@@ -762,6 +771,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyStart(get(bounds, 0));
@@ -1088,6 +1098,13 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2);
@@ -1248,6 +1265,8 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(slice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertStartBound(get(bounds, 0), true, value1);
@@ -1495,6 +1514,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertStartBound(get(bounds, 0), true, value1, value2, value3);
@@ -1558,6 +1578,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiSlice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3);
@@ -1616,6 +1637,8 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(singleSlice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3);
@@ -1642,6 +1665,7 @@ public class ClusteringColumnRestrictionsTest
         ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(tableMetadata);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiSlice);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertStartBound(get(bounds, 0), false, value1, value2, value3, value4);
@@ -1688,6 +1712,7 @@ public class ClusteringColumnRestrictionsTest
      */
     private static void assertEmptyStart(ClusteringBound bound)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         assertEquals(ClusteringBound.BOTTOM, bound);
     }
 
@@ -1698,6 +1723,7 @@ public class ClusteringColumnRestrictionsTest
      */
     private static void assertEmptyEnd(ClusteringBound bound)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         assertEquals(ClusteringBound.TOP, bound);
     }
 
@@ -1769,6 +1795,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleEq(TableMetadata tableMetadata, int index, ByteBuffer value)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new SingleColumnRestriction.EQRestriction(columnDef, toTerm(value));
     }
 
@@ -1822,6 +1849,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleIN(TableMetadata tableMetadata, int index, ByteBuffer... values)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new SingleColumnRestriction.InRestrictionWithValues(columnDef, toTerms(values));
     }
 
@@ -1850,6 +1878,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleSlice(TableMetadata tableMetadata, int index, Bound bound, boolean inclusive, ByteBuffer value)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, toTerm(value));
     }
 
@@ -1911,11 +1940,13 @@ public class ClusteringColumnRestrictionsTest
 
     private static <T> T get(SortedSet<T> set, int i)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return Iterables.get(set, i);
     }
 
     private static enum Sort
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7281
         ASC,
         DESC;
     }

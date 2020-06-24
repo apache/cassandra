@@ -51,9 +51,12 @@ public class StreamCoordinator
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamConnectionFactory factory,
                              boolean follower, boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         this.factory = factory;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         this.follower = follower;
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
@@ -90,11 +93,13 @@ public class StreamCoordinator
 
     public boolean isFollower()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         return follower;
     }
 
     public void connect(StreamResultFuture future)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6992
         if (this.connectSequentially)
             connectSequentially(future);
         else
@@ -114,6 +119,7 @@ public class StreamCoordinator
         {
             public void handleStreamEvent(StreamEvent event)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11010
                 if (event.eventType == StreamEvent.Type.STREAM_PREPARED || event.eventType == StreamEvent.Type.STREAM_COMPLETE)
                     connectNext();
             }
@@ -139,6 +145,7 @@ public class StreamCoordinator
         if (sessionsToConnect.hasNext())
         {
             StreamSession next = sessionsToConnect.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
             if (logger.isDebugEnabled())
                 logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
             startSession(next);
@@ -154,6 +161,7 @@ public class StreamCoordinator
 
     public synchronized StreamSession getOrCreateNextSession(InetAddressAndPort peer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14389
         return getOrCreateHostData(peer).getOrCreateNextSession(peer);
     }
 
@@ -164,6 +172,7 @@ public class StreamCoordinator
 
     public StreamSession getSessionById(InetAddressAndPort peer, int id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         return getHostData(peer).getSessionById(id);
     }
 
@@ -195,9 +204,11 @@ public class StreamCoordinator
         if (connectionsPerHost > 1)
         {
             List<Collection<OutgoingStream>> buckets = bucketStreams(streams);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
 
             for (Collection<OutgoingStream> bucket : buckets)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14389
                 StreamSession session = sessionList.getOrCreateNextSession(to);
                 session.addTransferStreams(bucket);
             }
@@ -254,6 +265,7 @@ public class StreamCoordinator
 
     public UUID getPendingRepair()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         return pendingRepair;
     }
 
@@ -274,6 +286,7 @@ public class StreamCoordinator
         {
             for (StreamSession session : streamSessions.values())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                 if (!session.state().isFinalState())
                     return true;
             }
@@ -285,6 +298,7 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                 StreamSession session = new StreamSession(streamOperation, peer, factory, isFollower(), streamSessions.size(),
                                                           pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
@@ -319,6 +333,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                 session = new StreamSession(streamOperation, peer, factory, isFollower(), id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
                 sessionInfos.put(id, session.getSessionInfo());
@@ -328,6 +343,7 @@ public class StreamCoordinator
 
         public StreamSession getSessionById(int id)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             return streamSessions.get(id);
         }
 

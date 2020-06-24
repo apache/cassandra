@@ -70,9 +70,11 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         TableId tid = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD).id;
         cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
     }
@@ -84,9 +86,12 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     public void testNoDifference() throws Throwable
     {
         final InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
 
         MerkleTrees tree1 = createInitialTree(desc);
 
@@ -96,6 +101,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         // note: we reuse the same endpoint which is bogus in theory but fine here
         TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(ep2, tree2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         task.run();
@@ -106,11 +112,13 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     @Test
     public void testDifference() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         UUID parentRepairSession = UUID.randomUUID();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         ActiveRepairService.instance.registerParentRepairSession(parentRepairSession, FBUtilities.getBroadcastAddressAndPort(),
                                                                  Arrays.asList(cfs), Arrays.asList(range), false,
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false,
@@ -122,6 +130,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         MerkleTrees tree2 = createInitialTree(desc);
 
         // change a range in one of the trees
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         Token token = partitioner.midpoint(range.left, range.right);
         tree1.invalidate(token);
         MerkleTree.TreeRange changed = tree1.get(token);
@@ -134,6 +143,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         // note: we reuse the same endpoint which is bogus in theory but fine here
         TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.2"), tree2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
@@ -147,12 +157,14 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         }
 
         // ensure that the changed range was recorded
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         assertEquals("Wrong differing ranges", interesting.size(), task.stat.numberOfDifferences);
     }
 
     @Test
     public void fullRepairStreamPlan() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
         UUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
@@ -160,6 +172,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
@@ -186,6 +199,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                desc.parentSessionId, true, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
@@ -205,9 +219,11 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                desc.parentSessionId, true, false, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
@@ -227,6 +243,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                desc.parentSessionId, false, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
@@ -244,6 +261,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     private MerkleTrees createInitialTree(RepairJobDesc desc)
     {
         return createInitialTree(desc, partitioner);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13430
 
     }
 }

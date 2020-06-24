@@ -45,6 +45,7 @@ public class SSTableLevelResetter
         if (args.length == 0)
         {
             out.println("This command should be run with Cassandra stopped!");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
             out.println("Usage: sstablelevelreset <keyspace> <table>");
             System.exit(1);
         }
@@ -53,14 +54,17 @@ public class SSTableLevelResetter
         {
             out.println("This command should be run with Cassandra stopped, otherwise you will get very strange behavior");
             out.println("Verify that Cassandra is not running and then execute the command like this:");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
             out.println("Usage: sstablelevelreset --really-reset <keyspace> <table>");
             System.exit(1);
         }
 
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         // TODO several daemon threads will run from here.
         // So we have to explicitly call System.exit.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7614
         try
         {
             // load keyspace descriptions.
@@ -78,12 +82,14 @@ public class SSTableLevelResetter
             Keyspace keyspace = Keyspace.openWithoutSSTables(keyspaceName);
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnfamily);
             boolean foundSSTable = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
             for (Map.Entry<Descriptor, Set<Component>> sstable : cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().entrySet())
             {
                 if (sstable.getValue().contains(Component.STATS))
                 {
                     foundSSTable = true;
                     Descriptor descriptor = sstable.getKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
                     StatsMetadata metadata = (StatsMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.STATS);
                     if (metadata.sstableLevel > 0)
                     {
@@ -99,9 +105,11 @@ public class SSTableLevelResetter
 
             if (!foundSSTable)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
                 out.println("Found no sstables, did you give the correct keyspace/table?");
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);

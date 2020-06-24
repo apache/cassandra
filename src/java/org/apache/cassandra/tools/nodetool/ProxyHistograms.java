@@ -29,6 +29,7 @@ public class ProxyHistograms extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11507
         String[] percentiles = {"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
         double[] readLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Read"));
         double[] writeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Write"));

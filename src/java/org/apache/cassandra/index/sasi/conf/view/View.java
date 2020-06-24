@@ -59,6 +59,7 @@ public class View implements Iterable<SSTableIndex>
                                             ? new PrefixTermTree.Builder(index.getMode().mode, validator)
                                             : new RangeTermTree.Builder(index.getMode().mode, validator);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         List<Interval<Key, SSTableIndex>> keyIntervals = new ArrayList<>();
         // Ensure oldSSTables and newIndexes are disjoint (in index redistribution case the intersection can be non-empty).
         // also favor newIndexes over currentView in case an SSTable has been re-opened (also occurs during redistribution)
@@ -77,6 +78,7 @@ public class View implements Iterable<SSTableIndex>
             newView.put(sstable.descriptor, sstableIndex);
 
             termTreeBuilder.add(sstableIndex);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             keyIntervals.add(Interval.create(new Key(sstableIndex.minKey(), index.keyValidator()),
                                              new Key(sstableIndex.maxKey(), index.keyValidator()),
                                              sstableIndex));
@@ -93,11 +95,13 @@ public class View implements Iterable<SSTableIndex>
 
     public Set<SSTableIndex> match(Expression expression)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         return termTree.search(expression);
     }
 
     public List<SSTableIndex> match(ByteBuffer minKey, ByteBuffer maxKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return keyIntervalTree.search(Interval.create(new Key(minKey, keyValidator), new Key(maxKey, keyValidator), (SSTableIndex) null));
     }
 
@@ -122,6 +126,7 @@ public class View implements Iterable<SSTableIndex>
 
         public Key(ByteBuffer key, AbstractType<?> comparator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             this.key = key;
             this.comparator = comparator;
         }

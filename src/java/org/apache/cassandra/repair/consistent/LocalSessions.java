@@ -158,6 +158,7 @@ public class LocalSessions
     @VisibleForTesting
     protected InetAddressAndPort getBroadcastAddressAndPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return FBUtilities.getBroadcastAddressAndPort();
     }
 
@@ -189,14 +190,17 @@ public class LocalSessions
      */
     public void cancelSession(UUID sessionID, boolean force)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
         logger.info("Cancelling local repair session {}", sessionID);
         LocalSession session = getSession(sessionID);
         Preconditions.checkArgument(session != null, "Session {} does not exist", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Preconditions.checkArgument(force || session.coordinator.equals(getBroadcastAddressAndPort()),
                                     "Cancel session %s from it's coordinator (%s) or use --force",
                                     sessionID, session.coordinator);
 
         setStateAndSave(session, FAILED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         Message<FailSession> message = Message.out(FAILED_SESSION_MSG, new FailSession(sessionID));
         for (InetAddressAndPort participant : session.participants)
         {
@@ -256,6 +260,7 @@ public class LocalSessions
      */
     public void cleanup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
         logger.trace("Running LocalSessions.cleanup");
         if (!isNodeInitialized())
         {
@@ -275,8 +280,10 @@ public class LocalSessions
                 }
                 else if (shouldDelete(session, now))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13758
                     if (!sessionHasData(session))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
                         logger.info("Auto deleting repair session {}", session);
                         deleteSession(session.sessionID);
                     }
@@ -351,6 +358,7 @@ public class LocalSessions
                        "repaired_at, " +
                        "state, " +
                        "coordinator, " +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                        "coordinator_port, " +
                        "participants, " +
                        "participants_wp," +
@@ -364,6 +372,7 @@ public class LocalSessions
                                        Date.from(Instant.ofEpochSecond(session.getLastUpdate())),
                                        Date.from(Instant.ofEpochMilli(session.repairedAt)),
                                        session.getState().ordinal(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                        session.coordinator.address,
                                        session.coordinator.port,
                                        session.participants.stream().map(participant -> participant.address).collect(Collectors.toSet()),
@@ -382,6 +391,7 @@ public class LocalSessions
         LocalSession.Builder builder = LocalSession.builder();
         builder.withState(ConsistentSession.State.valueOf(row.getInt("state")));
         builder.withSessionID(row.getUUID("parent_id"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort coordinator = InetAddressAndPort.getByAddressOverrideDefaults(
             row.getInetAddress("coordinator"),
             row.getInt("coordinator_port"));
@@ -417,6 +427,7 @@ public class LocalSessions
 
     private void syncTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13660
         TableId tid = Schema.instance.getTableMetadata(keyspace, table).id;
         ColumnFamilyStore cfm = Schema.instance.getColumnFamilyStoreInstance(tid);
         cfm.forceBlockingFlush();
@@ -458,6 +469,7 @@ public class LocalSessions
     private synchronized void putSession(LocalSession session)
     {
         Preconditions.checkArgument(!sessions.containsKey(session.sessionID),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                     "LocalSession %s already exists", session.sessionID);
         Preconditions.checkArgument(started, "sessions cannot be added before LocalSessions is started");
         sessions = ImmutableMap.<UUID, LocalSession>builder()
@@ -475,6 +487,7 @@ public class LocalSessions
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     LocalSession createSessionUnsafe(UUID sessionId, ActiveRepairService.ParentRepairSession prs, Set<InetAddressAndPort> peers)
     {
         LocalSession.Builder builder = LocalSession.builder();
@@ -501,6 +514,7 @@ public class LocalSessions
 
     protected void sendMessage(InetAddressAndPort destination, Message<? extends RepairMessage> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         logger.trace("sending {} to {}", message.payload, destination);
         MessagingService.instance().send(message, destination);
     }
@@ -512,16 +526,19 @@ public class LocalSessions
             Preconditions.checkArgument(session.getState().canTransitionTo(state),
                                         "Invalid state transition %s -> %s",
                                         session.getState(), state);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
             logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
             boolean wasCompleted = session.isCompleted();
             session.setState(state);
             session.setLastUpdate();
             save(session);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13454
             if (session.isCompleted() && !wasCompleted)
             {
                 sessionCompleted(session);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
             for (Listener listener : listeners)
                 listener.onIRStateChange(session);
         }
@@ -537,16 +554,19 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session != null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             synchronized (session)
             {
                 if (session.getState() != FAILED)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
                     logger.info("Failing local repair session {}", sessionID);
                     setStateAndSave(session, FAILED);
                 }
             }
             if (sendMessage)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 sendMessage(session.coordinator, Message.out(FAILED_SESSION_MSG, new FailSession(sessionID)));
             }
         }
@@ -554,6 +574,7 @@ public class LocalSessions
 
     public synchronized void deleteSession(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Deleting local repair session {}", sessionID);
         LocalSession session = getSession(sessionID);
         Preconditions.checkArgument(session.isCompleted(), "Cannot delete incomplete sessions");
@@ -567,6 +588,7 @@ public class LocalSessions
                                     UUID sessionID,
                                     Collection<ColumnFamilyStore> tables,
                                     RangesAtEndpoint tokenRanges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                     ExecutorService executor,
                                     BooleanSupplier isCancelled)
     {
@@ -605,8 +627,10 @@ public class LocalSessions
      */
     public void handlePrepareMessage(InetAddressAndPort from, PrepareConsistentRequest request)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
         logger.trace("received {} from {}", request, from);
         UUID sessionID = request.parentSession;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort coordinator = request.coordinator;
         Set<InetAddressAndPort> peers = request.participants;
 
@@ -618,6 +642,7 @@ public class LocalSessions
         catch (Throwable e)
         {
             logger.error("Error retrieving ParentRepairSession for session {}, responding with failure", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             sendMessage(coordinator, Message.out(PREPARE_CONSISTENT_RSP, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false)));
             return;
         }
@@ -630,6 +655,7 @@ public class LocalSessions
 
         KeyspaceRepairManager repairManager = parentSession.getKeyspace().getRepairManager();
         RangesAtEndpoint tokenRanges = filterLocalRanges(parentSession.getKeyspace().getName(), parentSession.getRanges());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         ListenableFuture repairPreparation = prepareSession(repairManager, sessionID, parentSession.getColumnFamilyStores(),
                                                             tokenRanges, executor, () -> session.getState() != PREPARING);
 
@@ -639,12 +665,14 @@ public class LocalSessions
             {
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                     logger.info("Prepare phase for incremental repair session {} completed", sessionID);
                     if (session.getState() != FAILED)
                         setStateAndSave(session, PREPARED);
                     else
                         logger.info("Session {} failed before anticompaction completed", sessionID);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                     Message<PrepareConsistentResponse> message =
                         Message.out(PREPARE_CONSISTENT_RSP,
                                     new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED));
@@ -661,6 +689,7 @@ public class LocalSessions
                 try
                 {
                     logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                     sendMessage(coordinator,
                                 Message.out(PREPARE_CONSISTENT_RSP,
                                             new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false)));
@@ -671,6 +700,7 @@ public class LocalSessions
                     executor.shutdown();
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         }, MoreExecutors.directExecutor());
     }
 
@@ -679,6 +709,7 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session != null && session.getState() != REPAIRING)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Setting local incremental repair session {} to REPAIRING", session);
             setStateAndSave(session, REPAIRING);
         }
@@ -691,7 +722,9 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Received FinalizePropose message for unknown repair session {}, responding with failure", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             sendMessage(from, Message.out(FAILED_SESSION_MSG, new FailSession(sessionID)));
             return;
         }
@@ -701,6 +734,7 @@ public class LocalSessions
             setStateAndSave(session, FINALIZE_PROMISED);
 
             /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13660
              Flushing the repairs table here, *before* responding to the coordinator prevents a scenario where we respond
              with a promise to the coordinator, but there is a failure before the commit log mutation with the
              FINALIZE_PROMISED status is synced to disk. This could cause the state for this session to revert to an
@@ -709,7 +743,9 @@ public class LocalSessions
              */
             syncTable();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             sendMessage(from, Message.out(FINALIZE_PROMISE_MSG, new FinalizePromise(sessionID, getBroadcastAddressAndPort(), true)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
         }
         catch (IllegalArgumentException e)
@@ -722,11 +758,13 @@ public class LocalSessions
     @VisibleForTesting
     protected void sessionCompleted(LocalSession session)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13454
         for (TableId tid: session.tableIds)
         {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
             if (cfs != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
                 cfs.getRepairManager().incrementalSessionCompleted(session.sessionID);
             }
         }
@@ -741,6 +779,7 @@ public class LocalSessions
      */
     public void handleFinalizeCommitMessage(InetAddressAndPort from, FinalizeCommit commit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
         logger.trace("received {} from {}", commit, from);
         UUID sessionID = commit.sessionID;
         LocalSession session = getSession(sessionID);
@@ -762,9 +801,12 @@ public class LocalSessions
 
     public void sendStatusRequest(LocalSession session)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Attempting to learn the outcome of unfinished local incremental repair session {}", session.sessionID);
         Message<StatusRequest> request = Message.out(STATUS_REQ, new StatusRequest(session.sessionID));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort participant : session.participants)
         {
             if (!getBroadcastAddressAndPort().equals(participant) && isAlive(participant))
@@ -776,17 +818,21 @@ public class LocalSessions
 
     public void handleStatusRequest(InetAddressAndPort from, StatusRequest request)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13468
         logger.trace("received {} from {}", request, from);
         UUID sessionID = request.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
             logger.warn("Received status request message for unknown session {}", sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             sendMessage(from, Message.out(STATUS_RSP, new StatusResponse(sessionID, FAILED)));
         }
         else
         {
             sendMessage(from, Message.out(STATUS_RSP, new StatusResponse(sessionID, session.getState())));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Responding to status response message for incremental repair session {} with local state {}", sessionID, session.getState());
        }
     }
@@ -811,6 +857,7 @@ public class LocalSessions
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Received StatusResponse for repair session {} with state {}, which is not actionable. Doing nothing.", sessionID, response.state);
         }
     }
@@ -844,6 +891,7 @@ public class LocalSessions
     @VisibleForTesting
     protected boolean sessionHasData(LocalSession session)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13758
         Predicate<TableId> predicate = tid -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
             return cfs != null && cfs.getCompactionStrategyManager().hasDataForPendingRepair(session.sessionID);
@@ -875,6 +923,7 @@ public class LocalSessions
 
     public static void registerListener(Listener listener)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
         listeners.add(listener);
     }
 

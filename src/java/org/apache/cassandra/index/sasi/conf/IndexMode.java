@@ -96,8 +96,10 @@ public class IndexMode
     public static void validateAnalyzer(Map<String, String> indexOptions, ColumnMetadata cd) throws ConfigurationException
     {
         // validate that a valid analyzer class was provided if specified
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11136
         if (indexOptions.containsKey(INDEX_ANALYZER_CLASS_OPTION))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
             Class<?> analyzerClass;
             try
             {
@@ -183,6 +185,7 @@ public class IndexMode
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11136
             logger.error("failed to parse {} option, defaulting to 'false'.", INDEX_IS_LITERAL_OPTION);
         }
 
@@ -195,6 +198,7 @@ public class IndexMode
 
     public boolean supports(Op operator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
         return mode.supports(operator);
     }
 }

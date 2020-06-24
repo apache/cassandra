@@ -21,6 +21,7 @@ public class TruncateException extends RequestExecutionException
 {
     public TruncateException(Throwable e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.TRUNCATE_ERROR, "Error during truncate: " + e.getMessage(), e);
     }
 

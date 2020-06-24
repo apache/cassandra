@@ -118,8 +118,11 @@ public class EndpointState
         return updateTimestamp;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-757
     void updateTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         updateTimestamp = System.nanoTime();
     }
 
@@ -151,6 +154,7 @@ public class EndpointState
 
     public String getStatus()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         VersionedValue status = getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (status == null)
         {
@@ -169,6 +173,8 @@ public class EndpointState
     @Nullable
     public UUID getSchemaVersion()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
         VersionedValue applicationState = getApplicationState(ApplicationState.SCHEMA);
         return applicationState != null
                ? UUID.fromString(applicationState.value)

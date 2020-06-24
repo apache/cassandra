@@ -53,6 +53,7 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
             int i = 0;
             for (ColumnMetadata column : metadata.clusteringColumns())
                 sb.append(i++ == 0 ? "" : ", ").append(column.name).append(column.type instanceof ReversedType ? " ASC" : " DESC");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             sb.append(')');
         }
     }
@@ -82,6 +83,7 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
             AbstractClusteringIndexFilter filter = (AbstractClusteringIndexFilter)pfilter;
 
             return 1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                  + TypeSizes.sizeof(filter.isReversed())
                  + filter.serializedSizeInternal(version);
         }

@@ -45,6 +45,7 @@ public class RawSelector
      */
     public static List<Selectable> toSelectables(List<RawSelector> raws, final TableMetadata table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return Lists.transform(raws, raw -> raw.prepare(table));
     }
 

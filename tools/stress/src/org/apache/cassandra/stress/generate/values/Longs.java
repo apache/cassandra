@@ -26,6 +26,7 @@ public class Longs extends Generator<Long>
 {
     public Longs(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(LongType.instance, config, name, Long.class);
     }
 

@@ -27,6 +27,7 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     private final int bufferSize;
     private final BufferType bufferType;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
     SimpleChunkReader(ChannelProxy channel, long fileLength, BufferType bufferType, int bufferSize)
     {
         super(channel, fileLength);
@@ -57,6 +58,7 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     @Override
     public Rebufferer instantiateRebufferer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         return new BufferManagingRebufferer.Unaligned(this);
     }
 

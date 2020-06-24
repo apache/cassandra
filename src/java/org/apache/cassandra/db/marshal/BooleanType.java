@@ -37,14 +37,17 @@ public class BooleanType extends AbstractType<Boolean>
     public static final BooleanType instance = new BooleanType();
 
     BooleanType() {super(ComparisonType.CUSTOM);} // singleton
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -65,6 +68,7 @@ public class BooleanType extends AbstractType<Boolean>
         if (source.equalsIgnoreCase(Boolean.TRUE.toString()))
             return decompose(true);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         throw new MarshalException(String.format("Unable to make boolean from '%s'", source));
     }
 
@@ -88,6 +92,7 @@ public class BooleanType extends AbstractType<Boolean>
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.BOOLEAN;
     }
 
@@ -99,6 +104,7 @@ public class BooleanType extends AbstractType<Boolean>
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 1;
     }
 }

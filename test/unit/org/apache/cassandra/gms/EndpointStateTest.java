@@ -43,6 +43,7 @@ public class EndpointStateTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -72,6 +73,7 @@ public class EndpointStateTest
             public void run()
             {
                 state.addApplicationState(ApplicationState.TOKENS, valueFactory.tokens(tokens));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 state.addApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens));
             }
         });
@@ -86,6 +88,7 @@ public class EndpointStateTest
                     for (Map.Entry<ApplicationState, VersionedValue> entry : state.states())
                         values.put(entry.getKey(), entry.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     if (values.containsKey(ApplicationState.STATUS_WITH_PORT) && !values.containsKey(ApplicationState.TOKENS))
                     {
                         numFailures.incrementAndGet();
@@ -129,6 +132,7 @@ public class EndpointStateTest
             {
                 Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
                 states.put(ApplicationState.TOKENS, valueFactory.tokens(tokens));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 states.put(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens));
                 state.addApplicationStates(states);
             }
@@ -158,6 +162,7 @@ public class EndpointStateTest
         for (Map.Entry<ApplicationState, VersionedValue> entry : states)
             values.put(entry.getKey(), entry.getValue());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         assertTrue(values.containsKey(ApplicationState.STATUS_WITH_PORT));
         assertTrue(values.containsKey(ApplicationState.TOKENS));
         assertTrue(values.containsKey(ApplicationState.INTERNAL_IP));

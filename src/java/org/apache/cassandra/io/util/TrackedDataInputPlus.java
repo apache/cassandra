@@ -28,6 +28,7 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 {
     private long bytesRead;
     final DataInput source;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
 
     public TrackedDataInputPlus(DataInput source)
     {
@@ -44,6 +45,7 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
      */
     public void reset(long count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2901
         bytesRead = count;
     }
 

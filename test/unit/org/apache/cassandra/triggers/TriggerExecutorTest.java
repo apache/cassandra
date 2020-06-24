@@ -47,6 +47,7 @@ public class TriggerExecutorTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -57,6 +58,7 @@ public class TriggerExecutorTest
         // origin column 'c1' = "v1", augment extra column 'c2' = "trigger"
         PartitionUpdate mutated = TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13894
         List<Row> rows = new ArrayList<>();
         try (RowIterator iterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(),
                                                                   FBUtilities.nowInSeconds()))
@@ -210,6 +212,10 @@ public class TriggerExecutorTest
         TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentKsTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation rm1 = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
         Mutation rm2 = new Mutation.PartitionUpdateCollector("ks1", cf2.partitionKey()).add(cf2).build();
 
@@ -249,6 +255,7 @@ public class TriggerExecutorTest
         TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "v1", null);
         Mutation rm = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm)));
         assertEquals(2, tmutations.size());
@@ -309,6 +316,7 @@ public class TriggerExecutorTest
     {
         public Collection<Mutation> augment(Partition partition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             RowUpdateBuilder builder = new RowUpdateBuilder(partition.metadata(), FBUtilities.timestampMicros(), partition.partitionKey().getKey());
             builder.add("c2", bytes("trigger"));
             return Collections.singletonList(builder.build());

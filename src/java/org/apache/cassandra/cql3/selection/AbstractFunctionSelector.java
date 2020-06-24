@@ -56,6 +56,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             protected String getColumnName()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
                 return fun.columnName(factories.getColumnNames());
             }
 
@@ -81,12 +82,14 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
             public void addFunctionsTo(List<Function> functions)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
                 fun.addFunctionsTo(functions);
                 factories.addFunctionsTo(functions);
             }
 
             public Selector newInstance(QueryOptions options) throws InvalidRequestException
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
                 return fun.isAggregate() ? new AggregateFunctionSelector(fun, factories.newInstances(options))
                                          : new ScalarFunctionSelector(fun, factories.newInstances(options));
             }
@@ -103,12 +106,14 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
             public boolean isAggregateSelectorFactory()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
                 return fun.isAggregate() || factories.doesAggregation();
             }
 
             @Override
             public boolean areAllFetchedColumnsKnown()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 return Iterables.all(factories, f -> f.areAllFetchedColumnsKnown());
             }
 
@@ -131,6 +136,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
     @Override
     public void addFetchedColumns(ColumnFilter.Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         for (Selector selector : argSelectors)
             selector.addFetchedColumns(builder);
     }
@@ -139,6 +145,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
     // sake of validation.
     protected void setArg(int i, ByteBuffer value) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         RequestValidations.checkBindValueSet(value, "Invalid unset value for argument in call to function %s", fun.name().name);
         args.set(i, value);
     }

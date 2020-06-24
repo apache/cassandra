@@ -39,6 +39,7 @@ public class Uncertainty
 
     private static final class WaitForTargetUncertainty
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         final double targetUncertainty;
         final int minMeasurements;
         final int maxMeasurements;

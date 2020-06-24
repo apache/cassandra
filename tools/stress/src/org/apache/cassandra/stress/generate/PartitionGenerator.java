@@ -42,6 +42,7 @@ public class PartitionGenerator
     final List<Generator> partitionKey;
     final List<Generator> clusteringComponents;
     final List<Generator> valueComponents;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
     final int[] clusteringDescendantAverages;
     final int[] clusteringComponentAverages;
 
@@ -69,6 +70,7 @@ public class PartitionGenerator
         }
         this.maxRowCount = maxRowCount;
         this.minRowCount = minRowCount;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         this.indexMap = new LinkedHashMap<>();
         int i = 0;
         for (Generator generator : partitionKey)
@@ -80,11 +82,13 @@ public class PartitionGenerator
 
     public boolean permitNulls(int index)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return !(index < 0 || index < clusteringComponents.size());
     }
 
     public List<Generator> getPartitionKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13529
         return Collections.unmodifiableList(partitionKey);
     }
 
@@ -112,6 +116,7 @@ public class PartitionGenerator
 
     public Object convert(int c, ByteBuffer v)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
         if (c < 0)
             return partitionKey.get(-1-c).type.compose(v);
         if (c < clusteringComponents.size())
@@ -121,6 +126,7 @@ public class PartitionGenerator
 
     public List<String> getColumnNames()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         return indexMap.keySet().stream().collect(Collectors.toList());
     }
 }

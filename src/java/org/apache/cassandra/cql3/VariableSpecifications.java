@@ -33,6 +33,7 @@ public class VariableSpecifications
     public VariableSpecifications(List<ColumnIdentifier> variableNames)
     {
         this.variableNames = variableNames;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this.specs = Arrays.asList(new ColumnSpecification[variableNames.size()]);
         this.targetColumns = new ColumnMetadata[variableNames.size()];
     }
@@ -43,6 +44,7 @@ public class VariableSpecifications
      */
     public static VariableSpecifications empty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return new VariableSpecifications(Collections.emptyList());
     }
 
@@ -74,6 +76,7 @@ public class VariableSpecifications
             {
                 assert targetColumn.ksName.equals(metadata.keyspace) && targetColumn.cfName.equals(metadata.name);
                 partitionKeyPositions[targetColumn.position()] = (short) i;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11717
                 set[targetColumn.position()] = true;
             }
         }
@@ -94,6 +97,7 @@ public class VariableSpecifications
         // Use the user name, if there is one
         if (bindMarkerName != null)
             spec = new ColumnSpecification(spec.ksName, spec.cfName, bindMarkerName, spec.type);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         specs.set(bindIndex, spec);
     }
 

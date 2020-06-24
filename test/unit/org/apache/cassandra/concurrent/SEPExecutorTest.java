@@ -65,6 +65,7 @@ public class SEPExecutorTest
         }
 
         // shutdown does not guarantee that threads are actually dead once it exits, only that they will stop promptly afterwards
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15170
         sharedPool.shutdownAndWait(1L, TimeUnit.MINUTES);
         for (Thread thread : Thread.getAllStackTraces().keySet())
         {
@@ -83,7 +84,10 @@ public class SEPExecutorTest
         // Number of busy worker threads to run and gum things up. Chosen to be
         // between the low and high max pool size so the test exercises resizing
         // under a number of different conditions.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15709
         final int numBusyWorkers = 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         SharedExecutorPool sharedPool = new SharedExecutorPool("ChangingMaxWorkersMeetsConcurrencyGoalsTest");
         final AtomicInteger notifiedMaxPoolSize = new AtomicInteger();
 
@@ -176,6 +180,7 @@ public class SEPExecutorTest
 
         public BusyWork(Semaphore busyWorkers)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15709
             this.busyWorkers = busyWorkers;
         }
 
@@ -195,6 +200,7 @@ public class SEPExecutorTest
             executor.execute(new LatchWaiter(concurrencyGoal, 5L, TimeUnit.SECONDS));
         }
         // Will return true if all of the LatchWaiters count down before the timeout
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15709
         Assert.assertEquals("Test tasks did not hit max concurrency goal",
                             true, concurrencyGoal.await(3L, TimeUnit.SECONDS));
     }

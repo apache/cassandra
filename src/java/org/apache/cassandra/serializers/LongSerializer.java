@@ -28,6 +28,7 @@ public class LongSerializer implements TypeSerializer<Long>
 
     public Long deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return bytes.remaining() == 0 ? null : ByteBufferUtil.toLong(bytes);
     }
 
@@ -44,6 +45,7 @@ public class LongSerializer implements TypeSerializer<Long>
 
     public String toString(Long value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return value == null ? "" : String.valueOf(value);
     }
 

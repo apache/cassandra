@@ -222,6 +222,7 @@ public class UnfilteredRowsGenerator
     static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering clustering = clusteringFor(pos);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }

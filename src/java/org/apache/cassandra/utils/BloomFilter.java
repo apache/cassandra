@@ -38,6 +38,8 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
     public final IBitSet bitset;
     public final int hashCount;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
     BloomFilter(int hashCount, IBitSet bitset)
     {
         super(bitset);
@@ -54,6 +56,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public long serializedSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2879
         return BloomFilterSerializer.serializedSize(this);
     }
 
@@ -71,6 +74,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         long[] hash = new long[2];
         key.filterHash(hash);
         long[] indexes = new long[hashCount];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8413
         setIndexes(hash[1], hash[0], hashCount, max, indexes);
         return indexes;
     }
@@ -86,6 +90,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         // so that we do not need to allocate two arrays.
         long[] indexes = reusableIndexes.get();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         key.filterHash(indexes);
         setIndexes(indexes[1], indexes[0], hashCount, bitset.capacity(), indexes);
         return indexes;
@@ -130,6 +135,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public IFilter sharedCopy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         return new BloomFilter(this);
     }
 
@@ -141,11 +147,13 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return "BloomFilter[hashCount=" + hashCount + ";capacity=" + bitset.capacity() + ']';
     }
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         super.addTo(identities);
         bitset.addTo(identities);
     }

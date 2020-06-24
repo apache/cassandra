@@ -46,6 +46,7 @@ public class HintsCatalogTest
     @BeforeClass
     public static void defineSchema()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13740
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                 KeyspaceParams.simple(1),
@@ -88,6 +89,7 @@ public class HintsCatalogTest
         writeDescriptor(directory, descriptor3);
         writeDescriptor(directory, descriptor4);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10950
         HintsCatalog catalog = HintsCatalog.load(directory, ImmutableMap.of());
         assertEquals(2, catalog.stores().count());
 
@@ -107,6 +109,7 @@ public class HintsCatalogTest
     @Test
     public void deleteHintsTest() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         File directory = Files.createTempDirectory(null).toFile();
         UUID hostId1 = UUID.randomUUID();
         UUID hostId2 = UUID.randomUUID();
@@ -138,6 +141,7 @@ public class HintsCatalogTest
     @Test
     public void exciseHintFiles() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13740
         File directory = Files.createTempDirectory(null).toFile();
         try
         {
@@ -152,6 +156,7 @@ public class HintsCatalogTest
     private static void exciseHintFiles(File directory) throws IOException
     {
         UUID hostId = UUID.randomUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13740
 
         HintsDescriptor descriptor1 = new HintsDescriptor(hostId, System.currentTimeMillis());
         HintsDescriptor descriptor2 = new HintsDescriptor(hostId, System.currentTimeMillis() + 1);

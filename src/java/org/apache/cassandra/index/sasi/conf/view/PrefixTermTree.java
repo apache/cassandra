@@ -48,6 +48,7 @@ public class PrefixTermTree extends RangeTermTree
 
     public PrefixTermTree(ByteBuffer min, ByteBuffer max,
                           Trie<ByteBuffer, Set<SSTableIndex>> trie,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                           IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> ranges,
                           OnDiskIndexBuilder.Mode mode,
                           AbstractType<?> comparator)
@@ -88,6 +89,7 @@ public class PrefixTermTree extends RangeTermTree
 
         public TermTree build()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             return new PrefixTermTree(min, max, trie, IntervalTree.build(intervals), mode, comparator);
         }
 

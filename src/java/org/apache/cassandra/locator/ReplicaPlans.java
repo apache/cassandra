@@ -74,6 +74,7 @@ public class ReplicaPlans
 
     public static boolean isSufficientLiveReplicasForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         switch (consistencyLevel)
         {
             case ANY:
@@ -82,6 +83,7 @@ public class ReplicaPlans
             case LOCAL_ONE:
                 return countInOurDc(liveReplicas).hasAtleast(1, 1);
             case LOCAL_QUORUM:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
                 return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(keyspace), 1);
             case EACH_QUORUM:
                 if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
@@ -194,6 +196,7 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forLocalBatchlogWrite()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
         Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         Replica localSystemReplica = SystemReplicas.getSystemReplica(FBUtilities.getBroadcastAddressAndPort());
@@ -322,6 +325,7 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forReadRepair(Token token, ReplicaPlan.ForRead<?> readPlan) throws UnavailableException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return forWrite(readPlan.keyspace, readPlan.consistencyLevel, token, writeReadRepair(readPlan));
     }
 
@@ -350,7 +354,9 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, live);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         assureSufficientLiveReplicasForWrite(keyspace, consistencyLevel, live.all(), liveAndDown.pending());
         return new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
@@ -358,6 +364,7 @@ public class ReplicaPlans
     public interface Selector
     {
         <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live);
     }
 
@@ -390,12 +397,15 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             if (!any(liveAndDown.all(), Replica::isTransient))
                 return liveAndDown.all();
 
             ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
             contacts.addAll(filter(liveAndDown.natural(), Replica::isFull));
             contacts.addAll(liveAndDown.pending());
 
@@ -406,6 +416,7 @@ public class ReplicaPlans
              * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
              * even if we don't wait for ACK, we have in both cases sent sufficient messages.
               */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
             ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
             addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
             addToCountPerDc(requiredPerDc, live.pending(), -1);
@@ -434,6 +445,7 @@ public class ReplicaPlans
      */
     public static Selector writeReadRepair(ReplicaPlan.ForRead<?> readPlan)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return new Selector()
         {
             @Override
@@ -462,6 +474,7 @@ public class ReplicaPlans
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
                     ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
                     addToCountPerDc(requiredPerDc, contacts.snapshot(), -1);
                     IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
@@ -494,6 +507,7 @@ public class ReplicaPlans
         {
             // TODO: we should cleanup our semantics here, as we're filtering ALL nodes to localDC which is unexpected for ReplicaPlan
             // Restrict natural and pending to node in the local DC only
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
             liveAndDown = liveAndDown.filter(InOurDcTester.replicas());
         }
 
@@ -522,6 +536,7 @@ public class ReplicaPlans
 
     private static <E extends Endpoints<E>> E candidatesForRead(ConsistencyLevel consistencyLevel, E liveNaturalReplicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         return consistencyLevel.isDatacenterLocal()
                 ? liveNaturalReplicas.filter(InOurDcTester.replicas())
                 : liveNaturalReplicas;
@@ -531,6 +546,7 @@ public class ReplicaPlans
     {
         assert keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy;
         ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
 
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {
@@ -587,6 +603,7 @@ public class ReplicaPlans
      */
     public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         EndpointsForToken candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forTokenReadLiveSorted(keyspace, token).natural());
         EndpointsForToken contacts = contactForRead(keyspace, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
@@ -620,6 +637,7 @@ public class ReplicaPlans
         EndpointsForRange mergedCandidates = left.candidates().keep(right.candidates().endpoints());
 
         // Check if there are enough shared endpoints for the merge to be possible.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         if (!isSufficientLiveReplicasForRead(keyspace, consistencyLevel, mergedCandidates))
             return null;
 

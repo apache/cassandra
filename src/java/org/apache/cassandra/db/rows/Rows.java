@@ -71,6 +71,7 @@ public abstract class Rows
      */
     public static Row.SimpleBuilder simpleBuilder(TableMetadata metadata, Object... clusteringValues)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         return new SimpleBuilders.RowBuilder(metadata, clusteringValues);
     }
 
@@ -81,6 +82,7 @@ public abstract class Rows
 
         private static long accumulateOnCell(PartitionStatisticsCollector collector, Cell cell, long l)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             Cells.collectStats(cell, collector);
             return l + CELL_INCR;
         }
@@ -129,6 +131,7 @@ public abstract class Rows
         collector.update(row.deletion().time());
 
         long result = row.accumulate(StatsAccumulation::accumulateOnColumnData, collector, 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         collector.updateColumnSetPerRow(StatsAccumulation.unpackColumnCount(result));
         return StatsAccumulation.unpackCellCount(result);
@@ -163,6 +166,7 @@ public abstract class Rows
                 diffListener.onDeletion(i, clustering, mergedDeletion, inputDeletion);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         List<Iterator<ColumnData>> inputIterators = new ArrayList<>(1 + inputs.length);
         inputIterators.add(merged.iterator());
         for (Row row : inputs)
@@ -215,6 +219,7 @@ public abstract class Rows
                             else
                             {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10266
                                 if (!mergedData.complexDeletion().isLive() || !inputData.complexDeletion().isLive())
                                     diffListener.onComplexDeletion(i, clustering, column, mergedData.complexDeletion(), inputData.complexDeletion());
 
@@ -300,6 +305,7 @@ public abstract class Rows
 
         DeletionTime deletion = rowDeletion.time();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
         Iterator<ColumnData> a = existing.iterator();
         Iterator<ColumnData> b = update.iterator();
         ColumnData nexta = a.hasNext() ? a.next() : null, nextb = b.hasNext() ? b.next() : null;
@@ -350,6 +356,7 @@ public abstract class Rows
      */
     public static Row removeShadowedCells(Row existing, Row update, DeletionTime rangeDeletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         Row.Builder builder = BTreeRow.sortedBuilder();
         Clustering clustering = existing.clustering();
         builder.newRow(clustering);
@@ -424,6 +431,7 @@ public abstract class Rows
         if (curb == null)
             return cura.column;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         if (ColumnMetadataVersionComparator.INSTANCE.compare(cura.column, curb.column) >= 0)
             return cura.column;
 

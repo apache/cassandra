@@ -120,6 +120,7 @@ public abstract class UnfilteredRowIterators
      */
     public static RowIterator filter(UnfilteredRowIterator iter, int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         return FilteredRows.filter(iter, nowInSec);
     }
 
@@ -189,6 +190,7 @@ public abstract class UnfilteredRowIterators
      */
     public static void digest(UnfilteredRowIterator iterator, Digest digest, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         digest.update(iterator.partitionKey().getKey());
         iterator.partitionLevelDeletion().digest(digest);
         iterator.columns().regulars.digest(digest);
@@ -203,6 +205,7 @@ public abstract class UnfilteredRowIterators
         // different), but removing them entirely is stricly speaking a breaking change (it would create mismatches on
         // upgrade) so we can only do on the next protocol version bump.
         if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             iterator.columns().statics.digest(digest);
         digest.updateWithBoolean(iterator.isReverseOrder());
         iterator.staticRow().digest(digest);
@@ -210,6 +213,7 @@ public abstract class UnfilteredRowIterators
         while (iterator.hasNext())
         {
             Unfiltered unfiltered = iterator.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             unfiltered.digest(digest);
         }
     }
@@ -285,6 +289,7 @@ public abstract class UnfilteredRowIterators
                 }
                 return super.next();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14058
         };
     }
 
@@ -303,11 +308,13 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator withValidation(UnfilteredRowIterator iterator, final String filename)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class Validator extends Transformation
         {
             @Override
             public Row applyToStatic(Row row)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 validate(row);
                 return row;
             }
@@ -338,6 +345,7 @@ public abstract class UnfilteredRowIterators
                 }
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         return Transformation.apply(iterator, new Validator());
     }
 
@@ -358,6 +366,7 @@ public abstract class UnfilteredRowIterators
                     iterator.isReverseOrder(),
                     iterator.partitionLevelDeletion().markedForDeleteAt());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class Logger extends Transformation
         {
             @Override
@@ -407,6 +416,7 @@ public abstract class UnfilteredRowIterators
                   mergeStaticRows(iterators, columns.statics, listener, partitionDeletion),
                   reversed,
                   EncodingStats.merge(iterators, UnfilteredRowIterator::stats));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
 
             this.mergeIterator = MergeIterator.get(iterators,
                                                    reversed ? metadata.comparator.reversed() : metadata.comparator,
@@ -471,7 +481,9 @@ public abstract class UnfilteredRowIterators
                 if (!delTime.supersedes(iterDeletion))
                     delTime = iterDeletion;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12263
             if (listener != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 listener.onMergedPartitionLevelDeletion(delTime, versions);
             return delTime;
         }
@@ -588,6 +600,7 @@ public abstract class UnfilteredRowIterators
                 else
                 {
                     RangeTombstoneMarker merged = markerMerger.merge();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12263
                     if (listener != null)
                         listener.onMergedRangeTombstoneMarkers(merged, markerMerger.mergedMarkers());
                     return merged;

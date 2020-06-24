@@ -69,6 +69,7 @@ public class CBUtilTest
     @Test
     public void writeAndReadAsciiString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
         StringBuilder sb = new StringBuilder();
         for (int i = 1; i < 128; i++)
             sb.append((char) i);

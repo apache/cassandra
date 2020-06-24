@@ -45,6 +45,7 @@ public class BinAuditLogger implements IAuditLogger
     {
         AuditLogOptions auditLoggingOptions = DatabaseDescriptor.getAuditLoggingOptions();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         this.binLog = new BinLog.Builder().path(Paths.get(auditLoggingOptions.audit_logs_dir))
                                           .rollCycle(auditLoggingOptions.roll_cycle)
                                           .blocking(auditLoggingOptions.block)
@@ -89,6 +90,7 @@ public class BinAuditLogger implements IAuditLogger
         {
             return;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         binLog.logRecord(new Message(auditLogEntry.getLogString()));
     }
 
@@ -105,6 +107,7 @@ public class BinAuditLogger implements IAuditLogger
 
         protected long version()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
             return CURRENT_VERSION;
         }
 

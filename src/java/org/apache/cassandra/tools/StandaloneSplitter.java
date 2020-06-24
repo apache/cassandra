@@ -52,6 +52,7 @@ public class StandaloneSplitter
     {
         Options options = Options.parseArgs(args);
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         try
         {
@@ -69,6 +70,7 @@ public class StandaloneSplitter
                     continue;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 Descriptor desc = SSTable.tryDescriptorFromFilename(file);
                 if (desc == null) {
                     System.out.println("Skipping non sstable file " + file);
@@ -84,6 +86,7 @@ public class StandaloneSplitter
                     cfName = desc.cfname;
                 else if (!cfName.equals(desc.cfname))
                     throw new IllegalArgumentException("All sstables must be part of the same table");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
 
                 Set<Component> components = new HashSet<Component>(Arrays.asList(new Component[]{
                     Component.DATA,
@@ -113,12 +116,14 @@ public class StandaloneSplitter
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
             String snapshotName = "pre-split-" + System.currentTimeMillis();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
             List<SSTableReader> sstables = new ArrayList<>();
             for (Map.Entry<Descriptor, Set<Component>> fn : parsedFilenames.entrySet())
             {
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(fn.getKey(), fn.getValue(), cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7616
                     if (!isSSTableLargerEnough(sstable, options.sizeInMB)) {
                         System.out.println(String.format("Skipping %s: it's size (%.3f MB) is less than the split size (%d MB)",
                                 sstable.getFilename(), ((sstable.onDiskLength() * 1.0d) / 1024L) / 1024L, options.sizeInMB));
@@ -134,12 +139,14 @@ public class StandaloneSplitter
                 }
                 catch (Exception e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                     JVMStabilityInspector.inspectThrowable(e);
                     System.err.println(String.format("Error Loading %s: %s", fn.getKey(), e.getMessage()));
                     if (options.debug)
                         e.printStackTrace(System.err);
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7616
             if (sstables.isEmpty()) {
                 System.out.println("No sstables needed splitting.");
                 System.exit(0);
@@ -149,6 +156,7 @@ public class StandaloneSplitter
 
             for (SSTableReader sstable : sstables)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 try (LifecycleTransaction transaction = LifecycleTransaction.offline(OperationType.UNKNOWN, sstable))
                 {
                     new SSTableSplitter(cfs, transaction, options.sizeInMB).split();
@@ -162,7 +170,9 @@ public class StandaloneSplitter
                     sstable.selfRef().release();
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8623
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             LifecycleTransaction.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
         }
@@ -179,6 +189,7 @@ public class StandaloneSplitter
      * filter the sstable which size is less than the expected max sstable size.
      */
     private static boolean isSSTableLargerEnough(SSTableReader sstable, int sizeInMB) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7616
         return sstable.onDiskLength() > sizeInMB * 1024L * 1024L;
     }
 

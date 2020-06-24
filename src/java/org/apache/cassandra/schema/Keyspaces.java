@@ -49,6 +49,7 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
 
     public static Keyspaces none()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return NONE;
     }
 
@@ -80,6 +81,7 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
      */
     public Optional<KeyspaceMetadata> get(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Optional.ofNullable(keyspaces.get(name));
     }
 
@@ -121,6 +123,7 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         if (keyspace == null)
             throw new IllegalStateException(String.format("Keyspace %s doesn't exists", name));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return filter(k -> k != keyspace);
     }
 
@@ -194,6 +197,7 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
 
     static KeyspacesDiff diff(Keyspaces before, Keyspaces after)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return KeyspacesDiff.diff(before, after);
     }
 

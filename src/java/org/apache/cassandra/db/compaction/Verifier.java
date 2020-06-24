@@ -90,6 +90,7 @@ public class Verifier implements Closeable
 
     public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline, Options options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         this(cfs, sstable, new OutputHandler.LogOutput(), isOffline, options);
     }
 
@@ -107,8 +108,10 @@ public class Verifier implements Closeable
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
         this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
         this.verifyInfo = new VerifyInfo(dataFile, sstable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         this.options = options;
         this.isOffline = isOffline;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
         this.tokenLookup = options.tokenLookup;
     }
 
@@ -117,6 +120,7 @@ public class Verifier implements Closeable
         boolean extended = options.extendedVerification;
         long rowStart = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
         outputHandler.output(String.format("Verifying %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
         if (options.checkVersion && !sstable.descriptor.version.isLatestVersion())
         {
@@ -126,6 +130,7 @@ public class Verifier implements Closeable
             throw new RuntimeException(msg);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13922
         outputHandler.output(String.format("Deserializing sstable metadata for %s ", sstable));
         try
         {
@@ -141,8 +146,10 @@ public class Verifier implements Closeable
             markAndThrow(false);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
             outputHandler.debug("Deserializing index for "+sstable);
             deserializeIndex(sstable);
         }
@@ -154,18 +161,22 @@ public class Verifier implements Closeable
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
             outputHandler.debug("Deserializing index summary for "+sstable);
             deserializeIndexSummary(sstable);
         }
         catch (Throwable t)
         {
             outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup "+sstable.descriptor.filenameFor(Component.SUMMARY));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             outputHandler.warn(t.getMessage());
             markAndThrow(false);
         }
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
             outputHandler.debug("Deserializing bloom filter for "+sstable);
             deserializeBloomFilter(sstable);
 
@@ -176,11 +187,14 @@ public class Verifier implements Closeable
             markAndThrow();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
         if (options.checkOwnsTokens && !isOffline)
         {
             outputHandler.debug("Checking that all tokens are owned by the current node");
             try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
                 List<Range<Token>> ownedRanges = Range.normalize(tokenLookup.apply(cfs.metadata.keyspace));
                 if (ownedRanges.isEmpty())
                     return;
@@ -193,6 +207,8 @@ public class Verifier implements Closeable
             }
             catch (Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
                 outputHandler.warn(t.getMessage());
                 markAndThrow();
             }
@@ -207,6 +223,7 @@ public class Verifier implements Closeable
         {
             validator = null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             if (new File(sstable.descriptor.filenameFor(Component.DIGEST)).exists())
             {
                 validator = DataIntegrityMetadata.fileDigestValidator(sstable.descriptor);
@@ -214,12 +231,14 @@ public class Verifier implements Closeable
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 outputHandler.output("Data digest missing, assuming extended verification of disk values");
                 extended = true;
             }
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             outputHandler.warn(e.getMessage());
             markAndThrow();
         }
@@ -242,7 +261,9 @@ public class Verifier implements Closeable
                     markAndThrow();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
             RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
             DecoratedKey prevKey = null;
 
@@ -258,6 +279,7 @@ public class Verifier implements Closeable
                 DecoratedKey key = null;
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
                 }
                 catch (Throwable th)
@@ -268,8 +290,11 @@ public class Verifier implements Closeable
 
                 if (options.checkOwnsTokens && ownedRanges.size() > 0)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
                     try
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                         rangeOwnHelper.validate(key);
                     }
                     catch (Throwable t)
@@ -302,6 +327,7 @@ public class Verifier implements Closeable
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
                 outputHandler.debug(String.format("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
 
                 assert currentIndexKey != null || indexFile.isEOF();
 
@@ -311,6 +337,7 @@ public class Verifier implements Closeable
                         markAndThrow();
 
                     //mimic the scrub read path, intentionally unused
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                     try (UnfilteredRowIterator iterator = SSTableIdentityIterator.create(sstable, dataFile, key))
                     {
                     }
@@ -357,6 +384,7 @@ public class Verifier implements Closeable
 
         public RangeOwnHelper(List<Range<Token>> normalizedRanges)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
             this.normalizedRanges = normalizedRanges;
             Range.assertNormalized(normalizedRanges);
         }
@@ -371,6 +399,7 @@ public class Verifier implements Closeable
          */
         public void validate(DecoratedKey key)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             if (!check(key))
                 throw new RuntimeException("Key " + key + " is not contained in the given ranges");
         }
@@ -398,6 +427,7 @@ public class Verifier implements Closeable
             {
                 rangeIndex++;
                 if (rangeIndex > normalizedRanges.size() - 1)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                     return false;
             }
 
@@ -407,6 +437,7 @@ public class Verifier implements Closeable
 
     private void deserializeIndex(SSTableReader sstable) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX))))
         {
             long indexSize = primaryIndex.length();
@@ -462,11 +493,14 @@ public class Verifier implements Closeable
 
     private void markAndThrow(boolean mutateRepaired)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         if (mutateRepaired && options.mutateRepairStatus) // if we are able to mutate repaired flag, an incremental repair should be enough
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13933
             try
             {
                 sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14217
                 sstable.reloadSSTableMetadata();
                 cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
             }
@@ -475,6 +509,7 @@ public class Verifier implements Closeable
                 outputHandler.output("Error mutating repairedAt for SSTable " +  sstable.getFilename() + ", as part of markAndThrow");
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         Exception e = new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), (mutateRepaired && options.mutateRepairStatus) ? "" : "a full "));
         if (options.invokeDiskFailurePolicy)
             throw new CorruptSSTableException(e, sstable.getFilename());
@@ -497,6 +532,8 @@ public class Verifier implements Closeable
         {
             this.dataFile = dataFile;
             this.sstable = sstable;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7207
             verificationCompactionId = UUIDGen.getTimeUUID();
         }
 
@@ -508,6 +545,7 @@ public class Verifier implements Closeable
                                           OperationType.VERIFY,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                           verificationCompactionId,
                                           ImmutableSet.of(sstable));
             }
@@ -519,6 +557,7 @@ public class Verifier implements Closeable
 
         public boolean isGlobal()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15265
             return false;
         }
     }
@@ -539,6 +578,7 @@ public class Verifier implements Closeable
 
     public static Options.Builder options()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
         return new Options.Builder();
     }
 
@@ -560,6 +600,7 @@ public class Verifier implements Closeable
             this.mutateRepairStatus = mutateRepairStatus;
             this.checkOwnsTokens = checkOwnsTokens;
             this.quick = quick;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             this.tokenLookup = tokenLookup;
         }
 
@@ -624,6 +665,7 @@ public class Verifier implements Closeable
 
             public Builder tokenLookup(Function<String, ? extends Collection<Range<Token>>> tokenLookup)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
                 this.tokenLookup = tokenLookup;
                 return this;
             }

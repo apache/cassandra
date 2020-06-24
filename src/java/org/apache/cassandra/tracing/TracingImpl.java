@@ -105,6 +105,8 @@ class TracingImpl extends Tracing
     {
         final String threadName = Thread.currentThread().getName();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         Stage.TRACING.execute(new WrappedRunnable()
         {
             public void runMayThrow()

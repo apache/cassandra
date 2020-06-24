@@ -65,6 +65,7 @@ public class BigTableReader extends SSTableReader
                                           SSTableReadsListener listener)
     {
         RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ, listener);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return iterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
@@ -92,6 +93,7 @@ public class BigTableReader extends SSTableReader
      */
     public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> boundsIterator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7464
         return BigTableScanner.getScanner(this, boundsIterator);
     }
 
@@ -102,6 +104,7 @@ public class BigTableReader extends SSTableReader
      */
     public ISSTableScanner getScanner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
         return BigTableScanner.getScanner(this);
     }
 
@@ -114,6 +117,7 @@ public class BigTableReader extends SSTableReader
     public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
     {
         if (ranges != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12422
             return BigTableScanner.getScanner(this, ranges);
         else
             return getScanner();
@@ -124,6 +128,7 @@ public class BigTableReader extends SSTableReader
     @Override
     public UnfilteredRowIterator simpleIterator(FileDataInput dfile, DecoratedKey key, RowIndexEntry position, boolean tombstoneOnly)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return SSTableIdentityIterator.create(this, dfile, position, key, tombstoneOnly);
     }
 
@@ -135,6 +140,7 @@ public class BigTableReader extends SSTableReader
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     protected RowIndexEntry getPosition(PartitionPosition key,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
                                         Operator op,
                                         boolean updateCacheAndStats,
                                         boolean permitMatchPastLast,
@@ -143,6 +149,7 @@ public class BigTableReader extends SSTableReader
         if (op == Operator.EQ)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
             if (!bf.isPresent((DecoratedKey)key))
             {
                 listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
@@ -154,10 +161,12 @@ public class BigTableReader extends SSTableReader
         // next, the key cache (only make sense for valid row key)
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
             DecoratedKey decoratedKey = (DecoratedKey) key;
             RowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
                 listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
                 return cachedPosition;
@@ -187,6 +196,7 @@ public class BigTableReader extends SSTableReader
         {
             if (op == Operator.EQ && updateCacheAndStats)
                 bloomFilterTracker.addFalsePositive();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
             listener.onSSTableSkipped(this, SkippingReason.MIN_MAX_KEYS);
             Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.generation);
             return null;
@@ -228,6 +238,7 @@ public class BigTableReader extends SSTableReader
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     DecoratedKey indexDecoratedKey = decorateKey(indexKey);
                     int comparison = indexDecoratedKey.compareTo(key);
                     int v = op.apply(comparison);
@@ -235,6 +246,7 @@ public class BigTableReader extends SSTableReader
                     exactMatch = (comparison == 0);
                     if (v < 0)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
                         listener.onSSTableSkipped(this, SkippingReason.PARTITION_INDEX_LOOKUP);
                         Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
                         return null;
@@ -244,6 +256,8 @@ public class BigTableReader extends SSTableReader
                 if (opSatisfied)
                 {
                     // read data position from index entry
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                     RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
                     if (exactMatch && updateCacheAndStats)
                     {
@@ -255,6 +269,7 @@ public class BigTableReader extends SSTableReader
                             // expensive sanity check!  see CASSANDRA-4687
                             try (FileDataInput fdi = dfile.createReader(indexEntry.position))
                             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                                 DecoratedKey keyInDisk = decorateKey(ByteBufferUtil.readWithShortLength(fdi));
                                 if (!keyInDisk.equals(key))
                                     throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
@@ -266,22 +281,26 @@ public class BigTableReader extends SSTableReader
                     }
                     if (op == Operator.EQ && updateCacheAndStats)
                         bloomFilterTracker.addTruePositive();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
                     listener.onSSTableSelected(this, indexEntry, SelectionReason.INDEX_ENTRY_FOUND);
                     Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndexCount(), descriptor.generation);
                     return indexEntry;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
                 RowIndexEntry.Serializer.skip(in, descriptor.version);
             }
         }
         catch (IOException e)
         {
             markSuspect();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
             throw new CorruptSSTableException(e, path);
         }
 
         if (op == SSTableReader.Operator.EQ && updateCacheAndStats)
             bloomFilterTracker.addFalsePositive();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
         listener.onSSTableSkipped(this, SkippingReason.INDEX_ENTRY_NOT_FOUND);
         Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.generation);
         return null;

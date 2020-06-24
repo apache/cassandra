@@ -122,7 +122,9 @@ public abstract class ReadResponse
 
     protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, ReadCommand command)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest digest = Digest.forReadResponse();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         UnfilteredPartitionIterators.digest(iterator, digest, command.digestVersion());
         return ByteBuffer.wrap(digest.digest());
     }
@@ -133,6 +135,7 @@ public abstract class ReadResponse
 
         private DigestResponse(ByteBuffer digest)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             super();
             assert digest.hasRemaining();
             this.digest = digest;
@@ -155,6 +158,8 @@ public abstract class ReadResponse
 
         public boolean isRepairedDigestConclusive()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3333
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
             throw new UnsupportedOperationException();
         }
 
@@ -182,6 +187,7 @@ public abstract class ReadResponse
                   command.getRepairedDataDigest(),
                   command.isRepairedDataDigestConclusive(),
                   MessagingService.current_version,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                   DeserializationHelper.Flag.LOCAL);
         }
 
@@ -208,6 +214,7 @@ public abstract class ReadResponse
                                      boolean isRepairedDigestConclusive,
                                      int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             super(data, repairedDataDigest, isRepairedDigestConclusive, version, DeserializationHelper.Flag.FROM_REMOTE);
         }
     }
@@ -226,6 +233,7 @@ public abstract class ReadResponse
                                ByteBuffer repairedDataDigest,
                                boolean isRepairedDigestConclusive,
                                int dataSerializationVersion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                DeserializationHelper.Flag flag)
         {
             super();
@@ -238,6 +246,8 @@ public abstract class ReadResponse
 
         public UnfilteredPartitionIterator makeIterator(ReadCommand command)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             try (DataInputBuffer in = new DataInputBuffer(data, true))
             {
                 // Note that the command parameter shadows the 'command' field and this is intended because
@@ -273,6 +283,8 @@ public abstract class ReadResponse
 
         public ByteBuffer digest(ReadCommand command)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
             try (UnfilteredPartitionIterator iterator = makeIterator(command))
             {
                 return makeDigest(iterator, command);
@@ -317,6 +329,7 @@ public abstract class ReadResponse
 
         public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9801
             ByteBuffer digest = ByteBufferUtil.readWithVIntLength(in);
             if (digest.hasRemaining())
                 return new DigestResponse(digest);
@@ -360,6 +373,8 @@ public abstract class ReadResponse
                 // In theory, we should deserialize/re-serialize if the version asked is different from the current
                 // version as the content could have a different serialization format. So far though, we haven't made
                 // change to partition iterators serialization since 3.0 so we skip this.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13004
                 assert version >= MessagingService.VERSION_30;
                 ByteBuffer data = ((DataResponse)response).data;
                 size += ByteBufferUtil.serializedSizeWithVIntLength(data);

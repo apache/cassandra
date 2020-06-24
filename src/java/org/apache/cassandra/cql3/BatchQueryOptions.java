@@ -38,6 +38,7 @@ public abstract class BatchQueryOptions
 
     protected BatchQueryOptions(QueryOptions wrapped, List<Object> queryOrIdList)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         this.wrapped = wrapped;
         this.queryOrIdList = queryOrIdList;
     }
@@ -56,6 +57,8 @@ public abstract class BatchQueryOptions
 
     public void prepareStatement(int i, List<ColumnSpecification> boundNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
         forStatement(i).prepare(boundNames);
     }
 
@@ -66,6 +69,8 @@ public abstract class BatchQueryOptions
 
     public String getKeyspace()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         return wrapped.getKeyspace();
     }
 
@@ -86,6 +91,7 @@ public abstract class BatchQueryOptions
 
     public int getNowInSeconds(QueryState state)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         return wrapped.getNowInSeconds(state);
     }
 
@@ -130,6 +136,8 @@ public abstract class BatchQueryOptions
         @Override
         public void prepareStatement(int i, List<ColumnSpecification> boundNames)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3
             if (isPreparedStatement(i))
             {
                 QueryOptions options = perStatementOptions.get(i);
@@ -152,6 +160,7 @@ public abstract class BatchQueryOptions
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -26,6 +26,7 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 {
     public static void create()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(new EndpointSnitchInfo(), "org.apache.cassandra.db:type=EndpointSnitchInfo");
     }
 
@@ -41,6 +42,7 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 
     public String getDatacenter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         return DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
     }
 
@@ -51,6 +53,7 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 
     public String getSnitchName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5881
         return DatabaseDescriptor.getEndpointSnitch().getClass().getName();
     }
 }

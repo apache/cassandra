@@ -53,8 +53,11 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
         List<Pair<Operation, Double>> operations = new ArrayList<>();
         for (Map.Entry<T, Double> ratio : ratios.entrySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
             List<? extends Operation> ops = get(new Timer(ratio.getKey().toString(), sink),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
                                                 ratio.getKey(), isWarmup);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             for (Operation op : ops)
                 operations.add(new Pair<>(op, ratio.getValue() / ops.size()));
         }
@@ -78,6 +81,7 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
             {
                 public OpDistribution get(boolean isWarmup, MeasurementSink sink)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
                     List<? extends Operation> ops = SampledOpDistributionFactory.this.get(new Timer(ratio.getKey().toString(), sink),
                                                                                           ratio.getKey(),
                                                                                           isWarmup);

@@ -34,6 +34,7 @@ public class ArrayBackedBoundedStatsTest {
     {
         int size = 4;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9496
         ArrayBackedBoundedStats bsd = new ArrayBackedBoundedStats(size);
         //check the values for an empty result
         assertEquals(0, bsd.mean(), 0.001d);

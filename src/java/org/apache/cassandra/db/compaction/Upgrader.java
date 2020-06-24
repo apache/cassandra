@@ -54,6 +54,7 @@ public class Upgrader
     public Upgrader(ColumnFamilyStore cfs, LifecycleTransaction txn, OutputHandler outputHandler)
     {
         this.cfs = cfs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         this.transaction = txn;
         this.sstable = txn.onlyOne();
         this.outputHandler = outputHandler;
@@ -62,6 +63,7 @@ public class Upgrader
 
         this.controller = new UpgradeController(cfs);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
         this.strategyManager = cfs.getCompactionStrategyManager();
         long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Arrays.asList(this.sstable)));
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Arrays.asList(this.sstable)) / strategyManager.getMaxSSTableBytes());
@@ -70,8 +72,11 @@ public class Upgrader
 
     private SSTableWriter createCompactionWriter(StatsMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6958
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
                                     estimatedRows,
                                     metadata.repairedAt,
@@ -80,6 +85,7 @@ public class Upgrader
                                     cfs.metadata,
                                     sstableMetadataCollector,
                                     SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                     cfs.indexManager.listIndexes(),
                                     transaction);
     }
@@ -96,9 +102,11 @@ public class Upgrader
             while (iter.hasNext())
                 writer.append(iter.next());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8688
             writer.finish();
             outputHandler.output("Upgrade of " + sstable + " complete.");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         catch (Exception e)
         {
             Throwables.propagate(e);

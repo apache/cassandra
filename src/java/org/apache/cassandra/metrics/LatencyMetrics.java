@@ -57,6 +57,7 @@ public class LatencyMetrics
      */
     public LatencyMetrics(String type, String scope)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5947
         this(type, "", scope);
     }
 
@@ -89,8 +90,10 @@ public class LatencyMetrics
         this.aliasFactory = aliasFactory;
         this.namePrefix = namePrefix;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15597
         LatencyMetricsTimer timer = new LatencyMetrics.LatencyMetricsTimer(new DecayingEstimatedHistogramReservoir());
         Counter counter = new LatencyMetricsCounter();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
 
         if (aliasFactory == null)
         {
@@ -114,7 +117,9 @@ public class LatencyMetrics
      */
     public LatencyMetrics(MetricNameFactory factory, String namePrefix, LatencyMetrics ... parents)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         this(factory, null, namePrefix);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
         this.parents = Arrays.asList(parents);
         for (LatencyMetrics parent : parents)
         {
@@ -136,6 +141,7 @@ public class LatencyMetrics
         they should not receive any updates.
          */
         this.latency.releasedLatencyCount += toRelease.latency.getCount();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15597
 
         DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot childSnapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) toRelease.latency.getSnapshot();
         DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot snapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) this.latency.getSnapshot();
@@ -154,18 +160,22 @@ public class LatencyMetrics
     {
         // convert to microseconds. 1 millionth
         latency.update(nanos, TimeUnit.NANOSECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8702
         totalLatency.inc(nanos / 1000);
     }
 
     public void release()
     {
         // Notify parent metrics that this metric is being released
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
         for (LatencyMetrics parent : this.parents)
         {
             parent.removeChildren(this);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         if (aliasFactory == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
             Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
             Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
         }
@@ -180,6 +190,7 @@ public class LatencyMetrics
     {
 
         long releasedLatencyCount = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14281
 
         public LatencyMetricsTimer(Reservoir reservoir) 
         {

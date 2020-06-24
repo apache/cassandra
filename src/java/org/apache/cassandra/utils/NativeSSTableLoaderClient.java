@@ -52,6 +52,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int storagePort, String username, String password, SSLOptions sslOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         this(hosts, storagePort, new PlainTextAuthProvider(username, password), sslOptions);
     }
 
@@ -71,9 +72,11 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
         if (sslOptions != null)
             builder.withSSL(sslOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10873
         if (authProvider != null)
             builder = builder.withAuthProvider(authProvider);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (Cluster cluster = builder.build(); Session session = cluster.connect())
         {
 
@@ -81,11 +84,13 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
             Set<TokenRange> tokenRanges = metadata.getTokenRanges();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
             TokenFactory tokenFactory = partitioner.getTokenFactory();
 
             for (TokenRange tokenRange : tokenRanges)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10806
                 Set<Host> endpoints = metadata.getReplicas(Metadata.quote(keyspace), tokenRange);
                 Range<Token> range = new Range<>(tokenFactory.fromString(tokenRange.getStart().getValue().toString()),
                                                  tokenFactory.fromString(tokenRange.getEnd().getValue().toString()));
@@ -99,11 +104,13 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             }
 
             Types types = fetchTypes(keyspace, session);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
 
             tables.putAll(fetchTables(keyspace, session, partitioner, types));
             // We only need the TableMetadata for the views, so we only load that.
             tables.putAll(fetchViews(keyspace, session, partitioner, types));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         catch (UnknownHostException e)
         {
             throw new RuntimeException(e);
@@ -124,7 +131,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     private static Types fetchTypes(String keyspace, Session session)
     {
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TYPES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         Types.RawBuilder types = Types.rawBuilder(keyspace);
         for (Row row : session.execute(query, keyspace))
         {
@@ -149,10 +158,13 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         Map<String, TableMetadataRef> tables = new HashMap<>();
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         for (Row row : session.execute(query, keyspace))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
             String name = row.getString("table_name");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
             tables.put(name, createTableMetadata(keyspace, session, partitioner, false, row, name, types));
         }
 
@@ -163,6 +175,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         Map<String, TableMetadataRef> tables = new HashMap<>();
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.VIEWS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         for (Row row : session.execute(query, keyspace))
         {
@@ -188,12 +201,14 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             builder.flags(TableMetadata.Flag.fromStringSet(row.getSet("flags", String.class)));
 
         String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                             SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                             SchemaKeyspace.COLUMNS);
 
         for (Row colRow : session.execute(columnsQuery, keyspace, name))
             builder.addColumn(createDefinitionFromRow(colRow, keyspace, name, types));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13276
         String droppedColumnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                                    SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                                    SchemaKeyspace.DROPPED_COLUMNS);
@@ -210,12 +225,14 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     private static ColumnMetadata createDefinitionFromRow(Row row, String keyspace, String table, Types types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
 
         ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14468
 
         int position = row.getInt("position");
         org.apache.cassandra.schema.ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
@@ -224,6 +241,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     private static DroppedColumn createDroppedColumnFromRow(Row row, String keyspace, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13276
         String name = row.getString("column_name");
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), Types.none());
         ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());

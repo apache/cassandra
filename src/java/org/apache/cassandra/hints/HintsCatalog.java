@@ -71,6 +71,7 @@ final class HintsCatalog
             Map<UUID, List<HintsDescriptor>> stores =
                      list
                      .filter(HintsDescriptor::isHintFileName)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14080
                      .map(HintsDescriptor::readFromFileQuietly)
                      .filter(Optional::isPresent)
                      .map(Optional::get)
@@ -105,6 +106,7 @@ final class HintsCatalog
     }
 
     @Nullable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13740
     HintsStore getNullable(UUID hostId)
     {
         return stores.get(hostId);
@@ -137,6 +139,7 @@ final class HintsCatalog
      */
     boolean hasFiles()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
         return stores().anyMatch(HintsStore::hasFiles);
     }
 
@@ -151,9 +154,11 @@ final class HintsCatalog
         int fd = NativeLibrary.tryOpenDirectory(hintsDirectory.getAbsolutePath());
         if (fd != -1)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
             try
             {
                 SyncUtil.trySync(fd);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
                 NativeLibrary.tryCloseFD(fd);
             }
             catch (FSError e) // trySync failed

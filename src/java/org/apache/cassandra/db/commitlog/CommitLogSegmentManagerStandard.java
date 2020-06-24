@@ -55,6 +55,7 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
         {
             // failed to allocate, so move to a new segment with enough room
             advanceAllocatingFrom(segment);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
             segment = allocatingFrom();
         }
 
@@ -63,6 +64,7 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
 
    public CommitLogSegment createSegment()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         return CommitLogSegment.createSegment(commitLog, this);
     }
 }

@@ -50,6 +50,8 @@ public class MessageFiltersTest extends TestBaseImpl
     @Test
     public void simpleInboundFiltersTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         simpleFiltersTest(true);
     }
 
@@ -77,7 +79,9 @@ public class MessageFiltersTest extends TestBaseImpl
 
         MessageFilters filters = new MessageFilters();
         Permit permit = inbound ? filters::permitInbound : filters::permitOutbound;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         IMessageFilters.Filter filter = filters.allVerbs().inbound(inbound).from(1).drop();
         Assert.assertFalse(permit.test(i1, i2, msg(VERB1, MSG1)));
         Assert.assertFalse(permit.test(i1, i2, msg(VERB2, MSG1)));
@@ -195,6 +199,7 @@ public class MessageFiltersTest extends TestBaseImpl
                                                                Verb.MUTATION_REQ.id,
                                                                Verb.MUTATION_RSP.id));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
             for (boolean inbound : Arrays.asList(true, false))
             {
                 counter.set(0);

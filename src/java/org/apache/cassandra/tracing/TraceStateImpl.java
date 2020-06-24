@@ -108,6 +108,8 @@ public class TraceStateImpl extends TraceState
                 mutateWithCatch(mutation);
             }
         }, Stage.TRACING.executor());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
 
         boolean ret = pendingFutures.add(fut);
         if (!ret)
@@ -118,6 +120,7 @@ public class TraceStateImpl extends TraceState
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             StorageProxy.mutate(Collections.singletonList(mutation), ConsistencyLevel.ANY, System.nanoTime());
         }
         catch (OverloadedException e)

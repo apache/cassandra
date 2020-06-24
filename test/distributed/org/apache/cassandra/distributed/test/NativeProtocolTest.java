@@ -41,6 +41,7 @@ public class NativeProtocolTest extends TestBaseImpl
     @Test
     public void withClientRequests() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         try (ICluster ignored = init(builder().withNodes(3)
                                               .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                                               .start()))
@@ -66,12 +67,14 @@ public class NativeProtocolTest extends TestBaseImpl
                                               .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                                               .start()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15460
             final com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
             Session session = cluster.connect();
             session.execute("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck counter, PRIMARY KEY (pk));");
             session.execute("UPDATE " + KEYSPACE + ".tbl set ck = ck + 10 where pk = 1;");
             Statement select = new SimpleStatement("select * from " + KEYSPACE + ".tbl;").setConsistencyLevel(ConsistencyLevel.ALL);
             final ResultSet resultSet = session.execute(select);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
             assertRows(RowUtil.toObjects(resultSet), row(1, 10L));
             Assert.assertEquals(3, cluster.getMetadata().getAllHosts().size());
             session.close();

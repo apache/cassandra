@@ -104,6 +104,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public BatchlogManager()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11062
         ScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
         executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         batchlogTasks = executor;
@@ -112,10 +113,12 @@ public class BatchlogManager implements BatchlogManagerMBean
     public void start()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
         batchlogTasks.scheduleWithFixedDelay(this::replayFailedBatches,
                                              StorageService.RING_DELAY,
                                              REPLAY_INTERVAL,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                              MILLISECONDS);
     }
 
@@ -140,6 +143,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public static void store(Batch batch, boolean durableWrites)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         List<ByteBuffer> mutations = new ArrayList<>(batch.encodedMutations.size() + batch.decodedMutations.size());
         mutations.addAll(batch.encodedMutations);
 
@@ -157,6 +161,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(SystemKeyspace.Batches, batch.id);
         builder.row()
                .timestamp(batch.creationTime)
@@ -169,6 +174,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     @VisibleForTesting
     public int countAllBatches()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = String.format("SELECT count(*) FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.BATCHES);
         UntypedResultSet results = executeInternal(query);
         if (results == null || results.isEmpty())
@@ -184,6 +190,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public void forceBatchlogReplay() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9547
         startBatchlogReplay().get();
     }
 
@@ -212,8 +219,10 @@ public class BatchlogManager implements BatchlogManagerMBean
             return;
         }
         setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKB());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
 
         UUID limitUuid = UUIDGen.maxTimeUUID(System.currentTimeMillis() - getBatchlogTimeout());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
         int pageSize = calculatePageSize(store);
         // There cannot be any live content where token(id) <= token(lastReplayedUuid) as every processed batch is
@@ -237,6 +246,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     public void setRate(final int throttleInKB)
     {
         int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13614
         if (endpointsCount > 0)
         {
             int endpointThrottleInKB = throttleInKB / endpointsCount;
@@ -263,9 +273,12 @@ public class BatchlogManager implements BatchlogManagerMBean
     {
         int positionInPage = 0;
         ArrayList<ReplayingBatch> unfinishedBatches = new ArrayList<>(pageSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> hintedNodes = new HashSet<>();
         Set<UUID> replayedBatches = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
         Exception caughtException = null;
         int skipped = 0;
 
@@ -276,7 +289,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             int version = row.getInt("version");
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
                 ReplayingBatch batch = new ReplayingBatch(id, version, row.getList("mutations", BytesType.instance));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
                 if (batch.replay(rateLimiter, hintedNodes) > 0)
                 {
                     unfinishedBatches.add(batch);
@@ -289,16 +304,20 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
             catch (IOException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13723
                 logger.warn("Skipped batch replay of {} due to {}", id, e.getMessage());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
                 caughtException = e;
                 remove(id);
                 ++skipped;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7237
             if (++positionInPage == pageSize)
             {
                 // We have reached the end of a batch. To avoid keeping more than a page of mutations in memory,
                 // finish processing the page before requesting the next row.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
                 finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
                 positionInPage = 0;
             }
@@ -306,6 +325,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14528
         if (caughtException != null)
             logger.warn(String.format("Encountered %d unexpected exceptions while sending out batches", skipped), caughtException);
 
@@ -331,6 +351,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public static long getBatchlogTimeout()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13069
         return BATCHLOG_REPLAY_TIMEOUT; // enough time for the actual write + BM removal mutation
     }
 
@@ -343,6 +364,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         private List<ReplayWriteResponseHandler<Mutation>> replayHandlers;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
         ReplayingBatch(UUID id, int version, List<ByteBuffer> serializedMutations) throws IOException
         {
             this.id = id;
@@ -359,12 +381,14 @@ public class BatchlogManager implements BatchlogManagerMBean
                 return 0;
 
             int gcgs = gcgs(mutations);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
                 return 0;
 
             replayHandlers = sendReplays(mutations, writtenAt, hintedNodes);
 
             rateLimiter.acquire(replayedBytes); // acquire afterwards, to not mess up ttl calculation.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
 
             return replayHandlers.size();
         }
@@ -383,6 +407,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                     logger.trace("Failed replaying a batched mutation to a node, will write a hint");
                     logger.trace("Failure was : {}", e.getMessage());
                     // writing hints for the rest to hints, starting from i
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
                     writeHintsForUndeliveredEndpoints(i, hintedNodes);
                     return;
                 }
@@ -392,6 +417,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         private int addMutations(int version, List<ByteBuffer> serializedMutations) throws IOException
         {
             int ret = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
             for (ByteBuffer serializedMutation : serializedMutations)
             {
                 ret += serializedMutation.remaining();
@@ -422,11 +448,13 @@ public class BatchlogManager implements BatchlogManagerMBean
             int gcgs = gcgs(mutations);
 
             // expired
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             if (MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
                 return;
 
             for (int i = startFrom; i < replayHandlers.size(); i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8592
                 ReplayWriteResponseHandler<Mutation> handler = replayHandlers.get(i);
                 Mutation undeliveredMutation = mutations.get(i);
 
@@ -441,6 +469,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         private static List<ReplayWriteResponseHandler<Mutation>> sendReplays(List<Mutation> mutations,
                                                                               long writtenAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                               Set<InetAddressAndPort> hintedNodes)
         {
             List<ReplayWriteResponseHandler<Mutation>> handlers = new ArrayList<>(mutations.size());
@@ -463,14 +492,18 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                                                      long writtenAt,
                                                                                      Set<InetAddressAndPort> hintedNodes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             String ks = mutation.getKeyspaceName();
             Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             // TODO: this logic could do with revisiting at some point, as it is unclear what its rationale is
             // we perform a local write, ignoring errors and inline in this thread (potentially slowing replay down)
             // effectively bumping CL for locally owned writes and also potentially stalling log replay if an error occurs
             // once we decide how it should work, it can also probably be simplified, and avoid constructing a ReplicaPlan directly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
             Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
 
@@ -493,6 +526,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             ReplicaPlan.ForTokenWrite replicaPlan = new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE,
                     liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, System.nanoTime());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
             for (Replica replica : liveRemoteOnly.all())
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler, false);
@@ -503,6 +537,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             int gcgs = Integer.MAX_VALUE;
             for (Mutation mutation : mutations)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
                 gcgs = Math.min(gcgs, mutation.smallestGCGS());
             return gcgs;
         }
@@ -515,6 +550,8 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             ReplayWriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, long queryStartNanoTime)
             {
                 super(replicaPlan, null, WriteType.UNLOGGED_BATCH, queryStartNanoTime);
@@ -532,6 +569,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             {
                 boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from());
                 assert removed;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 super.onResponse(m);
             }
         }

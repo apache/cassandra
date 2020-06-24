@@ -74,6 +74,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
 
     protected Throwable doAbort(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
         return txn.abort(writer.abort(accumulate));
     }
 
@@ -86,6 +87,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     @Override
     protected Throwable doPostCleanup(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
         txn.close();
         writer.close();
         return super.doPostCleanup(accumulate);
@@ -111,6 +113,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     public static SSTableTxnWriter createRangeAware(TableMetadataRef metadata,
                                                     long keyCount,
                                                     long repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                     UUID pendingRepair,
                                                     boolean isTransient,
                                                     SSTableFormat.Type type,
@@ -119,6 +122,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     {
 
         ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
         SSTableMultiWriter writer;
         try
@@ -140,6 +144,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                           Descriptor descriptor,
                                           long keyCount,
                                           long repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                           UUID pendingRepair,
                                           boolean isTransient,
                                           int sstableLevel,

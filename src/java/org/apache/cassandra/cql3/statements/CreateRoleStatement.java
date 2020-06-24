@@ -32,6 +32,7 @@ public class CreateRoleStatement extends AuthenticationStatement
 {
     private final RoleResource role;
     private final RoleOptions opts;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
     final DCPermissions dcPermissions;
     private final boolean ifNotExists;
 
@@ -46,6 +47,7 @@ public class CreateRoleStatement extends AuthenticationStatement
     public void authorize(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.CREATE, RoleResource.root());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
         if (opts.getSuperuser().isPresent())
         {
             if (opts.getSuperuser().get() && !state.getUser().isSuper())
@@ -57,6 +59,7 @@ public class CreateRoleStatement extends AuthenticationStatement
     {
         opts.validate();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         if (dcPermissions != null)
         {
             dcPermissions.validate();
@@ -78,11 +81,14 @@ public class CreateRoleStatement extends AuthenticationStatement
         if (ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
         DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14413
         if (DatabaseDescriptor.getNetworkAuthorizer().requireAuthorization())
         {
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7216
         grantPermissionsToCreator(state);
         return null;
     }
@@ -118,6 +124,7 @@ public class CreateRoleStatement extends AuthenticationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
     @Override

@@ -201,6 +201,7 @@ public class MessageTest
     @Test
     public void testBuilderAddTraceHeaderWhenTraceSessionPresent()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15499
         Stream.of(TraceType.values()).forEach(this::testAddTraceHeaderWithType);
     }
 

@@ -40,6 +40,7 @@ public class TpStatsHolder implements StatsHolder
         HashMap<String, Map<String, Object>> threadPools = new HashMap<>();
         HashMap<String, Object> droppedMessage = new HashMap<>();
         HashMap<String, double[]> waitLatencies = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8398
 
         for (Map.Entry<String, String> tp : probe.getThreadPools().entries())
         {
@@ -56,6 +57,7 @@ public class TpStatsHolder implements StatsHolder
         for (Map.Entry<String, Integer> entry : probe.getDroppedMessages().entrySet())
         {
             droppedMessage.put(entry.getKey(), entry.getValue());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8398
             try
             {
                 waitLatencies.put(entry.getKey(), probe.metricPercentilesAsArray(probe.getMessagingQueueWaitMetrics(entry.getKey())));

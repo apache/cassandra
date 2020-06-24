@@ -52,6 +52,7 @@ public final class CounterCacheKey extends CacheKey
     private CounterCacheKey(TableMetadata tableMetadata, byte[] partitionKey, byte[] cellName)
     {
         super(tableMetadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         this.partitionKey = partitionKey;
         this.cellName = cellName;
     }
@@ -81,6 +82,7 @@ public final class CounterCacheKey extends CacheKey
 
     public ByteBuffer partitionKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return ByteBuffer.wrap(partitionKey);
     }
 
@@ -150,6 +152,7 @@ public final class CounterCacheKey extends CacheKey
 
     public long unsharedHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return EMPTY_SIZE
                + ObjectSizes.sizeOfArray(partitionKey)
                + ObjectSizes.sizeOfArray(cellName);

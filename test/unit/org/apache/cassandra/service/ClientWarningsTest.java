@@ -52,10 +52,13 @@ public class ClientWarningsTest extends CQLTester
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
             client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
 
             QueryMessage query = new QueryMessage(createBatchStatement2(1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
             assertNull(resp.getWarnings());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9303
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9303
 
             query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
             resp = client.execute(query);
@@ -71,7 +74,10 @@ public class ClientWarningsTest extends CQLTester
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
             client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10876
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11357
             QueryMessage query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold() / 2 + 1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
             assertEquals(1, resp.getWarnings().size());
@@ -85,12 +91,17 @@ public class ClientWarningsTest extends CQLTester
     @Test
     public void testTombstoneWarning() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9465
         final int iterations = 10000;
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
             client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
 
             for (int i = 0; i < iterations; i++)
             {
@@ -128,9 +139,11 @@ public class ClientWarningsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3))
         {
             client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
 
             QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);

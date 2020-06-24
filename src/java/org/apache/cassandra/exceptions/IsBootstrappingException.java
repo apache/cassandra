@@ -21,6 +21,7 @@ public class IsBootstrappingException extends RequestExecutionException
 {
     public IsBootstrappingException()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.IS_BOOTSTRAPPING, "Cannot read from a bootstrapping node");
     }
 }

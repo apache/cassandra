@@ -27,6 +27,7 @@ public class DropTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Table '%s.table_does_not_exist' doesn't exist", KEYSPACE),  "DROP TABLE " + KEYSPACE + ".table_does_not_exist");
         assertInvalidMessage("Table 'keyspace_does_not_exist.table_does_not_exist' doesn't exist", "DROP TABLE keyspace_does_not_exist.table_does_not_exist");
 

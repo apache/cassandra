@@ -149,6 +149,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         // DataLimits.CQLGroupByLimits.GroupByAwareCounter assumes that if GroupingState.hasClustering(), then we're in
         // the middle of a group, but we can't make that assumption if we query and range "in advance" of where we are
         // on the ring.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
                                              acceptsTransient(),
@@ -237,6 +238,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     public long getTimeout(TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return DatabaseDescriptor.getRangeRpcTimeout(unit);
     }
 
@@ -247,6 +249,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return StorageProxy.getRangeSlice(this, consistency, queryStartNanoTime);
     }
 
@@ -258,6 +261,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     @VisibleForTesting
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().partitionKeyType));
 
@@ -280,6 +284,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 UnfilteredPartitionIterator iter = sstable.getScanner(columnFilter(), dataRange(), readCountUpdater);
                 inputCollector.addSSTableIterator(sstable, RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
                 if (!sstable.isRepaired())
                     oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
             }
@@ -287,6 +292,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             if (inputCollector.isEmpty())
                 return EmptyIterators.unfilteredPartition(metadata());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15462
             return checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(inputCollector.finalizeIterators(cfs, nowInSec(), oldestUnrepairedTombstone)), cfs);
         }
         catch (RuntimeException | Error e)
@@ -309,6 +315,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
      */
     private static SSTableReadsListener newReadCountUpdater()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
         return new SSTableReadsListener()
                 {
                     @Override
@@ -321,6 +328,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     private UnfilteredPartitionIterator checkCacheFilter(UnfilteredPartitionIterator iter, final ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class CacheFilter extends Transformation
         {
             @Override
@@ -349,12 +357,14 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 return iter;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         return Transformation.apply(iter, new CacheFilter());
     }
 
     @Override
     public Verb verb()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return Verb.RANGE_REQ;
     }
 
@@ -384,6 +394,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     public PartitionIterator postReconciliationProcessing(PartitionIterator result)
     {
         ColumnFamilyStore cfs = Keyspace.open(metadata().keyspace).getColumnFamilyStore(metadata().name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         Index index = getIndex(cfs);
         return index == null ? result : index.postProcessorFor(this).apply(result, this);
     }
@@ -417,6 +428,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
      */
     public boolean isLimitedToOnePartition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13595
         return dataRange.keyRange instanceof Bounds
             && dataRange.startKey().kind() == PartitionPosition.Kind.ROW_KEY
             && dataRange.startKey().equals(dataRange.stopKey());
@@ -424,6 +436,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     public boolean isRangeRequest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return true;
     }
 
@@ -436,6 +449,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                        boolean acceptsTransient,
                                        TableMetadata metadata,
                                        int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
                                        ColumnFilter columnFilter,
                                        RowFilter rowFilter,
                                        DataLimits limits,

@@ -55,6 +55,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         }
 
         int prepareResponseCalls = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort preparePeer = null;
         boolean prepareSuccess = false;
         public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
@@ -65,6 +66,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         }
 
         int finalizePromiseCalls = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort promisePeer = null;
         boolean promiseSuccess = false;
         public synchronized void handleFinalizePromise(InetAddressAndPort participant, boolean success)
@@ -95,6 +97,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
 
         public InstrumentedCoordinatorSession registerSession(UUID sessionId, Set<InetAddressAndPort> peers, boolean isForced)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
             return (InstrumentedCoordinatorSession) super.registerSession(sessionId, peers, isForced);
         }
     }
@@ -110,6 +113,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
 
     private static UUID registerSession()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         return registerSession(cfs, true, true);
     }
 
@@ -119,6 +123,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         CoordinatorSessions sessions = new CoordinatorSessions();
         UUID sessionID = registerSession();
         CoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
 
         Assert.assertEquals(ConsistentSession.State.PREPARING, session.getState());
         Assert.assertEquals(sessionID, session.sessionID);
@@ -139,6 +144,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         UUID sessionID = registerSession();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         InstrumentedCoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
         Assert.assertEquals(0, session.prepareResponseCalls);
 
@@ -164,6 +170,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         UUID sessionID = registerSession();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         InstrumentedCoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
         Assert.assertEquals(0, session.finalizePromiseCalls);
 
@@ -189,6 +196,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         UUID sessionID = registerSession();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         InstrumentedCoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
         Assert.assertEquals(0, session.failCalls);
 

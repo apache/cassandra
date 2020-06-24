@@ -82,8 +82,10 @@ public final class UDFByteCodeVerifier
 
     public Set<String> verify(String clsName, byte[] bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11391
         String clsNameSl = clsName.replace('.', '/');
         Set<String> errors = new TreeSet<>(); // it's a TreeSet for unit tests
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15108
         ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM7)
         {
             public FieldVisitor visitField(int access, String name, String desc, String signature, Object value)
@@ -101,6 +103,7 @@ public final class UDFByteCodeVerifier
                     // allowed constructor - JavaUDF(TypeCodec returnCodec, TypeCodec[] argCodecs)
                     return new ConstructorVisitor(errors);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if ("executeImpl".equals(name) && "(Lorg/apache/cassandra/transport/ProtocolVersion;Ljava/util/List;)Ljava/nio/ByteBuffer;".equals(desc))
                 {
                     if (Opcodes.ACC_PROTECTED != access)
@@ -142,6 +145,7 @@ public final class UDFByteCodeVerifier
 
             public void visitInnerClass(String name, String outerName, String innerName, int access)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11391
                 if (clsNameSl.equals(outerName)) // outerName might be null, which is true for anonymous inner classes
                     errors.add("class declared as inner class");
                 super.visitInnerClass(name, outerName, innerName, access);

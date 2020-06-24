@@ -93,6 +93,7 @@ public final class Ref<T> implements RefCounted<T>
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
     public static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
     final State state;
     final T referent;
 
@@ -120,6 +121,7 @@ public final class Ref<T> implements RefCounted<T>
 
     public Throwable ensureReleased(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         return state.ensureReleased(accumulate);
     }
 
@@ -135,6 +137,7 @@ public final class Ref<T> implements RefCounted<T>
 
     public T get()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         state.assertNotReleased();
         return referent;
     }
@@ -155,6 +158,7 @@ public final class Ref<T> implements RefCounted<T>
 
     public String printDebugInfo()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8758
         if (DEBUG_ENABLED)
         {
             state.debug.log(state.toString());
@@ -177,6 +181,7 @@ public final class Ref<T> implements RefCounted<T>
     static final class State extends PhantomReference<Ref>
     {
         final Debug debug = DEBUG_ENABLED ? new Debug() : null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         final GlobalState globalState;
         private volatile int released;
 
@@ -196,6 +201,7 @@ public final class Ref<T> implements RefCounted<T>
             assert released == 0;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         Throwable ensureReleased(Throwable accumulate)
         {
             if (releasedUpdater.getAndSet(this, 1) == 0)
@@ -214,6 +220,7 @@ public final class Ref<T> implements RefCounted<T>
                 if (!leak)
                 {
                     String id = this.toString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
                     logger.error("BAD RELEASE: attempted to release a reference ({}) that has already been released", id);
                     if (DEBUG_ENABLED)
                         debug.log(id);
@@ -221,10 +228,12 @@ public final class Ref<T> implements RefCounted<T>
                 }
                 return;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             Throwable fail = globalState.release(this, null);
             if (leak)
             {
                 String id = this.toString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
                 logger.error("LEAK DETECTED: a reference ({}) to {} was not released before the reference was garbage collected", id, globalState);
                 if (DEBUG_ENABLED)
                     debug.log(id);
@@ -233,6 +242,7 @@ public final class Ref<T> implements RefCounted<T>
             {
                 debug.deallocate();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             if (fail != null)
                 logger.error("Error when closing {}", globalState, fail);
         }
@@ -288,6 +298,7 @@ public final class Ref<T> implements RefCounted<T>
         // the object to call to cleanup when our refs are all finished with
         private final Tidy tidy;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         GlobalState(Tidy tidy)
         {
             this.tidy = tidy;
@@ -313,6 +324,7 @@ public final class Ref<T> implements RefCounted<T>
         }
 
         // release a single reference, and cleanup if no more are extant
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         Throwable release(Ref.State ref, Throwable accumulate)
         {
             locallyExtant.remove(ref);
@@ -321,11 +333,13 @@ public final class Ref<T> implements RefCounted<T>
                 globallyExtant.remove(this);
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
                     if (tidy != null)
                         tidy.tidy();
                 }
                 catch (Throwable t)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
                     accumulate = merge(accumulate, t);
                 }
             }
@@ -339,6 +353,7 @@ public final class Ref<T> implements RefCounted<T>
 
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
             if (tidy != null)
                 return tidy.getClass() + "@" + System.identityHashCode(tidy) + ":" + tidy.name();
             return "@" + System.identityHashCode(this);
@@ -362,6 +377,7 @@ public final class Ref<T> implements RefCounted<T>
     static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !DEBUG_ENABLED ? null : Executors.newScheduledThreadPool(1, new NamedThreadFactory("Strong-Reference-Leak-Detector"));
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         if (DEBUG_ENABLED)
         {
             STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new Visitor(), 1, 15, TimeUnit.MINUTES);
@@ -372,6 +388,7 @@ public final class Ref<T> implements RefCounted<T>
 
     private static void reapOneReference() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         Object obj = referenceQueue.remove(100);
         if (obj instanceof Ref.State)
         {
@@ -476,6 +493,7 @@ public final class Ref<T> implements RefCounted<T>
                 while (collectionIterator.hasNext() && (nextItem = collectionIterator.next()) == null){}
                 if (nextItem != null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
                     if (isMapIterator & nextItem instanceof Map.Entry)
                     {
                         Map.Entry entry = (Map.Entry)nextItem;
@@ -501,6 +519,7 @@ public final class Ref<T> implements RefCounted<T>
                 //A weak reference isn't strongly reachable
                 //subclasses of WeakReference contain strong references in their fields, so those need to be traversed
                 //The weak reference fields are in the common Reference class base so filter those out
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
                 if (o instanceof WeakReference & nextField.getDeclaringClass() == Reference.class)
                     continue;
 
@@ -527,6 +546,7 @@ public final class Ref<T> implements RefCounted<T>
         long iterations = 0;
         GlobalState visiting;
         Set<GlobalState> haveLoops;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
 
         public void run()
         {
@@ -594,6 +614,7 @@ public final class Ref<T> implements RefCounted<T>
                     }
                     else if (visiting == child)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
                         if (haveLoops != null)
                             haveLoops.add(visiting);
                         NoSpamLogger.log(logger,
@@ -684,6 +705,7 @@ public final class Ref<T> implements RefCounted<T>
             this.candidates.retainAll(candidates);
             if (!this.candidates.isEmpty())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
                 List<String> names = new ArrayList<>(this.candidates.size());
                 for (Tidy tidy : this.candidates)
                     names.add(tidy.name());

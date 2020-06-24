@@ -241,6 +241,7 @@ final class HintsBuffer
             ByteBuffer buffer = (ByteBuffer) slab.duplicate().position(offset).limit(offset + totalSize);
             CRC32 crc = new CRC32();
             int hintSize = totalSize - ENTRY_OVERHEAD_SIZE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             try (DataOutputBuffer dop = new DataOutputBufferFixed(buffer))
             {
                 dop.writeInt(hintSize);

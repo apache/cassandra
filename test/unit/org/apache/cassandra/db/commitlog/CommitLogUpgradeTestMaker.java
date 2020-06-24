@@ -101,6 +101,7 @@ public class CommitLogUpgradeTestMaker
         CommitLog commitLog = CommitLog.instance;
         System.out.format("\nUsing commit log size: %dmb, compressor: %s, encryption: %s, sync: %s, %s\n",
                           mb(DatabaseDescriptor.getCommitLogSegmentSize()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9039
                           commitLog.configuration.getCompressorName(),
                           commitLog.configuration.useEncryption(),
                           commitLog.executor.getClass().getSimpleName(),
@@ -112,6 +113,7 @@ public class CommitLogUpgradeTestMaker
         stop = true;
         scheduled.shutdown();
         Assert.assertTrue(scheduled.awaitTermination(1, TimeUnit.MINUTES));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15781
 
         int hash = 0;
         int cells = 0;
@@ -219,6 +221,7 @@ public class CommitLogUpgradeTestMaker
         final CommitLog commitLog;
 
         volatile CommitLogPosition clsp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
         public CommitlogExecutor(CommitLog commitLog)
         {
@@ -241,12 +244,14 @@ public class CommitLogUpgradeTestMaker
                 {
                     int sz = randomSize ? tlr.nextInt(cellSize) : cellSize;
                     ByteBuffer bytes = randomBytes(sz, tlr);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9790
                     builder.newRow(CommitLogUpgradeTest.CELLNAME + ii).add("val", bytes);
                     hash = hash(hash, bytes);
                     ++cells;
                     dataSize += sz;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                 clsp = commitLog.add((Mutation)builder.makeMutation());
                 counter.incrementAndGet();
             }

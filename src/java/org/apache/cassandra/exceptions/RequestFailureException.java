@@ -32,6 +32,7 @@ public class RequestFailureException extends RequestExecutionException
 
     protected RequestFailureException(ExceptionCode code, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15543
         super(code, buildErrorMessage(received, failureReasonByEndpoint));
         this.consistency = consistency;
         this.received = received;
@@ -49,6 +50,7 @@ public class RequestFailureException extends RequestExecutionException
 
     private static String buildFailureString(Map<InetAddressAndPort, RequestFailureReason> failures)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return failures.entrySet().stream()
                        .map(e -> String.format("%s from %s", e.getValue(), e.getKey()))
                        .collect(Collectors.joining(", "));

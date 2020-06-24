@@ -73,6 +73,7 @@ public abstract class DataLimits
         @Override
         public PartitionIterator filter(PartitionIterator iter, int nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14812
             return iter;
         }
     };
@@ -85,6 +86,7 @@ public abstract class DataLimits
 
     public static DataLimits cqlLimits(int cqlRowLimit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
         return cqlRowLimit == NO_LIMIT ? NONE : new CQLLimits(cqlRowLimit);
     }
 
@@ -105,6 +107,7 @@ public abstract class DataLimits
     public static DataLimits groupByLimits(int groupLimit,
                                            int groupPerPartitionLimit,
                                            int rowLimit,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                                            AggregationSpecification groupBySpec)
     {
         return new CQLGroupByLimits(groupLimit, groupPerPartitionLimit, rowLimit, groupBySpec);
@@ -122,6 +125,7 @@ public abstract class DataLimits
 
     public boolean isGroupByLimit()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         return false;
     }
 
@@ -230,6 +234,7 @@ public abstract class DataLimits
 
         protected Counter(int nowInSec, boolean assumeLiveData, boolean enforceStrictLiveness)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             this.nowInSec = nowInSec;
             this.assumeLiveData = assumeLiveData;
             this.enforceStrictLiveness = enforceStrictLiveness;
@@ -237,6 +242,7 @@ public abstract class DataLimits
 
         public Counter onlyCount()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
             this.enforceLimits = false;
             return this;
         }
@@ -297,6 +303,7 @@ public abstract class DataLimits
         @Override
         protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
             return partition instanceof UnfilteredRowIterator ? Transformation.apply((UnfilteredRowIterator) partition, this)
                                                               : Transformation.apply((RowIterator) partition, this);
         }
@@ -326,6 +333,7 @@ public abstract class DataLimits
         @Override
         public void onClose()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             super.onClose();
         }
     }
@@ -343,6 +351,7 @@ public abstract class DataLimits
 
         private CQLLimits(int rowLimit)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
             this(rowLimit, NO_LIMIT);
         }
 
@@ -370,11 +379,13 @@ public abstract class DataLimits
 
         public boolean isUnlimited()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
             return rowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT;
         }
 
         public boolean isDistinct()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
             return isDistinct;
         }
 
@@ -390,6 +401,7 @@ public abstract class DataLimits
 
         public DataLimits forShortReadRetry(int toFetch)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13595
             return new CQLLimits(toFetch, perPartitionLimit, isDistinct);
         }
 
@@ -405,11 +417,13 @@ public abstract class DataLimits
 
             if (cached.rowCount() < rowLimit)
                 return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10762
 
             // Otherwise, we need to re-count
 
             DataLimits.Counter counter = newCounter(nowInSec, false, countPartitionsWithOnlyStaticData, enforceStrictLiveness);
             try (UnfilteredRowIterator cacheIter = cached.unfilteredIterator(ColumnFilter.selection(cached.columns()), Slices.ALL, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                  UnfilteredRowIterator iter = counter.applyTo(cacheIter))
             {
                 // Consume the iterator until we've counted enough
@@ -439,6 +453,8 @@ public abstract class DataLimits
 
         public DataLimits withoutState()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             return this;
         }
 
@@ -478,6 +494,7 @@ public abstract class DataLimits
             public Row applyToRow(Row row)
             {
                 if (isLive(row))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                     incrementRowCount();
                 return row;
             }
@@ -498,6 +515,7 @@ public abstract class DataLimits
                 if (++rowCounted >= rowLimit)
                     stop();
                 if (++rowInCurrentPartition >= perPartitionLimit)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                     stopInPartition();
             }
 
@@ -513,6 +531,7 @@ public abstract class DataLimits
 
             public int rowCounted()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                 return rowCounted;
             }
 
@@ -537,6 +556,7 @@ public abstract class DataLimits
         {
             StringBuilder sb = new StringBuilder();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
             if (rowLimit != NO_LIMIT)
             {
                 sb.append("LIMIT ").append(rowLimit);
@@ -578,12 +598,14 @@ public abstract class DataLimits
         @Override
         public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             throw new UnsupportedOperationException();
         }
 
         @Override
         public DataLimits withoutState()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             return new CQLLimits(rowLimit, perPartitionLimit, isDistinct);
         }
 
@@ -780,6 +802,7 @@ public abstract class DataLimits
             {
                 sb.append("GROUP PER PARTITION LIMIT ").append(groupPerPartitionLimit);
                 if (rowLimit != NO_LIMIT)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                     sb.append(' ');
             }
 
@@ -935,6 +958,7 @@ public abstract class DataLimits
                     return null;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                 if (isLive(row))
                 {
                     hasGroupStarted = true;
@@ -1119,6 +1143,7 @@ public abstract class DataLimits
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
                     super.applyToPartition(partitionKey, staticRow);
                 }
             }
@@ -1145,6 +1170,7 @@ public abstract class DataLimits
                         out.writeUnsignedVInt(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                 case CQL_GROUP_BY_LIMIT:
                 case CQL_GROUP_BY_PAGING_LIMIT:
                     CQLGroupByLimits groupByLimits = (CQLGroupByLimits) limits;
@@ -1179,7 +1205,9 @@ public abstract class DataLimits
                     int perPartitionLimit = (int) in.readUnsignedVInt();
                     boolean isDistinct = in.readBoolean();
                     if (kind == Kind.CQL_LIMIT)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
                         return cqlLimits(rowLimit, perPartitionLimit, isDistinct);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
                     int lastRemaining = (int) in.readUnsignedVInt();
                     return new CQLPagingLimits(rowLimit, perPartitionLimit, isDistinct, lastKey, lastRemaining);

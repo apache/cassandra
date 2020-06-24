@@ -54,6 +54,7 @@ public interface DataInputPlus extends DataInput
     public default void skipBytesFully(int n) throws IOException
     {
         int skipped = skipBytes(n);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
         if (skipped != n)
             throw new EOFException("EOF after " + skipped + " bytes out of " + n);
     }

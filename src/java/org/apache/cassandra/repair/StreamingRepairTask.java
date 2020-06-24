@@ -79,6 +79,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     @VisibleForTesting
     StreamPlan createStreamPlan(InetAddressAndPort dest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                .listeners(this)
                .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
@@ -103,6 +104,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     public void onSuccess(StreamState state)
     {
         logger.info("[repair #{}] streaming task succeed, returning response to {}", desc.sessionId, initiator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         MessagingService.instance().send(Message.out(SYNC_RSP, new SyncResponse(desc, src, dst, true, state.createSummaries())), initiator);
     }
 
@@ -111,6 +113,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
      */
     public void onFailure(Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         MessagingService.instance().send(Message.out(SYNC_RSP, new SyncResponse(desc, src, dst, false, Collections.emptyList())), initiator);
     }
 }

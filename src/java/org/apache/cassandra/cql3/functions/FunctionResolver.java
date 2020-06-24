@@ -137,6 +137,7 @@ public final class FunctionResolver
         List<Function> compatibles = null;
         for (Function toTest : candidates)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             if (matchReturnType(toTest, receiverType))
             {
                 AssignmentTestable.TestResult r = matchAguments(keyspace, toTest, providedArgs, receiverKs, receiverCf);
@@ -154,6 +155,7 @@ public final class FunctionResolver
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10310
         if (compatibles == null)
         {
             if (OperationFcts.isOperation(name))
@@ -177,6 +179,7 @@ public final class FunctionResolver
                             return toTest;
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
                 throw invalidRequest("Ambiguous '%s' operation with args %s and %s: use type casts to disambiguate",
                                      OperationFcts.getOperator(name), providedArgs.get(0), providedArgs.get(1));
             }
@@ -224,6 +227,7 @@ public final class FunctionResolver
                                       String receiverCf)
     {
         if (providedArgs.size() != fun.argTypes().size())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
             throw invalidRequest("Invalid number of arguments in call to function %s: %d required but %d provided",
                                  fun.name(), fun.argTypes().size(), providedArgs.size());
 
@@ -238,6 +242,7 @@ public final class FunctionResolver
 
             ColumnSpecification expected = makeArgSpec(receiverKs, receiverCf, fun, i);
             if (!provided.testAssignment(keyspace, expected).isAssignable())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
                 throw invalidRequest("Type error: %s cannot be passed as argument %d of function %s of type %s",
                                      provided, i, fun.name(), expected.type.asCQL3Type());
         }

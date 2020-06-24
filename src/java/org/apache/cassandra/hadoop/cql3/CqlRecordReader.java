@@ -114,6 +114,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         totalRowCount = (this.split.getLength() < Long.MAX_VALUE)
                       ? (int) this.split.getLength()
                       : ConfigHelper.getInputSplitSize(conf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
         cfName = ConfigHelper.getInputColumnFamily(conf);
         keyspace = ConfigHelper.getInputKeyspace(conf);
         partitioner = ConfigHelper.getInputPartitioner(conf);
@@ -127,6 +128,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
             // create a Cluster instance
             String[] locations = split.getLocations();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7774
             cluster = CqlConfigHelper.getInputCluster(locations, conf);
         }
         catch (Exception e)
@@ -136,12 +138,17 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
         if (cluster != null)
             session = cluster.connect(quote(keyspace));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7093
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10751
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7226
         if (session == null)
           throw new RuntimeException("Can't create connection session");
 
         //get negotiated serialization protocol
         nativeProtocolVersion = cluster.getConfiguration().getProtocolOptions().getProtocolVersion().toInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9493
 
         // If the user provides a CQL query then we will use it without validation
         // otherwise we will fall back to building a query using the:
@@ -150,6 +157,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         cqlQuery = CqlConfigHelper.getInputCql(conf);
         // validate that the user hasn't tried to give us a custom query along with input columns
         // and where clauses
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
         if (StringUtils.isNotEmpty(cqlQuery) && (StringUtils.isNotEmpty(inputColumns) ||
                                                  StringUtils.isNotEmpty(userDefinedWhereClauses)))
         {
@@ -159,6 +167,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         if (StringUtils.isEmpty(cqlQuery))
             cqlQuery = buildQuery();
         logger.trace("cqlQuery {}", cqlQuery);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         rowIterator = new RowIterator();
         logger.trace("created {}", rowIterator);
@@ -168,6 +177,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     {
         if (session != null)
             session.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7228
         if (cluster != null)
             cluster.close();
     }
@@ -196,6 +206,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     {
         if (!rowIterator.hasNext())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Finished scanning {} rows (estimate was: {})", rowIterator.totalRead, totalRowCount);
             return false;
         }
@@ -236,6 +247,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
     public Long createKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7563
         return Long.valueOf(0L);
     }
 
@@ -250,6 +262,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
      */
     public int getNativeProtocolVersion() 
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8577
         return nativeProtocolVersion;
     }
 
@@ -270,6 +283,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         {
             AbstractType type = partitioner.getTokenValidator();
             ResultSet rs = session.execute(cqlQuery, type.compose(type.fromString(split.getStartToken())), type.compose(type.fromString(split.getEndToken())) );
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
             for (ColumnMetadata meta : cluster.getMetadata().getKeyspace(quote(keyspace)).getTable(quote(cfName)).getPartitionKey())
                 partitionBoundColumns.put(meta.getName(), Boolean.TRUE);
             rows = rs.iterator();
@@ -296,6 +310,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
                 for (String column : partitionBoundColumns.keySet())
                 {
                     // this is not correct - but we don't seem to have easy access to better type information here
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
                     if (ByteBufferUtil.compareUnsigned(keyColumns.get(column), previousRowKey.get(column)) != 0)
                     {
                         previousRowKey = keyColumns;
@@ -339,12 +354,14 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         @Override
         public Object getObject(int i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9493
             return row.getObject(i);
         }
 
         @Override
         public <T> T get(int i, Class<T> aClass)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
             return row.get(i, aClass);
         }
 
@@ -399,6 +416,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         @Override
         public short getShort(int i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9493
             return row.getShort(i);
         }
 
@@ -447,6 +465,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         @Override
         public Date getTimestamp(int i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9493
             return row.getTimestamp(i);
         }
 
@@ -597,6 +616,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         @Override
         public <T> List<T> getList(int i, TypeToken<T> typeToken)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
             return row.getList(i, typeToken);
         }
 
@@ -663,6 +683,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         @Override
         public UDTValue getUDTValue(int i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7692
             return row.getUDTValue(i);
         }
 
@@ -687,6 +708,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         @Override
         public Token getToken(int i)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
             return row.getToken(i);
         }
 
@@ -712,11 +734,13 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     {
         fetchKeys();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
         List<String> columns = getSelectColumns();
         String selectColumnList = columns.size() == 0 ? "*" : makeColumnList(columns);
         String partitionKeyList = makeColumnList(partitionKeys);
 
         return String.format("SELECT %s FROM %s.%s WHERE token(%s)>? AND token(%s)<=?" + getAdditionalWhereClauses(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
                              selectColumnList, quote(keyspace), quote(cfName), partitionKeyList, partitionKeyList);
     }
 
@@ -734,6 +758,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     {
         List<String> selectColumns = new ArrayList<>();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7726
         if (StringUtils.isNotEmpty(inputColumns))
         {
             // We must select all the partition keys plus any other columns the user wants
@@ -761,6 +786,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     private void fetchKeys()
     {
         // get CF meta data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8358
         TableMetadata tableMetadata = session.getCluster()
                                              .getMetadata()
                                              .getKeyspace(Metadata.quote(keyspace))
@@ -779,6 +805,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
     private String quote(String identifier)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7093
         return "\"" + identifier.replaceAll("\"", "\"\"") + "\"";
     }
 }

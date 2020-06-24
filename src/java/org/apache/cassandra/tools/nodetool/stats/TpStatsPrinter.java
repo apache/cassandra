@@ -60,6 +60,7 @@ public class TpStatsPrinter
                            values.get("TotalBlockedTasks"));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8398
             out.printf("%n%-20s%10s%18s%18s%18s%18s%n", "Message type", "Dropped", "", "Latency waiting in queue (micros)", "", "");
             out.printf("%-20s%10s%18s%18s%18s%18s%n", "", "", "50%", "95%", "99%", "Max");
 

@@ -65,11 +65,14 @@ public class TupleType extends AbstractType<ByteBuffer>
     protected TupleType(List<AbstractType<?>> types, boolean freezeInner)
     {
         super(ComparisonType.CUSTOM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
         if (freezeInner)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             this.types = Lists.newArrayList(transform(types, AbstractType::freeze));
         else
             this.types = types;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13646
         this.serializer = new TupleSerializer(fieldSerializers(types));
     }
 
@@ -93,6 +96,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return any(types, t -> t.referencesUserType(name));
     }
 
@@ -113,6 +117,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public boolean referencesDuration()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         return allTypes().stream().anyMatch(f -> f.referencesDuration());
     }
 
@@ -133,6 +138,7 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public boolean isTuple()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return true;
     }
 
@@ -144,6 +150,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8105
         for (int i = 0; bb1.remaining() > 0 && bb2.remaining() > 0; i++)
         {
             AbstractType<?> comparator = types.get(i);
@@ -223,6 +230,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         int totalLength = 0;
         for (ByteBuffer component : components)
             totalLength += 4 + (component == null ? 0 : component.remaining());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
 
         ByteBuffer result = ByteBuffer.allocate(totalLength);
         for (ByteBuffer component : components)
@@ -257,6 +265,7 @@ public class TupleType extends AbstractType<ByteBuffer>
             if (i > 0)
                 sb.append(":");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             AbstractType<?> type = type(i);
             int size = input.getInt();
             if (size < 0)
@@ -267,6 +276,7 @@ public class TupleType extends AbstractType<ByteBuffer>
 
             ByteBuffer field = ByteBufferUtil.readBytes(input, size);
             // We use ':' as delimiter, and @ to represent null, so escape them in the generated string
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
             String fld = COLON_PAT.matcher(type.getString(field)).replaceAll(ESCAPED_COLON);
             fld = AT_PAT.matcher(fld).replaceAll(ESCAPED_AT);
             sb.append(fld);
@@ -278,7 +288,9 @@ public class TupleType extends AbstractType<ByteBuffer>
     {
         // Split the input on non-escaped ':' characters
         List<String> fieldStrings = AbstractCompositeType.split(source);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9559
         if (fieldStrings.size() > size())
             throw new MarshalException(String.format("Invalid tuple literal: too many elements. Type %s expects %d but got %d",
                                                      asCQL3Type(), size(), fieldStrings.size()));
@@ -290,8 +302,10 @@ public class TupleType extends AbstractType<ByteBuffer>
             // We use @ to represent nulls
             if (fieldString.equals("@"))
                 continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
 
             AbstractType<?> type = type(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
             fieldString = ESCAPED_COLON_PAT.matcher(fieldString).replaceAll(COLON);
             fieldString = ESCAPED_AT_PAT.matcher(fieldString).replaceAll(AT);
             fields[i] = type.fromString(fieldString);
@@ -302,9 +316,11 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         if (parsed instanceof String)
             parsed = Json.decodeJson((String) parsed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(
                     "Expected a list representation of a tuple, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
@@ -337,6 +353,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13592
         ByteBuffer duplicated = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < types.size(); i++)
@@ -355,6 +372,7 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public TypeSerializer<ByteBuffer> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13646
         return serializer;
     }
 
@@ -382,6 +400,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         if (!(otherType instanceof TupleType))
             return false;
 
@@ -397,6 +416,7 @@ public class TupleType extends AbstractType<ByteBuffer>
             if (!tnew.isValueCompatibleWith(tprev))
                 return false;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         return true;
     }
 
@@ -419,12 +439,14 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
         return CQL3Type.Tuple.create(this);
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         return getClass().getName() + TypeParser.stringifyTypeParameters(types, true);
     }
 }

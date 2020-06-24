@@ -36,6 +36,7 @@ public class SelectLimitTest extends CQLTester
     {
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         prepareServer();
     }
@@ -61,6 +62,7 @@ public class SelectLimitTest extends CQLTester
     public void testPerPartitionLimit() throws Throwable
     {
         String query = "CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11556
 
         createTable(query);
 
@@ -315,6 +317,7 @@ public class SelectLimitTest extends CQLTester
     public void testLimitWithDeletedRowsAndStaticColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, c int, v int, s int static, PRIMARY KEY (pk, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12107
 
         execute("INSERT INTO %s (pk, c, v, s) VALUES (1, -1, 1, 1)");
         execute("INSERT INTO %s (pk, c, v, s) VALUES (2, -1, 1, 1)");

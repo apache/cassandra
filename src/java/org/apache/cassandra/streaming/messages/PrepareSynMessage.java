@@ -47,6 +47,7 @@ public class PrepareSynMessage extends StreamMessage
 
         public long serializedSize(PrepareSynMessage message, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             long size = 4 + 4; // count of requests and count of summaries
             for (StreamRequest request : message.requests)
                 size += StreamRequest.serializer.serializedSize(request, version);
@@ -58,6 +59,7 @@ public class PrepareSynMessage extends StreamMessage
         public void serialize(PrepareSynMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
             // requests
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
             out.writeInt(message.requests.size());
             for (StreamRequest request : message.requests)
                 StreamRequest.serializer.serialize(request, out, version);
@@ -80,6 +82,7 @@ public class PrepareSynMessage extends StreamMessage
 
     public PrepareSynMessage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         super(Type.PREPARE_SYN);
     }
 

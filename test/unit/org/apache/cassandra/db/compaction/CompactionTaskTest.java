@@ -86,6 +86,7 @@ public class CompactionTaskTest
         cfs.getCompactionStrategyManager().pause();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             task.execute(CompactionManager.instance.active);
             Assert.fail("Expected CompactionInterruptedException");
         }

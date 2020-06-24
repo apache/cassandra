@@ -75,6 +75,7 @@ final class HintsWriteExecutor
     /**
      * Flush the provided buffer, recycle it and offer it back to the pool.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
     Future<?> flushBuffer(HintsBuffer buffer, HintsBufferPool bufferPool)
     {
         return executor.submit(new FlushBufferTask(buffer, bufferPool));
@@ -83,6 +84,7 @@ final class HintsWriteExecutor
     /**
      * Flush the current buffer, but without clearing/recycling it.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
     Future<?> flushBufferPool(HintsBufferPool bufferPool)
     {
         return executor.submit(new FlushBufferPoolTask(bufferPool));
@@ -91,6 +93,7 @@ final class HintsWriteExecutor
     /**
      * Flush the current buffer just for the specified hints stores. Without clearing/recycling it.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
     Future<?> flushBufferPool(HintsBufferPool bufferPool, Iterable<HintsStore> stores)
     {
         return executor.submit(new PartiallyFlushBufferPoolTask(bufferPool, stores));
@@ -108,6 +111,7 @@ final class HintsWriteExecutor
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
     Future<?> closeWriter(HintsStore store)
     {
         return executor.submit(store::closeWriter);
@@ -140,6 +144,7 @@ final class HintsWriteExecutor
             finally
             {
                 HintsBuffer recycledBuffer = buffer.recycle();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10972
                 bufferPool.offer(recycledBuffer);
             }
         }
@@ -158,6 +163,7 @@ final class HintsWriteExecutor
         {
             HintsBuffer buffer = bufferPool.currentBuffer();
             buffer.waitForModifications();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
             try
             {
                 flush(buffer);
@@ -214,6 +220,7 @@ final class HintsWriteExecutor
     {
         while (true)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11090
             if (iterator.hasNext())
                 flushInternal(iterator, store);
 

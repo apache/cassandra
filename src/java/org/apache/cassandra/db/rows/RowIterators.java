@@ -40,6 +40,7 @@ public abstract class RowIterators
         // currently ok as this is only used for schema digest and the is no exchange
         // of schema digest between different versions. If this changes however,
         // we'll need to agree on a version.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         digest.update(iterator.partitionKey().getKey());
         iterator.columns().regulars.digest(digest);
         iterator.columns().statics.digest(digest);
@@ -82,6 +83,7 @@ public abstract class RowIterators
                     metadata.partitionKeyType.getString(iterator.partitionKey().getKey()),
                     iterator.isReverseOrder());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class Log extends Transformation
         {
             @Override

@@ -21,6 +21,7 @@ public abstract class RequestValidationException extends CassandraException
 {
     protected RequestValidationException(ExceptionCode code, String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(code, msg);
     }
 

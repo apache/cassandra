@@ -100,6 +100,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public enum ParentRepairStatus
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         IN_PROGRESS, COMPLETED, FAILED
     }
 
@@ -184,8 +185,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
         this.failureDetector = failureDetector;
         this.gossiper = gossiper;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         this.repairStatusByCmd = CacheBuilder.newBuilder()
                                              .expireAfterWrite(
                                              Long.getLong("cassandra.parent_repair_status_expiry_seconds",
@@ -196,11 +199,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              .maximumSize(Long.getLong("cassandra.parent_repair_status_cache_size", 100_000))
                                              .build();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     public void start()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         consistent.local.start();
         ScheduledExecutors.optionalTasks.scheduleAtFixedRate(consistent.local::cleanup, 0,
                                                              LocalSessions.CLEANUP_INTERVAL,
@@ -244,6 +249,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean isIncremental,
                                              boolean pullRepair,
                                              boolean force,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
                                              ListeningExecutorService executor,
@@ -252,6 +258,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (range.endpoints.isEmpty())
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8694
         if (cfnames.length == 0)
             return null;
 
@@ -262,7 +269,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         sessions.put(session.getId(), session);
         // register listeners
         registerOnFdAndGossip(session);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12901
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3569
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
         if (session.previewKind == PreviewKind.REPAIRED)
             LocalSessions.registerListener(session);
 
@@ -275,6 +285,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             public void run()
             {
                 sessions.remove(session.getId());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
                 LocalSessions.unregisterListener(session);
             }
         }, MoreExecutors.directExecutor());
@@ -284,6 +295,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public boolean getUseOffheapMerkleTrees()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15202
         return DatabaseDescriptor.useOffheapMerkleTrees();
     }
 
@@ -293,6 +305,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     private <T extends AbstractFuture &
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12901
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3569
                IEndpointStateChangeSubscriber &
                IFailureDetectionEventListener> void registerOnFdAndGossip(final T task)
     {
@@ -310,6 +324,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 failureDetector.unregisterFailureDetectionEventListener(task);
                 gossiper.unregister(task);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13997
         }, MoreExecutors.directExecutor());
     }
 
@@ -325,6 +340,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void recordRepairStatus(int cmd, ParentRepairStatus parentRepairStatus, List<String> messages)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13480
         repairStatusByCmd.put(cmd, Pair.create(parentRepairStatus, messages));
     }
 
@@ -348,6 +364,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                           Range<Token> toRepair, Collection<String> dataCenters,
                                           Collection<String> hosts)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
         StorageService ss = StorageService.instance;
         EndpointsByRange replicaSets = ss.getRangeToAddressMap(keyspaceName);
         Range<Token> rangeSuperSet = null;
@@ -366,18 +384,23 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                                  range.toString(), keyspaceName));
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5280
         if (rangeSuperSet == null || !replicaSets.containsKey(rangeSuperSet))
             return EndpointsForRange.empty(toRepair);
 
         EndpointsForRange neighbors = replicaSets.get(rangeSuperSet).withoutSelf();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
         if (dataCenters != null && !dataCenters.isEmpty())
         {
             TokenMetadata.Topology topology = ss.getTokenMetadata().cloneOnlyTokenMap().getTopology();
             Multimap<String, InetAddressAndPort> dcEndpointsMap = topology.getDatacenterEndpoints();
             Iterable<InetAddressAndPort> dcEndpoints = concat(transform(dataCenters, dcEndpointsMap::get));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             return neighbors.select(dcEndpoints, true);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
         else if (hosts != null && !hosts.isEmpty())
         {
             Set<InetAddressAndPort> specifiedHost = new HashSet<>();
@@ -395,17 +418,20 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             if (!specifiedHost.contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalArgumentException("The current host must be part of the repair");
 
             if (specifiedHost.size() <= 1)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
                 String msg = "Specified hosts %s do not share range %s needed for repair. Either restrict repair ranges " +
                              "with -st/-et options, or specify one of the neighbors that share this range with " +
                              "this node: %s.";
                 throw new IllegalArgumentException(String.format(msg, hosts, toRepair, neighbors));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             specifiedHost.remove(FBUtilities.getBroadcastAddressAndPort());
             return neighbors.keep(specifiedHost);
         }
@@ -423,8 +449,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // we only want to set repairedAt for incremental repairs including all replicas for a token range. For non-global incremental repairs, full repairs, the UNREPAIRED_SSTABLE value will prevent
         // sstables from being promoted to repaired or preserve the repairedAt/pendingRepair values, respectively. For forced repairs, repairedAt time is only set to UNREPAIRED_SSTABLE if we actually
         // end up skipping replicas
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         if (options.isIncremental() && options.isGlobal() && ! force)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             return System.currentTimeMillis();
         }
         else
@@ -435,11 +463,15 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public UUID prepareForRepair(UUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
         long repairedAt = getRepairedAt(options, isForcedRepair);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8228
         final Set<String> failedNodes = Collections.synchronizedSet(new HashSet<String>());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         RequestCallback callback = new RequestCallback()
         {
             @Override
@@ -452,6 +484,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
             {
                 status.set(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 failedNodes.add(from.toString());
                 prepareLatch.countDown();
             }
@@ -462,16 +495,20 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 return true;
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-520
 
         List<TableId> tableIds = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores)
             tableIds.add(cfs.metadata.id);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort neighbour : endpoints)
         {
             if (FailureDetector.instance.isAlive(neighbour))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                 PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 Message<RepairMessage> msg = Message.out(PREPARE_MSG, message);
                 MessagingService.instance().sendWithCallback(msg, neighbour, callback);
             }
@@ -479,8 +516,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 // we pre-filter the endpoints we want to repair for forced incremental repairs. So if any of the
                 // remaining ones go down, we still want to fail so we don't create repair sessions that can't complete
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14294
                 if (isForcedRepair && !options.isIncremental())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
                     prepareLatch.countDown();
                 }
                 else
@@ -526,12 +565,14 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (!parentRepairSessions.containsKey(parentRepairSession))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             parentRepairSessions.put(parentRepairSession, new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, repairedAt, isGlobal, previewKind));
         }
     }
 
     public ParentRepairSession getParentRepairSession(UUID parentSessionId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11824
         ParentRepairSession session = parentRepairSessions.get(parentSessionId);
         // this can happen if a node thinks that the coordinator was down, but that coordinator got back before noticing
         // that it was down itself.
@@ -552,6 +593,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
     {
         String snapshotName = parentSessionId.toString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15564
         ParentRepairSession session = parentRepairSessions.remove(parentSessionId);
         if (session == null)
             return null;
@@ -565,8 +607,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void handleMessage(Message<? extends RepairMessage> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         RepairJobDesc desc = message.payload.desc;
         RepairSession session = sessions.get(desc.sessionId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         if (session == null)
             return;
         switch (message.verb())
@@ -578,6 +622,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             case SYNC_RSP:
                 // one of replica is synced.
                 SyncResponse sync = (SyncResponse) message.payload;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                 session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
                 break;
             default:
@@ -604,6 +649,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public ParentRepairSession(InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
         {
             this.coordinator = coordinator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
             Set<Keyspace> keyspaces = new HashSet<>();
             for (ColumnFamilyStore cfs : columnFamilyStores)
             {
@@ -628,11 +674,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         public Collection<ColumnFamilyStore> getColumnFamilyStores()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             return ImmutableSet.<ColumnFamilyStore>builder().addAll(columnFamilyStores.values()).build();
         }
 
         public Keyspace getKeyspace()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
             return keyspace;
         }
 
@@ -649,6 +697,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8316
             return "ParentRepairSession{" +
                     "columnFamilyStores=" + columnFamilyStores +
                     ", ranges=" + ranges +

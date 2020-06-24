@@ -58,6 +58,7 @@ public class SSTableExport
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         FBUtilities.preventIllegalAccessWarnings();
     }
 
@@ -74,6 +75,7 @@ public class SSTableExport
     static
     {
         DatabaseDescriptor.clientInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13683
 
         Option optKey = new Option(KEY_OPTION, true, "Partition key");
         // Number of times -k <key> can be passed on the command line.
@@ -91,9 +93,11 @@ public class SSTableExport
         Option debugOutput = new Option(DEBUG_OUTPUT_OPTION, false, "CQL row per line internal representation");
         options.addOption(debugOutput);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
         Option rawTimestamps = new Option(RAW_TIMESTAMPS, false, "Print raw timestamps instead of iso8601 date strings");
         options.addOption(rawTimestamps);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13848
         Option partitionJsonLines= new Option(PARTITION_JSON_LINES, false, "Output json lines, by partition");
         options.addOption(partitionJsonLines);
     }
@@ -114,6 +118,7 @@ public class SSTableExport
         {
             cmd = parser.parse(options, args);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         catch (ParseException e1)
         {
             System.err.println(e1.getMessage());
@@ -143,9 +148,11 @@ public class SSTableExport
         Descriptor desc = Descriptor.fromFilename(ssTableFileName);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11483
             TableMetadata metadata = Util.metadataFromSSTable(desc);
             if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
                 try (KeyIterator iter = new KeyIterator(desc, metadata))
                 {
                     JsonTransformer.keysToJson(null, Util.iterToStream(iter),
@@ -154,6 +161,7 @@ public class SSTableExport
                                                System.out);
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             else
             {
                 SSTableReader sstable = SSTableReader.openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
@@ -174,6 +182,7 @@ public class SSTableExport
                 {
                     currentScanner = sstable.getScanner();
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11483
                 Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner).filter(i ->
                     excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey()))
                 );
@@ -184,6 +193,7 @@ public class SSTableExport
                     {
                         position.set(currentScanner.getCurrentPosition());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11321
                         if (!partition.partitionLevelDeletion().isLive())
                         {
                             System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
@@ -203,12 +213,14 @@ public class SSTableExport
                         });
                     });
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13848
                 else if (cmd.hasOption(PARTITION_JSON_LINES))
                 {
                     JsonTransformer.toJsonLines(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
                 }
                 else
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11655
                     JsonTransformer.toJson(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
                 }
             }
@@ -224,6 +236,7 @@ public class SSTableExport
 
     private static void printUsage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13532
         String usage = String.format("sstabledump <sstable file path> <options>%n");
         String header = "Dump contents of given SSTable to standard output in JSON format.";
         new HelpFormatter().printHelp(usage, header, options, "");

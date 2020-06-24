@@ -75,11 +75,13 @@ public class ColumnIndex
     private final Collection<SSTableFlushObserver> observers;
 
     public ColumnIndex(SerializationHeader header,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
                         SequentialWriter writer,
                         Version version,
                         Collection<SSTableFlushObserver> observers,
                         ISerializer<IndexInfo> indexInfoSerializer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         this.helper = new SerializationHelper(header);
         this.header = header;
         this.writer = writer;
@@ -90,6 +92,7 @@ public class ColumnIndex
 
     public void reset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
         this.initialPosition = writer.position();
         this.headerLength = -1;
         this.startPosition = -1;
@@ -103,6 +106,7 @@ public class ColumnIndex
         this.openMarker = null;
 
         int newCacheSizeThreshold = DatabaseDescriptor.getColumnIndexCacheSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         if (this.buffer != null && this.cacheSizeThreshold == newCacheSizeThreshold)
             this.reusableBuffer = this.buffer;
         this.buffer = null;
@@ -113,10 +117,12 @@ public class ColumnIndex
     {
         writePartitionHeader(iterator);
         this.headerLength = writer.position() - initialPosition;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
 
         while (iterator.hasNext())
             add(iterator.next());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
         finish();
     }
 
@@ -127,7 +133,9 @@ public class ColumnIndex
         if (header.hasStatic())
         {
             Row staticRow = iterator.staticRow();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
             UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, writer, version);
             if (!observers.isEmpty())
                 observers.forEach((o) -> o.nextUnfilteredCluster(staticRow));
@@ -136,6 +144,7 @@ public class ColumnIndex
 
     private long currentPosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
         return writer.position() - initialPosition;
     }
 
@@ -146,8 +155,10 @@ public class ColumnIndex
 
     public List<IndexInfo> indexSamples()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= cacheSizeThreshold)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             return indexSamples;
         }
 
@@ -164,7 +175,9 @@ public class ColumnIndex
     private void addIndexBlock() throws IOException
     {
         IndexInfo cIndexInfo = new IndexInfo(firstClustering,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                                              lastClustering,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10314
                                              startPosition,
                                              currentPosition() - startPosition,
                                              openMarker);
@@ -185,6 +198,7 @@ public class ColumnIndex
                 indexOffsets = Arrays.copyOf(indexOffsets, indexOffsets.length + 10);
 
             //the 0th element is always 0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9766
             if (columnIndexCount == 0)
             {
                 indexOffsets[columnIndexCount] = 0;
@@ -204,8 +218,10 @@ public class ColumnIndex
         if (buffer == null)
         {
             indexSamplesSerializedSize += idxSerializer.serializedSize(cIndexInfo);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
             if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > cacheSizeThreshold)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12502
                 buffer = reuseOrAllocateBuffer();
                 for (IndexInfo indexSample : indexSamples)
                 {
@@ -230,29 +246,35 @@ public class ColumnIndex
     {
         // Check whether a reusable DataOutputBuffer already exists for this
         // ColumnIndex instance and return it.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12502
         if (reusableBuffer != null) {
             DataOutputBuffer buffer = reusableBuffer;
             buffer.clear();
             return buffer;
         }
         // don't use the standard RECYCLER as that only recycles up to 1MB and requires proper cleanup
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         return new DataOutputBuffer(cacheSizeThreshold * 2);
     }
 
     private void add(Unfiltered unfiltered) throws IOException
     {
         long pos = currentPosition();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
 
         if (firstClustering == null)
         {
             // Beginning of an index block. Remember the start and position
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             firstClustering = unfiltered.clustering();
             startPosition = pos;
         }
 
         UnfilteredSerializer.serializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         // notify observers about each new row
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         if (!observers.isEmpty())
             observers.forEach((o) -> o.nextUnfilteredCluster(unfiltered));
 
@@ -274,6 +296,7 @@ public class ColumnIndex
     private void finish() throws IOException
     {
         UnfilteredSerializer.serializer.writeEndOfPartition(writer);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
 
         // It's possible we add no rows, just a top level deletion
         if (written == 0)

@@ -45,6 +45,7 @@ public class BytesSerializer implements TypeSerializer<ByteBuffer>
 
     public String toString(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return ByteBufferUtil.bytesToHex(value);
     }
 

@@ -68,6 +68,7 @@ public class CompressedHintsWriter extends HintsWriter
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
     ICompressor getCompressor()
     {
         return compressor;

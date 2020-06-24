@@ -89,6 +89,7 @@ public class SyncUtil
         //If skipping syncing is requested by any means then skip them.
         boolean skipSyncProperty = Boolean.getBoolean(Config.PROPERTY_PREFIX + "skip_sync");
         boolean skipSyncEnv = Boolean.valueOf(System.getenv().getOrDefault("CASSANDRA_SKIP_SYNC", "false"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14134
         SKIP_SYNC = skipSyncProperty || skipSyncEnv;
         if (SKIP_SYNC)
         {
@@ -190,11 +191,13 @@ public class SyncUtil
         if (SKIP_SYNC)
             return;
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             NativeLibrary.trySync(fd);
     }
 
     public static void trySyncDir(File dir)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
         if (SKIP_SYNC)
             return;
 
@@ -205,6 +208,7 @@ public class SyncUtil
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             NativeLibrary.tryCloseFD(directoryFD);
         }
     }

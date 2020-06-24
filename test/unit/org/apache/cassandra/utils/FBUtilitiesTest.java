@@ -96,6 +96,7 @@ public class FBUtilitiesTest
     public void testToString()
     {
         // null turns to empty string
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9758
         assertEquals("", FBUtilities.toString(null));
         Map<String, String> map = new TreeMap<>();
         // empty map turns to empty string
@@ -110,11 +111,13 @@ public class FBUtilitiesTest
     public void testDecode() throws IOException
     {
         ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         ByteBufferUtil.string(bytes, StandardCharsets.UTF_8);
     }
 
     private static void assertPartitioner(String name, Class expected)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12002
         Assert.assertTrue(String.format("%s != %s", name, expected.toString()),
                           expected.isInstance(FBUtilities.newPartitioner(name)));
     }
@@ -164,12 +167,14 @@ public class FBUtilitiesTest
     public void testGetBroadcastNativeAddress() throws Exception
     {
         //When both rpc_address and broadcast_rpc_address are null, it should return the local address (from DD.applyAddressConfig)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11356
         FBUtilities.reset();
         Config testConfig = DatabaseDescriptor.loadConfig();
         testConfig.rpc_address = null;
         testConfig.broadcast_rpc_address = null;
         DatabaseDescriptor.applyAddressConfig(testConfig);
         assertEquals(FBUtilities.getJustLocalAddress(), FBUtilities.getJustBroadcastNativeAddress());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         //When rpc_address is defined and broadcast_rpc_address is null, it should return the rpc_address
         FBUtilities.reset();
@@ -191,6 +196,7 @@ public class FBUtilitiesTest
     @Test
     public void testWaitFirstFuture() throws ExecutionException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15744
         final int threadCount = 10;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         try

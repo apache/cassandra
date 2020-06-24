@@ -34,11 +34,13 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     LexicalUUIDType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM);
     } // singleton
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
@@ -47,6 +49,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return UUIDGen.getUUID(o1).compareTo(UUIDGen.getUUID(o2));
     }
 
@@ -56,6 +59,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
         if (source.isEmpty())
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
         try
         {
             return decompose(UUID.fromString(source));
@@ -69,6 +73,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(fromString((String) parsed));
@@ -82,12 +87,14 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     public TypeSerializer<UUID> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
         return UUIDSerializer.instance;
     }
 
     @Override
     public int valueLengthIfFixed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return 16;
     }
 }

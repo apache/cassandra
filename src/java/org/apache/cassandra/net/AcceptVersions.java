@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 /**
  * Encapsulates minimum and maximum messaging versions that a node accepts.
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 class AcceptVersions
 {
     final int min, max;

@@ -92,6 +92,7 @@ public class Accumulator<E>
 
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7873
         return presentCount == 0;
     }
 
@@ -105,6 +106,7 @@ public class Accumulator<E>
 
     public int capacity()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return values.length;
     }
 

@@ -61,6 +61,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out, Version version) throws IOException
     {
         boolean checksum = version.hasMetadataChecksum();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13953
         CRC32 crc = new CRC32();
         // sort components by type
         List<MetadataComponent> sortedComponents = Lists.newArrayList(components.values());
@@ -73,6 +74,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
         // build and write toc
         int lastPosition = 4 + (8 * sortedComponents.size()) + (checksum ? 2 * CHECKSUM_LENGTH : 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13321
         Map<MetadataType, Integer> sizes = new EnumMap<>(MetadataType.class);
         for (MetadataComponent component : sortedComponents)
         {
@@ -100,6 +102,7 @@ public class MetadataSerializer implements IMetadataSerializer
             }
             out.write(bytes);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13953
             crc.reset(); crc.update(bytes);
             maybeWriteChecksum(crc, out, version);
         }
@@ -114,6 +117,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public Map<MetadataType, MetadataComponent> deserialize( Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
     {
         Map<MetadataType, MetadataComponent> components;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Load metadata for {}", descriptor);
         File statsFile = new File(descriptor.filenameFor(Component.STATS));
         if (!statsFile.exists())
@@ -138,6 +142,7 @@ public class MetadataSerializer implements IMetadataSerializer
     }
 
     public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13953
                                                             FileDataInput in,
                                                             EnumSet<MetadataType> selectedTypes)
     throws IOException
@@ -196,6 +201,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
             crc.reset(); crc.update(buffer);
             maybeValidateChecksum(crc, in, descriptor);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13996
             try (DataInputBuffer dataInputBuffer = new DataInputBuffer(buffer))
             {
                 components.put(type, type.serializer.deserialize(descriptor.version, dataInputBuffer));
@@ -223,6 +229,7 @@ public class MetadataSerializer implements IMetadataSerializer
     @Override
     public void mutate(Descriptor descriptor, Function<StatsMetadata, StatsMetadata> transform) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15783
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
 
@@ -232,18 +239,22 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         mutate(descriptor, stats -> stats.mutateLevel(newLevel));
     }
 
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
                          descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15783
         mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
     }
 
@@ -252,10 +263,12 @@ public class MetadataSerializer implements IMetadataSerializer
         String filePath = descriptor.tmpFilenameFor(Component.STATS);
         try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(filePath)))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
             serialize(currentComponents, out, descriptor.version);
             out.flush();
         }
         // we cant move a file on top of another file in windows:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             FileUtils.delete(descriptor.filenameFor(Component.STATS));
         FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));

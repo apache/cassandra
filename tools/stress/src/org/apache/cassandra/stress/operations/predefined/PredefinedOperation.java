@@ -40,6 +40,7 @@ public abstract class PredefinedOperation extends PartitionOperation
 
     public PredefinedOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
         super(timer, settings, spec(generator, seedManager, settings.insert.rowPopulationRatio.get()));
         this.type = type;
         this.columnCount = settings.columns.countDistribution.get();
@@ -148,6 +149,7 @@ public abstract class PredefinedOperation extends PartitionOperation
 
     protected List<ByteBuffer> getColumnValues(ColumnSelection columns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         Row row = partitions.get(0).next();
         ByteBuffer[] r = new ByteBuffer[columns.count()];
         int c = 0;
@@ -165,6 +167,7 @@ public abstract class PredefinedOperation extends PartitionOperation
         switch (type)
         {
             case READ:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                 return new CqlReader(timer, generator, seedManager, settings);
             case COUNTER_READ:
                 return new CqlCounterGetter(timer, generator, seedManager, settings);

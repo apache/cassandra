@@ -85,9 +85,11 @@ public class BigTableScanner implements ISSTableScanner
     public static ISSTableScanner getScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges)
     {
         // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(tokenRanges);
         if (positions.isEmpty())
             return new EmptySSTableScanner(sstable);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
 
         return getScanner(sstable, makeBounds(sstable, tokenRanges).iterator());
     }
@@ -105,15 +107,18 @@ public class BigTableScanner implements ISSTableScanner
     {
         assert sstable != null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4937
         this.dfile = sstable.openDataReader();
         this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         this.columns = columns;
         this.dataRange = dataRange;
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata(),
                                                                                                         sstable.descriptor.version,
                                                                                                         sstable.header);
         this.rangeIterator = rangeIterator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13120
         this.listener = listener;
     }
 
@@ -154,6 +159,7 @@ public class BigTableScanner implements ISSTableScanner
             if (requested.left.compareTo(sstable.last) <= 0)
             {
                 // since we wrap, we must contain the whole sstable after dataRange.startKey()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 Boundary<PartitionPosition> right = new Boundary<PartitionPosition>(sstable.last, true);
                 Boundary<PartitionPosition> left;
                 left = requested.leftBoundary();
@@ -165,6 +171,7 @@ public class BigTableScanner implements ISSTableScanner
         else
         {
             assert requested.left.compareTo(requested.right) <= 0 || requested.right.isMinimum();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             Boundary<PartitionPosition> left, right;
             left = requested.leftBoundary();
             right = requested.rightBoundary();
@@ -187,10 +194,12 @@ public class BigTableScanner implements ISSTableScanner
             while (!ifile.isEOF())
             {
                 indexPosition = ifile.getFilePointer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 DecoratedKey indexDecoratedKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                 if (indexDecoratedKey.compareTo(currentRange.left) > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                     long dataPosition = RowIndexEntry.Serializer.readPosition(ifile);
                     ifile.seek(indexPosition);
                     dfile.seek(dataPosition);
@@ -211,8 +220,10 @@ public class BigTableScanner implements ISSTableScanner
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9531
             if (isClosed.compareAndSet(false, true))
                 FileUtils.close(dfile, ifile);
         }
@@ -225,6 +236,7 @@ public class BigTableScanner implements ISSTableScanner
 
     public long getLengthInBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
         return dfile.length();
     }
 
@@ -235,6 +247,7 @@ public class BigTableScanner implements ISSTableScanner
 
     public long getBytesScanned()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
         return bytesScanned;
     }
 
@@ -257,6 +270,7 @@ public class BigTableScanner implements ISSTableScanner
     public boolean hasNext()
     {
         if (iterator == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4180
             iterator = createIterator();
         return iterator.hasNext();
     }
@@ -294,6 +308,7 @@ public class BigTableScanner implements ISSTableScanner
                 {
                     do
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
                         if (startScan != -1)
                             bytesScanned += dfile.getFilePointer() - startScan;
 
@@ -308,7 +323,10 @@ public class BigTableScanner implements ISSTableScanner
                         if (ifile.isEOF())
                             return endOfData();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                         currentKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                         currentEntry = rowIndexEntrySerializer.deserialize(ifile);
                     } while (!currentRange.contains(currentKey));
                 }
@@ -327,8 +345,11 @@ public class BigTableScanner implements ISSTableScanner
                 else
                 {
                     // we need the position of the start of the next key, regardless of whether it falls in the current range
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                     nextKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     nextEntry = rowIndexEntrySerializer.deserialize(ifile);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
 
                     if (!currentRange.contains(nextKey))
                     {
@@ -342,11 +363,13 @@ public class BigTableScanner implements ISSTableScanner
                  * file unless we're explicitely asked to. This is important
                  * for PartitionRangeReadCommand#checkCacheFilter.
                  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 return new LazilyInitializedUnfilteredRowIterator(currentKey)
                 {
                     protected UnfilteredRowIterator initializeIterator()
                     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
                         if (startScan != -1)
                             bytesScanned += dfile.getFilePointer() - startScan;
 
@@ -357,6 +380,7 @@ public class BigTableScanner implements ISSTableScanner
                                 dfile.seek(currentEntry.position);
                                 startScan = dfile.getFilePointer();
                                 ByteBufferUtil.skipShortLength(dfile); // key
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
                                 return SSTableIdentityIterator.create(sstable, dfile, partitionKey());
                             }
                             else
@@ -365,6 +389,7 @@ public class BigTableScanner implements ISSTableScanner
                             }
 
                             ClusteringIndexFilter filter = dataRange.clusteringIndexFilter(partitionKey());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                             return sstable.iterator(dfile, partitionKey(), currentEntry, filter.getSlices(BigTableScanner.this.metadata()), columns, filter.isReversed());
                         }
                         catch (CorruptSSTableException | IOException e)
@@ -377,7 +402,13 @@ public class BigTableScanner implements ISSTableScanner
             }
             catch (CorruptSSTableException | IOException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2261
                 sstable.markSuspect();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4180
                 throw new CorruptSSTableException(e, sstable.getFilename());
             }
         }
@@ -399,6 +430,7 @@ public class BigTableScanner implements ISSTableScanner
 
         public EmptySSTableScanner(SSTableReader sstable)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
             this.sstable = sstable;
         }
 
@@ -414,6 +446,7 @@ public class BigTableScanner implements ISSTableScanner
 
         public long getBytesScanned()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
             return 0;
         }
 
@@ -424,6 +457,8 @@ public class BigTableScanner implements ISSTableScanner
 
         public Set<SSTableReader> getBackingSSTables()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             return ImmutableSet.of(sstable);
         }
 

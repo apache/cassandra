@@ -57,6 +57,7 @@ public abstract class CellPath
     public void digest(Digest digest)
     {
         for (int i = 0; i < size(); i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             digest.update(get(i));
     }
 
@@ -106,6 +107,7 @@ public abstract class CellPath
 
         private SingleItemCellPath(ByteBuffer value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             this.value = value;
         }
 
@@ -145,6 +147,7 @@ public abstract class CellPath
 
         public CellPath copy(AbstractAllocator allocator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             return this;
         }
 

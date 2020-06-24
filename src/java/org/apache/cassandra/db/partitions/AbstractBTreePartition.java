@@ -57,6 +57,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             this.columns = columns;
             this.tree = tree;
             this.deletionInfo = deletionInfo;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11988
             this.staticRow = staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
             this.stats = stats;
         }
@@ -98,6 +99,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     public RegularAndStaticColumns columns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         return holder().columns;
     }
 
@@ -165,6 +167,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     public UnfilteredRowIterator unfilteredIterator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         return unfilteredIterator(ColumnFilter.selection(columns()), Slices.ALL, false);
     }
 
@@ -189,6 +192,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     private UnfilteredRowIterator sliceIterator(ColumnFilter selection, Slice slice, boolean reversed, Holder current, Row staticRow)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBound start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
         ClusteringBound end = slice.end() == ClusteringBound.TOP ? null : slice.end();
         Iterator<Row> rowIter = BTree.slice(current.tree, metadata().comparator, start, true, end, true, desc(reversed));
@@ -215,6 +219,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             super(AbstractBTreePartition.this.metadata(),
                   AbstractBTreePartition.this.partitionKey(),
                   current.deletionInfo.getPartitionDeletion(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
                   selection.fetchedColumns(), // non-selected columns will be filtered in subclasses by RowAndDeletionMergeIterator
                                               // it would also be more precise to return the intersection of the selection and current.columns,
                                               // but its probably not worth spending time on computing that.
@@ -292,6 +297,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         if (reversed)
             builder.reverse();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         return new Holder(columns, builder.build(), deletionBuilder.build(), iterator.staticRow(), iterator.stats());
     }
 
@@ -313,6 +319,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
         Row staticRow = rows.staticRow();
         Object[] tree = builder.build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
         EncodingStats stats = buildEncodingStats ? EncodingStats.Collector.collect(staticRow, BTree.iterator(tree), deletion)
                                                  : EncodingStats.NO_STATS;
         return new Holder(columns, tree, deletion, staticRow, stats);
@@ -328,6 +335,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
                                 metadata().partitionKeyType.getString(partitionKey().getKey()),
                                 partitionLevelDeletion(),
                                 columns()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10220
 
         if (staticRow() != Rows.EMPTY_STATIC_ROW)
             sb.append("\n    ").append(staticRow().toString(metadata(), true));

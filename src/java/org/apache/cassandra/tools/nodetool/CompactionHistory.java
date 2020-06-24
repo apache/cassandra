@@ -30,6 +30,7 @@ import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 public class CompactionHistory extends NodeToolCmd
 {
     @Option(title = "format",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12486
             name = {"-F", "--format"},
             description = "Output format (json, yaml)")
     private String outputFormat = "";

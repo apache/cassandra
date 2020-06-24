@@ -51,6 +51,7 @@ public class Seed implements Comparable<Seed>
 
     public int moveForwards(int rowCount)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         return positionUpdater.getAndAdd(this, rowCount);
     }
 

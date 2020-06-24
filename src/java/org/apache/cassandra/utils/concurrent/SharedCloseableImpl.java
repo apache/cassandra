@@ -47,11 +47,13 @@ public abstract class SharedCloseableImpl implements SharedCloseable
 
     public Throwable close(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         return ref.ensureReleased(accumulate);
     }
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         identities.add(ref);
     }
 }

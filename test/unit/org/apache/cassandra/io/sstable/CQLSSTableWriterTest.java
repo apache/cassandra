@@ -54,6 +54,7 @@ public class CQLSSTableWriterTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -90,16 +91,24 @@ public class CQLSSTableWriterTest
                                                       .using(insert).build();
 
             writer.addRow(0, "test1", 24);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             writer.addRow(1, "test2", 44);
             writer.addRow(2, "test3", 42);
             writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6526
 
             writer.close();
 
             loadSSTables(dataDir, KS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10624
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12606
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
             UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1;");
             assertEquals(4, rs.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6526
 
             Iterator<UntypedResultSet.Row> iter = rs.iterator();
             UntypedResultSet.Row row;
@@ -114,12 +123,14 @@ public class CQLSSTableWriterTest
             assertEquals("test2", row.getString("v1"));
             //assertFalse(row.has("v2"));
             assertEquals(44, row.getInt("v2"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
             row = iter.next();
             assertEquals(2, row.getInt("k"));
             assertEquals("test3", row.getString("v1"));
             assertEquals(42, row.getInt("v2"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6526
             row = iter.next();
             assertEquals(3, row.getInt("k"));
             assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
@@ -130,6 +141,7 @@ public class CQLSSTableWriterTest
     @Test
     public void testForbidCounterUpdates() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10258
         String KS = "cql_keyspace";
         String TABLE = "counter1";
 
@@ -143,6 +155,8 @@ public class CQLSSTableWriterTest
                         "  PRIMARY KEY (my_id)" +
                         ")";
         String insert = String.format("UPDATE cql_keyspace.counter1 SET my_counter = my_counter - ? WHERE my_id = ?");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12606
         try
         {
             CQLSSTableWriter.builder().inDirectory(dataDir)
@@ -166,10 +180,12 @@ public class CQLSSTableWriterTest
         String KS = "ks";
         String TABLE = "test";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7360
         File tempdir = Files.createTempDir();
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
         assert dataDir.mkdirs();
         String schema = "CREATE TABLE ks.test ("
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                       + "  k int PRIMARY KEY,"
                       + "  v blob"
                       + ")";
@@ -183,6 +199,7 @@ public class CQLSSTableWriterTest
 
         ByteBuffer val = ByteBuffer.allocate(1024 * 1050);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         writer.addRow(0, val);
         writer.addRow(1, val);
         writer.close();
@@ -194,6 +211,8 @@ public class CQLSSTableWriterTest
                 return name.endsWith("-Data.db");
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
         assert dataDir.list(filterDataFiles).length > 1 : Arrays.toString(dataDir.list(filterDataFiles));
     }
 
@@ -202,6 +221,7 @@ public class CQLSSTableWriterTest
     public void testSyncNoEmptyRows() throws Exception
     {
         // Check that the write does not throw an empty partition error (#9071)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9071
         File tempdir = Files.createTempDir();
         String schema = "CREATE TABLE ks.test2 ("
                         + "  k UUID,"
@@ -211,6 +231,7 @@ public class CQLSSTableWriterTest
         String insert = "INSERT INTO ks.test2 (k, c) VALUES (?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(tempdir)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12450
                                                   .forTable(schema)
                                                   .using(insert)
                                                   .withBufferSizeInMB(1)
@@ -234,6 +255,11 @@ public class CQLSSTableWriterTest
 
         public WriterThread(File dataDir, int id)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7463
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7463
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7463
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
             this.dataDir = dataDir;
             this.id = id;
         }
@@ -241,6 +267,7 @@ public class CQLSSTableWriterTest
         @Override
         public void run()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8808
             String schema = "CREATE TABLE cql_keyspace2.table2 ("
                     + "  k int,"
                     + "  v int,"
@@ -280,6 +307,8 @@ public class CQLSSTableWriterTest
         WriterThread[] threads = new WriterThread[5];
         for (int i = 0; i < threads.length; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
             WriterThread thread = new WriterThread(dataDir, i);
             threads[i] = thread;
             thread.start();
@@ -296,6 +325,10 @@ public class CQLSSTableWriterTest
         }
 
         loadSSTables(dataDir, KS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10624
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12606
 
         UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
         assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
@@ -350,6 +383,7 @@ public class CQLSSTableWriterTest
         loadSSTables(dataDir, KS);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
         TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.list(tuple2Type));
         TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
 
@@ -359,6 +393,7 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             List<UDTValue> values = (List<UDTValue>) collectionCodec.deserialize(row.getBytes("v1"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
                                                                                  ProtocolVersion.CURRENT);
             assertEquals(values.get(0).getInt("a"), cnt * 10);
             assertEquals(values.get(0).getInt("b"), cnt * 20);
@@ -428,6 +463,7 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             UDTValue nestedTpl = (UDTValue) nestedTupleCodec.deserialize(row.getBytes("v1"),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14737
                                                                          ProtocolVersion.CURRENT);
             assertEquals(nestedTpl.getInt("c"), cnt * 100);
             UDTValue tpl = nestedTpl.getUDTValue("tpl");
@@ -441,6 +477,7 @@ public class CQLSSTableWriterTest
     @Test
     public void testUnsetValues() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11911
         final String KS = "cql_keyspace5";
         final String TABLE = "table5";
 
@@ -544,6 +581,8 @@ public class CQLSSTableWriterTest
     @Test
     public void testUpdateStatement() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12450
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12606
         final String KS = "cql_keyspace6";
         final String TABLE = "table6";
 
@@ -619,6 +658,12 @@ public class CQLSSTableWriterTest
 
         writer.close();
         loadSSTables(dataDir, KS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
         assertEquals(2, resultSet.size());
@@ -649,6 +694,7 @@ public class CQLSSTableWriterTest
             {
                 this.keyspace = keyspace;
                 for (Range<Token> range : StorageService.instance.getLocalReplicas(ks).ranges())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
             }
 

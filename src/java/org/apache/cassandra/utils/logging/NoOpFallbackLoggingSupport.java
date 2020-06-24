@@ -18,6 +18,7 @@ public class NoOpFallbackLoggingSupport implements LoggingSupport
     @Override
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13396
         logger.warn("The log level was not changed, because you are using an unsupported slf4j logging implementation for which this functionality was not implemented.");
     }
 

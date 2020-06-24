@@ -88,10 +88,13 @@ public abstract class SSTable
         assert components != null;
 
         this.descriptor = descriptor;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
         Set<Component> dataComponents = new HashSet<>(components);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-47
         this.compression = dataComponents.contains(Component.COMPRESSION_INFO);
         this.components = new CopyOnWriteArraySet<>(dataComponents);
         this.metadata = metadata;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         this.optimizationStrategy = Objects.requireNonNull(optimizationStrategy);
     }
 
@@ -108,12 +111,15 @@ public abstract class SSTable
      */
     public static boolean delete(Descriptor desc, Set<Component> components)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14302
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
         logger.info("Deleting sstable: {}", desc);
         // remove the DATA component first if it exists
         if (components.contains(Component.DATA))
             FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
         for (Component component : components)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
             if (component.equals(Component.DATA) || component.equals(Component.SUMMARY))
                 continue;
 
@@ -138,6 +144,7 @@ public abstract class SSTable
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return getPartitioner().decorateKey(key);
     }
 
@@ -147,6 +154,7 @@ public abstract class SSTable
      */
     public static DecoratedKey getMinimalKey(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         return key.getKey().position() > 0 || key.getKey().hasRemaining() || !key.getKey().hasArray()
                                        ? new BufferDecoratedKey(key.getToken(), HeapAllocator.instance.clone(key.getKey()))
                                        : key;
@@ -154,6 +162,7 @@ public abstract class SSTable
 
     public String getFilename()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6355
         return descriptor.filenameFor(Component.DATA);
     }
 
@@ -174,6 +183,7 @@ public abstract class SSTable
 
     public List<String> getAllFilePaths()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<String> ret = new ArrayList<>(components.size());
         for (Component component : components)
             ret.add(descriptor.filenameFor(component));
@@ -192,6 +202,7 @@ public abstract class SSTable
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             return Descriptor.fromFilenameWithComponent(file);
         }
         catch (Throwable e)
@@ -227,6 +238,8 @@ public abstract class SSTable
      */
     public static Set<Component> componentsFor(final Descriptor desc)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
         try
         {
             try
@@ -257,6 +270,7 @@ public abstract class SSTable
         Set<Component> components = Sets.newHashSetWithExpectedSize(knownTypes.size());
         for (Component.Type componentType : knownTypes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             Component component = new Component(componentType);
             if (new File(desc.filenameFor(component)).exists())
                 components.add(component);
@@ -272,7 +286,10 @@ public abstract class SSTable
         int keys = 0;
         while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2009
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             ByteBufferUtil.skipShortLength(ifile);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10232
             RowIndexEntry.Serializer.skip(ifile, descriptor.version);
             keys++;
         }
@@ -284,6 +301,7 @@ public abstract class SSTable
 
     public long bytesOnDisk()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-554
         long bytes = 0;
         for (Component component : components)
         {
@@ -295,7 +313,10 @@ public abstract class SSTable
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return getClass().getSimpleName() + "(" +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-389
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
                "path='" + getFilename() + '\'' +
                ')';
     }
@@ -306,6 +327,8 @@ public abstract class SSTable
      */
     protected static Set<Component> readTOC(Descriptor descriptor) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4049
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
         List<String> componentNames = Files.readLines(tocFile, Charset.defaultCharset());
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
@@ -326,6 +349,7 @@ public abstract class SSTable
     protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (PrintWriter w = new PrintWriter(new FileWriter(tocFile, true)))
         {
             for (Component component : components)
@@ -352,6 +376,7 @@ public abstract class SSTable
 
     public AbstractBounds<Token> getBounds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         return AbstractBounds.bounds(first.getToken(), true, last.getToken(), true);
     }
 

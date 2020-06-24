@@ -67,6 +67,7 @@ public class ColumnFamilyStoreTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
@@ -76,6 +77,7 @@ public class ColumnFamilyStoreTest
                                     // SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER6, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", LexicalUUIDType.instance, UTF8Type.instance),
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
     }
 
@@ -97,6 +99,7 @@ public class ColumnFamilyStoreTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
         new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 .clustering("Column1")
                 .add("val", "asdf")
                 .build()
@@ -110,6 +113,7 @@ public class ColumnFamilyStoreTest
                 .applyUnsafe();
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
         Util.getAll(Util.cmd(cfs, "key1").includeRow("c1").build());
         assertEquals(1, cfs.metric.sstablesPerReadHistogram.cf.getCount());
@@ -129,8 +133,10 @@ public class ColumnFamilyStoreTest
 
         Util.writeColumnFamily(rms);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         List<SSTableReader> ssTables = keyspace.getAllSSTables(SSTableSet.LIVE);
         assertEquals(1, ssTables.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-777
         ssTables.get(0).forceFilterFailures();
         Util.assertEmpty(Util.cmd(cfs, "key2").build());
     }
@@ -148,6 +154,7 @@ public class ColumnFamilyStoreTest
             public void runMayThrow() throws IOException
             {
                 Row toCheck = Util.getOnlyRowUnfiltered(Util.cmd(cfs, "key1").build());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 Iterator<Cell> iter = toCheck.cells().iterator();
                 assert(Iterators.size(iter) == 0);
             }
@@ -160,6 +167,12 @@ public class ColumnFamilyStoreTest
     public void testDeleteStandardRowSticksAfterFlush() throws Throwable
     {
         // test to make sure flushing after a delete doesn't resurrect delted cols.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String keyspaceName = KEYSPACE1;
         String cfName = CF_STANDARD1;
         Keyspace keyspace = Keyspace.open(keyspaceName);
@@ -169,6 +182,7 @@ public class ColumnFamilyStoreTest
         ByteBuffer val = ByteBufferUtil.bytes("val1");
 
         // insert
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(keyspaceName, cfs.metadata().partitioner.decorateKey(ByteBufferUtil.bytes("val2")));
         builder.update(cfName).row("Column1").add("val", "val1").build();
 
@@ -221,6 +235,7 @@ public class ColumnFamilyStoreTest
         // This test will fail as we'll revert to the WindowsFailedSnapshotTracker and counts will be off, but since we
         // don't do snapshot-based repair on Windows, we just skip this test.
         Assume.assumeTrue(!FBUtilities.isWindows);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1);
 
@@ -236,15 +251,18 @@ public class ColumnFamilyStoreTest
         }
         ScrubTest.fillIndexCF(cfs, false, colValues);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10907
         cfs.snapshot("nonEphemeralSnapshot", null, false, false);
         cfs.snapshot("ephemeralSnapshot", null, true, false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
         Map<String, Directories.SnapshotSizeDetails> snapshotDetails = cfs.getSnapshotDetails();
         assertEquals(2, snapshotDetails.size());
         assertTrue(snapshotDetails.containsKey("ephemeralSnapshot"));
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
 
         ColumnFamilyStore.clearEphemeralSnapshots(cfs.getDirectories());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
         snapshotDetails = cfs.getSnapshotDetails();
         assertEquals(1, snapshotDetails.size());
@@ -265,6 +283,7 @@ public class ColumnFamilyStoreTest
 
         for (int version = 1; version <= 2; ++version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
             Descriptor existing = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(), KEYSPACE2, CF_STANDARD1, version,
                                                  SSTableFormat.Type.BIG);
             Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing), KEYSPACE2, CF_STANDARD1, version, SSTableFormat.Type.BIG);
@@ -438,6 +457,7 @@ public class ColumnFamilyStoreTest
         cfs.forceBlockingFlush();
 
         // Nuke the metadata and reload that sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> ssTables = cfs.getLiveSSTables();
         assertEquals(1, ssTables.size());
         SSTableReader ssTable = ssTables.iterator().next();
@@ -447,6 +467,7 @@ public class ColumnFamilyStoreTest
         new File(dataFileName).renameTo(new File(tmpDataFileName));
 
         ssTable.selfRef().release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10036
 
         ColumnFamilyStore.scrubDataDirectories(cfs.metadata());
 

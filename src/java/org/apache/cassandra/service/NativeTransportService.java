@@ -103,6 +103,8 @@ public class NativeTransportService
         }
 
         ClientMetrics.instance.init(servers);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
 
         initialized = true;
     }
@@ -134,7 +136,11 @@ public class NativeTransportService
 
         // shutdown executors used by netty for native transport server
         workerGroup.shutdownGracefully(3, 5, TimeUnit.SECONDS).awaitUninterruptibly();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10756
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10756
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12472
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         Message.Dispatcher.shutdown();
     }
 
@@ -147,6 +153,7 @@ public class NativeTransportService
 
         if (enableEpoll && !Epoll.isAvailable() && NativeLibrary.osType == NativeLibrary.OSType.LINUX)
             logger.warn("epoll not available", Epoll.unavailabilityCause());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15195
 
         return enableEpoll && Epoll.isAvailable();
     }
@@ -175,6 +182,7 @@ public class NativeTransportService
 
     public void clearConnectionHistory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14335
         for (Server server : servers)
             server.clearConnectionHistory();
     }

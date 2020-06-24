@@ -137,6 +137,7 @@ public class ResourceLeakTest extends TestBaseImpl
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
     void doTest(int numClusterNodes, Consumer<IInstanceConfig> updater) throws Throwable
     {
         for (int loop = 0; loop < numTestLoops; loop++)
@@ -198,6 +199,7 @@ public class ResourceLeakTest extends TestBaseImpl
     @Test
     public void looperNativeTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         doTest(2, config -> config.with(NATIVE_PROTOCOL));
         if (forceCollection)
         {

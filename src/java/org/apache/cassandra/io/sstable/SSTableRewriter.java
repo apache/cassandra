@@ -81,6 +81,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     @Deprecated
     public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(transaction, maxAge, calculateOpenInterval(shouldOpenEarly), false);
     }
 
@@ -116,6 +117,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         long interval = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB() * (1L << 20);
         if (disableEarlyOpeningForTests || !shouldOpenEarly || interval < 0)
             interval = Long.MAX_VALUE;
@@ -133,14 +135,17 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         DecoratedKey key = partition.partitionKey();
         maybeReopenEarly(key);
         RowIndexEntry index = writer.append(partition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         if (DatabaseDescriptor.shouldMigrateKeycacheOnCompaction())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             if (!transaction.isOffline() && index != null)
             {
                 for (SSTableReader reader : transaction.originals())
                 {
                     if (reader.getCachedPosition(key, false) != null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12062
                         cachedKeys.put(key, index);
                         break;
                     }
@@ -153,6 +158,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     // attempts to append the row, if fails resets the writer position
     public RowIndexEntry tryAppend(UnfilteredRowIterator partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7852
         writer.mark();
         try
         {
@@ -167,21 +173,27 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private void maybeReopenEarly(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8535
         if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             if (transaction.isOffline())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                 for (SSTableReader reader : transaction.originals())
                 {
                     RowIndexEntry index = reader.getPosition(key, SSTableReader.Operator.GE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
                     NativeLibrary.trySkipCache(reader.getFilename(), 0, index == null ? 0 : index.position);
                 }
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
                 SSTableReader reader = writer.setMaxDataAge(maxAge).openEarly();
                 if (reader != null)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
                     transaction.update(reader, false);
                     currentlyOpenedEarlyAt = writer.getFilePointer();
                     moveStarts(reader, reader.last);
@@ -194,6 +206,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     protected Throwable doAbort(Throwable accumulate)
     {
         // abort the writers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         for (SSTableWriter writer : writers)
             accumulate = writer.abort(accumulate);
         // abort the lifecycle transaction
@@ -225,10 +238,13 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
      */
     private void moveStarts(SSTableReader newReader, DecoratedKey lowerbound)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         if (transaction.isOffline() || preemptiveOpenInterval == Long.MAX_VALUE)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         newReader.setupOnline();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12062
         List<DecoratedKey> invalidateKeys = null;
         if (!cachedKeys.isEmpty())
         {
@@ -251,6 +267,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             if (latest.first.compareTo(lowerbound) > 0)
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12062
             Runnable runOnClose = invalidateKeys != null ? new InvalidateKeys(latest, invalidateKeys) : null;
             if (lowerbound.compareTo(latest.last) >= 0)
             {
@@ -274,6 +291,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private static final class InvalidateKeys implements Runnable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
         final List<KeyCacheKey> cacheKeys = new ArrayList<>();
         final WeakReference<InstrumentingCache<KeyCacheKey, ?>> cacheRef;
 
@@ -282,6 +300,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             this.cacheRef = new WeakReference<>(reader.getKeyCache());
             if (cacheRef.get() != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9656
                 for (DecoratedKey key : invalidate)
                     cacheKeys.add(reader.getCacheKey(key));
             }
@@ -291,6 +310,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         {
             for (KeyCacheKey key : cacheKeys)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11176
                 InstrumentingCache<KeyCacheKey, ?> cache = cacheRef.get();
                 if (cache != null)
                     cache.remove(key);
@@ -321,6 +341,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         {
             // we leave it as a tmp file, but we open it and add it to the Tracker
             SSTableReader reader = writer.setMaxDataAge(maxAge).openFinalEarly();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             transaction.update(reader, false);
             moveStarts(reader, reader.last);
             transaction.checkpoint();
@@ -374,6 +395,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             throw new RuntimeException("exception thrown early in finish, for testing");
 
         // No early open to finalize and replace
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         for (SSTableWriter writer : writers)
         {
             assert writer.getFilePointer() > 0;

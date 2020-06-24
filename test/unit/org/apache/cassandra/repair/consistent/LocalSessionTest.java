@@ -131,6 +131,7 @@ public class LocalSessionTest extends AbstractRepairTest
             {
                 sentMessages.put(destination, new ArrayList<>());
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             sentMessages.get(destination).add(message.payload);
         }
 
@@ -142,6 +143,7 @@ public class LocalSessionTest extends AbstractRepairTest
                                         UUID sessionID,
                                         Collection<ColumnFamilyStore> tables,
                                         RangesAtEndpoint ranges,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                                         ExecutorService executor,
                                         BooleanSupplier isCancelled)
         {
@@ -152,6 +154,7 @@ public class LocalSessionTest extends AbstractRepairTest
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
                 return super.prepareSession(repairManager, sessionID, tables, ranges, executor, isCancelled);
             }
         }
@@ -165,6 +168,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
         public LocalSession prepareForTest(UUID sessionID)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
             prepareSessionFuture = SettableFuture.create();
             handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
             prepareSessionFuture.set(new Object());
@@ -192,6 +196,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
         protected void sessionCompleted(LocalSession session)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13454
             UUID sessionID = session.sessionID;
             int calls = completedSessions.getOrDefault(sessionID, 0);
             completedSessions.put(sessionID, calls + 1);
@@ -200,6 +205,7 @@ public class LocalSessionTest extends AbstractRepairTest
         boolean sessionHasData = false;
         protected boolean sessionHasData(LocalSession session)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13758
             return sessionHasData;
         }
     }
@@ -226,6 +232,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
     private static UUID registerSession()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13226
         return registerSession(cfs, true, true);
     }
 
@@ -280,6 +287,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // anti compaction has now finished, so state in memory and on disk should be PREPARED
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         sessions.prepareSessionFuture.set(new Object());
         session = sessions.getSession(sessionID);
         Assert.assertNotNull(session);
@@ -302,6 +310,8 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
 
         // replacing future so we can inspect state before and after anti compaction callback
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         sessions.prepareSessionFuture = SettableFuture.create();
         Assert.assertFalse(sessions.prepareSessionCalled);
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
@@ -315,6 +325,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // anti compaction has now finished, so state in memory and on disk should be PREPARED
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         sessions.prepareSessionFuture.setException(new RuntimeException());
         session = sessions.getSession(sessionID);
         Assert.assertNotNull(session);
@@ -338,6 +349,7 @@ public class LocalSessionTest extends AbstractRepairTest
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
         Assert.assertNull(sessions.getSession(sessionID));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
         assertMessagesSent(sessions, COORDINATOR, new PrepareConsistentResponse(sessionID, PARTICIPANT1, false));
     }
 
@@ -372,6 +384,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
         // now that the session has failed, it send a negative response to the coordinator (even if the anti-compaction completed successfully)
         future.set(new Object());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13672
         assertMessagesSent(sessions, COORDINATOR, new PrepareConsistentResponse(sessionID, PARTICIPANT1, false));
     }
 
@@ -546,10 +559,13 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.sentMessages.clear();
 
         // fail session
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13454
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13454
         Assert.assertEquals(0, (int) sessions.completedSessions.getOrDefault(sessionID, 0));
         sessions.failSession(sessionID);
         Assert.assertEquals(FAILED, session.getState());
         assertMessagesSent(sessions, COORDINATOR, new FailSession(sessionID));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13454
         Assert.assertEquals(1, (int) sessions.completedSessions.getOrDefault(sessionID, 0));
     }
 
@@ -635,6 +651,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseFinalizedRedundant() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13658
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
@@ -661,6 +678,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void handleStatusResponseFailedRedundant() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13658
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
@@ -704,6 +722,7 @@ public class LocalSessionTest extends AbstractRepairTest
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         sessions.prepareSessionFuture = SettableFuture.create();  // prevent moving to prepared
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
 
@@ -731,6 +750,7 @@ public class LocalSessionTest extends AbstractRepairTest
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         sessions.prepareSessionFuture = SettableFuture.create();
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
         sessions.prepareSessionFuture.set(new Object());
@@ -860,6 +880,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertNotNull(sessions.getSession(session.sessionID));
 
         QueryProcessor.instance.executeInternal("DELETE participants, participants_wp FROM system.repairs WHERE parent_id=?", session.sessionID);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         sessions = new LocalSessions();
         sessions.start();
@@ -953,6 +974,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void cleanupDeleteSSTablesRemaining() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13758
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 

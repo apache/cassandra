@@ -35,6 +35,7 @@ public class ArrivalWindowTest
     {
         final ArrivalWindow windowWithNano = new ArrivalWindow(4);
         final long toNano = 1000000L;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort ep = FBUtilities.getLocalAddressAndPort();
         windowWithNano.add(111 * toNano, ep);
         windowWithNano.add(222 * toNano, ep);

@@ -201,6 +201,7 @@ public class MmappedRegions extends SharedCloseableImpl
     
     public void closeQuietly()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         Throwable err = close(null);
         if (err != null)
         {
@@ -224,6 +225,7 @@ public class MmappedRegions extends SharedCloseableImpl
 
         public ByteBuffer buffer()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
             return buffer.duplicate();
         }
 
@@ -291,6 +293,7 @@ public class MmappedRegions extends SharedCloseableImpl
         private Region floor(long position)
         {
             assert 0 <= position && position <= length : String.format("%d > %d", position, length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
 
             int idx = Arrays.binarySearch(offsets, 0, last +1, position);
             assert idx != -1 : String.format("Bad position %d for regions %s, last %d in %s", position, Arrays.toString(offsets), last, channel);

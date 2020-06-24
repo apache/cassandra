@@ -106,11 +106,13 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     public void addUserExpression(UserExpression e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
         expressions.add(e);
     }
 
     public List<Expression> getExpressions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         return expressions;
     }
 
@@ -170,6 +172,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         // We purge all tombstones as the expressions isSatisfiedBy methods expects it
         Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         if (purged == null)
             return expressions.isEmpty();
 
@@ -187,6 +190,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      */
     public boolean partitionKeyRestrictionsAreSatisfiedBy(DecoratedKey key, AbstractType<?> keyValidator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         for (Expression e : expressions)
         {
             if (!e.column.isPartitionKey())
@@ -240,6 +244,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     public RowFilter withoutExpressions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         return withNewExpressions(Collections.emptyList());
     }
 
@@ -277,6 +282,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
             List<Expression> partitionLevelExpressions = new ArrayList<>();
             List<Expression> rowLevelExpressions = new ArrayList<>();
             for (Expression e: expressions)
@@ -298,11 +304,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
                     pk = partition.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
 
                     // Short-circuit all partitions that won't match based on static and partition keys
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
                     for (Expression e : partitionLevelExpressions)
                         if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow()))
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13050
                             partition.close();
                             return null;
                         }
@@ -326,7 +335,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     if (purged == null)
                         return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
                     for (Expression e : rowLevelExpressions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
                         if (!e.isSatisfiedBy(metadata, pk, purged))
                             return null;
 
@@ -365,11 +376,13 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         public boolean isCustom()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
             return kind() == Kind.CUSTOM;
         }
 
         public boolean isUserDefined()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
             return kind() == Kind.USER;
         }
 
@@ -416,6 +429,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         public void validate()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             checkNotNull(value, "Unsupported null value for column %s", column.name);
             checkBindValueSet(value, "Unsupported unset value for column %s", column.name);
         }
@@ -447,6 +461,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     return metadata.partitionKeyType instanceof CompositeType
                          ? CompositeType.extractComponent(partitionKey.getKey(), column.position())
                          : partitionKey.getKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
                 case CLUSTERING:
                     return row.clustering().get(column.position());
                 default:
@@ -483,6 +498,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             public void serialize(Expression expression, DataOutputPlus out, int version) throws IOException
             {
                 out.writeByte(expression.kind().ordinal());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
                 // Custom expressions include neither a column or operator, but all
                 // other expressions do.
@@ -493,6 +509,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     return;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
                 if (expression.kind() == Kind.USER)
                 {
                     UserExpression.serialize((UserExpression)expression, out, version);
@@ -509,6 +526,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         break;
                     case MAP_EQUALITY:
                         MapEqualityExpression mexpr = (MapEqualityExpression)expression;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                         ByteBufferUtil.writeWithShortLength(mexpr.key, out);
                         ByteBufferUtil.writeWithShortLength(mexpr.value, out);
                         break;
@@ -518,6 +536,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             public Expression deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
             {
                 Kind kind = Kind.values()[in.readByte()];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
                 // custom expressions (3.0+ only) do not contain a column or operator, only a value
                 if (kind == Kind.CUSTOM)
@@ -527,6 +546,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                             ByteBufferUtil.readWithShortLength(in));
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
                 if (kind == Kind.USER)
                     return UserExpression.deserialize(in, version, metadata);
 
@@ -552,6 +572,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             public long serializedSize(Expression expression, int version)
             {
                 long size = 1; // kind byte
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
                 // Custom expressions include neither a column or operator, but all
                 // other expressions do.
@@ -566,9 +587,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         break;
                     case MAP_EQUALITY:
                         MapEqualityExpression mexpr = (MapEqualityExpression)expression;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                         size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
                               + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
                         break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                     case CUSTOM:
                         size += IndexMetadata.serializer.serializedSize(((CustomExpression)expression).targetIndex, version)
                                + ByteBufferUtil.serializedSizeWithShortLength(expression.value);
@@ -627,12 +650,15 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         }
                     }
                 case NEQ:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
                 case LIKE_PREFIX:
                 case LIKE_SUFFIX:
                 case LIKE_CONTAINS:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                 case LIKE_MATCHES:
                     {
                         assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
                         ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         // Note that CQL expression are always of the form 'x < 4', i.e. the tested value is on the left.
                         return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
@@ -642,7 +668,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     CollectionType<?> type = (CollectionType<?>)column.type;
                     if (column.isComplex())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                         ComplexColumnData complexData = row.getComplexColumnData(column);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13246
                         if (complexData != null)
                         {
                             for (Cell cell : complexData)
@@ -663,6 +691,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     }
                     else
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
                         ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         if (foundValue == null)
                             return false;
@@ -690,6 +719,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     }
                     else
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
                         ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
                     }
@@ -751,6 +781,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         @Override
         public void validate() throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             checkNotNull(key, "Unsupported null map key for column %s", column.name);
             checkBindValueSet(key, "Unsupported unset map key for column %s", column.name);
             checkNotNull(value, "Unsupported null map value for column %s", column.name);
@@ -781,6 +812,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
                 ByteBuffer serializedMap = getValue(metadata, partitionKey, row);
                 if (serializedMap == null)
                     return false;
@@ -840,6 +872,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             // The operator is not relevant, but Expression requires it so for now we just hardcode EQ
             super(makeDefinition(table, targetIndex), Operator.EQ, value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
             this.targetIndex = targetIndex;
             this.table = table;
         }
@@ -981,7 +1014,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         public void serialize(RowFilter filter, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             out.writeBoolean(false); // Old "is for thrift" boolean
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             out.writeUnsignedVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 Expression.serializer.serialize(expr, out, version);
@@ -990,6 +1025,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             in.readBoolean(); // Unused
             int size = (int)in.readUnsignedVInt();
             List<Expression> expressions = new ArrayList<>(size);
@@ -1002,6 +1038,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public long serializedSize(RowFilter filter, int version)
         {
             long size = 1 // unused boolean
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
                       + TypeSizes.sizeofUnsignedVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 size += Expression.serializer.serializedSize(expr, version);

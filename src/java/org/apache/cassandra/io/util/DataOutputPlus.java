@@ -32,6 +32,7 @@ public interface DataOutputPlus extends DataOutput
     // write the buffer without modifying its position
     void write(ByteBuffer buffer) throws IOException;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     default void write(Memory memory, long offset, long length) throws IOException
     {
         for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
@@ -64,6 +65,7 @@ public interface DataOutputPlus extends DataOutput
      * @throws UnsupportedOperationException if the implementation does not support
      *                                       position
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10349
     default long position()
     {
         throw new UnsupportedOperationException();

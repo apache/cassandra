@@ -72,6 +72,7 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
     {
         startTime = System.currentTimeMillis();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
 
         // choose a repair method based on the significance of the difference
         String format = String.format("%s Endpoints %s and %s %%s for %s", previewKind.logPrefix(desc.sessionId), nodePair.coordinator, nodePair.peer, desc.columnFamily);
@@ -91,11 +92,13 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
 
     public boolean isLocal()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         return false;
     }
 
     protected void finished()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
         if (startTime != Long.MIN_VALUE)
             Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.syncTime.update(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }

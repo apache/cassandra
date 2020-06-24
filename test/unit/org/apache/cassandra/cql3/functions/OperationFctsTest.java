@@ -178,6 +178,7 @@ public class OperationFctsTest extends CQLTester
 
         assertRows(execute("SELECT a / c, b / c, c / c, d / c, e / c, f / c, g / c, h / c FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
                    row(0, 0, 1, 1L, 1.8333334F, 2.1666666666666665, BigInteger.valueOf(2), new BigDecimal("2.83333333333333333333333333333333")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
 
         assertRows(execute("SELECT a / d, b / d, c / d, d / d, e / d, f / d, g / d, h / d FROM %s WHERE a = 1 AND b = 2 AND c = 3 / 1"),
                    row(0L, 0L, 0L, 1L, 1.375, 1.625, BigInteger.valueOf(1), new BigDecimal("2.125")));
@@ -268,6 +269,7 @@ public class OperationFctsTest extends CQLTester
     @Test
     public void testModuloWithDecimals() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
         createTable("CREATE TABLE %s (numerator decimal, dec_mod decimal, int_mod int, bigint_mod bigint, PRIMARY KEY((numerator, dec_mod)))");
         execute("INSERT INTO %s (numerator, dec_mod, int_mod, bigint_mod) VALUES (123456789112345678921234567893123456, 2, 2, 2)");
 
@@ -302,6 +304,7 @@ public class OperationFctsTest extends CQLTester
                    row(2, (byte) 2, (short) 2, "test"));
 
         // tinyint, smallint and int could be used there so we need to disambiguate
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         assertInvalidMessage("Ambiguous '+' operation with args ? and 1: use type casts to disambiguate",
                              "SELECT * FROM %s WHERE pk = ? + 1 AND c1 = 2", 1);
 
@@ -320,6 +323,7 @@ public class OperationFctsTest extends CQLTester
                    row(150, "test"));
 
         // As the output type is unknown the ? type cannot be determined
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         assertInvalidMessage("Ambiguous '+' operation with args ? and 50: use type casts to disambiguate",
                              "SELECT ? + 50, v FROM %s WHERE pk = 2 AND c1 = 2", 100);
 
@@ -449,6 +453,7 @@ public class OperationFctsTest extends CQLTester
 
         assertRows(execute("SELECT a / 3, b / 3, c / 3, d / 3, e / 3, f / 3, g / 3, h / 3 FROM %s WHERE a = 1 AND b = 2"),
                    row(0, 0, 1, 1L, 1.8333334F, 2.1666666666666665, BigInteger.valueOf(2), new BigDecimal("2.83333333333333333333333333333333")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
 
         assertRows(execute("SELECT a / " + bigInt + ","
                 + " b / " + bigInt + ","
@@ -467,6 +472,7 @@ public class OperationFctsTest extends CQLTester
 
         assertRows(execute("SELECT a / 5.5, b / 5.5, c / 5.5, d / 5.5, e / 5.5, f / 5.5, g / 5.5, h / 5.5 FROM %s WHERE a = 1 AND b = 2"),
                    row(0.18181818181818182, 0.36363636363636365, 0.5454545454545454, 0.7272727272727273, 1.0, 1.1818181818181819, new BigDecimal("1.27272727272727272727272727272727"), new BigDecimal("1.54545454545454545454545454545455")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
 
         assertRows(execute("SELECT a / 6.5, b / 6.5, c / 6.5, d / 6.5, e / 6.5, f / 6.5, g / 6.5, h / 6.5 FROM %s WHERE a = 1 AND b = 2"),
                    row(0.15384615384615385, 0.3076923076923077, 0.46153846153846156, 0.6153846153846154, 0.8461538461538461, 1.0, new BigDecimal("1.07692307692307692307692307692308"), new BigDecimal("1.30769230769230769230769230769231")));
@@ -515,6 +521,7 @@ public class OperationFctsTest extends CQLTester
     @Test
     public void testDivisionWithDecimals() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
         createTable("CREATE TABLE %s (numerator decimal, denominator decimal, PRIMARY KEY((numerator, denominator)))");
         execute("INSERT INTO %s (numerator, denominator) VALUES (8.5, 200000000000000000000000000000000000)");
         execute("INSERT INTO %s (numerator, denominator) VALUES (10000, 3)");
@@ -685,6 +692,7 @@ public class OperationFctsTest extends CQLTester
                                   OperationExecutionException.class,
                                   "SELECT g / a FROM %s WHERE a = 0 AND b = 2");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15232
         assertInvalidThrowMessage("the operation 'decimal / tinyint' failed: BigInteger divide by zero",
                                   OperationExecutionException.class,
                                   "SELECT h / a FROM %s WHERE a = 0 AND b = 2");
@@ -694,6 +702,7 @@ public class OperationFctsTest extends CQLTester
     public void testWithNanAndInfinity() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b double, c decimal)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         assertInvalidMessage("Ambiguous '+' operation with args ? and 1: use type casts to disambiguate",
                              "INSERT INTO %S (a, b, c) VALUES (? + 1, ?, ?)", 0, Double.NaN, BigDecimal.valueOf(1));
 
@@ -772,6 +781,7 @@ public class OperationFctsTest extends CQLTester
     {
         // Test with timestamp type.
         createTable("CREATE TABLE %s (pk int, time timestamp, v int, primary key (pk, time))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
 
         execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:10:00 UTC', 1)");
         execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27 16:12:00 UTC', 2)");

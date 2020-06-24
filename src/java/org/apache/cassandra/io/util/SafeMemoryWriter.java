@@ -28,6 +28,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
     @SuppressWarnings("resource")
     public SafeMemoryWriter(long initialCapacity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         this(new SafeMemory(initialCapacity));
     }
 
@@ -45,6 +46,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
     @Override
     protected void expandToFit(long count)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
         resizeTo(calculateNewSize(count));
     }
 
@@ -69,6 +71,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
 
     public void trim()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
         resizeTo(length());
     }
 
@@ -79,6 +82,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
 
     public Throwable close(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         return memory.close(accumulate);
     }
 
@@ -104,6 +108,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
     {
         // Make sure size does not grow by more than the max buffer size, otherwise we'll hit an exception
         // when setting up the buffer position.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
         return Math.min(newSize, length() + Integer.MAX_VALUE);
     }
 

@@ -44,6 +44,7 @@ public interface OutputHandler
 
         public void debug(String msg)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace(msg);
         }
 

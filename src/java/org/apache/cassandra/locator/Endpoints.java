@@ -43,6 +43,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
     // volatile not needed, as has only final members,
     // besides (transitively) those that cache objects that themselves have only final members
     ReplicaMap<InetAddressAndPort> byEndpoint;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
     Endpoints(ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
@@ -58,6 +59,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
 
     public List<InetAddressAndPort> endpointList()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return new AbstractList<InetAddressAndPort>()
         {
             public InetAddressAndPort get(int index)
@@ -74,6 +76,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
 
     public Map<InetAddressAndPort, Replica> byEndpoint()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         ReplicaMap<InetAddressAndPort> map = byEndpoint;
         if (map == null)
             byEndpoint = map = endpointMap(list);
@@ -97,6 +100,8 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
 
     public Replica selfIfPresent()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
         return byEndpoint().get(self);
     }
@@ -122,6 +127,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
      */
     public E select(Iterable<InetAddressAndPort> endpoints, boolean ignoreMissing)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         Builder<E> copy = newBuilder(
                 endpoints instanceof Collection<?>
                         ? ((Collection<InetAddressAndPort>) endpoints).size()
@@ -130,6 +136,8 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         Map<InetAddressAndPort, Replica> byEndpoint = byEndpoint();
         for (InetAddressAndPort endpoint : endpoints)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             Replica select = byEndpoint.get(endpoint);
             if (select == null)
             {
@@ -137,6 +145,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
                     throw new IllegalArgumentException(endpoint + " is not present in " + this);
                 continue;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             copy.add(select, Builder.Conflict.DUPLICATE);
         }
         return copy.build();
@@ -158,6 +167,7 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
 
     public static <E extends Endpoints<E>> E append(E replicas, Replica extraReplica)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         Builder<E> builder = replicas.newBuilder(replicas.size() + 1);
         builder.addAll(replicas);
         builder.add(extraReplica, Conflict.NONE);

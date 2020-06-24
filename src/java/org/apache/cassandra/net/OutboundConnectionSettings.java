@@ -451,6 +451,7 @@ public class OutboundConnectionSettings
 
     public String connectToId()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
         return !to.equals(connectTo())
              ? to.toString()
              : to.toString() + '(' + connectTo().toString() + ')';

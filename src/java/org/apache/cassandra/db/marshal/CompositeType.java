@@ -71,6 +71,7 @@ public class CompositeType extends AbstractCompositeType
 
     public static CompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3864
         return getInstance(parser.getTypeParameters());
     }
 
@@ -81,6 +82,7 @@ public class CompositeType extends AbstractCompositeType
 
     public static CompositeType getInstance(AbstractType... types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return getInstance(Arrays.asList(types));
     }
 
@@ -98,6 +100,8 @@ public class CompositeType extends AbstractCompositeType
         if ((header & 0xFFFF) != STATIC_MARKER)
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
         ByteBufferUtil.readShortLength(bb); // Skip header
         return true;
     }
@@ -105,6 +109,7 @@ public class CompositeType extends AbstractCompositeType
     public static CompositeType getInstance(List<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         CompositeType t = instances.get(types);
         return null == t
              ? instances.computeIfAbsent(types, CompositeType::new)
@@ -113,11 +118,13 @@ public class CompositeType extends AbstractCompositeType
 
     protected CompositeType(List<AbstractType<?>> types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
         this.types = ImmutableList.copyOf(types);
     }
 
     protected AbstractType<?> getComparator(int i, ByteBuffer bb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6262
         try
         {
             return types.get(i);
@@ -159,6 +166,7 @@ public class CompositeType extends AbstractCompositeType
     {
         assert objects.length == types.size();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3680
         ByteBuffer[] serialized = new ByteBuffer[objects.length];
         for (int i = 0; i < objects.length; i++)
         {
@@ -174,6 +182,7 @@ public class CompositeType extends AbstractCompositeType
     {
         // Assume all components, we'll trunk the array afterwards if need be, but
         // most names will be complete.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5590
         ByteBuffer[] l = new ByteBuffer[types.size()];
         ByteBuffer bb = name.duplicate();
         readStatic(bb);
@@ -188,6 +197,7 @@ public class CompositeType extends AbstractCompositeType
 
     public static List<ByteBuffer> splitName(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<ByteBuffer> l = new ArrayList<>();
         ByteBuffer bb = name.duplicate();
         readStatic(bb);
@@ -202,11 +212,15 @@ public class CompositeType extends AbstractCompositeType
     // Extract component idx from bb. Return null if there is not enough component.
     public static ByteBuffer extractComponent(ByteBuffer bb, int idx)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3237
         bb = bb.duplicate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         readStatic(bb);
         int i = 0;
         while (bb.remaining() > 0)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
             ByteBuffer c = ByteBufferUtil.readBytesWithShortLength(bb);
             if (i == idx)
                 return c;
@@ -219,12 +233,15 @@ public class CompositeType extends AbstractCompositeType
 
     public static boolean isStaticName(ByteBuffer bb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
         return bb.remaining() >= 2 && (ByteBufferUtil.getShortLength(bb, bb.position()) & 0xFFFF) == STATIC_MARKER;
     }
 
     @Override
     public int componentsCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5125
         return types.size();
     }
 
@@ -237,6 +254,8 @@ public class CompositeType extends AbstractCompositeType
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3657
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6185
         if (this == previous)
             return true;
 
@@ -261,6 +280,7 @@ public class CompositeType extends AbstractCompositeType
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         if (this == otherType)
             return true;
 
@@ -285,6 +305,7 @@ public class CompositeType extends AbstractCompositeType
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return any(types, t -> t.referencesUserType(name));
     }
 
@@ -307,6 +328,7 @@ public class CompositeType extends AbstractCompositeType
 
     private static class StaticParsedComparator implements ParsedComparator
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
         final AbstractType<?> type;
         final String part;
 
@@ -342,6 +364,7 @@ public class CompositeType extends AbstractCompositeType
 
     public static ByteBuffer build(ByteBuffer... buffers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return build(false, buffers);
     }
 
@@ -358,8 +381,11 @@ public class CompositeType extends AbstractCompositeType
 
         for (ByteBuffer bb : buffers)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
             ByteBufferUtil.writeShortLength(out, bb.remaining());
             int toCopy = bb.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             ByteBufferUtil.copyBytes(bb, bb.position(), out, out.position(), toCopy);
             out.position(out.position() + toCopy);
             out.put((byte) 0);

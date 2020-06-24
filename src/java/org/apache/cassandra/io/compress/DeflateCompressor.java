@@ -40,6 +40,7 @@ public class DeflateCompressor implements ICompressor
         @Override
         protected byte[] initialValue()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             return new byte[CompressionParams.DEFAULT_CHUNK_LENGTH];
         }
     };
@@ -61,6 +62,7 @@ public class DeflateCompressor implements ICompressor
 
     private DeflateCompressor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         deflater = new FastThreadLocal<Deflater>()
         {
             @Override
@@ -69,6 +71,7 @@ public class DeflateCompressor implements ICompressor
                 return new Deflater();
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         inflater = new FastThreadLocal<Inflater>()
         {
             @Override
@@ -82,12 +85,14 @@ public class DeflateCompressor implements ICompressor
 
     public Set<String> supportedOptions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4266
         return Collections.emptySet();
     }
 
     public int initialCompressedBufferLength(int sourceLen)
     {
         // Taken from zlib deflateBound(). See http://www.zlib.net/zlib_tech.html.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13;
     }
 
@@ -168,6 +173,8 @@ public class DeflateCompressor implements ICompressor
             Inflater inf = inflater.get();
             inf.reset();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             byte[] buffer = getThreadLocalScratchBuffer();
             // Use half the buffer for input, half for output.
             int chunkLen = buffer.length / 2;
@@ -212,6 +219,7 @@ public class DeflateCompressor implements ICompressor
         // We assume output is big enough
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
             return inf.inflate(output, outputOffset, maxOutputLength);
         }
         catch (DataFormatException e)
@@ -222,6 +230,7 @@ public class DeflateCompressor implements ICompressor
 
     public boolean supports(BufferType bufferType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9096
         return true;
     }
 

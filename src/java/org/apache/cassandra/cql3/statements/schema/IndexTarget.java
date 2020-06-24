@@ -38,6 +38,7 @@ public class IndexTarget
     public String asCqlString()
     {
         return type == Type.SIMPLE
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
              ? column.toCQLString()
              : String.format("%s(%s)", type.toString(), column.toCQLString());
     }
@@ -55,11 +56,13 @@ public class IndexTarget
 
         public static Raw simpleIndexOn(ColumnMetadata.Raw c)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
             return new Raw(c, Type.SIMPLE);
         }
 
         public static Raw valuesOf(ColumnMetadata.Raw c)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             return new Raw(c, Type.VALUES);
         }
 
@@ -102,6 +105,7 @@ public class IndexTarget
                 case KEYS: return "keys";
                 case KEYS_AND_VALUES: return "entries";
                 case FULL: return "full";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
                 case VALUES: return "values";
                 case SIMPLE: return "";
                 default: return "";
@@ -128,6 +132,7 @@ public class IndexTarget
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return asCqlString();
     }
 }

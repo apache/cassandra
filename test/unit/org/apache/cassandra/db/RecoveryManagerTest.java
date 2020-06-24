@@ -91,6 +91,7 @@ public class RecoveryManagerTest
             {null, EncryptionContextGenerator.createContext(true)}, // Encryption
             {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
@@ -106,8 +107,10 @@ public class RecoveryManagerTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15292
                                     SchemaLoader.counterCFMD(KEYSPACE1, CF_COUNTER1),
                                     SchemaLoader.staticCFMD(KEYSPACE1, CF_STATIC1));
         SchemaLoader.createKeyspace(KEYSPACE2,
@@ -119,6 +122,7 @@ public class RecoveryManagerTest
     public void clearData()
     {
         // clear data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_COUNTER1).truncateBlocking();
         Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD3).truncateBlocking();
@@ -133,6 +137,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverBlocksOnBytesOutstanding() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8639
         long originalMaxOutstanding = CommitLogReplayer.MAX_OUTSTANDING_REPLAY_BYTES;
         CommitLogReplayer.MAX_OUTSTANDING_REPLAY_BYTES = 1;
         CommitLogReplayer.MutationInitiator originalInitiator = CommitLogReplayer.mutationInitiator;
@@ -140,6 +145,7 @@ public class RecoveryManagerTest
         CommitLogReplayer.mutationInitiator = mockInitiator;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
             CommitLog.instance.resetUnsafe(true);
             Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
             Keyspace keyspace2 = Keyspace.open(KEYSPACE2);
@@ -160,10 +166,15 @@ public class RecoveryManagerTest
             Assert.assertTrue(Util.getAllUnfiltered(Util.cmd(keyspace2.getColumnFamilyStore(CF_STANDARD3), dk).build()).isEmpty());
 
             final AtomicReference<Throwable> err = new AtomicReference<Throwable>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
             Thread t = NamedThreadFactory.createThread(() ->
             {
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
                     CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
                 }
                 catch (Throwable x)
@@ -189,6 +200,7 @@ public class RecoveryManagerTest
             }
             Assert.assertFalse(t.isAlive());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
             Assert.assertTrue(Util.sameContent(upd1, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace1.getColumnFamilyStore(CF_STANDARD1), dk).build()).unfilteredIterator()));
             Assert.assertTrue(Util.sameContent(upd2, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace2.getColumnFamilyStore(CF_STANDARD3), dk).build()).unfilteredIterator()));
         }
@@ -221,6 +233,7 @@ public class RecoveryManagerTest
         CommitLog.instance.resetUnsafe(false);
 
         DecoratedKey dk = Util.dk("keymulti");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         Assert.assertTrue(Util.sameContent(upd1, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace1.getColumnFamilyStore(CF_STANDARD1), dk).build()).unfilteredIterator()));
         Assert.assertTrue(Util.sameContent(upd2, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace2.getColumnFamilyStore(CF_STANDARD3), dk).build()).unfilteredIterator()));
     }
@@ -231,6 +244,7 @@ public class RecoveryManagerTest
         CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore(CF_COUNTER1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         for (int i = 0; i < 10; ++i)
         {
@@ -279,6 +293,8 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITStatic() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15292
         CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore(CF_STATIC1);
@@ -307,12 +323,15 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
         CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime();
 
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
 
         // Col 0 and 9 are the only ones to be recovered
         for (int i = 0; i < 10; ++i)
@@ -346,6 +365,7 @@ public class RecoveryManagerTest
 
         @Override
         protected Future<Integer> initiateMutation(final Mutation mutation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8639
                 final long segmentId,
                 final int serializedSize,
                 final int entryLocation,

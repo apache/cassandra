@@ -91,6 +91,7 @@ public class SSTableMetadataViewer
 
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11483
         DatabaseDescriptor.clientInitialization();
     }
 
@@ -143,6 +144,7 @@ public class SSTableMetadataViewer
         {
             return "never";
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         return formatDurationWords(unit.toMillis(duration), true, true);
     }
 
@@ -324,6 +326,7 @@ public class SSTableMetadataViewer
         ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
         StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
         CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9879
         CompressionMetadata compression = null;
         File compressionFile = new File(descriptor.filenameFor(Component.COMPRESSION_INFO));
         if (compressionFile.exists())
@@ -387,6 +390,7 @@ public class SSTableMetadataViewer
                                                                 offset,
                                                                 Util.wrapQuiet(toDateString(offset, TimeUnit.SECONDS),
                                                                                         color)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
                                                          String::valueOf);
             estDropped.printHistogram(out, color, unicode);
             field("Partition Size", "");
@@ -395,9 +399,11 @@ public class SSTableMetadataViewer
                                                       offset -> String.format("%d %s",
                                                                               offset,
                                                                               Util.wrapQuiet(toByteString(offset), color)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
                                                       String::valueOf);
             rowSize.printHistogram(out, color, unicode);
             field("Column Count", "");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
             TermHistogram cellCount = new TermHistogram(stats.estimatedCellPerPartitionCount,
                                                         "Columns",
                                                         String::valueOf,
@@ -425,6 +431,7 @@ public class SSTableMetadataViewer
             field("EncodingStats minTTL", encodingStats.minTTL,
                     toDurationString(encodingStats.minTTL, TimeUnit.SECONDS));
             field("EncodingStats minLocalDeletionTime", encodingStats.minLocalDeletionTime,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14132
                     toDateString(encodingStats.minLocalDeletionTime, TimeUnit.SECONDS));
             field("EncodingStats minTimestamp", encodingStats.minTimestamp,
                     toDateString(encodingStats.minTimestamp, tsUnit));
@@ -432,6 +439,7 @@ public class SSTableMetadataViewer
             field("ClusteringTypes", clusteringTypes.toString());
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15806
             field("IsTransient", stats.isTransient);
         }
     }
@@ -481,8 +489,10 @@ public class SSTableMetadataViewer
         if (!summariesFile.exists())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13452
         try (DataInputStream iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath())))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11483
             Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer()
                     .deserializeFirstLastKey(iStream, partitioner);
             field("First token", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));

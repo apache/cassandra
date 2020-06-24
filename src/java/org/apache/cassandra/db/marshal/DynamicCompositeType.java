@@ -72,6 +72,7 @@ public class DynamicCompositeType extends AbstractCompositeType
     public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
         DynamicCompositeType dct = instances.get(aliases);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return null == dct
              ? instances.computeIfAbsent(aliases, DynamicCompositeType::new)
              : dct;
@@ -119,6 +120,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         AbstractType<?> comp1 = getComparator(bb1);
         AbstractType<?> comp2 = getComparator(bb2);
         AbstractType<?> rawComp = comp1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
 
         /*
          * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
@@ -140,8 +142,10 @@ public class DynamicCompositeType extends AbstractCompositeType
              * fallback on the full name if necessary
              */
             int cmp = comp1.getClass().getSimpleName().compareTo(comp2.getClass().getSimpleName());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3625
             if (cmp != 0)
                 return cmp < 0 ? FixedValueComparator.alwaysLesserThan : FixedValueComparator.alwaysGreaterThan;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4711
 
             cmp = comp1.getClass().getName().compareTo(comp2.getClass().getName());
             if (cmp != 0)
@@ -151,6 +155,7 @@ public class DynamicCompositeType extends AbstractCompositeType
             // did not have a singleton instance. It's ok (though inefficient).
         }
         // Use the raw comparator (prior to ReversedType unwrapping)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7898
         return rawComp;
     }
 
@@ -161,6 +166,10 @@ public class DynamicCompositeType extends AbstractCompositeType
             int header = ByteBufferUtil.readShortLength(bb);
             if ((header & 0x8000) == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
                 String name = ByteBufferUtil.string(ByteBufferUtil.readBytes(bb, header));
                 sb.append(name).append("@");
                 return TypeParser.parse(name);
@@ -193,6 +202,8 @@ public class DynamicCompositeType extends AbstractCompositeType
             if (bb.remaining() < header)
                 throw new MarshalException("Not enough bytes to read comparator name of component " + i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
             ByteBuffer value = ByteBufferUtil.readBytes(bb, header);
             String valueStr = null;
             try
@@ -204,6 +215,7 @@ public class DynamicCompositeType extends AbstractCompositeType
             {
                 // ByteBufferUtil.string failed.
                 // Log it here and we'll further throw an exception below since comparator == null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14105
                 logger.error("Failed when decoding the byte buffer in ByteBufferUtil.string()", ce);
             }
             catch (Exception e)
@@ -226,12 +238,14 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     public ByteBuffer decompose(Object... objects)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4018
         throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3657
         if (this == previous)
             return true;
 
@@ -251,6 +265,7 @@ public class DynamicCompositeType extends AbstractCompositeType
             AbstractType<?> tprev = entry.getValue();
             AbstractType<?> tnew = aliases.get(entry.getKey());
             if (tnew == null || tnew != tprev)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
                 return false;
         }
         return true;
@@ -259,6 +274,7 @@ public class DynamicCompositeType extends AbstractCompositeType
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return any(aliases.values(), t -> t.referencesUserType(name));
     }
 
@@ -281,6 +297,7 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     private class DynamicParsedComparator implements ParsedComparator
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
         final AbstractType<?> type;
         final boolean isAlias;
         final String comparatorName;
@@ -297,6 +314,7 @@ public class DynamicCompositeType extends AbstractCompositeType
 
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3689
                 AbstractType<?> t = null;
                 if (comparatorName.length() == 1)
                 {
@@ -312,6 +330,7 @@ public class DynamicCompositeType extends AbstractCompositeType
                 }
                 type = t;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
             catch (SyntaxException | ConfigurationException e)
             {
                 throw new IllegalArgumentException(e);
@@ -337,10 +356,13 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             int header = 0;
             if (isAlias)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3658
                 header = 0x8000 | (((byte)comparatorName.charAt(0)) & 0xFF);
             else
                 header = comparatorName.length();
             ByteBufferUtil.writeShortLength(bb, header);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
 
             if (!isAlias)
                 bb.put(ByteBufferUtil.bytes(comparatorName));
@@ -366,7 +388,9 @@ public class DynamicCompositeType extends AbstractCompositeType
 
         public FixedValueComparator(int cmp)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
             super(ComparisonType.CUSTOM);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4711
             this.cmp = cmp;
         }
 
@@ -378,6 +402,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         @Override
         public Void compose(ByteBuffer bytes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3625
             throw new UnsupportedOperationException();
         }
 
@@ -400,12 +425,14 @@ public class DynamicCompositeType extends AbstractCompositeType
         @Override
         public Term fromJSONObject(Object parsed)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             throw new UnsupportedOperationException();
         }
 
         @Override
         public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3792
             throw new UnsupportedOperationException();
         }
 
@@ -417,6 +444,7 @@ public class DynamicCompositeType extends AbstractCompositeType
 
         public TypeSerializer<Void> getSerializer()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4495
             throw new UnsupportedOperationException();
         }
     }

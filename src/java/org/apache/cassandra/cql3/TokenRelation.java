@@ -67,6 +67,7 @@ public final class TokenRelation extends Relation
 
     public Term.Raw getValue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         return value;
     }
 
@@ -109,12 +110,14 @@ public final class TokenRelation extends Relation
     @Override
     protected Restriction newIsNotRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         throw invalidRequest("%s cannot be used with the token function", operator());
     }
 
     @Override
     protected Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         throw invalidRequest("%s cannot be used with the token function", operator);
     }
 
@@ -141,12 +144,14 @@ public final class TokenRelation extends Relation
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10043
         return String.format("token%s %s %s", Tuples.tupleToString(entities), relationType, value);
     }
 
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Objects.hash(relationType, entities, value);
     }
 
@@ -160,6 +165,7 @@ public final class TokenRelation extends Relation
             return false;
 
         TokenRelation tr = (TokenRelation) o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
         return relationType.equals(tr.relationType) && entities.equals(tr.entities) && value.equals(tr.value);
     }
 

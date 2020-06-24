@@ -41,6 +41,7 @@ public class DefaultValue<T>
 
     public void reset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4474
         currentValue = originalValue;
     }
 

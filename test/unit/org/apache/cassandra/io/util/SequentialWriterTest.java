@@ -48,6 +48,7 @@ public class SequentialWriterTest extends AbstractTransactionalTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -80,6 +81,7 @@ public class SequentialWriterTest extends AbstractTransactionalTest
 
         protected TestableSW(File file) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             this(file, new SequentialWriter(file, SequentialWriterOption.newBuilder()
                                                                         .bufferSize(8 << 10)
                                                                         .bufferType(BufferType.OFF_HEAP)
@@ -133,6 +135,7 @@ public class SequentialWriterTest extends AbstractTransactionalTest
     @Test
     public void resetAndTruncateTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         File tempFile = new File(Files.createTempDir(), "reset.txt");
         final int bufferSize = 48;
         final int writeSize = 64;
@@ -180,6 +183,7 @@ public class SequentialWriterTest extends AbstractTransactionalTest
         File tempFile = new File(Files.createTempDir(), "test.txt");
         Assert.assertFalse("temp file shouldn't exist yet", tempFile.exists());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         SequentialWriterOption option = SequentialWriterOption.newBuilder().finishOnClose(true).build();
         try (DataOutputStream os = new DataOutputStream(new SequentialWriter(tempFile, option)))
         {

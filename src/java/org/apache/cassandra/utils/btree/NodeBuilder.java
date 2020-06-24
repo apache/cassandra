@@ -28,6 +28,7 @@ import static org.apache.cassandra.utils.btree.BTree.*;
 /**
  * Represents a level / stack item of in progress modifications to a BTree.
  */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6271
 final class NodeBuilder
 {
     private static final int MAX_KEYS = 1 + (FAN_FACTOR * 2);
@@ -63,6 +64,7 @@ final class NodeBuilder
     void clear()
     {
         NodeBuilder current = this;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6943
         while (current != null && current.upperBound != null)
         {
             current.clearSelf();
@@ -85,6 +87,7 @@ final class NodeBuilder
     }
 
     // reset counters/setup to copy from provided node
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
     void reset(Object[] copyFrom, Object upperBound, UpdateFunction updateFunction, Comparator comparator)
     {
         this.copyFrom = copyFrom;
@@ -98,6 +101,7 @@ final class NodeBuilder
         copyFromChildPosition = 0;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
     NodeBuilder finish()
     {
         assert copyFrom != null;
@@ -129,6 +133,7 @@ final class NodeBuilder
         int i = copyFromKeyPosition;
         boolean found; // exact key match?
         boolean owns = true; // true if this node (or a child) should contain the key
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
         if (i == copyFromKeyEnd)
         {
             found = false;
@@ -146,6 +151,7 @@ final class NodeBuilder
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
                 i = Arrays.binarySearch(copyFrom, i + 1, copyFromKeyEnd, key, comparator);
                 found = i >= 0;
                 if (!found)
@@ -153,6 +159,7 @@ final class NodeBuilder
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         if (found)
         {
             Object prev = copyFrom[i];
@@ -162,6 +169,7 @@ final class NodeBuilder
                 return null;
             key = next;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         else if (i == copyFromKeyEnd && compareUpperBound(comparator, key, upperBound) >= 0)
             owns = false;
 
@@ -172,6 +180,7 @@ final class NodeBuilder
             {
                 // copy keys from the original node up to prior to the found index
                 copyKeys(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
 
                 if (found)
                 {
@@ -206,6 +215,7 @@ final class NodeBuilder
             if (found)
             {
                 copyKeys(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
                 replaceNextKey(key);
                 copyChildren(i + 1);
                 return null;
@@ -219,9 +229,11 @@ final class NodeBuilder
                 // so descend into the owning child
                 Object newUpperBound = i < copyFromKeyEnd ? copyFrom[i] : upperBound;
                 Object[] descendInto = (Object[]) copyFrom[copyFromKeyEnd + i];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
                 ensureChild().reset(descendInto, newUpperBound, updateFunction, comparator);
                 return child;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
             else if (buildKeyPosition > 0 || buildChildPosition > 0)
             {
                 // ensure we've copied all keys and children, but only if we've already copied something.
@@ -236,6 +248,7 @@ final class NodeBuilder
 
     private static <V> int compareUpperBound(Comparator<V> comparator, Object value, Object upperBound)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
         return upperBound == POSITIVE_INFINITY ? -1 : comparator.compare((V)value, (V)upperBound);
     }
 
@@ -263,7 +276,9 @@ final class NodeBuilder
     Object[] toNode()
     {
         // we permit building empty trees as some constructions do not know in advance how many items they will contain
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9888
         assert buildKeyPosition <= FAN_FACTOR : buildKeyPosition;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return buildFromRange(0, buildKeyPosition, isLeaf(copyFrom), false);
     }
 
@@ -276,6 +291,7 @@ final class NodeBuilder
         {
             // split current node and move the midpoint into parent, with the two halves as children
             int mid = buildKeyPosition / 2;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
             parent.addExtraChild(buildFromRange(0, mid, isLeaf, true), buildKeys[mid]);
             parent.finishChild(buildFromRange(mid + 1, buildKeyPosition - (mid + 1), isLeaf, false));
         }
@@ -296,6 +312,7 @@ final class NodeBuilder
         assert len <= FAN_FACTOR : upToKeyPosition + "," + copyFromKeyPosition;
 
         ensureRoom(buildKeyPosition + len);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         if (len > 0)
         {
             System.arraycopy(copyFrom, copyFromKeyPosition, buildKeys, buildKeyPosition, len);
@@ -320,6 +337,7 @@ final class NodeBuilder
     void addNewKey(Object key)
     {
         ensureRoom(buildKeyPosition + 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         buildKeys[buildKeyPosition++] = updateFunction.apply(key);
     }
 
@@ -330,6 +348,7 @@ final class NodeBuilder
         if (copyFromChildPosition >= upToChildPosition)
             return;
         int len = upToChildPosition - copyFromChildPosition;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         if (len > 0)
         {
             System.arraycopy(copyFrom, getKeyEnd(copyFrom) + copyFromChildPosition, buildChildren, buildChildPosition, len);
@@ -360,6 +379,7 @@ final class NodeBuilder
             return;
 
         // flush even number of items so we don't waste leaf space repeatedly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         Object[] flushUp = buildFromRange(0, FAN_FACTOR, isLeaf(copyFrom), true);
         ensureParent().addExtraChild(flushUp, buildKeys[FAN_FACTOR]);
         int size = FAN_FACTOR + 1;
@@ -379,12 +399,14 @@ final class NodeBuilder
     {
         // if keyLength is 0, we didn't copy anything from the original, which means we didn't
         // modify any of the range owned by it, so can simply return it as is
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         if (keyLength == 0)
             return copyFrom;
 
         Object[] a;
         if (isLeaf)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
             a = new Object[keyLength | 1];
             System.arraycopy(buildKeys, offset, a, 0, keyLength);
         }
@@ -405,6 +427,7 @@ final class NodeBuilder
             indexOffsets[keyLength] = size;
             a[a.length - 1] = indexOffsets;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6692
         if (isExtra)
             updateFunction.allocated(ObjectSizes.sizeOfArray(a));
         else if (a.length != copyFrom.length)
@@ -424,6 +447,7 @@ final class NodeBuilder
             parent.child = this;
         }
         if (parent.upperBound == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
             parent.reset(EMPTY_BRANCH, upperBound, updateFunction, comparator);
         return parent;
     }

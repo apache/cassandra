@@ -29,6 +29,7 @@ public enum MetadataType
     /** Metadata only used at compaction */
     COMPACTION(CompactionMetadata.serializer),
     /** Metadata always keep in memory */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
     STATS(StatsMetadata.serializer),
     /** Serialization header */
     HEADER((IMetadataComponentSerializer)SerializationHeader.serializer);

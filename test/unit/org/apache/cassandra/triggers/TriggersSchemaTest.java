@@ -44,6 +44,7 @@ public class TriggersSchemaTest
     @BeforeClass
     public static void beforeTest() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         SchemaLoader.loadSchema();
     }
 
@@ -68,6 +69,7 @@ public class TriggersSchemaTest
     @Test
     public void addNewCfWithTriggerToKs() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1));
         MigrationManager.announceNewKeyspace(ksm);
 

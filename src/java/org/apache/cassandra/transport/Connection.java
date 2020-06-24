@@ -43,6 +43,7 @@ public class Connection
 
     public void setTransformer(FrameBodyTransformer transformer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         this.transformer = transformer;
     }
 
@@ -53,6 +54,7 @@ public class Connection
 
     public void setThrowOnOverload(boolean throwOnOverload)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         this.throwOnOverload = throwOnOverload;
     }
 
@@ -78,6 +80,7 @@ public class Connection
 
     public interface Factory
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         Connection newConnection(Channel channel, ProtocolVersion version);
     }
 

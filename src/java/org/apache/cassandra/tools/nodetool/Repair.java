@@ -100,6 +100,7 @@ public class Repair extends NodeToolCmd
 
     private PreviewKind getPreviewKind()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         if (validate)
         {
             return PreviewKind.REPAIRED;
@@ -121,8 +122,10 @@ public class Repair extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11627
         List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
         String[] cfnames = parseOptionalTables(args);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
         if (primaryRange && (!specificDataCenters.isEmpty() || !specificHosts.isEmpty()))
             throw new RuntimeException("Primary range repair should be performed on all nodes in the cluster.");
@@ -145,7 +148,9 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));
             options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
             options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
             options.put(RepairOption.PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
             options.put(RepairOption.FORCE_REPAIR_KEY, Boolean.toString(force));
             options.put(RepairOption.PREVIEW, getPreviewKind().toString());
             options.put(RepairOption.OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));

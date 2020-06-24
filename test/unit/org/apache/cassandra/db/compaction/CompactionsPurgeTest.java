@@ -61,6 +61,7 @@ public class CompactionsPurgeTest
         SchemaLoader.prepareServer();
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
@@ -72,6 +73,7 @@ public class CompactionsPurgeTest
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingParams.CACHE_EVERYTHING));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         SchemaLoader.createKeyspace(KEYSPACE_CQL,
                                     KeyspaceParams.simple(1),
@@ -193,6 +195,7 @@ public class CompactionsPurgeTest
         }
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key))
             .add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), Long.MAX_VALUE, FBUtilities.nowInSeconds()))
             .build()
@@ -243,6 +246,7 @@ public class CompactionsPurgeTest
 
         // major compact - tombstones should be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -254,6 +258,7 @@ public class CompactionsPurgeTest
 
         cfs.invalidateCachedPartition(dk(key));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertEquals(1, partition.rowCount());
     }
@@ -296,6 +301,7 @@ public class CompactionsPurgeTest
         // for first key. Then submit minor compaction on remembered sstables.
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getLiveSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, "key1");
         builder.clustering(String.valueOf(5))
@@ -314,6 +320,7 @@ public class CompactionsPurgeTest
 
         // verify that minor compaction still GC when key is present
         // in a non-compacted sstable but the timestamp ensures we won't miss anything
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key1).build());
         assertEquals(1, partition.rowCount());
     }
@@ -349,6 +356,7 @@ public class CompactionsPurgeTest
 
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getLiveSSTables();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // delete c2 so we have new delete in a diffrent SSTable
         RowUpdateBuilder.deleteRow(cfs.metadata(), 9, key3, "c2").applyUnsafe();
@@ -362,6 +370,7 @@ public class CompactionsPurgeTest
 
         // We should have both the c1 and c2 tombstones still. Since the min timestamp in the c2 tombstone
         // sstable is older than the c1 tombstone, it is invalid to throw out the c1 tombstone.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key3).build());
         assertEquals(2, partition.rowCount());
         for (Row row : partition)
@@ -395,11 +404,13 @@ public class CompactionsPurgeTest
         }
         cfs.forceBlockingFlush();
         assertEquals(String.valueOf(cfs.getLiveSSTables()), 1, cfs.getLiveSSTables().size()); // inserts & deletes were in the same memtable -> only deletes in sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // compact and test that the row is completely gone
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assertTrue(cfs.getLiveSSTables().isEmpty());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Util.assertEmpty(Util.cmd(cfs, key).build());
     }
 
@@ -409,6 +420,7 @@ public class CompactionsPurgeTest
     {
         CompactionManager.instance.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String keyspaceName = KEYSPACE_CACHED;
         String cfName = CF_CACHED;
         Keyspace keyspace = Keyspace.open(keyspaceName);
@@ -426,6 +438,7 @@ public class CompactionsPurgeTest
         }
 
         // deletes partition
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KEYSPACE_CACHED, dk(key));
         rm.add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), 1, FBUtilities.nowInSeconds()));
         rm.build().applyUnsafe();
@@ -450,6 +463,7 @@ public class CompactionsPurgeTest
     {
         CompactionManager.instance.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         String keyspaceName = KEYSPACE1;
         String cfName = "Standard1";
         Keyspace keyspace = Keyspace.open(keyspaceName);
@@ -466,15 +480,19 @@ public class CompactionsPurgeTest
         }
 
         // deletes partition with timestamp such that not all columns are deleted
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key));
         rm.add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), 4, FBUtilities.nowInSeconds()));
         rm.build().applyUnsafe();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertFalse(partition.partitionLevelDeletion().isLive());
 
         // flush and major compact (with tombstone purging)
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6008
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6008
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assertFalse(Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build()).isEmpty());
 
@@ -502,6 +520,7 @@ public class CompactionsPurgeTest
         cfs.disableAutoCompaction();
 
         // write a row out to one sstable
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
                                                      keyspace, table, 1, "foo", 1));
         cfs.forceBlockingFlush();
@@ -514,15 +533,19 @@ public class CompactionsPurgeTest
         cfs.forceBlockingFlush();
 
         // basic check that the row is considered deleted
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(2, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(0, result.size());
 
         // compact the two sstables with a gcBefore that does *not* allow the row tombstone to be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000, false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
         // the data should be gone, but the tombstone should still exist
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(1, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(0, result.size());
 
@@ -530,6 +553,7 @@ public class CompactionsPurgeTest
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
                                                      keyspace, table, 1, "foo", 1));
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(2, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(1, result.size());
@@ -540,9 +564,12 @@ public class CompactionsPurgeTest
 
         // compact the two sstables with a gcBefore that *does* allow the row tombstone to be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7272
 
         // both the data and the tombstone should be gone this time
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(0, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(0, result.size());
     }

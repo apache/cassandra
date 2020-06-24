@@ -66,6 +66,8 @@ public class RestorableMeter
     {
         this.m15Rate = new RestorableEWMA(lastM15Rate, TimeUnit.MINUTES.toSeconds(15));
         this.m120Rate = new RestorableEWMA(lastM120Rate, TimeUnit.MINUTES.toSeconds(120));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         this.startTime = this.clock.getTick();
         this.lastTick = new AtomicLong(startTime);
     }
@@ -76,6 +78,7 @@ public class RestorableMeter
     private void tickIfNecessary()
     {
         final long oldTick = lastTick.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         final long newTick = clock.getTick();
         final long age = newTick - oldTick;
         if (age > TICK_INTERVAL)
@@ -152,6 +155,7 @@ public class RestorableMeter
         {
             return 0.0;
         } else {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
             final long elapsed = (clock.getTick() - startTime);
             return (count() / (double) elapsed) * NANOS_PER_SECOND;
         }

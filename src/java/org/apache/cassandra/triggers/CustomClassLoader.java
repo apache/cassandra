@@ -78,6 +78,7 @@ public class CustomClassLoader extends URLClassLoader
         };
         for (File inputJar : dir.listFiles(filter))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             File lib = new File(FileUtils.getTempDir(), "lib");
             if (!lib.exists())
             {
@@ -86,6 +87,7 @@ public class CustomClassLoader extends URLClassLoader
             }
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
                 File out = FileUtils.createTempFile("cassandra-", ".jar", lib);
                 out.deleteOnExit();
                 logger.info("Loading new jar {}", inputJar.getAbsolutePath());
@@ -116,6 +118,7 @@ public class CustomClassLoader extends URLClassLoader
         }
         catch (ClassNotFoundException ex)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Class not found using parent class loader,", ex);
             // Don't throw the exception here, try triggers directory.
         }

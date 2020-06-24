@@ -21,5 +21,6 @@ import java.util.List;
 
 public interface SeedProvider
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     List<InetAddressAndPort> getSeeds();
 }

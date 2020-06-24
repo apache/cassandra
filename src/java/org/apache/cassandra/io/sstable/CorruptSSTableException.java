@@ -25,6 +25,7 @@ public class CorruptSSTableException extends RuntimeException
 
     public CorruptSSTableException(Throwable cause, File path)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         super("Corrupted: " + path, cause);
         this.path = path;
     }

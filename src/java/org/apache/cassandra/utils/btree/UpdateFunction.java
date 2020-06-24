@@ -33,6 +33,7 @@ public interface UpdateFunction<K, V> extends Function<K, V>
      * @return the value to insert into the new tree
      */
     V apply(V replacing, K update);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
     /**
      * @return true if we should fail the update
@@ -49,6 +50,7 @@ public interface UpdateFunction<K, V> extends Function<K, V>
         private final BiFunction<V, V, V> wrapped;
         public Simple(BiFunction<V, V, V> wrapped)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
             this.wrapped = wrapped;
         }
 

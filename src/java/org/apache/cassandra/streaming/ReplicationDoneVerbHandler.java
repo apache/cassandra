@@ -33,6 +33,7 @@ public class ReplicationDoneVerbHandler implements IVerbHandler
 
     public void doVerb(Message msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         StorageService.instance.confirmReplication(msg.from());
         logger.debug("Replying to {}@{}", msg.id(), msg.from());
         MessagingService.instance().send(msg.emptyResponse(), msg.from());

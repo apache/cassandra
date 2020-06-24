@@ -28,12 +28,14 @@ public class UUIDs extends Generator<UUID>
 {
     public UUIDs(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(UUIDType.instance, config, name, UUID.class);
     }
 
     @Override
     public UUID generate()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12729
         long seed = identityDistribution.next();
         return new UUID(seed, seed);
     }

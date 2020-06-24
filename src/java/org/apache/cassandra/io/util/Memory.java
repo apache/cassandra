@@ -37,6 +37,7 @@ public class Memory implements AutoCloseable
     private static final Unsafe unsafe;
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
         try
         {
             Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
@@ -61,9 +62,11 @@ public class Memory implements AutoCloseable
 
     protected Memory(long bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8792
         if (bytes <= 0)
             throw new AssertionError();
         size = bytes;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
         peer = MemoryUtil.allocate(size);
         // we permit a 0 peer iff size is zero, since such an allocation makes no sense, and an allocator would be
         // justified in returning a null pointer (and permitted to do so: http://www.cplusplus.com/reference/cstdlib/malloc)
@@ -75,6 +78,7 @@ public class Memory implements AutoCloseable
     // this should ONLY be used by SafeMemory
     protected Memory(Memory copyOf)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8758
         size = copyOf.size;
         peer = copyOf.peer;
     }
@@ -84,6 +88,7 @@ public class Memory implements AutoCloseable
         if (bytes < 0)
             throw new IllegalArgumentException();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         if (Ref.DEBUG_ENABLED)
             return new SafeMemory(bytes);
 
@@ -92,6 +97,7 @@ public class Memory implements AutoCloseable
 
     public void setByte(long offset, byte b)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8792
         checkBounds(offset, offset + 1);
         unsafe.putByte(peer + offset, b);
     }
@@ -100,6 +106,7 @@ public class Memory implements AutoCloseable
     {
         checkBounds(offset, offset + bytes);
         // check if the last element will fit into the memory
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4865
         unsafe.setMemory(peer + offset, bytes, b);
     }
 
@@ -108,6 +115,8 @@ public class Memory implements AutoCloseable
         checkBounds(offset, offset + 8);
         if (Architecture.IS_UNALIGNED)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4937
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6628
             unsafe.putLong(peer + offset, l);
         }
         else
@@ -144,9 +153,11 @@ public class Memory implements AutoCloseable
 
     public void setInt(long offset, int l)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8792
         checkBounds(offset, offset + 4);
         if (Architecture.IS_UNALIGNED)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5521
             unsafe.putInt(peer + offset, l);
         }
         else
@@ -175,9 +186,11 @@ public class Memory implements AutoCloseable
 
     public void setShort(long offset, short l)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8793
         checkBounds(offset, offset + 2);
         if (Architecture.IS_UNALIGNED)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
             unsafe.putShort(peer + offset, l);
         }
         else
@@ -202,16 +215,19 @@ public class Memory implements AutoCloseable
 
     public void setBytes(long memoryOffset, ByteBuffer buffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         if (buffer == null)
             throw new NullPointerException();
         else if (buffer.remaining() == 0)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8792
         checkBounds(memoryOffset, memoryOffset + buffer.remaining());
         if (buffer.hasArray())
         {
             setBytes(memoryOffset, buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         else if (buffer.isDirect())
         {
             unsafe.copyMemory(MemoryUtil.getAddress(buffer) + buffer.position(), peer + memoryOffset, buffer.remaining());
@@ -238,7 +254,9 @@ public class Memory implements AutoCloseable
         else if (count == 0)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8793
         checkBounds(memoryOffset, memoryOffset + count);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5884
         unsafe.copyMemory(buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, null, peer + memoryOffset, count);
     }
 
@@ -253,6 +271,7 @@ public class Memory implements AutoCloseable
         checkBounds(offset, offset + 8);
         if (Architecture.IS_UNALIGNED)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4937
             return unsafe.getLong(peer + offset);
         } else {
             return getLongByByte(peer + offset);
@@ -287,9 +306,11 @@ public class Memory implements AutoCloseable
 
     public int getInt(long offset)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8792
         checkBounds(offset, offset + 4);
         if (Architecture.IS_UNALIGNED)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5521
             return unsafe.getInt(peer + offset);
         }
         else
@@ -333,7 +354,9 @@ public class Memory implements AutoCloseable
         else if (count == 0)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8792
         checkBounds(memoryOffset, memoryOffset + count);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6755
         FastByteOperations.UnsafeOperations.copy(null, peer + memoryOffset, buffer, bufferOffset, count);
     }
 
@@ -346,8 +369,10 @@ public class Memory implements AutoCloseable
 
     public void put(long trgOffset, Memory memory, long srcOffset, long size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8793
         checkBounds(trgOffset, trgOffset + size);
         memory.checkBounds(srcOffset, srcOffset + size);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         unsafe.copyMemory(memory.peer + srcOffset, peer + trgOffset, size);
     }
 
@@ -360,6 +385,7 @@ public class Memory implements AutoCloseable
 
     public void free()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
         if (peer != 0) MemoryUtil.free(peer);
         else assert size == 0;
         peer = 0;
@@ -367,6 +393,7 @@ public class Memory implements AutoCloseable
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         free();
     }
 
@@ -379,6 +406,7 @@ public class Memory implements AutoCloseable
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4865
         if (this == o)
             return true;
         if (!(o instanceof Memory))
@@ -391,10 +419,13 @@ public class Memory implements AutoCloseable
 
     public ByteBuffer[] asByteBuffers(long offset, long length)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         checkBounds(offset, offset + length);
         if (size() == 0)
             return NO_BYTE_BUFFERS;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         ByteBuffer[] result = new ByteBuffer[(int) (length / Integer.MAX_VALUE) + 1];
         int size = (int) (size() / result.length);
         for (int i = 0 ; i < result.length - 1 ; i++)
@@ -409,6 +440,7 @@ public class Memory implements AutoCloseable
 
     public ByteBuffer asByteBuffer(long offset, int length)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8793
         checkBounds(offset, offset + length);
         return MemoryUtil.getByteBuffer(peer + offset, length);
     }
@@ -417,11 +449,13 @@ public class Memory implements AutoCloseable
     public void setByteBuffer(ByteBuffer buffer, long offset, int length)
     {
         checkBounds(offset, offset + length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MemoryUtil.setDirectByteBuffer(buffer, peer + offset, length);
     }
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8758
         return toString(peer, size);
     }
 

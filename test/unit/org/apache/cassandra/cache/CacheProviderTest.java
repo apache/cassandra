@@ -53,6 +53,7 @@ import static org.junit.Assert.assertTrue;
 
 public class CacheProviderTest
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4860
     MeasureableString key1 = new MeasureableString("key1");
     MeasureableString key2 = new MeasureableString("key2");
     MeasureableString key3 = new MeasureableString("key3");
@@ -84,6 +85,7 @@ public class CacheProviderTest
                                  .add("col1", "val1")
                                  .buildUpdate();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         return CachedBTreePartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
     }
 
@@ -104,8 +106,11 @@ public class CacheProviderTest
     private void assertDigests(IRowCacheEntry one, CachedBTreePartition two)
     {
         assertTrue(one instanceof CachedBTreePartition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest d1 = Digest.forReadResponse();
         Digest d2 = Digest.forReadResponse();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9554
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), d1, MessagingService.current_version);
         UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), d2, MessagingService.current_version);
         assertArrayEquals(d1.digest(), d2.digest());
@@ -133,6 +138,7 @@ public class CacheProviderTest
         List<Thread> threads = new ArrayList<>(100);
         for (int i = 0; i < 100; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
             Thread thread = NamedThreadFactory.createThread(runnable);
             threads.add(thread);
             thread.start();
@@ -144,9 +150,12 @@ public class CacheProviderTest
     @Test
     public void testSerializingCache() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         ICache<MeasureableString, IRowCacheEntry> cache = SerializingCache.create(CAPACITY,
             Weigher.singletonWeigher(), new SerializingCacheProvider.RowCacheSerializer());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         CachedBTreePartition partition = createPartition();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         simpleCase(partition, cache);
         concurrentCase(partition, cache);
     }
@@ -155,6 +164,7 @@ public class CacheProviderTest
     public void testKeys()
     {
         TableId id1 = TableId.generate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3966
         byte[] b1 = {1, 2, 3, 4};
         RowCacheKey key1 = new RowCacheKey(id1, null, ByteBuffer.wrap(b1));
         TableId id2 = TableId.fromString(id1.toString());
@@ -185,6 +195,7 @@ public class CacheProviderTest
         assertEquals(key1.hashCode(), key2.hashCode());
 
         tm = TableMetadata.builder("ks", "tab.indexFoo", id1)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                           .kind(TableMetadata.Kind.INDEX)
                           .addPartitionKeyColumn("pk", UTF8Type.instance)
                           .indexes(Indexes.of(IndexMetadata.fromSchemaMetadata("indexFoo", IndexMetadata.Kind.KEYS, Collections.emptyMap())))
@@ -202,6 +213,7 @@ public class CacheProviderTest
 
         public MeasureableString(String input)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4860
             this.string = input;
         }
 

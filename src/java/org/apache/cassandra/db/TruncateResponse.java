@@ -37,6 +37,7 @@ public class TruncateResponse
 
     public TruncateResponse(String keyspace, String columnFamily, boolean success)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3617
         this.keyspace = keyspace;
         this.columnFamily = columnFamily;
         this.success = success;
@@ -61,6 +62,7 @@ public class TruncateResponse
 
         public long serializedSize(TruncateResponse tr, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             return TypeSizes.sizeof(tr.keyspace)
                  + TypeSizes.sizeof(tr.columnFamily)
                  + TypeSizes.sizeof(tr.success);

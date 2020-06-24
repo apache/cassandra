@@ -45,6 +45,7 @@ final class ClientsTable extends AbstractVirtualTable
         super(TableMetadata.builder(keyspace, "clients")
                            .comment("currently connected clients")
                            .kind(TableMetadata.Kind.VIRTUAL)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14640
                            .partitioner(new LocalPartitioner(InetAddressType.instance))
                            .addPartitionKeyColumn(ADDRESS, InetAddressType.instance)
                            .addClusteringColumn(PORT, Int32Type.instance)

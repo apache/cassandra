@@ -265,6 +265,7 @@ public class OutboundConnections
 
         final MessagingService messagingService;
         ObjectObjectHashMap<InetAddressAndPort, Counts> prevEndpointToCounts = new ObjectObjectHashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
 
         private void closeUnusedSinceLastRun()
         {

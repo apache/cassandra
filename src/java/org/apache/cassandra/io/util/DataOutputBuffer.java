@@ -55,6 +55,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     {
         protected DataOutputBuffer initialValue() throws Exception
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
             return new DataOutputBuffer()
             {
                 public void close()
@@ -79,6 +80,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public DataOutputBuffer(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         super(ByteBuffer.allocate(size));
     }
 
@@ -101,6 +103,8 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     @VisibleForTesting
     static int saturatedArraySizeCast(long size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
         Preconditions.checkArgument(size >= 0);
         return (int)Math.min(MAX_ARRAY_SIZE, size);
     }
@@ -116,6 +120,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     @Override
     protected void doFlush(int count) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
         expandToFit(count);
     }
 
@@ -170,6 +175,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public void clear()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11970
         buffer.clear();
     }
 
@@ -179,6 +185,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         public int write(ByteBuffer src) throws IOException
         {
             int count = src.remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14649
             expandToFit(count);
             buffer.put(src);
             return count;
@@ -201,6 +208,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public ByteBuffer buffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15176
         return buffer(true);
     }
 
@@ -221,6 +229,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public byte[] getData()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9241
         assert buffer.arrayOffset() == 0;
         return buffer.array();
     }
@@ -232,6 +241,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public boolean hasPosition()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10314
         return true;
     }
 
@@ -242,6 +252,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public ByteBuffer asNewBuffer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13298
         return ByteBuffer.wrap(toByteArray());
     }
 

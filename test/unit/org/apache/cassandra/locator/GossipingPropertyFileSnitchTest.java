@@ -37,6 +37,7 @@ public class GossipingPropertyFileSnitchTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -44,6 +45,7 @@ public class GossipingPropertyFileSnitchTest
                                      final String endpointString, final String expectedDatacenter,
                                      final String expectedRack)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort endpoint;
         try
         {
@@ -61,6 +63,7 @@ public class GossipingPropertyFileSnitchTest
     public void testLoadConfig() throws Exception
     {
         final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         checkEndpoint(snitch, FBUtilities.getBroadcastAddressAndPort().toString(), "DC1", "RAC1");
     }
 }

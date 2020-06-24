@@ -29,6 +29,7 @@ public class AsyncOneResponse<T> extends AsyncPromise<T> implements RequestCallb
 {
     public AsyncOneResponse()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         super(ImmediateEventExecutor.INSTANCE);
     }
 

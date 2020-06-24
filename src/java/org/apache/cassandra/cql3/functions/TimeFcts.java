@@ -36,6 +36,7 @@ public abstract class TimeFcts
 
     public static Collection<Function> all()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13132
         return ImmutableList.of(now("now", TimeUUIDType.instance),
                                 now("currenttimeuuid", TimeUUIDType.instance),
                                 now("currenttimestamp", TimestampType.instance),
@@ -49,6 +50,7 @@ public abstract class TimeFcts
                                 toTimestamp(TimeUUIDType.instance),
                                 toUnixTimestamp(TimeUUIDType.instance),
                                 toUnixTimestamp(TimestampType.instance),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14502
                                 toDate(TimestampType.instance),
                                 toUnixTimestamp(SimpleDateType.instance),
                                 toTimestamp(SimpleDateType.instance));
@@ -56,6 +58,7 @@ public abstract class TimeFcts
 
     public static final Function now(final String name, final TemporalType<?> type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13132
         return new NativeScalarFunction(name, type)
         {
             @Override
@@ -74,6 +77,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
             return UUIDGen.toByteBuffer(UUIDGen.minTimeUUID(TimestampType.instance.compose(bb).getTime()));
         }
     };
@@ -86,6 +90,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
             return UUIDGen.toByteBuffer(UUIDGen.maxTimeUUID(TimestampType.instance.compose(bb).getTime()));
         }
     };
@@ -148,6 +153,7 @@ public abstract class TimeFcts
     */
    public static final NativeScalarFunction toDate(final TemporalType<?> type)
    {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
        return new NativeScalarFunction("todate", SimpleDateType.instance, type)
        {
            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)

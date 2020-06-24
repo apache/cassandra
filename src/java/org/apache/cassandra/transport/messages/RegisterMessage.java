@@ -32,6 +32,7 @@ public class RegisterMessage extends Message.Request
         public RegisterMessage decode(ByteBuf body, ProtocolVersion version)
         {
             int length = body.readUnsignedShort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
             List<Event.Type> eventTypes = new ArrayList<>(length);
             for (int i = 0; i < length; ++i)
                 eventTypes.add(CBUtil.readEnumValue(Event.Type.class, body));
@@ -66,10 +67,12 @@ public class RegisterMessage extends Message.Request
     protected Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         assert connection instanceof ServerConnection;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
         Connection.Tracker tracker = connection.getTracker();
         assert tracker instanceof Server.ConnectionTracker;
         for (Event.Type type : eventTypes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             if (type.minimumVersion.isGreaterThan(connection.getVersion()))
                 throw new ProtocolException("Event " + type.name() + " not valid for protocol version " + connection.getVersion());
             ((Server.ConnectionTracker) tracker).register(type, connection().channel());

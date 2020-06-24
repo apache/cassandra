@@ -68,6 +68,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         /**
          * This type should never be compared
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         NOT_COMPARABLE,
         /**
          * This type is always compared by its sequence of unsigned bytes
@@ -105,6 +106,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public static List<String> asCQLTypeStringList(List<AbstractType<?>> abstractTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7708
         List<String> r = new ArrayList<>(abstractTypes.size());
         for (AbstractType<?> abstractType : abstractTypes)
             r.add(abstractType.asCQL3Type().toString());
@@ -113,6 +115,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public T compose(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return getSerializer().deserialize(bytes);
     }
 
@@ -124,12 +127,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     /** get a string representation of the bytes used for various identifier (NOT just for log messages) */
     public String getString(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         if (bytes == null)
             return "null";
 
         TypeSerializer<T> serializer = getSerializer();
         serializer.validate(bytes);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return serializer.toString(serializer.deserialize(bytes));
     }
 
@@ -153,17 +158,20 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         return '"' + getSerializer().deserialize(buffer).toString() + '"';
     }
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public void validate(ByteBuffer bytes) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         getSerializer().validate(bytes);
     }
 
     public final int compare(ByteBuffer left, ByteBuffer right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         return isByteOrderComparable
                ? FastByteOperations.compareUnsigned(left, right)
                : compareCustom(left, right);
@@ -193,6 +201,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public void validateCellValue(ByteBuffer cellValue) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7665
         validate(cellValue);
     }
 
@@ -210,6 +219,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public int compareForCQL(ByteBuffer v1, ByteBuffer v2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return compare(v1, v2);
     }
 
@@ -233,16 +243,20 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public boolean isFrozenCollection()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9441
         return isCollection() && !isMultiCell();
     }
 
     public boolean isReversed()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10296
         return false;
     }
 
     public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2355
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         Map<String, String> parameters = parser.getKeyValueParameters();
         String reversed = parameters.get("reversed");
         if (reversed != null && (reversed.isEmpty() || reversed.equals("true")))
@@ -283,6 +297,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public boolean isValueCompatibleWith(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         return isValueCompatibleWithInternal((otherType instanceof ReversedType) ? ((ReversedType) otherType).baseType : otherType);
     }
 
@@ -305,6 +320,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public int compareCollectionMembers(ByteBuffer v1, ByteBuffer v2, ByteBuffer collectionName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
         return compare(v1, v2);
     }
 
@@ -330,6 +346,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public boolean isTuple()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         return false;
     }
 
@@ -340,6 +358,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public boolean isFreezable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         return false;
     }
 
@@ -366,6 +385,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return false;
     }
 
@@ -383,6 +403,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public int componentsCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5125
         return 1;
     }
 
@@ -410,6 +431,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         if (valueLengthIfFixed() >= 0)
             out.write(value);
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             ByteBufferUtil.writeWithVIntLength(value, out);
     }
 
@@ -423,6 +445,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public ByteBuffer readValue(DataInputPlus in) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
         return readValue(in, Integer.MAX_VALUE);
     }
 
@@ -451,6 +474,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     {
         int length = valueLengthIfFixed();
         if (length >= 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
             in.skipBytesFully(length);
         else
             ByteBufferUtil.skipWithVIntLength(in);
@@ -467,6 +491,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public AbstractType<?> withUpdatedUserType(UserType udt)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return this;
     }
 
@@ -483,6 +508,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public boolean referencesDuration()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1072
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         return false;
     }
 
@@ -494,6 +522,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         // testAssignement is for CQL literals and native protocol values, none of which make a meaningful
         // difference between frozen or not and reversed or not.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         if (isFreezable() && !isMultiCell())
             receiverType = receiverType.freeze();
 
@@ -524,6 +553,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public void checkComparable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         switch (comparisonType)
         {
             case NOT_COMPARABLE:

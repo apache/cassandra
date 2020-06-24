@@ -159,6 +159,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     // executes tasks returned by Indexer#addIndexColumn which may require index(es) to be (re)built
     private static final ListeningExecutorService asyncExecutor = MoreExecutors.listeningDecorator(
     new JMXEnabledThreadPoolExecutor(1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15227
                                      Stage.KEEP_ALIVE_SECONDS,
                                      TimeUnit.SECONDS,
                                      new LinkedBlockingQueue<>(),
@@ -177,6 +178,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     public SecondaryIndexManager(ColumnFamilyStore baseCfs)
     {
         this.baseCfs = baseCfs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
         this.keyspace = baseCfs.keyspace;
         baseCfs.getTracker().subscribe(this);
     }
@@ -196,11 +198,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         // we call add for every index definition in the collection as
         // some may not have been created here yet, only added to schema
         for (IndexMetadata tableIndex : tableIndexes)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
             addIndex(tableIndex, false);
     }
 
     private Future<?> reloadIndex(IndexMetadata indexDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10604
         Index index = indexes.get(indexDef.name);
         Callable<?> reloadTask = index.getMetadataReloadTask(indexDef);
         return reloadTask == null
@@ -213,10 +217,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         final Index index = createInstance(indexDef);
         index.register(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         if (writableIndexes.put(index.getIndexMetadata().name, index) == null)
             logger.info("Index [{}] registered and writable.", index.getIndexMetadata().name);
 
         markIndexesBuilding(ImmutableSet.of(index), true, isNewCF);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
 
         Callable<?> initialBuildTask = null;
         // if the index didn't register itself, we can probably assume that no initialization needs to happen
@@ -228,6 +234,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             }
             catch (Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                 logAndMarkIndexesFailed(Collections.singleton(index), t, true);
                 throw t;
             }
@@ -247,6 +254,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             @Override
             public void onFailure(Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                 logAndMarkIndexesFailed(Collections.singleton(index), t, true);
                 initialization.setException(t);
             }
@@ -274,6 +282,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (indexes.containsKey(indexDef.name))
             return reloadIndex(indexDef);
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
             return createIndex(indexDef, isNewCF);
     }
 
@@ -296,6 +305,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public boolean isIndexWritable(Index index)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         return writableIndexes.containsKey(index.getIndexMetadata().name);
     }
 
@@ -308,6 +318,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     @VisibleForTesting
     public synchronized boolean isIndexBuilding(String indexName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13963
         AtomicInteger counter = inProgressBuilds.get(indexName);
         return counter != null && counter.get() > 0;
     }
@@ -317,6 +328,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         Index index = unregisterIndex(indexName);
         if (null != index)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10601
             markIndexRemoved(indexName);
             executeBlocking(index.getInvalidateTask(), null);
         }
@@ -325,6 +337,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public Set<IndexMetadata> getDependentIndexes(ColumnMetadata column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         if (indexes.isEmpty())
             return Collections.emptySet();
 
@@ -357,14 +370,17 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     public void rebuildIndexesBlocking(Set<String> indexNames)
     {
         // Get the set of indexes that require blocking build
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         Set<Index> toRebuild = indexes.values()
                                       .stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                                       .filter(index -> indexNames.contains(index.getIndexMetadata().name))
                                       .filter(Index::shouldBuildBlocking)
                                       .collect(Collectors.toSet());
 
         if (toRebuild.isEmpty())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
             logger.info("No defined indexes with the supplied names: {}", Joiner.on(',').join(indexNames));
             return;
         }
@@ -387,6 +403,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         // Now that we are tracking new writes and we haven't left untracked contents on the memtables, we are ready to
         // index the sstables
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
              Refs<SSTableReader> allSSTables = viewFragment.refs)
         {
@@ -403,6 +420,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public static boolean isIndexColumnFamilyStore(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10127
         return isIndexColumnFamily(cfs.name);
     }
 
@@ -484,8 +502,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         // Mark all indexes as building: this step must happen first, because if any index can't be marked, the whole
         // process needs to abort
         markIndexesBuilding(indexes, isFullRebuild, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
 
         // Build indexes in a try/catch, so that any index not marked as either built or failed will be marked as failed:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         final Set<Index> builtIndexes = Sets.newConcurrentHashSet();
         final Set<Index> unbuiltIndexes = Sets.newConcurrentHashSet();
 
@@ -496,6 +516,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             logger.info("Submitting index {} of {} for data in {}",
                         isFullRebuild ? "recovery" : "build",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                         indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(",")),
                         sstables.stream().map(SSTableReader::toString).collect(Collectors.joining(",")));
 
@@ -503,6 +524,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
             for (Index index : indexes)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                 IndexBuildingSupport buildOrRecoveryTask = isFullRebuild
                                                            ? index.getBuildTaskSupport()
                                                            : index.getRecoveryTaskSupport();
@@ -521,6 +543,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                    @Override
                                    public void onFailure(Throwable t)
                                    {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                                        logAndMarkIndexesFailed(groupedIndexes, t, false);
                                        unbuiltIndexes.addAll(groupedIndexes);
                                        build.setException(t);
@@ -534,6 +557,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                        builtIndexes.addAll(groupedIndexes);
                                        build.set(o);
                                    }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                                }, MoreExecutors.directExecutor());
                                futures.add(build);
                            });
@@ -554,6 +578,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 Set<Index> failedIndexes = Sets.difference(indexes, Sets.union(builtIndexes, unbuiltIndexes));
                 if (!failedIndexes.isEmpty())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                     logAndMarkIndexesFailed(failedIndexes, accumulatedFail, false);
                 }
 
@@ -651,6 +676,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                             if (isFullRebuild)
                                 needsFullRebuild.remove(indexName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13725
                             if (counter.getAndIncrement() == 0 && DatabaseDescriptor.isDaemonInitialized() && !isNewCF)
                                 SystemKeyspace.setIndexRemoved(keyspaceName, indexName);
                         });
@@ -668,6 +694,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         String indexName = index.getIndexMetadata().name;
         if (isFullRebuild)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
             if (queryableIndexes.add(indexName))
                 logger.info("Index [{}] became queryable after successful build.", indexName);
 
@@ -711,6 +738,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
             needsFullRebuild.add(indexName);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
             if (!index.getSupportedLoadTypeOnFailure(isInitialBuild).supportsWrites() && writableIndexes.remove(indexName) != null)
                 logger.info("Index [{}] became not-writable because of failed build.", indexName);
 
@@ -738,6 +766,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
         queryableIndexes.remove(indexName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         writableIndexes.remove(indexName);
         needsFullRebuild.remove(indexName);
         inProgressBuilds.remove(indexName);
@@ -829,6 +858,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public void executePreJoinTasksBlocking(boolean hadBootstrap)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12039
         logger.info("Executing pre-join{} tasks for: {}", hadBootstrap ? " post-bootstrap" : "", this.baseCfs);
         executeAllBlocking(indexes.values().stream(), (index) ->
         {
@@ -851,6 +881,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             indexes.forEach(index ->
                             index.getBackingTable()
                                  .map(cfs -> wait.add(cfs.forceFlush()))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10180
                                  .orElseGet(() -> nonCfsIndexes.add(index)));
         }
 
@@ -865,6 +896,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         Set<String> allIndexNames = new HashSet<>();
         indexes.values().stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                .map(i -> i.getIndexMetadata().name)
                .forEach(allIndexNames::add);
         return SystemKeyspace.getBuiltIndexes(baseCfs.keyspace.getName(), allIndexNames);
@@ -908,9 +940,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             while (!pager.isExhausted())
             {
                 try (ReadExecutionController controller = cmd.executionController();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                      WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing();
                      UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata(), pageSize, controller))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13075
                     if (!page.hasNext())
                         break;
 
@@ -918,8 +952,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                     {
                         Set<Index.Indexer> indexers = indexes.stream()
                                                              .map(index -> index.indexerFor(key,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10690
                                                                                             partition.columns(),
                                                                                             nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                                                                             ctx,
                                                                                             IndexTransaction.Type.UPDATE))
                                                              .filter(Objects::nonNull)
@@ -964,6 +1001,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                             Iterator<RangeTombstone> iter = deletionInfo.rangeIterator(false);
                             while (iter.hasNext())
                             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14794
                                 RangeTombstone rt = iter.next();
                                 indexers.forEach(indexer -> indexer.rangeTombstone(rt));
                             }
@@ -994,6 +1032,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             return DEFAULT_PAGE_SIZE;
 
         int columnsPerRow = baseCfs.metadata().regularColumns().size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13400
         if (columnsPerRow <= 0)
             return DEFAULT_PAGE_SIZE;
 
@@ -1029,6 +1068,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                                                     partition.columns(),
                                                                     nowInSec);
         indexTransaction.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10685
         indexTransaction.onPartitionDeletion(new DeletionTime(FBUtilities.timestampMicros(), nowInSec));
         indexTransaction.commit();
 
@@ -1074,9 +1114,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public Index getBestIndexFor(RowFilter rowFilter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13363
         if (indexes.isEmpty() || rowFilter.isEmpty())
             return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10435
         Set<Index> searchableIndexes = new HashSet<>();
         for (RowFilter.Expression expression : rowFilter)
         {
@@ -1085,10 +1127,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 // Only a single custom expression is allowed per query and, if present,
                 // we want to always favour the index specified in such an expression
                 RowFilter.CustomExpression customExpression = (RowFilter.CustomExpression) expression;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10436
                 logger.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
                 Tracing.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
                 return indexes.get(customExpression.getTargetIndex().name);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11295
             else if (!expression.isUserDefined())
             {
                 indexes.values().stream()
@@ -1100,11 +1144,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (searchableIndexes.isEmpty())
         {
             logger.trace("No applicable indexes found");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
             Tracing.trace("No applicable indexes found");
             return null;
         }
 
         Index selected = searchableIndexes.size() == 1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10435
                          ? Iterables.getOnlyElement(searchableIndexes)
                          : searchableIndexes.stream()
                                             .min((a, b) -> Longs.compare(a.getEstimatedResultRows(),
@@ -1112,9 +1158,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                             .orElseThrow(() -> new AssertionError("Could not select most selective index"));
 
         // pay for an additional threadlocal get() rather than build the strings unnecessarily
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         if (Tracing.isTracing())
         {
             Tracing.trace("Index mean cardinalities are {}. Scanning with {}.",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                           searchableIndexes.stream().map(i -> i.getIndexMetadata().name + ':' + i.getEstimatedResultRows())
                                            .collect(Collectors.joining(",")),
                           selected.getIndexMetadata().name);
@@ -1124,6 +1172,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         return indexes.values().stream().filter((i) -> i.supportsExpression(expression.column(), expression.operator())).findFirst();
     }
 
@@ -1139,6 +1188,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public void validate(PartitionUpdate update) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10690
         for (Index index : indexes.values())
             index.validate(update);
     }
@@ -1190,6 +1240,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (!hasIndexes())
             return UpdateTransaction.NO_OP;
         
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         ArrayList<Index.Indexer> idxrs = new ArrayList<>();
         for (Index i : writableIndexes.values())
         {
@@ -1213,6 +1264,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                                           int nowInSec)
     {
         // the check for whether there are any registered indexes is already done in CompactionIterator
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         return new IndexGCTransaction(key, regularAndStaticColumns, keyspace, versions, nowInSec, writableIndexes.values());
     }
 
@@ -1226,6 +1278,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (!hasIndexes())
             return CleanupTransaction.NO_OP;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         return new CleanupGCTransaction(key, regularAndStaticColumns, keyspace, nowInSec, writableIndexes.values());
     }
 
@@ -1245,6 +1298,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         public void start()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10218
             for (Index.Indexer indexer : indexers)
                 indexer.begin();
         }
@@ -1263,14 +1317,17 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         public void onInserted(Row row)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10690
             for (Index.Indexer indexer : indexers)
                 indexer.insertRow(row);
         }
 
         public void onUpdated(Row existing, Row updated)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
             final Row.Builder toRemove = BTreeRow.sortedBuilder();
             toRemove.newRow(existing.clustering());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10438
             toRemove.addPrimaryKeyLivenessInfo(existing.primaryKeyLivenessInfo());
             toRemove.addRowDeletion(existing.deletion());
             final Row.Builder toInsert = BTreeRow.sortedBuilder();
@@ -1294,6 +1351,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
                 public void onCell(int i, Clustering clustering, Cell merged, Cell original)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10438
                     if (merged != null && !merged.equals(original))
                         toInsert.addCell(merged);
 
@@ -1301,9 +1359,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                         toRemove.addCell(original);
                 }
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
             Rows.diff(diffListener, updated, existing);
             Row oldRow = toRemove.build();
             Row newRow = toInsert.build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10218
             for (Index.Indexer indexer : indexers)
                 indexer.updateRow(oldRow, newRow);
         }
@@ -1348,6 +1408,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         private IndexGCTransaction(DecoratedKey key,
                                    RegularAndStaticColumns columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                                    Keyspace keyspace,
                                    int versions,
                                    int nowInSec,
@@ -1376,6 +1437,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             {
                 public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11329
                     if (original != null && (merged == null || !merged.isLive(nowInSec)))
                         getBuilder(i, clustering).addPrimaryKeyLivenessInfo(original);
                 }
@@ -1390,6 +1452,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
                 public void onCell(int i, Clustering clustering, Cell merged, Cell original)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11329
                     if (original != null && (merged == null || !merged.isLive(nowInSec)))
                         getBuilder(i, clustering).addCell(original);
                 }
@@ -1406,6 +1469,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             };
 
             Rows.diff(diffListener, merged, versions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10193
 
             for (int i = 0; i < builders.length; i++)
                 if (builders[i] != null)
@@ -1417,8 +1481,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             if (rows == null)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
             try (WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10218
                 for (Index index : indexes)
                 {
                     Index.Indexer indexer = index.indexerFor(key, columns, nowInSec, ctx, Type.COMPACTION);
@@ -1454,6 +1520,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         private CleanupGCTransaction(DecoratedKey key,
                                      RegularAndStaticColumns columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
                                      Keyspace keyspace,
                                      int nowInSec,
                                      Collection<Index> indexes)
@@ -1484,8 +1551,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             if (row == null && partitionDelete == null)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
             try (WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10218
                 for (Index index : indexes)
                 {
                     Index.Indexer indexer = index.indexerFor(key, columns, nowInSec, ctx, Type.CLEANUP);
@@ -1494,6 +1563,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
                     indexer.begin();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10685
                     if (partitionDelete != null)
                         indexer.partitionDelete(partitionDelete);
 
@@ -1511,6 +1581,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (null != task)
         {
             ListenableFuture<?> f = blockingExecutor.submit(task);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
             if (callback != null) Futures.addCallback(f, callback, MoreExecutors.directExecutor());
             FBUtilities.waitOnFuture(f);
         }
@@ -1518,6 +1589,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     private void executeAllBlocking(Stream<Index> indexers, Function<Index, Callable<?>> function, FutureCallback<Object> callback)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         if (function == null)
         {
             logger.error("failed to flush indexes: {} because flush task is missing.", indexers);
@@ -1531,6 +1603,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                              if (null != task)
                              {
                                  ListenableFuture<?> f = blockingExecutor.submit(task);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
                                  if (callback != null) Futures.addCallback(f, callback, MoreExecutors.directExecutor());
                                  waitFor.add(f);
                              }
@@ -1558,6 +1631,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     @VisibleForTesting
     public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         shutdown(asyncExecutor, blockingExecutor);
         awaitTermination(timeout, units, asyncExecutor, blockingExecutor);
     }

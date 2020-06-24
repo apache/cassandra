@@ -26,17 +26,20 @@ public class RandomPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         partitioner = RandomPartitioner.instance;
     }
 
     protected boolean shouldStopRecursion(Token left, Token right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12858
         return left.size(right) < Math.scalb(1, -112);
     }
 
     @Test
     public void testSplit()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         assertSplit(tok("a"), tok("b"), 16);
         assertSplit(tok("a"), tok("bbb"), 16);
     }

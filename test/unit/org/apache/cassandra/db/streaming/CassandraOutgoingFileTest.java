@@ -89,6 +89,7 @@ public class CassandraOutgoingFileTest
     {
         List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.last.getToken()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15657
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
                                                               sections,
@@ -102,6 +103,7 @@ public class CassandraOutgoingFileTest
     {
         List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(store.getPartitioner().getMinimumToken(), getTokenAtIndex(2)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15657
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
                                                               sections,
@@ -118,6 +120,7 @@ public class CassandraOutgoingFileTest
                                                          new Range<>(getTokenAtIndex(5), sstable.last.getToken()));
         requestedRanges = Range.normalize(requestedRanges);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15657
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
                                                               sections,

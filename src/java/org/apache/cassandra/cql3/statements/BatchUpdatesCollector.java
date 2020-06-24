@@ -84,6 +84,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
 
     private IMutationBuilder getMutationBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return keyspaceMap(metadata.keyspace).computeIfAbsent(dk.getKey(), k -> makeMutationBuilder(metadata, dk, consistency));
     }
 
@@ -243,6 +244,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
 
         private VirtualMutationBuilder(String keyspaceName, DecoratedKey partitionKey)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             this.keyspaceName = keyspaceName;
             this.partitionKey = partitionKey;
         }

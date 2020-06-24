@@ -30,6 +30,8 @@ public class EstimatedHistogramTest
     {
         {
             // 0 and 1 map to the same, first bucket
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2232
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             EstimatedHistogram histogram = new EstimatedHistogram();
             histogram.add(0);
             assertEquals(1, histogram.get(0));
@@ -114,6 +116,7 @@ public class EstimatedHistogramTest
     public void testPercentile()
     {
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8883
             EstimatedHistogram histogram = new EstimatedHistogram();
             // percentile of empty histogram is 0
             assertEquals(0, histogram.percentile(0.99));

@@ -61,6 +61,7 @@ public interface Function extends AssignmentTestable
 
     public default Optional<Difference> compare(Function other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         throw new UnsupportedOperationException();
     }
 }

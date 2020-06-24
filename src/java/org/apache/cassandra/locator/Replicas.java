@@ -36,6 +36,7 @@ public class Replicas
     public static int countFull(ReplicaCollection<?> replicas)
     {
         int count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14735
         for (Replica replica : replicas)
             if (replica.isFull())
                 ++count;
@@ -90,10 +91,12 @@ public class Replicas
      */
     public static ObjectObjectHashMap<String, ReplicaCount> countPerDc(Collection<String> dataCenters, Iterable<Replica> replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
         ObjectObjectHashMap<String, ReplicaCount> perDc = new ObjectObjectHashMap<>(dataCenters.size());
         for (String dc: dataCenters)
             perDc.put(dc, new ReplicaCount());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14727
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         for (Replica replica : replicas)
         {

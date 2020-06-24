@@ -63,6 +63,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         // If it's not the beginning (state != null), we need to find where we were and skip previous queries
         // since they are done.
         if (state != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             for (; i < group.queries.size(); i++)
                 if (group.queries.get(i).partitionKey().getKey().equals(state.partitionKey))
                     break;
@@ -91,6 +92,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                                 int remaining,
                                 int current)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         this.pagers = pagers;
         this.limit = limit;
         this.nowInSec = nowInSec;
@@ -103,6 +105,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         SinglePartitionPager[] newPagers = Arrays.copyOf(pagers, pagers.length);
         newPagers[current] = newPagers[current].withUpdatedLimit(newLimits);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return new MultiPartitionPager<T>(newPagers,
                                           newLimits,
                                           nowInSec,
@@ -117,6 +120,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             return null;
 
         PagingState state = pagers[current].state();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11603
         return new PagingState(pagers[current].key(), state == null ? null : state.rowMark, remaining, pagers[current].remainingInPartition());
     }
 
@@ -151,6 +155,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         return new PagersIterator(toQuery, consistency, clientState, null, queryStartNanoTime);
     }
 
@@ -184,6 +189,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             this.consistency = consistency;
             this.clientState = clientState;
             this.executionController = executionController;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
             this.queryStartNanoTime = queryStartNanoTime;
         }
 
@@ -191,9 +197,11 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         {
             while (result == null || !result.hasNext())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10354
                 if (result != null)
                 {
                     result.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                     counted += pagerMaxRemaining - pagers[current].maxRemaining();
                 }
 
@@ -213,6 +221,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 int toQuery = pageSize - counted;
                 result = consistency == null
                        ? pagers[current].fetchPageInternal(toQuery, executionController)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                        : pagers[current].fetchPage(toQuery, consistency, clientState, queryStartNanoTime);
             }
             return result.next();
@@ -220,6 +229,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
 
         public void close()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             remaining -= counted;
             if (result != null && !closed)
                 result.close();
@@ -228,6 +238,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
 
     public int maxRemaining()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6464
         return remaining;
     }
 }

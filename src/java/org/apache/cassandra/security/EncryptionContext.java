@@ -56,6 +56,7 @@ public class EncryptionContext
 
     public EncryptionContext(TransparentDataEncryptionOptions tdeOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         this(tdeOptions, null, true);
     }
 
@@ -98,6 +99,7 @@ public class EncryptionContext
 
     public Cipher getDecryptor() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         if (iv == null || iv.length == 0)
             throw new IllegalStateException("no initialization vector (IV) found in this context");
         return cipherFactory.getDecryptor(tdeOptions.cipher, tdeOptions.key_alias, iv);
@@ -115,6 +117,7 @@ public class EncryptionContext
 
     public byte[] getIV()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         return iv;
     }
 
@@ -130,6 +133,7 @@ public class EncryptionContext
 
     public boolean equals(EncryptionContext other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6018
         return Objects.equal(tdeOptions, other.tdeOptions)
                && Objects.equal(compressor, other.compressor)
                && Arrays.equals(iv, other.iv);

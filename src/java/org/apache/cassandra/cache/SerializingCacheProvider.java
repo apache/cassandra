@@ -30,6 +30,7 @@ public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRow
 {
     public ICache<RowCacheKey, IRowCacheEntry> create()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         return SerializingCache.create(DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024, new RowCacheSerializer());
     }
 
@@ -44,6 +45,7 @@ public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRow
             if (isSentinel)
                 out.writeLong(((RowCacheSentinel) entry).sentinelId);
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 CachedPartition.cacheSerializer.serialize((CachedPartition)entry, out);
         }
 
@@ -53,6 +55,7 @@ public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRow
             if (isSentinel)
                 return new RowCacheSentinel(in.readLong());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             return CachedPartition.cacheSerializer.deserialize(in);
         }
 
@@ -60,6 +63,7 @@ public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRow
         {
             int size = TypeSizes.sizeof(true);
             if (entry instanceof RowCacheSentinel)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                 size += TypeSizes.sizeof(((RowCacheSentinel) entry).sentinelId);
             else
                 size += CachedPartition.cacheSerializer.serializedSize((CachedPartition) entry);

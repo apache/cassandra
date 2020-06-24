@@ -54,6 +54,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Message<?>> captureMockedMessage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         return Futures.transform(captureMockedMessageN(1), (List<Message<?>> result) -> result.isEmpty() ? null : result.get(0), MoreExecutors.directExecutor());
     }
 
@@ -62,6 +63,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<List<Message<?>>> captureMockedMessageN(int noOfMessages)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         CapturedResultsFuture<Message<?>> ret = new CapturedResultsFuture<>(noOfMessages, deliveredResponses);
         executor.execute(ret);
         return ret;
@@ -72,6 +74,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Boolean> expectMockedMessage()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return expectMockedMessage(1);
     }
 
@@ -90,6 +93,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Message<?>> captureMessageOut()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         return Futures.transform(captureMessageOut(1), (List<Message<?>> result) -> result.isEmpty() ? null : result.get(0), MoreExecutors.directExecutor());
     }
 
@@ -116,6 +120,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Boolean> interceptMessageOut(int noOfMessages)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ResultsCompletionFuture<Message<?>> ret = new ResultsCompletionFuture<>(noOfMessages, interceptedMessages);
         executor.execute(ret);
         return ret;
@@ -126,6 +131,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Boolean> interceptNoMsg(long time, TimeUnit unit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ResultAbsenceFuture<Message<?>> ret = new ResultAbsenceFuture<>(interceptedMessages, time, unit);
         executor.execute(ret);
         return ret;

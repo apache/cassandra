@@ -74,6 +74,7 @@ public class CassandraStreamHeader
 
     private CassandraStreamHeader(Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         version = builder.version;
         format = builder.format;
         estimatedKeys = builder.estimatedKeys;
@@ -109,6 +110,7 @@ public class CassandraStreamHeader
 
     private long calculateSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         if (isEntireSSTable)
             return componentManifest.totalSize();
 
@@ -121,6 +123,7 @@ public class CassandraStreamHeader
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             for (SSTableReader.PartitionPositionBounds section : sections)
                 transferSize += section.upperPosition - section.lowerPosition;
         }
@@ -142,6 +145,7 @@ public class CassandraStreamHeader
                ", estimatedKeys=" + estimatedKeys +
                ", sections=" + sections +
                ", sstableLevel=" + sstableLevel +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                ", header=" + serializationHeader +
                ", isEntireSSTable=" + isEntireSSTable +
                ", firstKey=" + firstKey +
@@ -156,6 +160,7 @@ public class CassandraStreamHeader
         CassandraStreamHeader that = (CassandraStreamHeader) o;
         return estimatedKeys == that.estimatedKeys &&
                sstableLevel == that.sstableLevel &&
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                isEntireSSTable == that.isEntireSSTable &&
                Objects.equals(version, that.version) &&
                format == that.format &&
@@ -184,6 +189,7 @@ public class CassandraStreamHeader
 
             out.writeLong(header.estimatedKeys);
             out.writeInt(header.sections.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             for (SSTableReader.PartitionPositionBounds section : header.sections)
             {
                 out.writeLong(section.lowerPosition);
@@ -194,6 +200,7 @@ public class CassandraStreamHeader
             out.writeInt(header.sstableLevel);
 
             SerializationHeader.serializer.serialize(header.version, header.serializationHeader, out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
 
             header.tableId.serialize(out);
             out.writeBoolean(header.isEntireSSTable);
@@ -224,6 +231,7 @@ public class CassandraStreamHeader
 
             long estimatedKeys = in.readLong();
             int count = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             List<SSTableReader.PartitionPositionBounds> sections = new ArrayList<>(count);
             for (int k = 0; k < count; k++)
                 sections.add(new SSTableReader.PartitionPositionBounds(in.readLong(), in.readLong()));
@@ -232,6 +240,7 @@ public class CassandraStreamHeader
 
             SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             TableId tableId = TableId.deserialize(in);
             boolean isEntireSSTable = in.readBoolean();
             ComponentManifest manifest = null;
@@ -269,12 +278,14 @@ public class CassandraStreamHeader
             size += TypeSizes.sizeof(header.estimatedKeys);
 
             size += TypeSizes.sizeof(header.sections.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14260
             for (SSTableReader.PartitionPositionBounds section : header.sections)
             {
                 size += TypeSizes.sizeof(section.lowerPosition);
                 size += TypeSizes.sizeof(section.upperPosition);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             header.calculateCompressionInfo();
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
             size += TypeSizes.sizeof(header.sstableLevel);

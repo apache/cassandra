@@ -26,6 +26,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 {
     protected final T query;
@@ -45,6 +46,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     protected AbstractQueryPager(T query, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         this.query = query;
         this.protocolVersion = protocolVersion;
         this.limits = query.limits();
@@ -56,6 +58,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     public ReadExecutionController executionController()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return query.executionController();
     }
 
@@ -77,6 +80,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13075
         if (isExhausted())
             return EmptyIterators.partition();
 
@@ -145,6 +149,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
         private Pager(DataLimits pageLimits, int nowInSec)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             this.counter = pageLimits.newCounter(nowInSec, true, query.selectsFullPartition(), enforceStrictLiveness);
             this.pageLimits = pageLimits;
         }
@@ -153,6 +158,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         public BaseRowIterator<T> applyToPartition(BaseRowIterator<T> partition)
         {
             currentKey = partition.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
 
             // If this is the first partition of this page, this could be the continuation of a partition we've started
             // on the previous page. In which case, we could have the problem that the partition has no more "regular"
@@ -162,6 +168,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             if (isFirstPartition)
             {
                 isFirstPartition = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                 if (isPreviouslyReturnedPartition(currentKey) && !partition.hasNext())
                 {
                     partition.close();
@@ -169,6 +176,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13075
             return apply(partition);
         }
 
@@ -179,6 +187,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         {
             // In some case like GROUP BY a counter need to know when the processing is completed.
             counter.onClose();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
 
             recordLast(lastKey, lastRow);
 
@@ -187,6 +196,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             // containing data within the static columns. If the clustering of the last row returned is empty
             // it means that there is only one row per partition. Therefore, in both cases there are no data remaining
             // within the partition.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11208
             if (lastRow != null && (lastRow.clustering() == Clustering.STATIC_CLUSTERING
                     || lastRow.clustering() == Clustering.EMPTY))
             {
@@ -196,11 +206,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             {
                 remainingInPartition -= counter.countedInCurrentPartition();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             exhausted = pageLimits.isExhausted(counter);
         }
 
         public Row applyToStatic(Row row)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
             if (!row.isEmpty())
             {
                 if (!currentKey.equals(lastKey))

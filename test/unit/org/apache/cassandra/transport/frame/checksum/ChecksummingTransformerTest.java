@@ -59,6 +59,7 @@ public class ChecksummingTransformerTest
     @Test
     public void roundTripSafetyProperty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15555
         qt()
             .forAll(inputs(),
                     compressors(),
@@ -70,6 +71,7 @@ public class ChecksummingTransformerTest
     @Test
     public void roundTripZeroLengthInput()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15555
         qt()
             .forAll(zeroLengthInputs(),
                     compressors(),
@@ -81,11 +83,13 @@ public class ChecksummingTransformerTest
     @Test
     public void corruptionCausesFailure()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15555
         qt()
             .forAll(inputWithCorruptablePosition(),
                     integers().between(0, Byte.MAX_VALUE).map(Integer::byteValue),
                     compressors(),
                     checksumTypes())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15556
             .checkAssert(ChecksummingTransformerTest::roundTripWithCorruption);
     }
 
@@ -179,6 +183,7 @@ public class ChecksummingTransformerTest
     {
         ChecksummingTransformer transformer = new ChecksummingTransformer(checksum, blockSize, compressor);
         ByteBuf expectedBuf = input.toByteBuf();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15555
 
         ByteBuf outbound = transformer.transformOutbound(expectedBuf);
         ByteBuf inbound = transformer.transformInbound(outbound, FLAGS);
@@ -192,6 +197,7 @@ public class ChecksummingTransformerTest
     {
         // we only generate corruption for byte 2 onward. This is to skip introducing corruption in the number
         // of chunks (which isn't checksummed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15555
         return inputs().flatMap(s -> integers().between(2, s.length + 2).map(i -> Pair.create(s, i)));
     }
 

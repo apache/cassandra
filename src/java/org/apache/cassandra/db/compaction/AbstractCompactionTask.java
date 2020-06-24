@@ -45,14 +45,18 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     public AbstractCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction)
     {
         this.cfs = cfs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         this.transaction = transaction;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3442
         this.isUserDefined = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
         this.compactionType = OperationType.COMPACTION;
         // enforce contract that caller should mark sstables compacting
         Set<SSTableReader> compacting = transaction.tracker.getCompacting();
         for (SSTableReader sstable : transaction.originals())
             assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13688
         validateSSTables(transaction.originals());
     }
 
@@ -97,8 +101,10 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
             return executeInternal(activeCompactions);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12385
         catch(FSDiskFullWriteError e)
         {
             RuntimeException cause = new RuntimeException("Converted from FSDiskFullWriteError: " + e.getMessage());
@@ -116,18 +122,21 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
 
     public AbstractCompactionTask setUserDefined(boolean isUserDefined)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3442
         this.isUserDefined = isUserDefined;
         return this;
     }
 
     public AbstractCompactionTask setCompactionType(OperationType compactionType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3989
         this.compactionType = compactionType;
         return this;
     }
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         return "CompactionTask(" + transaction + ")";
     }
 }

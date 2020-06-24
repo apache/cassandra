@@ -23,6 +23,7 @@ public class IncompatibleSchemaException extends IOException
 {
     public IncompatibleSchemaException(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         super(msg);
     }
 }

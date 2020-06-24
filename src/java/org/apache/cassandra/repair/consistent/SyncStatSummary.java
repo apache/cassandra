@@ -44,6 +44,7 @@ public class SyncStatSummary
 
     private static class Session
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final InetAddressAndPort src;
         final InetAddressAndPort dst;
 
@@ -87,6 +88,7 @@ public class SyncStatSummary
         boolean totalsCalculated = false;
 
         final Map<Pair<InetAddressAndPort, InetAddressAndPort>, Session> sessions = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         Table(String keyspace, String table)
         {
@@ -94,6 +96,7 @@ public class SyncStatSummary
             this.table = table;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Session getOrCreate(InetAddressAndPort from, InetAddressAndPort to)
         {
             Pair<InetAddressAndPort, InetAddressAndPort> k = Pair.create(from, to);
@@ -134,6 +137,7 @@ public class SyncStatSummary
 
         boolean isCounter()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15654
             TableMetadata tmd = Schema.instance.getTableMetadata(keyspace, table);
             return tmd != null && tmd.isCounter();
         }
@@ -200,6 +204,7 @@ public class SyncStatSummary
         summaries.values().forEach(Table::calculateTotals);
         for (Table table: summaries.values())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15654
             if (table.isCounter())
             {
                 continue;

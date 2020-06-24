@@ -56,6 +56,7 @@ public class InsertTest extends CQLTester
     public void testInsertWithTtl() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12216
 
         // test with unset
         execute("INSERT INTO %s (k, v) VALUES (1, 1) USING TTL ?", unset()); // treat as 'unlimited'
@@ -110,6 +111,8 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (partitionKey, clustering, clustering, value) VALUES (0, 0, 0, 2)");
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name clusteringx",
                              "INSERT INTO %s (partitionKey, clusteringx, value) VALUES (0, 0, 2)");
 
@@ -155,6 +158,8 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (partitionKey, clustering_1, clustering_1, clustering_2, value) VALUES (0, 0, 0, 0, 2)");
 
         // unknown identifiers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name clustering_1x",
                              "INSERT INTO %s (partitionKey, clustering_1x, clustering_2, value) VALUES (0, 0, 0, 2)");
 
@@ -202,6 +207,7 @@ public class InsertTest extends CQLTester
     @Test
     public void testInsertWithDefaultTtl() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
         final int secondsPerMinute = 60;
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH default_time_to_live = " + (10 * secondsPerMinute));
 
@@ -226,6 +232,7 @@ public class InsertTest extends CQLTester
         row = resultSet.one();
         Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12216
         execute("INSERT INTO %s (a, b) VALUES (?, ?) USING TTL ?", 4, 4, null);
         assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 4"), row(new Object[]{null}));
     }

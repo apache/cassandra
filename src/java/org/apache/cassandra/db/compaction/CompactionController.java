@@ -67,20 +67,25 @@ public class CompactionController extends AbstractCompactionController
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12366
         this(cfs, compacting, gcBefore, null,
              cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
     }
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15286
         super(cfs, gcBefore, tombstoneOption);
         this.compacting = compacting;
         this.limiter = limiter;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
         compactingRepaired = compacting != null && compacting.stream().allMatch(SSTableReader::isRepaired);
         this.minTimestamp = compacting != null && !compacting.isEmpty()       // check needed for test
                           ? compacting.stream().mapToLong(SSTableReader::getMinTimestamp).min().getAsLong()
                           : 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7819
         refreshOverlaps();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11831
         if (NEVER_PURGE_TOMBSTONES)
             logger.warn("You are running with -Dcassandra.never_purge_tombstones=true, this is dangerous!");
     }
@@ -100,6 +105,7 @@ public class CompactionController extends AbstractCompactionController
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (cfs.getNeverPurgeTombstones())
         {
             logger.debug("not refreshing overlaps for {}.{} - neverPurgeTombstones is enabled", cfs.keyspace.getName(), cfs.getTableName());
@@ -118,16 +124,20 @@ public class CompactionController extends AbstractCompactionController
 
     private void refreshOverlaps()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
             return;
 
         if (this.overlappingSSTables != null)
             close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
 
         if (compacting == null || ignoreOverlaps())
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
             overlappingSSTables = cfs.getAndReferenceOverlappingLiveSSTables(compacting);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8920
         this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables));
     }
 
@@ -160,10 +170,13 @@ public class CompactionController extends AbstractCompactionController
                                                              boolean ignoreOverlaps)
     {
         logger.trace("Checking droppable sstables in {}", cfStore);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (NEVER_PURGE_TOMBSTONES || compacting == null || cfStore.getNeverPurgeTombstones())
             return Collections.<SSTableReader>emptySet();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
         if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
             return Collections.emptySet();
 
@@ -182,13 +195,16 @@ public class CompactionController extends AbstractCompactionController
             return fullyExpired;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         List<SSTableReader> candidates = new ArrayList<>();
         long minTimestamp = Long.MAX_VALUE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6337
 
         for (SSTableReader sstable : overlapping)
         {
             // Overlapping might include fully expired sstables. What we care about here is
             // the min timestamp of the overlapping sstables that actually contain live data.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9572
             if (sstable.getSSTableMetadata().maxLocalDeletionTime >= gcBefore)
                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
         }
@@ -201,6 +217,7 @@ public class CompactionController extends AbstractCompactionController
                 minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9949
         for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
             minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
 
@@ -219,10 +236,12 @@ public class CompactionController extends AbstractCompactionController
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
                         candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         return new HashSet<>(candidates);
     }
 
@@ -244,6 +263,7 @@ public class CompactionController extends AbstractCompactionController
     @Override
     public LongPredicate getPurgeEvaluator(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (NEVER_PURGE_TOMBSTONES || !compactingRepaired() || cfs.getNeverPurgeTombstones())
             return time -> false;
 
@@ -286,26 +306,32 @@ public class CompactionController extends AbstractCompactionController
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11831
         if (overlappingSSTables != null)
             overlappingSSTables.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7705
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         FileUtils.closeQuietly(openDataFiles.values());
         openDataFiles.clear();
     }
 
     public boolean compactingRepaired()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
         return !cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones() || compactingRepaired;
     }
 
     boolean provideTombstoneSources()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return tombstoneOption != TombstoneOption.NONE;
     }
 
     // caller must close iterators
     public Iterable<UnfilteredRowIterator> shadowSources(DecoratedKey key, boolean tombstoneOnly)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         if (!provideTombstoneSources() || !compactingRepaired() || NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
             return null;
         overlapIterator.update(key);
@@ -319,6 +345,7 @@ public class CompactionController extends AbstractCompactionController
     {
         if (reader.isMarkedSuspect() ||
             reader.getMaxTimestamp() <= minTimestamp ||
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13366
             tombstoneOnly && !reader.mayHaveTombstones())
             return null;
         RowIndexEntry<?> position = reader.getPosition(key, SSTableReader.Operator.EQ);

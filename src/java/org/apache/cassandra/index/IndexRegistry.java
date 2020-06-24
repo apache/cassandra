@@ -68,6 +68,7 @@ public interface IndexRegistry
         @Override
         public Collection<Index> listIndexes()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             return Collections.emptyList();
         }
 
@@ -97,6 +98,7 @@ public interface IndexRegistry
      */
     public static final IndexRegistry NON_DAEMON = new IndexRegistry()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14938
         Index index = new Index()
         {
             public Callable<?> getInitializationTask()
@@ -218,6 +220,7 @@ public interface IndexRegistry
         }
     };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
     void registerIndex(Index index);
     void unregisterIndex(Index index);
 
@@ -245,6 +248,7 @@ public interface IndexRegistry
      */
     public static IndexRegistry obtain(TableMetadata table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14938
         if (!DatabaseDescriptor.isDaemonInitialized())
             return NON_DAEMON;
 

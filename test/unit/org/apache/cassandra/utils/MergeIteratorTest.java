@@ -53,6 +53,7 @@ public class MergeIteratorTest
             @Override
             public void reduce(int idx, String current)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 concatted += current;
             }
 
@@ -63,7 +64,10 @@ public class MergeIteratorTest
                 return tmp;
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3234
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         IMergeIterator<String,String> smi = MergeIterator.get(Arrays.asList(a, b, c, d),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 Ordering.<String>natural(),
                 reducer);
         assert Iterators.elementsEqual(cat, smi);

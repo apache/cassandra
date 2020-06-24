@@ -30,6 +30,7 @@ public class Strings extends Generator<String>
 
     public Strings(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(UTF8Type.instance, config, name, String.class);
         chars = new char[(int) sizeDistribution.maxValue()];
     }
@@ -41,6 +42,7 @@ public class Strings extends Generator<String>
         sizeDistribution.setSeed(seed);
         rnd.setSeed(~seed);
         int size = (int) sizeDistribution.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         for (int i = 0; i < size; )
             for (long v = rnd.nextLong(),
                  n = Math.min(size - i, Long.SIZE/Byte.SIZE);

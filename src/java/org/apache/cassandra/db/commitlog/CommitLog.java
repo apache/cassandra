@@ -67,9 +67,11 @@ public class CommitLog implements CommitLogMBean
     final public AbstractCommitLogSegmentManager segmentManager;
 
     public final CommitLogArchiver archiver;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
     final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9039
     volatile Configuration configuration;
     private boolean started = false;
 
@@ -77,11 +79,14 @@ public class CommitLog implements CommitLogMBean
     {
         CommitLog log = new CommitLog(CommitLogArchiver.construct(), DatabaseDescriptor.getCommitLogSegmentMgrProvider());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(log, "org.apache.cassandra.db:type=Commitlog");
         return log;
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
     CommitLog(CommitLogArchiver archiver)
     {
         this(archiver, DatabaseDescriptor.getCommitLogSegmentMgrProvider());
@@ -97,6 +102,7 @@ public class CommitLog implements CommitLogMBean
         this.archiver = archiver;
         metrics = new CommitLogMetrics();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         switch (DatabaseDescriptor.getCommitLogSync())
         {
             case periodic:
@@ -126,9 +132,11 @@ public class CommitLog implements CommitLogMBean
         if (started)
             return this;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1644
         try
         {
             segmentManager.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
             executor.start();
             started = true;
         } catch (Throwable t)
@@ -148,6 +156,7 @@ public class CommitLog implements CommitLogMBean
     public int recoverSegmentsOnDisk() throws IOException
     {
         FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
 
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
@@ -160,8 +169,10 @@ public class CommitLog implements CommitLogMBean
 
         assert archiver.archivePending.isEmpty() : "Not all commit log archive tasks were completed before restore";
         archiver.maybeRestoreArchive();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3690
 
         // List the files again as archiver may have added segments.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         File[] files = new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter);
         int replayed = 0;
         if (files.length == 0)
@@ -170,6 +181,7 @@ public class CommitLog implements CommitLogMBean
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3578
             Arrays.sort(files, new CommitLogSegmentFileComparator());
             logger.info("Replaying {}", StringUtils.join(files, ", "));
             replayed = recoverFiles(files);
@@ -190,6 +202,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int recoverFiles(File... clogs) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         CommitLogReplayer replayer = CommitLogReplayer.construct(this);
         replayer.replayFiles(clogs);
         return replayer.blockForWrites();
@@ -262,19 +275,23 @@ public class CommitLog implements CommitLogMBean
         assert mutation != null;
 
         mutation.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12528
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             Mutation.serializer.serialize(mutation, dob, MessagingService.current_version);
             int size = dob.getLength();
             int totalSize = size + ENTRY_OVERHEAD_SIZE;
             Allocation alloc = segmentManager.allocate(mutation, totalSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
 
             CRC32 checksum = new CRC32();
             final ByteBuffer buffer = alloc.getBuffer();
             try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
             {
                 // checksummed length
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
                 dos.writeInt(size);
                 updateChecksumInt(checksum, size);
                 buffer.putInt((int) checksum.getValue());
@@ -294,6 +311,7 @@ public class CommitLog implements CommitLogMBean
             }
 
             executor.finishWriteFor(alloc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             return alloc.getCommitLogPosition();
         }
         catch (IOException e)
@@ -325,6 +343,7 @@ public class CommitLog implements CommitLogMBean
 
             if (segment.isUnused())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
                 logger.debug("Commit log segment {} is unused", segment);
                 segmentManager.archiveAndDiscard(segment);
             }
@@ -337,6 +356,7 @@ public class CommitLog implements CommitLogMBean
 
             // Don't mark or try to delete any newer segments once we've reached the one containing the
             // position of the flush.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
             if (segment.contains(upperBound))
                 break;
         }
@@ -345,6 +365,7 @@ public class CommitLog implements CommitLogMBean
     @Override
     public String getArchiveCommand()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8734
         return archiver.archiveCommand;
     }
 
@@ -374,6 +395,7 @@ public class CommitLog implements CommitLogMBean
 
     public List<String> getActiveSegmentNames()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         Collection<CommitLogSegment> segments = segmentManager.getActiveSegments();
         List<String> segmentNames = new ArrayList<>(segments.size());
         for (CommitLogSegment seg : segments)
@@ -383,6 +405,7 @@ public class CommitLog implements CommitLogMBean
 
     public List<String> getArchivingSegmentNames()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3578
         return new ArrayList<>(archiver.archivePending.keySet());
     }
 
@@ -390,6 +413,7 @@ public class CommitLog implements CommitLogMBean
     public long getActiveContentSize()
     {
         long size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         for (CommitLogSegment seg : segmentManager.getActiveSegments())
             size += seg.contentSize();
         return size;
@@ -422,6 +446,7 @@ public class CommitLog implements CommitLogMBean
         started = false;
         executor.shutdown();
         executor.awaitTermination();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         segmentManager.shutdown();
         segmentManager.awaitTermination();
     }
@@ -434,7 +459,10 @@ public class CommitLog implements CommitLogMBean
     synchronized public int resetUnsafe(boolean deleteSegments) throws IOException
     {
         stopUnsafe(deleteSegments);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9039
         resetConfiguration();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10049
         return restartUnsafe();
     }
 
@@ -455,6 +483,8 @@ public class CommitLog implements CommitLogMBean
     synchronized public void stopUnsafe(boolean deleteSegments)
     {
         started = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1919
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         executor.shutdown();
         try
         {
@@ -465,6 +495,7 @@ public class CommitLog implements CommitLogMBean
             throw new RuntimeException(e);
         }
         segmentManager.stopUnsafe(deleteSegments);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11743
         CommitLogSegment.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
             for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
@@ -478,13 +509,17 @@ public class CommitLog implements CommitLogMBean
     synchronized public int restartUnsafe() throws IOException
     {
         started = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         return start().recoverSegmentsOnDisk();
     }
 
     @VisibleForTesting
     public static boolean handleCommitError(String message, Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7927
         JVMStabilityInspector.inspectCommitLogThrowable(t);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6364
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7429
         switch (DatabaseDescriptor.getCommitFailurePolicy())
         {
             // Needed here for unit tests to not fail on default assertion
@@ -522,6 +557,7 @@ public class CommitLog implements CommitLogMBean
 
         public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9039
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
             this.encryptionContext = encryptionContext;

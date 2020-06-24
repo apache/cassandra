@@ -26,7 +26,9 @@ import java.io.Serializable;
 public interface DistributionFactory extends Serializable
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
     Distribution get();
     String getConfigAsString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
 
 }

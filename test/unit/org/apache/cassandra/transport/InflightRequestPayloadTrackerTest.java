@@ -53,6 +53,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     public static void tearDown()
     {
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(3000000000L);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(HIGH_LIMIT);
     }
 
@@ -263,6 +264,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     @Test
     public void testChangingLimitsAtRuntime() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15519
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
                                                ProtocolVersion.V5,

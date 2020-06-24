@@ -93,6 +93,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     public boolean isFullyCoveredBy(CachedPartition partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         if (partition.isEmpty())
             return false;
 
@@ -111,6 +112,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     {
         // Note that we don't filter markers because that's a bit trickier (we don't know in advance until when
         // the range extend) and it's harmless to left them.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
         class FilterNotIndexed extends Transformation
         {
             @Override
@@ -138,10 +140,15 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     public UnfilteredRowIterator getUnfilteredRowIterator(final ColumnFilter columnFilter, final Partition partition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
         final Iterator<Clustering> clusteringIter = clusteringsInQueryOrder.iterator();
         final SearchIterator<Clustering, Row> searcher = partition.searchIterator(columnFilter, reversed);
 
         return new AbstractUnfilteredRowIterator(partition.metadata(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12768
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12694
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13025
                                                  partition.partitionKey(),
                                                  partition.partitionLevelDeletion(),
                                                  columnFilter.fetchedColumns(),
@@ -151,6 +158,8 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         {
             protected Unfiltered computeNext()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12811
                 while (clusteringIter.hasNext())
                 {
                     Row row = searcher.next(clusteringIter.next());
@@ -165,6 +174,8 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     public boolean shouldInclude(SSTableReader sstable)
     {
         ClusteringComparator comparator = sstable.metadata().comparator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10571
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10571
         List<ByteBuffer> minClusteringValues = sstable.getSSTableMetadata().minClusteringValues;
         List<ByteBuffer> maxClusteringValues = sstable.getSSTableMetadata().maxClusteringValues;
 
@@ -186,11 +197,13 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
             sb.append(i++ == 0 ? "" : ", ").append(clustering.toString(metadata));
         if (reversed)
             sb.append(", reversed");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return sb.append(')').toString();
     }
 
     public String toCQLString(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15503
         if (metadata.clusteringColumns().isEmpty() || clusterings.isEmpty())
             return "";
 
@@ -199,6 +212,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         sb.append(clusterings.size() == 1 ? " = " : " IN (");
         int i = 0;
         for (Clustering clustering : clusterings)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15503
             sb.append(i++ == 0 ? "" : ", ").append('(').append(clustering.toCQLString(metadata)).append(')');
         sb.append(clusterings.size() == 1 ? "" : ")");
 
@@ -228,6 +242,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     protected void serializeInternal(DataOutputPlus out, int version) throws IOException
     {
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         out.writeUnsignedVInt(clusterings.size());
         for (Clustering clustering : clusterings)
             Clustering.serializer.serialize(clustering, out, version, comparator.subtypes());
@@ -236,8 +251,10 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     protected long serializedSizeInternal(int version)
     {
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         long size = TypeSizes.sizeofUnsignedVInt(clusterings.size());
         for (Clustering clustering : clusterings)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             size += Clustering.serializer.serializedSize(clustering, version, comparator.subtypes());
         return size;
     }
@@ -247,6 +264,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         public ClusteringIndexFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean reversed) throws IOException
         {
             ClusteringComparator comparator = metadata.comparator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9769
             BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(comparator);
             int size = (int)in.readUnsignedVInt();
             for (int i = 0; i < size; i++)

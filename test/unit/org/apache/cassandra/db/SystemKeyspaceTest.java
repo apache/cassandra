@@ -45,9 +45,11 @@ public class SystemKeyspaceTest
     @BeforeClass
     public static void prepSnapshotTracker()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
     }
@@ -56,6 +58,7 @@ public class SystemKeyspaceTest
     public void testLocalTokens()
     {
         // Remove all existing tokens
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Collection<Token> current = SystemKeyspace.loadTokens().asMap().get(FBUtilities.getLocalAddressAndPort());
         if (current != null && !current.isEmpty())
             SystemKeyspace.updateTokens(current);
@@ -66,6 +69,7 @@ public class SystemKeyspaceTest
                 add(new BytesToken(ByteBufferUtil.bytes(String.format("token%d", i))));
         }};
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         SystemKeyspace.updateTokens(tokens);
         int count = 0;
 
@@ -77,7 +81,9 @@ public class SystemKeyspaceTest
     public void testNonLocalToken() throws UnknownHostException
     {
         BytesToken token = new BytesToken(ByteBufferUtil.bytes("token3"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.2");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         SystemKeyspace.updateTokens(address, Collections.<Token>singletonList(token));
         assert SystemKeyspace.loadTokens().get(address).contains(token);
         SystemKeyspace.removeEndpoint(address);
@@ -94,9 +100,11 @@ public class SystemKeyspaceTest
 
     private void assertDeletedOrDeferred(int expectedCount)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             assertEquals(expectedCount, getDeferredDeletionCount());
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14412
             assertTrue(getSystemSnapshotFiles(SchemaConstants.SYSTEM_KEYSPACE_NAME).isEmpty());
     }
 
@@ -118,6 +126,7 @@ public class SystemKeyspaceTest
     public void snapshotSystemKeyspaceIfUpgrading() throws IOException
     {
         // First, check that in the absence of any previous installed version, we don't create snapshots
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
@@ -128,13 +137,16 @@ public class SystemKeyspaceTest
         assertDeletedOrDeferred(baseline);
 
         // now setup system.local as if we're upgrading from a previous version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9422
         setupReleaseVersion(getOlderVersionString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
         assertDeletedOrDeferred(baseline);
 
         // Compare versions again & verify that snapshots were created for all tables in the system ks
         SystemKeyspace.snapshotOnVersionChange();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14412
         Set<String> snapshottedSystemTables = getSystemSnapshotFiles(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         SystemKeyspace.metadata().tables.forEach(t -> assertTrue(snapshottedSystemTables.contains(t.name)));
         Set<String> snapshottedSchemaTables = getSystemSnapshotFiles(SchemaConstants.SCHEMA_KEYSPACE_NAME);
@@ -142,8 +154,10 @@ public class SystemKeyspaceTest
 
         // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
         // see any new snapshots created this time.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
         setupReleaseVersion(FBUtilities.getReleaseVersionString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9422
 
         SystemKeyspace.snapshotOnVersionChange();
 
@@ -152,12 +166,14 @@ public class SystemKeyspaceTest
         // 10 files expected.
         assertDeletedOrDeferred(baseline + 10);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
     private String getOlderVersionString()
     {
         String version = FBUtilities.getReleaseVersionString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9438
         CassandraVersion semver = new CassandraVersion(version.contains("-") ? version.substring(0, version.indexOf('-'))
                                                                            : version);
         return (String.format("%s.%s.%s", semver.major - 1, semver.minor, semver.patch));
@@ -166,6 +182,7 @@ public class SystemKeyspaceTest
     private Set<String> getSystemSnapshotFiles(String keyspace)
     {
         Set<String> snapshottedTableNames = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14412
         for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
         {
             if (!cfs.getSnapshotDetails().isEmpty())
@@ -183,6 +200,7 @@ public class SystemKeyspaceTest
                                                      version,
                                                      DatabaseDescriptor.getClusterName()));
         String r = readLocalVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9422
         assertEquals(String.format("Expected %s, got %s", version, r), version, r);
     }
 

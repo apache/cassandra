@@ -83,6 +83,7 @@ public class TrieMemIndex extends MemIndex
 
             if (term.remaining() >= OnDiskIndexBuilder.MAX_TERM_SIZE)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
                 logger.info("Can't add term of column {} to index for key: {}, term size {}, max allowed size {}, use analyzed = true (if not yet set) for that column.",
                             columnIndex.getColumnName(),
                             keyValidator.getString(key.getKey()),
@@ -143,11 +144,13 @@ public class TrieMemIndex extends MemIndex
             ByteBuffer prefix = expression.lower == null ? null : expression.lower.value;
 
             Iterable<ConcurrentSkipListSet<DecoratedKey>> search = search(expression.getOp(), definition.cellValueType().getString(prefix));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
 
             RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
             for (ConcurrentSkipListSet<DecoratedKey> keys : search)
             {
                 int size;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15526
                 if ((size = keys.size()) > 0)
                     builder.add(new KeyRangeIterator(keys, size));
             }
@@ -182,6 +185,7 @@ public class TrieMemIndex extends MemIndex
 
         public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             switch (operator)
             {
                 case EQ:
@@ -220,9 +224,12 @@ public class TrieMemIndex extends MemIndex
 
         public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
             switch (operator)
             {
                 case EQ:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11130
                 case MATCH:
                     ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
                     return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
@@ -230,6 +237,7 @@ public class TrieMemIndex extends MemIndex
                 case SUFFIX:
                     return trie.getValuesForKeysEndingWith(value);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
                 case PREFIX:
                 case CONTAINS:
                     return trie.getValuesForKeysContaining(value);

@@ -73,6 +73,7 @@ public class ShadowRoundTest
         int noOfSeeds = Gossiper.instance.seeds.size();
 
         final AtomicBoolean ackSend = new AtomicBoolean(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MockMessagingSpy spySyn = MockMessagingService.when(verb(Verb.GOSSIP_DIGEST_SYN))
                 .respondN((msgOut, to) ->
                 {
@@ -89,6 +90,7 @@ public class ShadowRoundTest
                             Collections.singletonList(new GossipDigest(to, hb.getGeneration(), hb.getHeartBeatVersion())),
                             Collections.singletonMap(to, state));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     logger.debug("Simulating digest ACK response");
                     return Message.builder(Verb.GOSSIP_DIGEST_ACK, payload)
                                   .from(to)

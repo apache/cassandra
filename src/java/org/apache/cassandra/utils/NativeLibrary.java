@@ -79,6 +79,7 @@ public final class NativeLibrary
     static
     {
         FILE_DESCRIPTOR_FD_FIELD = FBUtilities.getProtectedField(FileDescriptor.class, "fd");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         try
         {
             FILE_CHANNEL_FD_FIELD = FBUtilities.getProtectedField(Class.forName("sun.nio.ch.FileChannelImpl"), "fd");
@@ -93,6 +94,7 @@ public final class NativeLibrary
         osType = getOsType();
         switch (osType)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             case MAC: wrappedLibrary = new NativeLibraryDarwin(); break;
             case WINDOWS: wrappedLibrary = new NativeLibraryWindows(); break;
             case LINUX:
@@ -101,6 +103,7 @@ public final class NativeLibrary
             default: wrappedLibrary = new NativeLibraryLinux();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11576
         if (System.getProperty("os.arch").toLowerCase().contains("ppc"))
         {
             if (osType == LINUX)
@@ -133,6 +136,7 @@ public final class NativeLibrary
      */
     private static OSType getOsType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13233
         String osName = System.getProperty("os.name").toLowerCase();
         if  (osName.contains("linux"))
             return LINUX;
@@ -169,11 +173,14 @@ public final class NativeLibrary
      */
     public static boolean isAvailable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
         return wrappedLibrary.isAvailable();
     }
 
     public static boolean jnaMemoryLockable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5508
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5508
         return jnaLockable;
     }
 
@@ -181,8 +188,10 @@ public final class NativeLibrary
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             wrappedLibrary.callMlockall(MCL_CURRENT);
             jnaLockable = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             logger.info("JNA mlockall successful");
         }
         catch (UnsatisfiedLinkError e)
@@ -194,10 +203,12 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13233
             if (errno(e) == ENOMEM && osType == LINUX)
             {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15549
                         + " Increase RLIMIT_MEMLOCK.");
             }
             else if (osType != MAC)
@@ -210,6 +221,7 @@ public final class NativeLibrary
 
     public static void trySkipCache(String path, long offset, long len)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10669
         File f = new File(path);
         if (!f.exists())
             return;
@@ -228,6 +240,7 @@ public final class NativeLibrary
     {
         if (len == 0)
             trySkipCache(fd, 0, 0, path);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
 
         while (len > 0)
         {
@@ -254,6 +267,7 @@ public final class NativeLibrary
                             NoSpamLogger.Level.WARN,
                             10,
                             TimeUnit.MINUTES,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
                             "Failed trySkipCache on file: {} Error: " + wrappedLibrary.callStrerror(result).getString(0),
                             path);
             }
@@ -263,6 +277,7 @@ public final class NativeLibrary
             // if JNA is unavailable just skipping Direct I/O
             // instance of this class will act like normal RandomAccessFile
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6575
         catch (RuntimeException e)
         {
             if (!(e instanceof LastErrorException))
@@ -279,6 +294,7 @@ public final class NativeLibrary
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             result = wrappedLibrary.callFcntl(fd, command, flags);
         }
         catch (UnsatisfiedLinkError e)
@@ -300,8 +316,11 @@ public final class NativeLibrary
     {
         int fd = -1;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3250
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             return wrappedLibrary.callOpen(path, O_RDONLY);
         }
         catch (UnsatisfiedLinkError e)
@@ -326,6 +345,7 @@ public final class NativeLibrary
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             wrappedLibrary.callFsync(fd);
         }
         catch (UnsatisfiedLinkError e)
@@ -350,17 +370,20 @@ public final class NativeLibrary
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             wrappedLibrary.callClose(fd);
         }
         catch (UnsatisfiedLinkError e)
         {
             // JNA is unavailable just skipping Direct I/O
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6575
         catch (RuntimeException e)
         {
             if (!(e instanceof LastErrorException))
                 throw e;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
             String errMsg = String.format("close(%d) failed, errno (%d).", fd, errno(e));
             logger.warn(errMsg);
             throw new FSWriteError(e, errMsg);
@@ -393,7 +416,9 @@ public final class NativeLibrary
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8308
             logger.warn("Unable to read fd field from FileDescriptor");
         }
 
@@ -405,8 +430,10 @@ public final class NativeLibrary
      */
     public static long getProcessID()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13233
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             return wrappedLibrary.callGetpid();
         }
         catch (Exception e)

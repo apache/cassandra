@@ -33,7 +33,9 @@ public class UserTypesTest extends CQLTester
     {
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         prepareServer();
     }
 
@@ -70,6 +72,7 @@ public class UserTypesTest extends CQLTester
     @Test
     public void testCassandra8105() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8105
         String ut1 = createType("CREATE TYPE %s (a int, b int)");
         String ut2 = createType("CREATE TYPE %s (j frozen<" + KEYSPACE + "." + ut1 + ">, k int)");
         createTable("CREATE TABLE %s (x int PRIMARY KEY, y set<frozen<" + KEYSPACE + "." + ut2 + ">>)");
@@ -109,6 +112,7 @@ public class UserTypesTest extends CQLTester
         String myType = KEYSPACE + '.' + typename;
 
         // non-frozen UDTs in a table PK
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Invalid non-frozen user-defined type \"" + myType + "\" for PRIMARY KEY column 'k'",
                 "CREATE TABLE " + KEYSPACE + ".wrong (k " + myType + " PRIMARY KEY , v int)");
         assertInvalidMessage("Invalid non-frozen user-defined type \"" + myType + "\" for PRIMARY KEY column 'k2'",
@@ -243,6 +247,7 @@ public class UserTypesTest extends CQLTester
     public void testUDTWithUnsetValues() throws Throwable
     {
         // set up
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         String myType = createType("CREATE TYPE %s (x int, y int)");
         String myOtherType = createType("CREATE TYPE %s (a frozen<" + myType + ">)");
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + myType + ">, z frozen<" + myOtherType + ">)");
@@ -291,6 +296,7 @@ public class UserTypesTest extends CQLTester
     @Test
     public void testAlteringUserTypeNestedWithinNonFrozenMap() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11604
         String ut1 = createType("CREATE TYPE %s (a int)");
         String columnType = KEYSPACE + "." + ut1;
 
@@ -305,6 +311,7 @@ public class UserTypesTest extends CQLTester
         execute("ALTER TYPE " + columnType + " ADD b int");
         execute("UPDATE %s SET y['secondValue'] = {a: 2, b: 2} WHERE x = 1");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12010
         beforeAndAfterFlush(() ->
                             assertRows(execute("SELECT * FROM %s"),
                                        row(1, map("firstValue", userType("a", 1),
@@ -516,6 +523,7 @@ public class UserTypesTest extends CQLTester
     public void testCircularReferences() throws Throwable
     {
         String type1 = createType("CREATE TYPE %s (foo int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10339
 
         String typeX = createType("CREATE TYPE %s (bar frozen<" + typeWithKs(type1) + ">)");
         assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
@@ -559,6 +567,7 @@ public class UserTypesTest extends CQLTester
     @Test
     public void testTypeAlterUsedInFunction() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10721
         String type1 = createType("CREATE TYPE %s (foo ascii)");
         assertComplexInvalidAlterDropStatements(type1, type1, "{foo: 'abc'}");
 
@@ -620,6 +629,7 @@ public class UserTypesTest extends CQLTester
     private void assertInvalidAlterDropStatements(String t) throws Throwable
     {
         assertInvalidMessage("Cannot alter user type " + typeWithKs(t), "ALTER TYPE " + typeWithKs(t) + " RENAME foo TO bar;");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Cannot drop user type '" + typeWithKs(t), "DROP TYPE " + typeWithKs(t) + ';');
     }
 

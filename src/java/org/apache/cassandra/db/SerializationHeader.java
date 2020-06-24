@@ -55,9 +55,11 @@ public class SerializationHeader
     private final Map<ByteBuffer, AbstractType<?>> typeMap;
 
     private SerializationHeader(boolean isForSSTable,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
                                 AbstractType<?> keyType,
                                 List<AbstractType<?>> clusteringTypes,
                                 RegularAndStaticColumns columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                                 EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap)
     {
@@ -86,6 +88,7 @@ public class SerializationHeader
         // Note however that to avoid seeing our accuracy degrade through successive compactions, we don't base
         // our stats merging on the compacted files headers, which as we just said can be somewhat inaccurate,
         // but rather on their stats stored in StatsMetadata that are fully accurate.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
         EncodingStats.Collector stats = new EncodingStats.Collector();
         RegularAndStaticColumns.Builder columns = RegularAndStaticColumns.builder();
         // We need to order the SSTables by descending generation to be sure that we use latest column metadata.
@@ -116,6 +119,7 @@ public class SerializationHeader
     {
         this(isForSSTable,
              metadata.partitionKeyType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
              metadata.comparator.subtypes(),
              columns,
              stats,
@@ -134,6 +138,7 @@ public class SerializationHeader
 
     public boolean isForSSTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
         return isForSSTable;
     }
 
@@ -164,6 +169,7 @@ public class SerializationHeader
 
     public void writeTimestamp(long timestamp, DataOutputPlus out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         out.writeUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
@@ -179,12 +185,14 @@ public class SerializationHeader
 
     public void writeDeletionTime(DeletionTime dt, DataOutputPlus out) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
         writeTimestamp(dt.markedForDeleteAt(), out);
         writeLocalDeletionTime(dt.localDeletionTime(), out);
     }
 
     public long readTimestamp(DataInputPlus in) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         return in.readUnsignedVInt() + stats.minTimestamp;
     }
 
@@ -207,6 +215,7 @@ public class SerializationHeader
 
     public long timestampSerializedSize(long timestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         return TypeSizes.sizeofUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
@@ -228,6 +237,7 @@ public class SerializationHeader
 
     public void skipTimestamp(DataInputPlus in) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
         in.readUnsignedVInt();
     }
 
@@ -261,6 +271,7 @@ public class SerializationHeader
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
         return String.format("SerializationHeader[key=%s, cks=%s, columns=%s, stats=%s, typeMap=%s]", keyType, clusteringTypes, columns, stats, typeMap);
     }
 
@@ -280,6 +291,7 @@ public class SerializationHeader
                           List<AbstractType<?>> clusteringTypes,
                           Map<ByteBuffer, AbstractType<?>> staticColumns,
                           Map<ByteBuffer, AbstractType<?>> regularColumns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                           EncodingStats stats)
         {
             this.keyType = keyType;
@@ -293,9 +305,11 @@ public class SerializationHeader
          * <em>Only</em> exposed for {@link org.apache.cassandra.io.sstable.SSTableHeaderFix}.
          */
         public static Component buildComponentForTools(AbstractType<?> keyType,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
                                                        List<AbstractType<?>> clusteringTypes,
                                                        Map<ByteBuffer, AbstractType<?>> staticColumns,
                                                        Map<ByteBuffer, AbstractType<?>> regularColumns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                                                        EncodingStats stats)
         {
             return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
@@ -311,6 +325,7 @@ public class SerializationHeader
             Map<ByteBuffer, AbstractType<?>> typeMap = new HashMap<>(staticColumns.size() + regularColumns.size());
 
             RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14843
             for (Map<ByteBuffer, AbstractType<?>> map : ImmutableList.of(staticColumns, regularColumns))
             {
                 boolean isStatic = map == staticColumns;
@@ -334,12 +349,14 @@ public class SerializationHeader
                         // deserialization. The column will be ignore later on anyway.
                         column = metadata.getDroppedColumn(name, isStatic);
                         if (column == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                             throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                     }
                     builder.add(column);
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10378
             return new SerializationHeader(true, keyType, clusteringTypes, builder.build(), stats, typeMap);
         }
 
@@ -372,6 +389,7 @@ public class SerializationHeader
 
         public AbstractType<?> getKeyType()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7464
             return keyType;
         }
 
@@ -401,7 +419,9 @@ public class SerializationHeader
         public void serializeForMessaging(SerializationHeader header, ColumnFilter selection, DataOutputPlus out, boolean hasStatic) throws IOException
         {
             EncodingStats.serializer.serialize(header.stats, out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
             if (selection == null)
             {
                 if (hasStatic)
@@ -422,6 +442,7 @@ public class SerializationHeader
 
             AbstractType<?> keyType = metadata.partitionKeyType;
             List<AbstractType<?>> clusteringTypes = metadata.comparator.subtypes();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
 
             Columns statics, regulars;
             if (selection == null)
@@ -441,6 +462,7 @@ public class SerializationHeader
         public long serializedSizeForMessaging(SerializationHeader header, ColumnFilter selection, boolean hasStatic)
         {
             long size = EncodingStats.serializer.serializedSize(header.stats);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
             if (selection == null)
             {
@@ -461,8 +483,10 @@ public class SerializationHeader
         public void serialize(Version version, Component header, DataOutputPlus out) throws IOException
         {
             EncodingStats.serializer.serialize(header.stats, out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
             writeType(header.keyType, out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             out.writeUnsignedVInt(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 writeType(type, out);
@@ -475,6 +499,8 @@ public class SerializationHeader
         public Component deserialize(Version version, DataInputPlus in) throws IOException
         {
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
 
             AbstractType<?> keyType = readType(in);
             int size = (int)in.readUnsignedVInt();
@@ -497,6 +523,7 @@ public class SerializationHeader
             int size = EncodingStats.serializer.serializedSize(header.stats);
 
             size += sizeofType(header.keyType);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             size += TypeSizes.sizeofUnsignedVInt(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 size += sizeofType(type);
@@ -508,6 +535,7 @@ public class SerializationHeader
 
         private void writeColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             out.writeUnsignedVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
@@ -518,6 +546,7 @@ public class SerializationHeader
 
         private long sizeofColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             long size = TypeSizes.sizeofUnsignedVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
@@ -540,6 +569,7 @@ public class SerializationHeader
         private void writeType(AbstractType<?> type, DataOutputPlus out) throws IOException
         {
             // TODO: we should have a terser serializaion format. Not a big deal though
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9801
             ByteBufferUtil.writeWithVIntLength(UTF8Type.instance.decompose(type.toString()), out);
         }
 

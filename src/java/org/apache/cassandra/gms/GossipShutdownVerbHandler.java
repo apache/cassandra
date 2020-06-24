@@ -33,6 +33,7 @@ public class GossipShutdownVerbHandler implements IVerbHandler
     {
         if (!Gossiper.instance.isEnabled())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from());
             return;
         }

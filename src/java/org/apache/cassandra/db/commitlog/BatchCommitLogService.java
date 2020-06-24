@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3578
 class BatchCommitLogService extends AbstractCommitLogService
 {
     /**
@@ -28,6 +29,7 @@ class BatchCommitLogService extends AbstractCommitLogService
 
     public BatchCommitLogService(CommitLog commitLog)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13530
         super(commitLog, "COMMIT-LOG-WRITER", POLL_TIME_MILLIS);
     }
 
@@ -35,7 +37,9 @@ class BatchCommitLogService extends AbstractCommitLogService
     {
         // wait until record has been safely persisted to disk
         pending.incrementAndGet();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         requestExtraSync();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         alloc.awaitDiskSync(commitLog.metrics.waitingOnCommit);
         pending.decrementAndGet();
     }

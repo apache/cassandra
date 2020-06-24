@@ -70,6 +70,7 @@ public class QueryReplayer implements Closeable
                          List<String> targetHosts,
                          List<File> resultPaths,
                          List<Predicate<FQLQuery>> filters,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
                          String queryFilePathString)
     {
         this(queryIterator, targetHosts, resultPaths, filters, queryFilePathString, new DefaultSessionProvider(), null);
@@ -111,7 +112,9 @@ public class QueryReplayer implements Closeable
                     Statement statement = query.toStatement();
                     for (Session session : sessions)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
                         maybeSetKeyspace(session, query);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
                         if (logger.isDebugEnabled())
                             logger.debug("Executing query: {}", query);
                         ListenableFuture<ResultSet> future = session.executeAsync(statement);
@@ -139,6 +142,7 @@ public class QueryReplayer implements Closeable
                 }
                 catch (Throwable t)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
                     logger.error("QUERY %s got exception: %s", query, t.getMessage());
                 }
 
@@ -151,10 +155,12 @@ public class QueryReplayer implements Closeable
 
     private void maybeSetKeyspace(Session session, FQLQuery query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         try
         {
             if (query.keyspace() != null && !query.keyspace().equals(session.getLoggedKeyspace()))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
                 if (logger.isDebugEnabled())
                     logger.debug("Switching keyspace from {} to {}", session.getLoggedKeyspace(), query.keyspace());
                 session.execute("USE " + query.keyspace());
@@ -174,6 +180,7 @@ public class QueryReplayer implements Closeable
      */
     private static ListenableFuture<ResultHandler.ComparableResultSet> handleErrors(ListenableFuture<ResultSet> result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14850
         ListenableFuture<ResultHandler.ComparableResultSet> res = Futures.transform(result, DriverResultSet::new, MoreExecutors.directExecutor());
         return Futures.catching(res, Throwable.class, DriverResultSet::failed, MoreExecutors.directExecutor());
     }
@@ -182,6 +189,7 @@ public class QueryReplayer implements Closeable
     {
         es.shutdown();
         sessionProvider.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14619
         resultHandler.close();
     }
 
@@ -257,6 +265,7 @@ public class QueryReplayer implements Closeable
 
         public void close()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15514
             sessionCache.entrySet().removeIf(entry -> {
                 try (Session s = entry.getValue())
                 {

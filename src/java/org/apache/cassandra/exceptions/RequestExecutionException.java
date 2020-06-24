@@ -21,6 +21,7 @@ public abstract class RequestExecutionException extends CassandraException
 {
     protected RequestExecutionException(ExceptionCode code, String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(code, msg);
     }
 

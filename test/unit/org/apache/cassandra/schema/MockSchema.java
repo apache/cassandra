@@ -70,6 +70,7 @@ public class MockSchema
 
     public static SSTableReader sstable(int generation, ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         return sstable(generation, false, cfs);
     }
 
@@ -94,9 +95,11 @@ public class MockSchema
 
     public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
                                                cfs.getTableName(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                                                generation, SSTableFormat.Type.BIG);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
@@ -112,6 +115,7 @@ public class MockSchema
         }
         // .complete() with size to make sstable.onDiskLength work
         @SuppressWarnings("resource")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15445
         FileHandle fileHandle = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size).complete(size);
         if (size > 0)
         {
@@ -130,9 +134,11 @@ public class MockSchema
         }
         SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
                                                  .get(MetadataType.STATS);
         SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15445
                                                           fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
                                                           new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
         reader.first = readerBounds(firstToken);
@@ -149,6 +155,7 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS(String ksname)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14654
         return newCFS(newTableMetadata(ksname));
     }
 
@@ -199,6 +206,7 @@ public class MockSchema
 
     private static File temp(String id)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File file = FileUtils.createTempFile(id, "tmp");
         file.deleteOnExit();
         return file;
@@ -207,10 +215,12 @@ public class MockSchema
     public static void cleanup()
     {
         // clean up data directory which are stored as data directory/keyspace/data files
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9514
         for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
         {
             File dir = new File(dirName);
             if (!dir.exists())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9561
                 continue;
             String[] children = dir.list();
             for (String child : children)

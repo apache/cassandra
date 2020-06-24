@@ -83,17 +83,23 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         int maxThreshold = cfs.getMaximumCompactionThreshold();
 
         Iterable<SSTableReader> candidates = filterSuspectSSTables(filter(cfs.getUncompactingSSTables(), sstables::contains));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(candidates), sizeTieredOptions.bucketHigh, sizeTieredOptions.bucketLow, sizeTieredOptions.minSSTableSize);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Compaction buckets are {}", buckets);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         estimatedRemainingTasks = getEstimatedCompactionsByTasks(cfs, buckets);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         cfs.getCompactionStrategyManager().compactionLogger.pending(this, estimatedRemainingTasks);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5371
         List<SSTableReader> mostInteresting = mostInterestingBucket(buckets, minThreshold, maxThreshold);
         if (!mostInteresting.isEmpty())
             return mostInteresting;
 
         // if there is no sstable to compact in standard way, try compacting single sstable whose droppable tombstone
         // ratio is greater than threshold.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         List<SSTableReader> sstablesWithTombstones = new ArrayList<>();
         for (SSTableReader sstable : candidates)
         {
@@ -103,6 +109,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         if (sstablesWithTombstones.isEmpty())
             return Collections.emptyList();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7019
         return Collections.singletonList(Collections.max(sstablesWithTombstones, SSTableReader.sizeComparator));
     }
 
@@ -125,8 +132,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
         if (prunedBucketsAndHotness.isEmpty())
             return Collections.emptyList();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5256
 
         Pair<List<SSTableReader>, Double> hottest = Collections.max(prunedBucketsAndHotness, bucketsByHotnessComparator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6109
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6109
         return hottest.left;
     }
 
@@ -138,6 +148,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     static Pair<List<SSTableReader>, Double> trimToThresholdWithHotness(List<SSTableReader> bucket, int maxThreshold)
     {
         // Sort by sstable hotness (descending). We first build a map because the hotness may change during the sort.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6483
         final Map<SSTableReader, Double> hotnessSnapshot = getHotnessMap(bucket);
         Collections.sort(bucket, new Comparator<SSTableReader>()
         {
@@ -161,6 +172,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     private static Map<SSTableReader, Double> getHotnessMap(Collection<SSTableReader> sstables)
     {
         Map<SSTableReader, Double> hotness = new HashMap<>(sstables.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6483
         for (SSTableReader sstable : sstables)
             hotness.put(sstable, hotness(sstable));
         return hotness;
@@ -172,12 +184,14 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     private static double hotness(SSTableReader sstr)
     {
         // system tables don't have read meters, just use 0.0 for the hotness
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         return sstr.getReadMeter() == null ? 0.0 : sstr.getReadMeter().twoHourRate() / sstr.estimatedKeys();
     }
 
     @SuppressWarnings("resource")
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
         List<SSTableReader> previousCandidate = null;
         while (true)
         {
@@ -188,6 +202,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
             // Already tried acquiring references without success. It means there is a race with
             // the tracker but candidate SSTables were not yet replaced in the compaction strategy manager
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14079
             if (hottestBucket.equals(previousCandidate))
             {
                 logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
@@ -198,6 +213,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction transaction = cfs.getTracker().tryModify(hottestBucket, OperationType.COMPACTION);
             if (transaction != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
                 return new CompactionTask(cfs, transaction, gcBefore);
             previousCandidate = hottestBucket;
         }
@@ -207,12 +224,15 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public synchronized Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8843
         if (Iterables.isEmpty(filteredSSTables))
             return null;
         LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
         if (splitOutput)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
             return Arrays.<AbstractCompactionTask>asList(new SplittingCompactionTask(cfs, txn, gcBefore));
         return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, txn, gcBefore));
     }
@@ -225,10 +245,13 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction transaction = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         if (transaction == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
             return null;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
         return new CompactionTask(cfs, transaction, gcBefore).setUserDefined(true);
     }
 
@@ -239,6 +262,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public static List<Pair<SSTableReader, Long>> createSSTableAndLengthPairs(Iterable<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         List<Pair<SSTableReader, Long>> sstableLengthPairs = new ArrayList<>(Iterables.size(sstables));
         for(SSTableReader sstable : sstables)
             sstableLengthPairs.add(Pair.create(sstable, sstable.onDiskLength()));
@@ -261,6 +285,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         });
 
         Map<Long, List<T>> buckets = new HashMap<Long, List<T>>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4287
 
         outer:
         for (Pair<T, Long> pair: sortedFiles)
@@ -270,10 +295,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             // look for a bucket containing similar-sized files:
             // group in the same bucket if it's w/in 50% of the average for this bucket,
             // or this file and the bucket are all considered "small" (less than `minSSTableSize`)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4287
             for (Entry<Long, List<T>> entry : buckets.entrySet())
             {
                 List<T> bucket = entry.getValue();
                 long oldAverageSize = entry.getKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4704
                 if ((size > (oldAverageSize * bucketLow) && size < (oldAverageSize * bucketHigh))
                     || (size < minSSTableSize && oldAverageSize < minSSTableSize))
                 {
@@ -299,6 +326,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public static int getEstimatedCompactionsByTasks(ColumnFamilyStore cfs, List<List<SSTableReader>> tasks)
     {
         int n = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         for (List<SSTableReader> bucket : tasks)
         {
             if (bucket.size() >= cfs.getMinimumCompactionThreshold())
@@ -309,6 +337,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public long getMaxSSTableBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3234
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         return Long.MAX_VALUE;
     }
 
@@ -316,7 +346,9 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     {
         Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
         uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5439
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
         uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
 
@@ -326,6 +358,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public boolean shouldDefragment()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8004
         return true;
     }
 
@@ -344,6 +377,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     @Override
     protected Set<SSTableReader> getSSTables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return ImmutableSet.copyOf(sstables);
     }
 
@@ -358,11 +392,14 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     {
         public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
             super(cfs, txn, gcBefore);
         }
 
         @Override
         public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
                                                               Directories directories,
                                                               LifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)

@@ -51,6 +51,7 @@ public class TimeType extends TemporalType<Long>
 
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(fromString((String) parsed));
@@ -82,6 +83,7 @@ public class TimeType extends TemporalType<Long>
     @Override
     public ByteBuffer now()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13132
         return decompose(LocalTime.now(ZoneOffset.UTC).toNanoOfDay());
     }
 }

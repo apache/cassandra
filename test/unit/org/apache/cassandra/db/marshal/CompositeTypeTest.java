@@ -59,6 +59,7 @@ public class CompositeTypeTest
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
             uuids[i] = UUIDGen.getTimeUUID();
     }
 
@@ -68,7 +69,9 @@ public class CompositeTypeTest
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDCOMPOSITE, composite));
     }
 
@@ -177,6 +180,7 @@ public class CompositeTypeTest
     @Test
     public void testFullRound() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARDCOMPOSITE);
 
@@ -197,6 +201,7 @@ public class CompositeTypeTest
 
         ColumnMetadata cdef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9932
         ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         Iterator<Row> iter = readPartition.iterator();
 
@@ -219,8 +224,10 @@ public class CompositeTypeTest
             TypeParser.parse("CompositeType");
             fail("Shouldn't work");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         catch (ConfigurationException e) {}
         catch (SyntaxException e) {}
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
 
         try
         {
@@ -228,12 +235,14 @@ public class CompositeTypeTest
             fail("Shouldn't work");
         }
         catch (ConfigurationException e) {}
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         catch (SyntaxException e) {}
     }
 
     @Test
     public void testCompatibility() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3657
         assert TypeParser.parse("CompositeType(IntegerType, BytesType)").isCompatibleWith(TypeParser.parse("CompositeType(IntegerType)"));
         assert TypeParser.parse("CompositeType(IntegerType, BytesType)").isCompatibleWith(TypeParser.parse("CompositeType(IntegerType, BytesType)"));
         assert TypeParser.parse("CompositeType(BytesType, BytesType)").isCompatibleWith(TypeParser.parse("CompositeType(AsciiType, BytesType)"));
@@ -245,6 +254,7 @@ public class CompositeTypeTest
     @Test
     public void testEscapeUnescape()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4842
         List<AbstractType<?>> subComparators = new ArrayList<AbstractType<?>>(){{;
             add(UTF8Type.instance);
             add(UTF8Type.instance);
@@ -264,6 +274,7 @@ public class CompositeTypeTest
 
         for (String[] input : inputs)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             ByteBuffer[] bbs = new ByteBuffer[input.length];
             for (int i = 0; i < input.length; i++)
                 bbs[i] = UTF8Type.instance.fromString(input[i]);

@@ -87,6 +87,7 @@ final class HintsDescriptor
         this.timestamp = timestamp;
         compressionConfig = createCompressionConfig(parameters);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
         EncryptionData encryption = createEncryption(parameters);
         if (encryption == null)
         {
@@ -143,6 +144,7 @@ final class HintsDescriptor
     @SuppressWarnings("unchecked")
     static EncryptionData createEncryption(ImmutableMap<String, Object> params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
         if (params.containsKey(ENCRYPTION))
         {
             Map<?, ?> encryptionConfig = (Map<?, ?>) params.get(ENCRYPTION);
@@ -216,6 +218,7 @@ final class HintsDescriptor
         {
             case VERSION_30:
                 return MessagingService.VERSION_30;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14536
             case VERSION_40:
                 return MessagingService.VERSION_40;
             default:
@@ -230,6 +233,7 @@ final class HintsDescriptor
 
     static Optional<HintsDescriptor> readFromFileQuietly(Path path)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14080
         try (RandomAccessFile raf = new RandomAccessFile(path.toFile(), "r"))
         {
             return Optional.of(deserialize(raf));
@@ -264,6 +268,7 @@ final class HintsDescriptor
 
     public boolean isEncrypted()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11040
         return cipher != null;
     }
 
@@ -402,6 +407,7 @@ final class HintsDescriptor
     private static void validateCRC(int expected, int actual) throws IOException
     {
         if (expected != actual)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14080
             throw new ChecksumMismatchException("Hints Descriptor CRC Mismatch");
     }
 }

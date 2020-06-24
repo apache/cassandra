@@ -29,6 +29,7 @@ public class CDCStatementTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14141
         DatabaseDescriptor.setCDCEnabled(true);
         CQLTester.setUpClass();
     }

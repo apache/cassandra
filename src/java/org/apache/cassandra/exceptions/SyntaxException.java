@@ -21,6 +21,7 @@ public class SyntaxException extends RequestValidationException
 {
     public SyntaxException(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.SYNTAX_ERROR, msg);
     }
 }

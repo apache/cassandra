@@ -53,6 +53,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
             cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, 2)");
             cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, 3)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
                                                      ConsistencyLevel.ALL,
                                                      1),
@@ -67,6 +68,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
     {
         try (ICluster cluster = init(builder().withNodes(2).start()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < LARGE_MESSAGE_THRESHOLD ; i++)
@@ -98,6 +100,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
                            row(1, 1, 1));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                      ConsistencyLevel.QUORUM),
                        row(1, 1, 1));
@@ -116,7 +119,9 @@ public class SimpleReadWriteTest extends TestBaseImpl
 
             assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15319
                                                      ConsistencyLevel.ALL), // ensure node3 in preflist
                        row(1, 1, 1));
 
@@ -129,6 +134,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
     @Test
     public void readRepairTimeoutTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         final long reducedReadTimeout = 3000L;
         try (Cluster cluster = (Cluster) init(builder().withNodes(3).start()))
         {
@@ -142,11 +148,13 @@ public class SimpleReadWriteTest extends TestBaseImpl
             try
             {
                 cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15543
                 fail("Read timeout expected but it did not occur");
             }
             catch (Exception ex)
             {
                 // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15683
                 Assert.assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
                 long actualTimeTaken = System.currentTimeMillis() - start;
                 long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
@@ -169,6 +177,8 @@ public class SimpleReadWriteTest extends TestBaseImpl
         // in a future release; when that happens this test could start to fail but should only fail with the explicit
         // check that detects this behavior has changed.
         // see CASSANDRA-15507
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
         try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
@@ -236,6 +246,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
             {
                 // for some reason, we get weird errors when trying to check class directly
                 // I suppose it has to do with some classloader manipulation going on
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15683
                 Assert.assertTrue(e.getClass().toString().contains("WriteFailureException"));
                 // we may see 1 or 2 failures in here, because of the fail-fast behavior of AbstractWriteResponseHandler
                 Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
@@ -268,6 +279,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
             {
                 // for some reason, we get weird errors when trying to check class directly
                 // I suppose it has to do with some classloader manipulation going on
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15683
                 Assert.assertTrue(e.getClass().toString().contains("ReadFailureException"));
                 // we may see 1 or 2 failures in here, because of the fail-fast behavior of ReadCallback
                 Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
@@ -283,6 +295,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
         try (ICluster cluster = init(builder().withNodes(3).start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15009
 
             int size = 100;
             Object[][] results = new Object[size][];
@@ -397,6 +410,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
     {
         try (ICluster<IInvokableInstance> cluster = init(Cluster.create(2)))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15058
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             for (int i = 0; i < 100; i++)
                 cluster.coordinator(1).execute("INSERT INTO "+KEYSPACE+".tbl (pk, ck, v) VALUES (?,?,?)", ConsistencyLevel.ALL, i, i, i);
@@ -417,6 +431,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
     @Test
     public void skippedSSTableWithPartitionDeletionTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15690
         try (Cluster cluster = init(Cluster.create(2)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY(pk, ck))");

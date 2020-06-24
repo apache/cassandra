@@ -71,6 +71,7 @@ public class RecoveryManagerMissingHeaderTest
             {null, EncryptionContextGenerator.createContext(true)}, // Encryption
             {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
@@ -86,6 +87,7 @@ public class RecoveryManagerMissingHeaderTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
         SchemaLoader.createKeyspace(KEYSPACE2,
@@ -108,6 +110,7 @@ public class RecoveryManagerMissingHeaderTest
                                        .clustering("col1").add("val", "1")
                                        .build());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
         keyspace2.getColumnFamilyStore("Standard3").clearUnsafe();
 
@@ -120,6 +123,7 @@ public class RecoveryManagerMissingHeaderTest
 
         CommitLog.instance.resetUnsafe(false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         Assert.assertTrue(Util.sameContent(upd1, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace1.getColumnFamilyStore(CF_STANDARD1), dk).build()).unfilteredIterator()));
         Assert.assertTrue(Util.sameContent(upd2, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace2.getColumnFamilyStore(CF_STANDARD3), dk).build()).unfilteredIterator()));
     }

@@ -60,6 +60,7 @@ public class StreamReceiveTask extends StreamTask
     public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
     {
         super(session, tableId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createStreamReceiver(session, totalStreams);
         this.totalStreams = totalStreams;
         this.totalSize = totalSize;
@@ -73,7 +74,9 @@ public class StreamReceiveTask extends StreamTask
     public synchronized void received(IncomingStream stream)
     {
         Preconditions.checkState(!session.isPreview(), "we should never receive sstables when previewing");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7795
         if (done)
         {
             logger.warn("[{}] Received stream {} on already finished stream received task. Aborting stream.", session.planId(),
@@ -82,7 +85,9 @@ public class StreamReceiveTask extends StreamTask
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         remoteStreamsReceived += stream.getNumFiles();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
         bytesReceived += stream.getSize();
         Preconditions.checkArgument(tableId.equals(stream.getTableId()));
         logger.debug("received {} of {} total files {} of total bytes {}", remoteStreamsReceived, totalStreams,
@@ -99,6 +104,7 @@ public class StreamReceiveTask extends StreamTask
 
     public int getTotalNumberOfFiles()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         return totalStreams;
     }
 
@@ -111,6 +117,7 @@ public class StreamReceiveTask extends StreamTask
     {
         if (done)
             throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), tableId));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         return receiver;
     }
 
@@ -136,6 +143,7 @@ public class StreamReceiveTask extends StreamTask
                 }
 
                 task.receiver.finished();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10803
                 task.session.taskCompleted(task);
             }
             catch (Throwable t)
@@ -145,6 +153,7 @@ public class StreamReceiveTask extends StreamTask
             }
             finally
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
                 task.receiver.cleanup();
             }
         }
@@ -162,6 +171,7 @@ public class StreamReceiveTask extends StreamTask
             return;
 
         done = true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         receiver.abort();
     }
 

@@ -56,6 +56,7 @@ public class Downsampling
 
         int[] odds = new int[samplingLevel / 2];
         int[] evens = new int[samplingLevel / 2];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         for (int i = 1; i < samplingLevel; i += 2)
             odds[i/2] = i;
         for (int i = 0; i < samplingLevel; i += 2)
@@ -115,6 +116,7 @@ public class Downsampling
      */
     public static int getEffectiveIndexIntervalAfterIndex(int index, int samplingLevel, int minIndexInterval)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8993
         assert index >= 0;
         index %= samplingLevel;
         List<Integer> originalIndexes = getOriginalIndexes(samplingLevel);

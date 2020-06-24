@@ -47,6 +47,7 @@ public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsFor
         @Override
         protected EndpointsForRange.Builder newBuilder(Range<Token> range)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             return new EndpointsForRange.Builder(range);
         }
 
@@ -58,6 +59,7 @@ public class EndpointsByRange extends ReplicaMultimap<Range<Token>, EndpointsFor
 
         public EndpointsByRange build()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             return new EndpointsByRange(
                     ImmutableMap.copyOf(
                             Maps.transformValues(this.map, EndpointsForRange.Builder::build)));

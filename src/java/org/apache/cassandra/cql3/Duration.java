@@ -276,6 +276,7 @@ public final class Duration
      */
     public long addTo(long timeInMillis)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         return add(timeInMillis, months, days, nanoseconds);
     }
 
@@ -365,6 +366,7 @@ public final class Duration
      */
     public boolean hasDayPrecision()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11936
         return getNanoseconds() == 0;
     }
 

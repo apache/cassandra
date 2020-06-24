@@ -61,15 +61,19 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     // TODO: see if other queue implementations might improve throughput
     protected final ConcurrentLinkedQueue<FutureTask<?>> tasks = new ConcurrentLinkedQueue<>();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
     SEPExecutor(SharedExecutorPool pool, int maximumPoolSize, MaximumPoolSizeListener maximumPoolSizeListener, int maxTasksQueued, String jmxPath, String name)
     {
         this.pool = pool;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11966
         this.name = name;
         this.mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + name;
         this.maximumPoolSize = new AtomicInteger(maximumPoolSize);
         this.maximumPoolSizeListener = maximumPoolSizeListener;
         this.maxTasksQueued = maxTasksQueued;
         this.permits.set(combine(0, maximumPoolSize));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
         this.metrics = new ThreadPoolMetrics(this, jmxPath, name).register();
         MBeanWrapper.instance.registerMBean(this, mbeanName);
     }
@@ -82,6 +86,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     @Override
     public int getMaxTasksQueued()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
         return maxTasksQueued;
     }
 
@@ -136,6 +141,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
                 if (takeWorkPermit(true))
                     pool.schedule(new Work(this));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
                 metrics.totalBlocked.inc();
                 metrics.currentBlocked.inc();
                 s.awaitUninterruptibly();
@@ -148,6 +154,8 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
     public enum TakeTaskPermitResult
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         NONE_AVAILABLE,        // No task permits available
         TOOK_PERMIT,           // Took a permit and reduced task permits
         RETURNED_WORK_PERMIT   // Detected pool shrinking and returned work permit ahead of SEPWorker exit.
@@ -197,6 +205,8 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
             long current = permits.get();
             int workPermits = workPermits(current);
             int taskPermits = taskPermits(current);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
             if (workPermits <= 0 || taskPermits == 0)
                 return false;
             if (permits.compareAndSet(current, combine(taskPermits - taskDelta, workPermits - 1)))
@@ -246,15 +256,21 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
     public synchronized void shutdown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         if (shuttingDown)
             return;
         shuttingDown = true;
         pool.executors.remove(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14523
         if (getActiveTaskCount() == 0)
             shutdown.signalAll();
 
         // release metrics
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         metrics.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         MBeanWrapper.instance.unregisterMBean(mbeanName);
     }
 
@@ -297,6 +313,8 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
     public int getActiveTaskCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return maximumPoolSize.get() - workPermits(permits.get());
     }
 
@@ -347,6 +365,8 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
     private static int workPermits(long both) // may be negative if resizing
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return (int) (both >> 32); // sign extending right shift
     }
 

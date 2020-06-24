@@ -48,6 +48,7 @@ public class InetAddressAndPortSerializerTest
         ByteBuffer out;
         try (DataOutputBuffer dob = new DataOutputBuffer())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(address, dob, version);
             out = dob.buffer();
         }
@@ -65,6 +66,7 @@ public class InetAddressAndPortSerializerTest
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             assertEquals(address.address, roundtripped.address);
             assertEquals(InetAddressAndPort.getDefaultPort(), roundtripped.port);
         }

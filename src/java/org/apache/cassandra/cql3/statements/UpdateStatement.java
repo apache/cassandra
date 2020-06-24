@@ -51,6 +51,7 @@ public class UpdateStatement extends ModificationStatement
     private static final Constants.Value EMPTY = new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
     private UpdateStatement(StatementType type,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                             VariableSpecifications bindVariables,
                             TableMetadata metadata,
                             Operations operations,
@@ -90,6 +91,7 @@ public class UpdateStatement extends ModificationStatement
 
             for (Operation op : updates)
                 op.execute(updateBuilder.partitionKey(), params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
             updateBuilder.add(params.buildRow());
         }
@@ -106,6 +108,7 @@ public class UpdateStatement extends ModificationStatement
     @Override
     public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         throw new UnsupportedOperationException();
     }
 
@@ -164,6 +167,7 @@ public class UpdateStatement extends ModificationStatement
 
                 if (def.isPrimaryKeyColumn())
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                     whereClause.add(new SingleColumnRelation(columnNames.get(i), Operator.EQ, value));
                 }
                 else
@@ -211,6 +215,7 @@ public class UpdateStatement extends ModificationStatement
 
         @Override
         protected ModificationStatement prepareInternal(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
@@ -220,6 +225,8 @@ public class UpdateStatement extends ModificationStatement
             Collection<ColumnMetadata> defs = metadata.columns();
             Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(metadata, defs, bindVariables);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
             WhereClause.Builder whereClause = new WhereClause.Builder();
             Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
@@ -229,6 +236,7 @@ public class UpdateStatement extends ModificationStatement
                 if (def.isClusteringColumn())
                     hasClusteringColumnsSet = true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11424
                 Term.Raw raw = prepared.getRawTermForColumn(def, defaultUnset);
                 if (def.isPrimaryKeyColumn())
                 {
@@ -246,7 +254,11 @@ public class UpdateStatement extends ModificationStatement
 
             StatementRestrictions restrictions = new StatementRestrictions(type,
                                                                            metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                                                                            whereClause.build(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                                            bindVariables,
                                                                            applyOnlyToStaticColumns,
                                                                            false,
@@ -279,8 +291,10 @@ public class UpdateStatement extends ModificationStatement
          * @param ifExists flag to check if row exists
          * */
         public ParsedUpdate(QualifiedName name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4450
                             Attributes.Raw attrs,
                             List<Pair<ColumnMetadata.Raw, Operation.RawUpdate>> updates,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
                             WhereClause whereClause,
                             List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
                             boolean ifExists)
@@ -292,6 +306,8 @@ public class UpdateStatement extends ModificationStatement
 
         @Override
         protected ModificationStatement prepareInternal(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
@@ -305,6 +321,9 @@ public class UpdateStatement extends ModificationStatement
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
 
                 Operation operation = entry.right.prepare(metadata, def);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 operation.collectMarkerSpecification(bindVariables);
                 operations.add(operation);
             }
@@ -318,6 +337,7 @@ public class UpdateStatement extends ModificationStatement
             return new UpdateStatement(type,
                                        bindVariables,
                                        metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5226
                                        operations,
                                        restrictions,
                                        conditions,
@@ -328,6 +348,7 @@ public class UpdateStatement extends ModificationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 

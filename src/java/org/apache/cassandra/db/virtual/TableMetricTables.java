@@ -68,6 +68,7 @@ public class TableMetricTables
     public static Collection<VirtualTable> getAll(String name)
     {
         return ImmutableList.of(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15194
             new LatencyTableMetric(name, "local_read_latency", t -> t.readLatency.latency),
             new LatencyTableMetric(name, "local_scan_latency", t -> t.rangeLatency.latency),
             new LatencyTableMetric(name, "coordinator_read_latency", t -> t.coordinatorReadLatency),
@@ -258,6 +259,7 @@ public class TableMetricTables
         }
         else if (test instanceof Gauge)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15194
             metadata.addRegularColumn(colName, colType);
         }
         return metadata.build();

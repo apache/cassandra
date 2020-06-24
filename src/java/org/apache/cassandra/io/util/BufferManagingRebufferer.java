@@ -38,10 +38,12 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     protected long offset = 0;
 
     abstract long alignedPosition(long position);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
 
     protected BufferManagingRebufferer(ChunkReader wrapped)
     {
         this.source = wrapped;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         buffer = BufferPool.get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
         buffer.limit(0);
     }

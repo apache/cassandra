@@ -34,11 +34,13 @@ public class AlwaysPresentFilter implements IFilter
 
     public IFilter sharedCopy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         return this;
     }
 
     public Throwable close(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         return accumulate;
     }
 
@@ -51,6 +53,7 @@ public class AlwaysPresentFilter implements IFilter
     @Override
     public long offHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7897
         return 0;
     }
 }

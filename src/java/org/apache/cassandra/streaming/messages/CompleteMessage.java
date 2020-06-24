@@ -34,6 +34,7 @@ public class CompleteMessage extends StreamMessage
 
         public long serializedSize(CompleteMessage message, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
             return 0;
         }
     };

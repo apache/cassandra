@@ -114,27 +114,33 @@ public class SelectStatement implements CQLStatement
 
     // Used by forSelection below
     private static final Parameters defaultParameters = new Parameters(Collections.emptyMap(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                                                                        Collections.emptyList(),
                                                                        false,
                                                                        false,
                                                                        false);
 
     public SelectStatement(TableMetadata table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                            VariableSpecifications bindVariables,
                            Parameters parameters,
                            Selection selection,
                            StatementRestrictions restrictions,
                            boolean isReversed,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                            AggregationSpecification aggregationSpec,
                            Comparator<List<ByteBuffer>> orderingComparator,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
                            Term limit,
                            Term perPartitionLimit)
     {
         this.table = table;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         this.bindVariables = bindVariables;
         this.selection = selection;
         this.restrictions = restrictions;
         this.isReversed = isReversed;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         this.aggregationSpec = aggregationSpec;
         this.orderingComparator = orderingComparator;
         this.parameters = parameters;
@@ -145,6 +151,7 @@ public class SelectStatement implements CQLStatement
     @Override
     public List<ColumnSpecification> getBindVariables()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return bindVariables.getBindVariables();
     }
 
@@ -157,6 +164,7 @@ public class SelectStatement implements CQLStatement
     @Override
     public Iterable<Function> getFunctions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
         return functions;
@@ -180,6 +188,7 @@ public class SelectStatement implements CQLStatement
      */
     public ColumnFilter queriedColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return selection.newSelectors(QueryOptions.DEFAULT).getColumnFilter();
     }
 
@@ -189,6 +198,7 @@ public class SelectStatement implements CQLStatement
     static SelectStatement forSelection(TableMetadata table, Selection selection)
     {
         return new SelectStatement(table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                    VariableSpecifications.empty(),
                                    defaultParameters,
                                    selection,
@@ -196,12 +206,17 @@ public class SelectStatement implements CQLStatement
                                    false,
                                    null,
                                    null,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                                    null,
                                    null);
     }
 
     public ResultSet.ResultMetadata getResultMetadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5649
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return selection.getResultMetadata();
     }
 
@@ -211,6 +226,7 @@ public class SelectStatement implements CQLStatement
         {
             TableMetadataRef baseTable = View.findBaseTable(keyspace(), columnFamily());
             if (baseTable != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 state.ensureTablePermission(baseTable, Permission.SELECT);
         }
         else
@@ -231,6 +247,7 @@ public class SelectStatement implements CQLStatement
     {
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
 
         cl.validateForRead(keyspace());
 
@@ -239,6 +256,7 @@ public class SelectStatement implements CQLStatement
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
@@ -246,6 +264,7 @@ public class SelectStatement implements CQLStatement
             return execute(query, options, state, selectors, nowInSec, userLimit, queryStartNanoTime);
 
         QueryPager pager = getPager(query, options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
 
         return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()),
                        options,
@@ -291,6 +310,7 @@ public class SelectStatement implements CQLStatement
                                        int nowInSec,
                                        int userLimit, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         try (PartitionIterator data = query.execute(options.getConsistency(), state.getClientState(), queryStartNanoTime))
         {
             return processResults(data, options, selectors, nowInSec, userLimit);
@@ -349,6 +369,7 @@ public class SelectStatement implements CQLStatement
 
             public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                 return pager.fetchPage(pageSize, consistency, clientState, queryStartNanoTime);
             }
         }
@@ -371,13 +392,17 @@ public class SelectStatement implements CQLStatement
     }
 
     private ResultMessage.Rows execute(Pager pager,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
                                        QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                                        Selectors selectors,
                                        int pageSize,
                                        int nowInSec,
                                        int userLimit,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                        long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         if (aggregationSpec != null)
         {
             if (!restrictions.hasPartitionKeyRestrictions())
@@ -397,13 +422,17 @@ public class SelectStatement implements CQLStatement
                   + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
 
         ResultMessage.Rows msg;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         try (PartitionIterator page = pager.fetchPage(pageSize, queryStartNanoTime))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             msg = processResults(page, options, selectors, nowInSec, userLimit);
         }
 
         // Please note that the isExhausted state of the pager only gets updated when we've closed the page, so this
         // shouldn't be moved inside the 'try' above.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5770
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8054
         if (!pager.isExhausted())
             msg.result.metadata.setHasMorePages(pager.state());
 
@@ -412,12 +441,14 @@ public class SelectStatement implements CQLStatement
 
     private void warn(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         logger.warn(msg);
         ClientWarn.instance.warn(msg);
     }
 
     private ResultMessage.Rows processResults(PartitionIterator partitions,
                                               QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                                               Selectors selectors,
                                               int nowInSec,
                                               int userLimit) throws RequestValidationException
@@ -428,6 +459,7 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeLocally(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         return executeInternal(state, options, options.getNowInSeconds(state), System.nanoTime());
     }
 
@@ -437,6 +469,7 @@ public class SelectStatement implements CQLStatement
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
@@ -446,6 +479,7 @@ public class SelectStatement implements CQLStatement
             {
                 try (PartitionIterator data = query.executeInternal(executionController))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                     return processResults(data, options, selectors, nowInSec, userLimit);
                 }
             }
@@ -466,6 +500,7 @@ public class SelectStatement implements CQLStatement
     {
         QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         if (aggregationSpec == null || query.isEmpty())
             return pager;
 
@@ -474,6 +509,7 @@ public class SelectStatement implements CQLStatement
 
     public ResultSet process(PartitionIterator partitions, int nowInSec) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         QueryOptions options = QueryOptions.DEFAULT;
         Selectors selectors = selection.newSelectors(options);
         return process(partitions, options, selectors, nowInSec, getLimit(options));
@@ -494,6 +530,7 @@ public class SelectStatement implements CQLStatement
      */
     public Selection getSelection()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9532
         return selection;
     }
 
@@ -507,11 +544,15 @@ public class SelectStatement implements CQLStatement
 
     private ReadQuery getSliceCommands(QueryOptions options, ColumnFilter columnFilter, DataLimits limit, int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options);
         if (keys.isEmpty())
             return ReadQuery.empty(table);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5626
         if (filter == null)
             return ReadQuery.empty(table);
 
@@ -537,7 +578,9 @@ public class SelectStatement implements CQLStatement
      */
     public Slices clusteringIndexFilterAsSlices()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         if (filter instanceof ClusteringIndexSliceFilter)
@@ -556,6 +599,7 @@ public class SelectStatement implements CQLStatement
     public SinglePartitionReadCommand internalReadForView(DecoratedKey key, int nowInSec)
     {
         QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
         RowFilter rowFilter = getRowFilter(options);
@@ -567,14 +611,17 @@ public class SelectStatement implements CQLStatement
      */
     public RowFilter rowFilterForInternalCalls()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()));
     }
 
     private ReadQuery getRangeCommand(QueryOptions options, ColumnFilter columnFilter, DataLimits limit, int nowInSec)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         ClusteringIndexFilter clusteringIndexFilter = makeClusteringIndexFilter(options, columnFilter);
         if (clusteringIndexFilter == null)
             return ReadQuery.empty(table);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         RowFilter rowFilter = getRowFilter(options);
 
@@ -583,6 +630,7 @@ public class SelectStatement implements CQLStatement
         AbstractBounds<PartitionPosition> keyBounds = restrictions.getPartitionKeyBounds(options);
         if (keyBounds == null)
             return ReadQuery.empty(table);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         ReadQuery command =
             PartitionRangeReadQuery.create(table, nowInSec, columnFilter, rowFilter, limit, new DataRange(keyBounds, clusteringIndexFilter));
@@ -616,6 +664,7 @@ public class SelectStatement implements CQLStatement
             return new ClusteringIndexSliceFilter(slices, isReversed);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         NavigableSet<Clustering> clusterings = getRequestedRows(options);
         // We can have no clusterings if either we're only selecting the static columns, or if we have
         // a 'IN ()' for clusterings. In that case, we still want to query if some static columns are
@@ -630,6 +679,7 @@ public class SelectStatement implements CQLStatement
     public Slices makeSlices(QueryOptions options)
     throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         SortedSet<ClusteringBound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
         SortedSet<ClusteringBound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
         assert startBounds.size() == endBounds.size();
@@ -639,6 +689,7 @@ public class SelectStatement implements CQLStatement
         {
             ClusteringBound start = startBounds.first();
             ClusteringBound end = endBounds.first();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
             return Slice.isEmpty(table.comparator, start, end)
                  ? Slices.NONE
                  : Slices.with(table.comparator, Slice.make(start, end));
@@ -653,6 +704,7 @@ public class SelectStatement implements CQLStatement
             ClusteringBound end = endIter.next();
 
             // Ignore slices that are nonsensical
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14849
             if (Slice.isEmpty(table.comparator, start, end))
                 continue;
 
@@ -668,10 +720,13 @@ public class SelectStatement implements CQLStatement
         int cqlPerPartitionLimit = DataLimits.NO_LIMIT;
 
         // If we do post ordering we need to get all the results sorted before we can trim them.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         if (aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
         {
             if (!needsPostQueryOrdering())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
                 cqlRowLimit = userLimit;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
             cqlPerPartitionLimit = perPartitionLimit;
         }
 
@@ -708,6 +763,7 @@ public class SelectStatement implements CQLStatement
      */
     public int getLimit(QueryOptions options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
         return getLimit(limit, options);
     }
 
@@ -745,6 +801,7 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
         return userLimit;
     }
 
@@ -761,12 +818,15 @@ public class SelectStatement implements CQLStatement
      */
     public RowFilter getRowFilter(QueryOptions options) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         IndexRegistry indexRegistry = IndexRegistry.obtain(table);
         return restrictions.getRowFilter(indexRegistry, options);
     }
 
     private ResultSet process(PartitionIterator partitions,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
                               QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                               Selectors selectors,
                               int nowInSec,
                               int userLimit) throws InvalidRequestException
@@ -778,15 +838,20 @@ public class SelectStatement implements CQLStatement
         {
             try (RowIterator partition = partitions.next())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9913
                 processPartition(partition, options, result, nowInSec);
             }
         }
 
         ResultSet cqlRows = result.build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
 
         orderResults(cqlRows);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4327
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4327
 
         cqlRows.trim(userLimit);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
 
         return cqlRows;
     }
@@ -817,19 +882,23 @@ public class SelectStatement implements CQLStatement
     }
 
     // Used by ModificationStatement for CAS operations
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
     void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
     throws InvalidRequestException
     {
         ProtocolVersion protocolVersion = options.getProtocolVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         ByteBuffer[] keyComponents = getComponents(table, partition.partitionKey());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         Row staticRow = partition.staticRow();
         // If there is no rows, we include the static content if we should and we're done.
         if (!partition.hasNext())
         {
             if (!staticRow.isEmpty() && returnStaticContentOnPartitionWithNoRows())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                 result.newRow(partition.partitionKey(), staticRow.clustering());
                 for (ColumnMetadata def : selection.getColumns())
                 {
@@ -852,6 +921,7 @@ public class SelectStatement implements CQLStatement
         while (partition.hasNext())
         {
             Row row = partition.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
             result.newRow( partition.partitionKey(), row.clustering());
             // Respect selection order
             for (ColumnMetadata def : selection.getColumns())
@@ -861,6 +931,7 @@ public class SelectStatement implements CQLStatement
                     case PARTITION_KEY:
                         result.add(keyComponents[def.position()]);
                         break;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
                     case CLUSTERING:
                         result.add(row.clustering().get(def.position()));
                         break;
@@ -881,6 +952,7 @@ public class SelectStatement implements CQLStatement
      */
     private boolean queriesFullPartitions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
         return !restrictions.hasClusteringColumnsRestrictions() && !restrictions.hasRegularColumnsRestrictions();
     }
 
@@ -906,6 +978,7 @@ public class SelectStatement implements CQLStatement
     private boolean needsPostQueryOrdering()
     {
         // We need post-query ordering only for queries with IN on the partition key and an ORDER BY.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         return restrictions.keyIsInRelation() && !parameters.orderings.isEmpty();
     }
 
@@ -914,9 +987,11 @@ public class SelectStatement implements CQLStatement
      */
     private void orderResults(ResultSet cqlRows)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6722
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         Collections.sort(cqlRows.rows, orderingComparator);
     }
 
@@ -929,7 +1004,9 @@ public class SelectStatement implements CQLStatement
         public final Term.Raw perPartitionLimit;
 
         public RawStatement(QualifiedName cfName,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                             Parameters parameters,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
                             List<RawSelector> selectClause,
                             WhereClause whereClause,
                             Term.Raw limit,
@@ -939,18 +1016,22 @@ public class SelectStatement implements CQLStatement
             this.parameters = parameters;
             this.selectClause = selectClause;
             this.whereClause = whereClause;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4450
             this.limit = limit;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
             this.perPartitionLimit = perPartitionLimit;
         }
 
         public SelectStatement prepare(ClientState state)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return prepare(false);
         }
 
         public SelectStatement prepare(boolean forView) throws InvalidRequestException
         {
             TableMetadata table = Schema.instance.validateTable(keyspace(), name());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
@@ -965,17 +1046,20 @@ public class SelectStatement implements CQLStatement
 
             Selection selection = prepareSelection(table,
                                                    selectables,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                    bindVariables,
                                                    resultSetOrderingColumns,
                                                    restrictions);
 
             if (parameters.isDistinct)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
                 checkNull(perPartitionLimit, "PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries");
                 validateDistinctSelection(table, selection, restrictions);
             }
 
             AggregationSpecification aggregationSpec = getAggregationSpecification(table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                                                                                    selection,
                                                                                    restrictions,
                                                                                    parameters.isDistinct);
@@ -988,16 +1072,19 @@ public class SelectStatement implements CQLStatement
 
             if (!orderingColumns.isEmpty())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
                 assert !forView;
                 verifyOrderingIsAllowed(restrictions);
                 orderingComparator = getOrderingComparator(selection, restrictions, orderingColumns);
                 isReversed = isReversed(table, orderingColumns, restrictions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4004
                 if (isReversed)
                     orderingComparator = Collections.reverseOrder(orderingComparator);
             }
 
             checkNeedsFiltering(restrictions);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return new SelectStatement(table,
                                        bindVariables,
                                        parameters,
@@ -1045,6 +1132,7 @@ public class SelectStatement implements CQLStatement
         {
             if (table.isStaticCompactTable() || !table.hasStaticColumns() || selectables.isEmpty())
                 return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
 
             return Selectable.selectColumns(selectables, (column) -> column.isStatic())
                     && !Selectable.selectColumns(selectables, (column) -> !column.isPartitionKey() && !column.isStatic());
@@ -1086,12 +1174,14 @@ public class SelectStatement implements CQLStatement
                                              whereClause,
                                              boundNames,
                                              selectsOnlyStaticColumns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
                                              parameters.allowFiltering,
                                              forView);
         }
 
         /** Returns a Term for the limit or null if no limit is set */
         private Term prepareLimit(VariableSpecifications boundNames, Term.Raw limit,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7017
                                   String keyspace, ColumnSpecification limitReceiver) throws InvalidRequestException
         {
             if (limit == null)
@@ -1113,6 +1203,7 @@ public class SelectStatement implements CQLStatement
                                                       StatementRestrictions restrictions)
                                                       throws InvalidRequestException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13013
             checkFalse(restrictions.hasClusteringColumnsRestrictions() ||
                        (restrictions.hasNonPrimaryKeyRestrictions() && !restrictions.nonPKRestrictedColumns(true).stream().allMatch(ColumnMetadata::isStatic)),
                        "SELECT DISTINCT with WHERE clause only supports restriction by partition key and/or static columns.");
@@ -1127,6 +1218,7 @@ public class SelectStatement implements CQLStatement
             // with post-query grouping.
             if (!restrictions.isKeyRange())
                 return;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4936
 
             for (ColumnMetadata def : metadata.partitionKeyColumns())
                 checkTrue(requestedColumns.contains(def),
@@ -1143,6 +1235,7 @@ public class SelectStatement implements CQLStatement
          * @return the <code>AggregationSpecification</code>s used to make the aggregates
          */
         private AggregationSpecification getAggregationSpecification(TableMetadata metadata,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                                                                      Selection selection,
                                                                      StatementRestrictions restrictions,
                                                                      boolean isDistinct)
@@ -1198,6 +1291,7 @@ public class SelectStatement implements CQLStatement
             if (!restrictions.keyIsInRelation())
                 return null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
             List<Integer> idToSort = new ArrayList<Integer>(orderingColumns.size());
             List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>(orderingColumns.size());
 
@@ -1242,6 +1336,7 @@ public class SelectStatement implements CQLStatement
                 if (isReversed == null)
                 {
                     isReversed = b;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3647
                     continue;
                 }
                 checkTrue(isReversed.equals(b), "Unsupported order by relation");
@@ -1259,12 +1354,14 @@ public class SelectStatement implements CQLStatement
                 // We will potentially filter data if either:
                 //  - Have more than one IndexExpression
                 //  - Have no index expression and the row filter is not the identity
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
                 checkFalse(restrictions.needFiltering(), StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
         }
 
         private ColumnSpecification limitReceiver()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return new ColumnSpecification(keyspace(), name(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
         }
 
@@ -1304,6 +1401,7 @@ public class SelectStatement implements CQLStatement
             this.groups = groups;
             this.isDistinct = isDistinct;
             this.allowFiltering = allowFiltering;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             this.isJson = isJson;
         }
     }
@@ -1312,6 +1410,7 @@ public class SelectStatement implements CQLStatement
     {
         protected final int compare(Comparator<ByteBuffer> comparator, ByteBuffer aValue, ByteBuffer bValue)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10955
             if (aValue == null)
                 return bValue == null ? 0 : -1;
 
@@ -1335,6 +1434,7 @@ public class SelectStatement implements CQLStatement
 
         public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10955
             return compare(comparator, a.get(index), b.get(index));
         }
     }
@@ -1355,6 +1455,7 @@ public class SelectStatement implements CQLStatement
 
         public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
             for (int i = 0; i < positions.size(); i++)
             {
                 Comparator<ByteBuffer> type = orderTypes.get(i);
@@ -1373,6 +1474,7 @@ public class SelectStatement implements CQLStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

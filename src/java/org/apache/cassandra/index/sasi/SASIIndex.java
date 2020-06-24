@@ -80,6 +80,7 @@ public class SASIIndex implements Index, INotificationConsumer
                    .filter((i) -> i instanceof SASIIndex)
                    .forEach((i) -> {
                        SASIIndex sasi = (SASIIndex) i;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12374
                        sasi.index.dropData(sstablesToRebuild);
                        sstablesToRebuild.stream()
                                         .filter((sstable) -> !sasi.index.hasSSTable(sstable))
@@ -110,6 +111,7 @@ public class SASIIndex implements Index, INotificationConsumer
         ColumnMetadata column = TargetParser.parse(baseCfs.metadata(), config).left;
         this.index = new ColumnIndex(baseCfs.metadata().partitionKeyType, column, config);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         Tracker tracker = baseCfs.getTracker();
         tracker.subscribe(this);
 
@@ -144,13 +146,16 @@ public class SASIIndex implements Index, INotificationConsumer
         if (target == null)
             throw new ConfigurationException("failed to retrieve target column for: " + targetColumn);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11169
         if (target.left.isComplex())
             throw new ConfigurationException("complex columns are not yet supported by SASI");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13228
         if (target.left.isPartitionKey())
             throw new ConfigurationException("partition key columns are not yet supported by SASI");
 
         IndexMode.validateAnalyzer(options, target.left);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
 
         IndexMode mode = IndexMode.getMode(target.left, options);
         if (mode.mode == Mode.SPARSE)
@@ -225,6 +230,7 @@ public class SASIIndex implements Index, INotificationConsumer
 
     public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return dependsOn(column) && index.supports(operator);
     }
 
@@ -265,6 +271,7 @@ public class SASIIndex implements Index, INotificationConsumer
             public void insertRow(Row row)
             {
                 if (isNewData())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                     adjustMemtableSize(index.index(key, row), CassandraWriteContext.fromContext(context).getGroup());
             }
 
@@ -297,6 +304,7 @@ public class SASIIndex implements Index, INotificationConsumer
     {
         TableMetadata config = command.metadata();
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(config.id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return controller -> new QueryPlan(cfs, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller);
     }
 
@@ -332,6 +340,7 @@ public class SASIIndex implements Index, INotificationConsumer
         {
             index.switchMemtable();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         else if (notification instanceof MemtableSwitchedNotification)
         {
             index.switchMemtable(((MemtableSwitchedNotification) notification).memtable);

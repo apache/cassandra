@@ -48,6 +48,7 @@ public abstract class Operation
 
     public boolean isWrite()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         return false;
     }
 
@@ -69,6 +70,7 @@ public abstract class Operation
         String exceptionMessage = null;
 
         int tries = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         for (; tries < settings.errors.tries; tries++)
         {
             try
@@ -80,6 +82,7 @@ public abstract class Operation
             {
                 switch (settings.log.level)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6849
                     case MINIMAL:
                         break;
 
@@ -99,10 +102,12 @@ public abstract class Operation
         }
 
         timer.stop(run.partitionCount(), run.rowCount(), !success);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8769
 
         if (!success)
         {
             error(String.format("Operation x%d on key(s) %s: %s%n",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6691
                     tries,
                     key(),
                     (exceptionMessage == null)
@@ -117,12 +122,14 @@ public abstract class Operation
     protected String getExceptionMessage(Exception e)
     {
         String className = e.getClass().getSimpleName();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         String message = e.getMessage();
         return (message == null) ? "(" + className + ")" : String.format("(%s): %s", className, message);
     }
 
     protected void error(String message) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         if (!settings.errors.ignore)
             throw new IOException(message);
         else if (settings.log.level.compareTo(SettingsLog.Level.MINIMAL) > 0)

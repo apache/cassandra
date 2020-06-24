@@ -42,6 +42,7 @@ public final class TimingInterval
     public final boolean isFixed;
 
     public TimingInterval(boolean isFixed){
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
         this.isFixed = isFixed;
     }
 
@@ -147,6 +148,7 @@ public final class TimingInterval
         return getStringValue(value, Float.NaN);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
     String getStringValue(TimingParameter value, double rank)
     {
         switch (value)
@@ -155,6 +157,7 @@ public final class TimingInterval
             case ROWRATE:        return String.format("%,.0f", rowRate());
             case ADJROWRATE:     return String.format("%,.0f", adjustedRowRate());
             case PARTITIONRATE:  return String.format("%,.0f", partitionRate());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
             case MEANLATENCY:    return String.format("%,.1f", meanLatencyMs());
             case MAXLATENCY:     return String.format("%,.1f", maxLatencyMs());
             case MEDIANLATENCY:  return String.format("%,.1f", medianLatencyMs());
@@ -173,6 +176,7 @@ public final class TimingInterval
 
     public void startNanos(long started)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12585
         this.startNs = started;
     }
     public void endNanos(long ended)

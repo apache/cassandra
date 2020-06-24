@@ -47,6 +47,7 @@ public interface Clustering extends ClusteringPrefix
         // Important for STATIC_CLUSTERING (but must copy empty native clustering types).
         if (size() == 0)
             return kind() == Kind.STATIC_CLUSTERING ? this : EMPTY;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15498
 
         ByteBuffer[] newValues = new ByteBuffer[size()];
         for (int i = 0; i < size(); i++)
@@ -63,6 +64,7 @@ public interface Clustering extends ClusteringPrefix
         for (int i = 0; i < size(); i++)
         {
             ColumnMetadata c = metadata.clusteringColumns().get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             sb.append(i == 0 ? "" : ", ").append(c.name).append('=').append(get(i) == null ? "null" : c.type.getString(get(i)));
         }
         return sb.toString();
@@ -81,6 +83,7 @@ public interface Clustering extends ClusteringPrefix
 
     public static Clustering make(ByteBuffer... values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15498
         return values.length == 0 ? EMPTY : new BufferClustering(values);
     }
 
@@ -105,6 +108,7 @@ public interface Clustering extends ClusteringPrefix
         @Override
         public String toString(TableMetadata metadata)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9704
             return toString();
         }
     };
@@ -129,13 +133,16 @@ public interface Clustering extends ClusteringPrefix
     {
         public void serialize(Clustering clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             assert clustering != STATIC_CLUSTERING : "We should never serialize a static clustering";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10093
             assert clustering.size() == types.size() : "Invalid clustering for the table: " + clustering;
             ClusteringPrefix.serializer.serializeValuesWithoutSize(clustering, out, version, types);
         }
 
         public ByteBuffer serialize(Clustering clustering, int version, List<AbstractType<?>> types)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             try (DataOutputBuffer buffer = new DataOutputBuffer((int)serializedSize(clustering, version, types)))
             {
                 serialize(clustering, buffer, version, types);
@@ -143,12 +150,14 @@ public interface Clustering extends ClusteringPrefix
             }
             catch (IOException e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13381
                 throw new RuntimeException("Writing to an in-memory buffer shouldn't trigger an IOException", e);
             }
         }
 
         public long serializedSize(Clustering clustering, int version, List<AbstractType<?>> types)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             return ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(clustering, version, types);
         }
 
@@ -160,6 +169,7 @@ public interface Clustering extends ClusteringPrefix
 
         public Clustering deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             if (types.isEmpty())
                 return EMPTY;
 
@@ -169,6 +179,7 @@ public interface Clustering extends ClusteringPrefix
 
         public Clustering deserialize(ByteBuffer in, int version, List<AbstractType<?>> types)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10385
             try (DataInputBuffer buffer = new DataInputBuffer(in, true))
             {
                 return deserialize(buffer, version, types);

@@ -31,6 +31,7 @@ public class AlreadyExistsException extends ConfigurationException
 
     public AlreadyExistsException(String ksName, String cfName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7369
         this(ksName, cfName, String.format("Cannot add already existing table \"%s\" to keyspace \"%s\"", cfName, ksName));
     }
 

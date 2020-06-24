@@ -40,6 +40,7 @@ public final class Views implements Iterable<ViewMetadata>
 
     private Views(Builder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         views = ImmutableMap.copyOf(builder.views);
     }
 
@@ -50,6 +51,7 @@ public final class Views implements Iterable<ViewMetadata>
 
     public Builder unbuild()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return builder().put(this);
     }
 
@@ -63,6 +65,7 @@ public final class Views implements Iterable<ViewMetadata>
         return views.values().iterator();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     Iterable<TableMetadata> allTableMetadata()
     {
         return Iterables.transform(views.values(), view -> view.metadata);
@@ -80,6 +83,7 @@ public final class Views implements Iterable<ViewMetadata>
 
     public Iterable<ViewMetadata> forTable(TableId tableId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Iterables.filter(this, v -> v.baseTableId.equals(tableId));
     }
 
@@ -108,6 +112,7 @@ public final class Views implements Iterable<ViewMetadata>
 
     boolean containsView(String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return views.containsKey(name);
     }
 
@@ -142,6 +147,7 @@ public final class Views implements Iterable<ViewMetadata>
         ViewMetadata materializedView =
             get(name).orElseThrow(() -> new IllegalStateException(String.format("Materialized View %s doesn't exists", name)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return filter(v -> v != materializedView);
     }
 
@@ -173,6 +179,7 @@ public final class Views implements Iterable<ViewMetadata>
     public static final class Builder
     {
         final Map<String, ViewMetadata> views = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         private Builder()
         {
@@ -185,6 +192,7 @@ public final class Views implements Iterable<ViewMetadata>
 
         public ViewMetadata get(String name)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return views.get(name);
         }
 

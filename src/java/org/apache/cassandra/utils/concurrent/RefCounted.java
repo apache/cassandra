@@ -41,6 +41,7 @@ public interface RefCounted<T>
 
     public static interface Tidy
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         void tidy() throws Exception;
         String name();
     }

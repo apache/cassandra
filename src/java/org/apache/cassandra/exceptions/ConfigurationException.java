@@ -34,6 +34,7 @@ public class ConfigurationException extends RequestValidationException
 
     public ConfigurationException(String msg, boolean logStackTrace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         super(ExceptionCode.CONFIG_ERROR, msg);
         this.logStackTrace = logStackTrace;
     }

@@ -104,6 +104,7 @@ public abstract class CompactTables
 
     public static DefaultNames defaultNameGenerator(Set<String> usedNames)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new DefaultNames(new HashSet<>(usedNames));
     }
 

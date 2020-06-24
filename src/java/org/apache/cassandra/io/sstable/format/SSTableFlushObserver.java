@@ -47,6 +47,7 @@ public interface SSTableFlushObserver
      * @param unfilteredCluster The unfiltered cluster being added to SSTable.
      */
     void nextUnfilteredCluster(Unfiltered unfilteredCluster);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
 
     /**
      * Called when all data is written to the file and it's ready to be finished up.

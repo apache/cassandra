@@ -30,7 +30,9 @@ public class AuthSchemaChangeListener extends SchemaChangeListener
 {
     public void onDropKeyspace(String ksName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.keyspace(ksName));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
         DatabaseDescriptor.getAuthorizer().revokeAllOn(FunctionResource.keyspace(ksName));
     }
 
@@ -47,6 +49,7 @@ public class AuthSchemaChangeListener extends SchemaChangeListener
 
     public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12720
         DatabaseDescriptor.getAuthorizer()
                           .revokeAllOn(FunctionResource.function(ksName, aggregateName, argTypes));
     }

@@ -82,10 +82,12 @@ public class CancelCompactionsTest extends CQLTester
         {
             tct.start();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             List<CompactionInfo.Holder> activeCompactions = getActiveCompactionsForTable(cfs);
             assertEquals(1, activeCompactions.size());
             assertEquals(activeCompactions.get(0).getCompactionInfo().getSSTables(), toMarkCompacting);
             // predicate requires the non-compacting sstables, should not cancel the one currently compacting:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
             cfs.runWithCompactionsDisabled(() -> null, (sstable) -> !toMarkCompacting.contains(sstable), false, false, true);
             assertEquals(1, activeCompactions.size());
             assertFalse(activeCompactions.get(0).isStopRequested());
@@ -128,6 +130,7 @@ public class CancelCompactionsTest extends CQLTester
         {
             tcts.forEach(TestCompactionTask::start);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             List<CompactionInfo.Holder> activeCompactions = getActiveCompactionsForTable(cfs);
             assertEquals(2, activeCompactions.size());
 
@@ -139,6 +142,7 @@ public class CancelCompactionsTest extends CQLTester
             expectedSSTables.add(new HashSet<>(sstables.subList(6, 9)));
             assertEquals(compactingSSTables, expectedSSTables);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
             cfs.runWithCompactionsDisabled(() -> null, (sstable) -> false, false, false, true);
             assertEquals(2, activeCompactions.size());
             assertTrue(activeCompactions.stream().noneMatch(CompactionInfo.Holder::isStopRequested));
@@ -147,6 +151,7 @@ public class CancelCompactionsTest extends CQLTester
             // start a compaction which only needs the sstables where first token is > 50 - these are the sstables compacted by tcts.get(1)
             Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, (sstable) -> first(sstable) > 50, false, false, true));
             t.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             activeCompactions = getActiveCompactionsForTable(cfs);
             assertEquals(2, activeCompactions.size());
             Thread.sleep(500);
@@ -186,6 +191,7 @@ public class CancelCompactionsTest extends CQLTester
         {
             tcts.forEach(TestCompactionTask::start);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             List<CompactionInfo.Holder> activeCompactions = getActiveCompactionsForTable(cfs);
             assertEquals(4, activeCompactions.size());
             Range<Token> range = new Range<>(token(0), token(49));
@@ -203,6 +209,7 @@ public class CancelCompactionsTest extends CQLTester
             t.start();
 
             Thread.sleep(500);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             assertEquals(4, getActiveCompactionsForTable(cfs).size());
             List<TestCompactionTask> toAbort = new ArrayList<>();
             for (CompactionInfo.Holder holder : getActiveCompactionsForTable(cfs))
@@ -250,6 +257,7 @@ public class CancelCompactionsTest extends CQLTester
         {
             tcts.forEach(TestCompactionTask::start);
             nonAffectedTcts.forEach(TestCompactionTask::start);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             List<CompactionInfo.Holder> activeCompactions = getActiveCompactionsForTable(cfs);
             assertEquals(5, activeCompactions.size());
             // make sure that sstables are fully contained so that the metadata gets mutated
@@ -261,10 +269,12 @@ public class CancelCompactionsTest extends CQLTester
             InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
             RangesAtEndpoint rae = RangesAtEndpoint.builder(local).add(new Replica(local, range, true)).build();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15027
             PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs), rae, Executors.newSingleThreadExecutor(), () -> false);
             Future<?> fut = pac.run();
             Thread.sleep(600);
             List<TestCompactionTask> toAbort = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
             for (CompactionInfo.Holder holder : getActiveCompactionsForTable(cfs))
             {
                 if (holder.getCompactionInfo().getSSTables().stream().anyMatch(sstable -> sstable.intersects(Collections.singleton(range)) && !sstable.isRepaired() && !sstable.isPendingRepair()))
@@ -322,6 +332,7 @@ public class CancelCompactionsTest extends CQLTester
         Future<?> f = CompactionManager.instance.submitIndexBuild(new CollatedViewIndexBuilder(cfs, Collections.singleton(idx), reducingKeyIterator, ImmutableSet.copyOf(sstables)));
         // wait for hasNext to get called
         indexBuildStarted.await();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
         assertEquals(1, getActiveCompactionsForTable(cfs).size());
         boolean foundCompaction = false;
         for (CompactionInfo.Holder holder : getActiveCompactionsForTable(cfs))
@@ -333,9 +344,11 @@ public class CancelCompactionsTest extends CQLTester
             }
         }
         assertTrue(foundCompaction);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
         cfs.runWithCompactionsDisabled(() -> {compactionsStopped.countDown(); return null;}, (sstable) -> true, false, false, true);
         // wait for the runWithCompactionsDisabled callable
         compactionsStopped.await();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
         assertEquals(1, getActiveCompactionsForTable(cfs).size());
         foundCompaction = false;
         for (CompactionInfo.Holder holder : getActiveCompactionsForTable(cfs))
@@ -350,6 +363,7 @@ public class CancelCompactionsTest extends CQLTester
         // signal that the index build should be finished
         indexBuildRunning.countDown();
         f.get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
         assertTrue(getActiveCompactionsForTable(cfs).isEmpty());
     }
 
@@ -420,6 +434,7 @@ public class CancelCompactionsTest extends CQLTester
     @Test
     public void test2iCancellation() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15024
         createTable("create table %s (id int primary key, something int)");
         createIndex("create index on %s(something)");
         getCurrentColumnFamilyStore().disableAutoCompaction();
@@ -523,6 +538,7 @@ public class CancelCompactionsTest extends CQLTester
 
     private List<CompactionInfo.Holder> getActiveCompactionsForTable(ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15671
         return CompactionManager.instance.active.getCompactions()
                                                 .stream()
                                                 .filter(holder -> holder.getCompactionInfo().getTable().orElse("unknown").equalsIgnoreCase(cfs.name))

@@ -34,6 +34,7 @@ public class FrozenType extends AbstractType<Void>
 {
     protected FrozenType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.NOT_COMPARABLE);
     }
 
@@ -59,6 +60,7 @@ public class FrozenType extends AbstractType<Void>
 
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         throw new UnsupportedOperationException();
     }
 

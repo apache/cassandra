@@ -37,7 +37,9 @@ public class NetworkTopologyTest extends TestBaseImpl
     @Test
     public void namedDcTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         try (ICluster<IInvokableInstance> cluster = builder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15497
                                                     .withNodeIdTopology(Collections.singletonMap(1, NetworkTopology.dcAndRack("somewhere", "rack0")))
                                                     .withRack("elsewhere", "firstrack", 1)
                                                     .withRack("elsewhere", "secondrack", 2)
@@ -62,6 +64,7 @@ public class NetworkTopologyTest extends TestBaseImpl
     public void automaticNamedDcTest() throws Throwable
 
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         try (ICluster cluster = builder().withRacks(2, 1, 3)
                                          .start())
         {
@@ -74,6 +77,7 @@ public class NetworkTopologyTest extends TestBaseImpl
     @Test(expected = IllegalStateException.class)
     public void noCountsAfterNamingDCsTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         builder().withDC("nameddc", 1)
                  .withDCs(1);
     }

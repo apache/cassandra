@@ -50,6 +50,7 @@ public class StressSettings implements Serializable
     public final SettingsTokenRange tokenRange;
 
     public StressSettings(SettingsCommand command,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7918
                           SettingsRate rate,
                           SettingsPopulation generate,
                           SettingsInsert insert,
@@ -62,6 +63,7 @@ public class StressSettings implements Serializable
                           SettingsTransport transport,
                           SettingsPort port,
                           String sendToDaemon,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
                           SettingsGraph graph,
                           SettingsTokenRange tokenRange)
     {
@@ -78,7 +80,9 @@ public class StressSettings implements Serializable
         this.transport = transport;
         this.port = port;
         this.sendToDaemon = sendToDaemon;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7918
         this.graph = graph;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
         this.tokenRange = tokenRange;
     }
 
@@ -88,7 +92,9 @@ public class StressSettings implements Serializable
         {
             String currentNode = node.randomNode();
             SimpleClient client = new SimpleClient(currentNode, port.nativePort);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6777
             client.execute("USE \"" + schema.keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
             return client;
         }
@@ -109,6 +115,7 @@ public class StressSettings implements Serializable
 
     public JavaDriverClient getJavaDriverClient(boolean setKeyspace)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
         if (setKeyspace)
         {
             return getJavaDriverClient(schema.keyspace);
@@ -123,6 +130,7 @@ public class StressSettings implements Serializable
         if (client != null)
             return client;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
         synchronized (this)
         {
             if (numFailures >= MAX_NUM_FAILURES)
@@ -134,17 +142,22 @@ public class StressSettings implements Serializable
                 if (client != null)
                     return client;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
                 EncryptionOptions encOptions = transport.getEncryptionOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7658
                 JavaDriverClient c = new JavaDriverClient(this, currentNode, port.nativePort, encOptions);
                 c.connect(mode.compression());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
                 if (keyspace != null)
                     c.execute("USE \"" + keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
 
                 return client = c;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
             catch (Exception e)
             {
                 numFailures +=1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
                 throw new RuntimeException(e);
             }
         }
@@ -152,14 +165,18 @@ public class StressSettings implements Serializable
 
     public void maybeCreateKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6824
         if (command.type == Command.WRITE || command.type == Command.COUNTER_WRITE)
             schema.createKeySpaces(this);
         else if (command.type == Command.USER)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
             ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.maybeCreateSchema(this));
     }
 
     public static StressSettings parse(String[] args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8648
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10340
         args = repairParams(args);
         final Map<String, String[]> clArgs = parseMap(args);
         if (clArgs.containsKey("legacy"))
@@ -172,6 +189,7 @@ public class StressSettings implements Serializable
 
     private static String[] repairParams(String[] args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8648
         StringBuilder sb = new StringBuilder();
         boolean first = true;
         for (String arg : args)
@@ -195,7 +213,9 @@ public class StressSettings implements Serializable
         String sendToDaemon = SettingsMisc.getSendToDaemon(clArgs);
         SettingsPort port = SettingsPort.get(clArgs);
         SettingsRate rate = SettingsRate.get(clArgs, command);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         SettingsPopulation generate = SettingsPopulation.get(clArgs, command);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10331
         SettingsTokenRange tokenRange = SettingsTokenRange.get(clArgs);
         SettingsInsert insert = SettingsInsert.get(clArgs);
         SettingsColumn columns = SettingsColumn.get(clArgs);
@@ -205,6 +225,7 @@ public class StressSettings implements Serializable
         SettingsNode node = SettingsNode.get(clArgs);
         SettingsSchema schema = SettingsSchema.get(clArgs, command);
         SettingsTransport transport = SettingsTransport.get(clArgs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7918
         SettingsGraph graph = SettingsGraph.get(clArgs, command);
         if (!clArgs.isEmpty())
         {
@@ -223,6 +244,7 @@ public class StressSettings implements Serializable
             System.exit(1);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11853
         return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, sendToDaemon, graph, tokenRange);
     }
 
@@ -243,6 +265,7 @@ public class StressSettings implements Serializable
             if (i == 0 || args[i].startsWith("-"))
             {
                 if (i > 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
                     putParam(key, params.toArray(new String[0]), r);
                 key = args[i].toLowerCase();
                 params.clear();
@@ -268,6 +291,7 @@ public class StressSettings implements Serializable
 
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.println("******************** Stress Settings ********************");
         // done
         out.println("Command:");
@@ -307,6 +331,7 @@ public class StressSettings implements Serializable
         if (command.type == Command.USER)
         {
             out.println();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
             out.println("******************** Profile(s) ********************");
             ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.printSettings(out, this));
         }

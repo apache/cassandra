@@ -64,6 +64,7 @@ public class StreamFromOptions
     {
         this.differences = differences;
         this.range = range;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Set<InetAddressAndPort> addresses : existing)
             this.streamOptions.add(Sets.newHashSet(addresses));
     }
@@ -77,6 +78,7 @@ public class StreamFromOptions
      */
     public void add(InetAddressAndPort streamFromNode)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Set<InetAddressAndPort> options : streamOptions)
         {
             InetAddressAndPort first = options.iterator().next();

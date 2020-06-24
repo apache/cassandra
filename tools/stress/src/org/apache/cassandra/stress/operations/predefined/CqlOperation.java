@@ -52,6 +52,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
 
     public CqlOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
         super(type, timer, generator, seedManager, settings);
         if (settings.columns.variableColumnCount)
             throw new IllegalStateException("Variable column counts are not implemented for CQL");
@@ -66,6 +67,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
             Object idobj = getCqlCache();
             if (idobj == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                 id = client.createPreparedStatement(buildQuery());
                 storeCqlCache(id);
             }
@@ -95,6 +97,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
     protected void run(final ClientWrapper client) throws IOException
     {
         final byte[] key = getKey().array();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         final List<Object> queryParams = getQueryParameters(key);
         run(client, queryParams, ByteBuffer.wrap(key));
     }
@@ -144,6 +147,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         @Override
         public boolean validate(Integer result)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7033
             return result > 0;
         }
 
@@ -164,6 +168,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
     {
 
         final List<List<ByteBuffer>> expect;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6691
 
         // a null value for an item in expect means we just check the row is present
         protected CqlRunOpMatchResults(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key, List<List<ByteBuffer>> expect)
@@ -186,11 +191,13 @@ public abstract class CqlOperation<V> extends PredefinedOperation
 
         public boolean validate(ByteBuffer[][] result)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13722
             if (!settings.errors.skipReadValidation)
             {
                 if (result.length != expect.size())
                     return false;
                 for (int i = 0; i < result.length; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7033
                     if (expect.get(i) != null && !expect.get(i).equals(Arrays.asList(result[i])))
                         return false;
             }
@@ -260,6 +267,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
 
     protected interface ClientWrapper
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         Object createPreparedStatement(String cqlQuery);
         <V> V execute(Object preparedStatementId, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler);
         <V> V execute(String query, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler);
@@ -277,6 +285,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         public <V> V execute(String query, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
         {
             String formattedQuery = formatCqlQuery(query, queryParams);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             return handler.javaDriverHandler().apply(client.execute(formattedQuery, settings.command.consistencyLevel));
         }
 
@@ -309,6 +318,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         public <V> V execute(String query, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
         {
             String formattedQuery = formatCqlQuery(query, queryParams);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             return handler.simpleClientHandler().apply(client.execute(formattedQuery, settings.command.consistencyLevel));
         }
 
@@ -319,6 +329,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                     client.executePrepared(
                             (ResultMessage.Prepared) preparedStatement,
                             toByteBufferParams(queryParams),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
                             settings.command.consistencyLevel));
         }
 
@@ -334,6 +345,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
     protected static interface ResultHandler<V>
     {
         Function<ResultSet, V> javaDriverHandler();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         Function<ResultMessage, V> simpleClientHandler();
     }
 
@@ -378,6 +390,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         @Override
         public Function<ResultSet, ByteBuffer[][]> javaDriverHandler()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6691
             return new Function<ResultSet, ByteBuffer[][]>()
             {
 
@@ -385,6 +398,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                 public ByteBuffer[][] apply(ResultSet result)
                 {
                     if (result == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
                         return EMPTY_BYTE_BUFFERS;
                     List<Row> rows = result.all();
 
@@ -392,6 +406,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                     for (int i = 0 ; i < r.length ; i++)
                     {
                         Row row = rows.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7033
                         r[i] = new ByteBuffer[row.getColumnDefinitions().size()];
                         for (int j = 0 ; j < row.getColumnDefinitions().size() ; j++)
                             r[i][j] = row.getBytes(j);
@@ -412,6 +427,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                 {
                     if (!(result instanceof ResultMessage.Rows))
                         return EMPTY_BYTE_BUFFERS;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
 
                     ResultMessage.Rows rows = ((ResultMessage.Rows) result);
                     ByteBuffer[][] r = new ByteBuffer[rows.result.size()][];
@@ -443,6 +459,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                 {
 
                     if (result == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
                         return EMPTY_BYTE_ARRAYS;
                     List<Row> rows = result.all();
                     byte[][] r = new byte[rows.size()][];
@@ -520,6 +537,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
 
     private static List<ByteBuffer> toByteBufferParams(List<Object> params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
         List<ByteBuffer> r = new ArrayList<>();
         for (Object param : params)
         {

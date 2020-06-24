@@ -38,13 +38,16 @@ import org.slf4j.helpers.SubstituteLogger;
 public class NoSpamLoggerTest
 {
     Map<Level, Queue<Pair<String, Object[]>>> logged = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9029
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12996
    Logger mock = new SubstituteLogger(null, null, true)
    {
 
        @Override
        public void info(String statement, Object... args)
        {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9029
            logged.get(Level.INFO).offer(Pair.create(statement, args));
        }
 
@@ -94,6 +97,7 @@ public class NoSpamLoggerTest
    @Before
    public void setUp() throws Exception
    {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9029
        logged.put(Level.INFO, new ArrayDeque<Pair<String, Object[]>>());
        logged.put(Level.WARN, new ArrayDeque<Pair<String, Object[]>>());
        logged.put(Level.ERROR, new ArrayDeque<Pair<String, Object[]>>());
@@ -114,6 +118,7 @@ public class NoSpamLoggerTest
        now = 5;
 
        assertTrue(NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, statement, param));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
 
        assertEquals(1, logged.get(l).size());
 
@@ -149,6 +154,7 @@ public class NoSpamLoggerTest
        now = 5;
        NoSpamLogger logger = NoSpamLogger.getLogger( mock, 5, TimeUnit.NANOSECONDS);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
        assertTrue(logger.info(statement, param));
        assertFalse(logger.info(statement, param));
        assertFalse(logger.warn(statement, param));
@@ -171,9 +177,11 @@ public class NoSpamLoggerTest
    public void testNoSpamLoggerStatementDirect() throws Exception
    {
        NoSpamLogger.NoSpamLogStatement nospam = NoSpamLogger.getStatement( mock, statement, 5, TimeUnit.NANOSECONDS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9029
 
        now = 5;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
        assertTrue(nospam.info(statement, param));
        assertFalse(nospam.info(statement, param));
        assertFalse(nospam.warn(statement, param));
@@ -200,7 +208,9 @@ public class NoSpamLoggerTest
    public void testLoggedResult() throws Exception
    {
        now = 5;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9029
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8584
        assertTrue(NoSpamLogger.log( mock, Level.INFO, 5,  TimeUnit.NANOSECONDS, statement, param));
        checkMock(Level.INFO);
 

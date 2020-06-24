@@ -21,6 +21,7 @@ public final class UnknownColumnException extends IncompatibleSchemaException
 {
     public UnknownColumnException(String msg)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         super(msg);
     }
 }

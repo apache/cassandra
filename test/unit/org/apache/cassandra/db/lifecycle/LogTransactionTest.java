@@ -70,6 +70,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
     protected AbstractTransactionalTest.TestableTransaction newTest() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         LogTransaction.waitForDeletions();
         SSTableReader.resetTidying();
         return new TxnTest();
@@ -80,6 +81,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         private final static class Transaction extends Transactional.AbstractTransactional implements Transactional
         {
             final ColumnFamilyStore cfs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             final LogTransaction txnLogs;
             final File dataFolder;
             final SSTableReader sstableOld;
@@ -108,6 +110,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                 sstableOld.markObsolete(tidier);
                 sstableOld.selfRef().release();
                 LogTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
                 Throwable ret = txnLogs.commit(accumulate);
 
@@ -119,6 +122,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             {
                 tidier.abort();
                 LogTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
                 Throwable ret = txnLogs.abort(accumulate);
 
@@ -132,6 +136,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                 txnLogs.prepareToCommit();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10159
             void assertInProgress() throws Exception
             {
                 assertFiles(dataFolder.getPath(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
@@ -520,6 +525,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         // normally called at startup
         assertTrue(LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
 
         // new tables should be only table left
         assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[1].getAllFilePaths()));
@@ -571,6 +577,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         // normally called at startup
         assertTrue(LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
 
         // old tables should be only table left
         assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[0].getAllFilePaths()));
@@ -736,6 +743,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         Arrays.stream(sstables).forEach(s -> s.selfRef().release());
 
         // if shouldCommit is true then it should remove the leftovers and return true, false otherwise
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
         assertEquals(shouldCommit, LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
         LogTransaction.waitForDeletions();
 
@@ -779,6 +787,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             Directories directories = new Directories(cfs.metadata());
 
             File[] beforeSecondSSTable = dataFolder.listFiles(pathname -> !pathname.isDirectory());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
             SSTableReader sstable2 = sstable(dataFolder, cfs, 1, 128);
             log.trackNew(sstable2);
@@ -834,6 +843,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     public void testGetTemporaryFilesMultipleFolders() throws IOException
     {
         ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11470
 
         File origiFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
         File dataFolder1 = new File(origiFolder, "1");
@@ -929,6 +939,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                   if (filePath.endsWith("Data.db"))
                                   {
                                       assertTrue(FileUtils.delete(filePath));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                                       assertNull(t.txnFile().syncDirectory(null));
                                       break;
                                   }
@@ -1004,6 +1015,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         log.trackNew(sstableNew);
         LogTransaction.SSTableTidier tidier = log.obsoleted(sstableOld);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12632
 
         // Modify the transaction log or disk state for sstableOld
         modifier.accept(log, sstableOld);
@@ -1055,6 +1067,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         testObsoletedFilesChanged(sstable ->
                                   {
                                       // increase the modification time of the Data file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
                                       for (String filePath : sstable.getAllFilePaths())
                                       {
                                           if (filePath.endsWith("Data.db"))
@@ -1076,6 +1089,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         log.trackNew(sstableNew);
         LogTransaction.SSTableTidier tidier = log.obsoleted(sstableOld);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12632
 
         //modify the old sstable files
         modifier.accept(sstableOld);
@@ -1102,6 +1116,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                                                            log.logFilePaths())));
 
         // make sure to run the tidier to avoid any leaks in the logs
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12632
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12632
         tidier.run();
     }
 
@@ -1157,6 +1173,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         catch(RuntimeException e)
         {
             //pass as long as the cause is not an assertion
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11156
             assertFalse(e.getCause() instanceof AssertionError);
         }
 
@@ -1165,6 +1182,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
     private static SSTableReader sstable(File dataFolder, ColumnFamilyStore cfs, int generation, int size) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), generation, SSTableFormat.Type.BIG);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
@@ -1178,6 +1196,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         FileHandle dFile = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).complete();
         FileHandle iFile = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).complete();
 
@@ -1208,8 +1227,10 @@ public class LogTransactionTest extends AbstractTransactionalTest
     private static void assertFiles(String dirPath, Set<String> expectedFiles, boolean excludeNonExistingFiles) throws IOException
     {
         LogTransaction.waitForDeletions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
 
         File dir = new File(dirPath).getCanonicalFile();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10159
         File[] files = dir.listFiles();
         if (files != null)
         {
@@ -1242,6 +1263,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     // might return a file as existing even if it does not)
     private static void assertFiles(Iterable<String> existingFiles, Set<File> temporaryFiles)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
         for (String filePath : existingFiles)
         {
             File file = new File(filePath);

@@ -50,6 +50,7 @@ public abstract class AbstractConsistentSessionTest
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             COORDINATOR = InetAddressAndPort.getByName("10.0.0.1");
             PARTICIPANT1 = InetAddressAndPort.getByName("10.0.0.1");
             PARTICIPANT2 = InetAddressAndPort.getByName("10.0.0.2");
@@ -86,6 +87,7 @@ public abstract class AbstractConsistentSessionTest
                                                                  Sets.newHashSet(RANGE1, RANGE2, RANGE3),
                                                                  true,
                                                                  System.currentTimeMillis(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                                                                  true,
                                                                  PreviewKind.NONE);
         return sessionId;

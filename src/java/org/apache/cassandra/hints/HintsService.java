@@ -74,6 +74,7 @@ public final class HintsService implements HintsServiceMBean
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
     private final HintsBufferPool bufferPool;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
     final HintsDispatchExecutor dispatchExecutor;
     final AtomicBoolean isDispatchPaused;
 
@@ -86,6 +87,7 @@ public final class HintsService implements HintsServiceMBean
 
     private HintsService()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         this(FailureDetector.instance);
     }
 
@@ -103,6 +105,7 @@ public final class HintsService implements HintsServiceMBean
 
         isDispatchPaused = new AtomicBoolean(true);
         dispatchExecutor = new HintsDispatchExecutor(hintsDirectory, maxDeliveryThreads, isDispatchPaused, failureDetector::isAlive);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
 
         // periodically empty the current content of the buffers
         int flushPeriod = DatabaseDescriptor.getHintsFlushPeriodInMS();
@@ -135,6 +138,7 @@ public final class HintsService implements HintsServiceMBean
 
     public void registerMBean()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
@@ -153,6 +157,7 @@ public final class HintsService implements HintsServiceMBean
         catalog.maybeLoadStores(hostIds);
 
         bufferPool.write(hostIds, hint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12998
 
         StorageMetrics.totalHints.inc(hostIds.size());
     }
@@ -177,6 +182,8 @@ public final class HintsService implements HintsServiceMBean
         Token token = hint.mutation.key().getToken();
 
         EndpointsForToken replicas = ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token).all();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
         // judicious use of streams: eagerly materializing probably cheaper
         // than performing filters / translations 2x extra via Iterables.filter/transform
@@ -208,6 +215,7 @@ public final class HintsService implements HintsServiceMBean
         isDispatchPaused.set(false);
 
         HintsServiceDiagnostics.dispatchingStarted(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
 
         HintsDispatchTrigger trigger = new HintsDispatchTrigger(catalog, writeExecutor, dispatchExecutor, isDispatchPaused);
         // triggering hint dispatch is now very cheap, so we can do it more often - every 10 seconds vs. every 10 minutes,
@@ -220,6 +228,7 @@ public final class HintsService implements HintsServiceMBean
         logger.info("Paused hints dispatch");
         isDispatchPaused.set(true);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         HintsServiceDiagnostics.dispatchingPaused(this);
     }
 
@@ -249,13 +258,16 @@ public final class HintsService implements HintsServiceMBean
 
         triggerFlushingFuture.cancel(false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         writeExecutor.flushBufferPool(bufferPool).get();
         writeExecutor.closeAllWriters().get();
 
         dispatchExecutor.shutdownBlocking();
         writeExecutor.shutdownBlocking();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         HintsServiceDiagnostics.dispatchingShutdown(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
         bufferPool.close();
     }
 
@@ -274,6 +286,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public void deleteAllHintsForEndpoint(String address)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort target;
         try
         {
@@ -317,6 +330,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public void excise(UUID hostId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13740
         HintsStore store = catalog.getNullable(hostId);
         if (store == null)
             return;
@@ -337,6 +351,7 @@ public final class HintsService implements HintsServiceMBean
 
         // interrupt the current dispatch session to end (if any), so that the currently dispatched file gets removed
         dispatchExecutor.interruptDispatch(store.hostId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13308
 
         // delete all the hints files and remove the HintsStore instance from the map in the catalog
         catalog.exciseStore(hostId);
@@ -360,6 +375,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public Future transferHints(Supplier<UUID> hostIdSupplier)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10198
         Future flushFuture = writeExecutor.flushBufferPool(bufferPool);
         Future closeFuture = writeExecutor.closeAllWriters();
         try
@@ -391,6 +407,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public boolean isShutDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11960
         return isShutDown;
     }
 }

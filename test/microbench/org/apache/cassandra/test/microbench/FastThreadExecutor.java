@@ -34,6 +34,7 @@ public class FastThreadExecutor extends ThreadPoolExecutor
 {
     public FastThreadExecutor(int size, String name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13034
         super(size, size, 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new DefaultThreadFactory(name, true));
     }
 }

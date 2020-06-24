@@ -114,6 +114,7 @@ public class NativeAllocator extends MemtableAllocator
 
         while (true)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7882
             Region region = currentRegion.get();
             long peer;
             if (region != null && (peer = region.allocate(size)) > 0)
@@ -142,6 +143,7 @@ public class NativeAllocator extends MemtableAllocator
         // if there are none, we allocate one
         if (next == null)
             next = new Region(MemoryUtil.allocate(size), size);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
 
         // we try to swap in the region we've obtained;
         // if we fail to swap the region, we try to stash it for repurposing later; if we're out of stash room, we free it
@@ -169,6 +171,7 @@ public class NativeAllocator extends MemtableAllocator
     {
         for (Region region : regions)
             MemoryUtil.free(region.peer);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
 
         super.setDiscarded();
     }

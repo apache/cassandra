@@ -29,6 +29,7 @@ public class ResourceWatcher
 {
     public static void watch(String resource, Runnable callback, int period)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
         ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(new WatchedResource(resource, callback), period, period, TimeUnit.MILLISECONDS);
     }
 
@@ -41,6 +42,7 @@ public class ResourceWatcher
 
         public WatchedResource(String resource, Runnable callback)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1105
             this.resource = resource;
             this.callback = callback;
             lastLoaded = 0;
@@ -60,6 +62,7 @@ public class ResourceWatcher
             }
             catch (Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                 JVMStabilityInspector.inspectThrowable(t);
                 logger.error(String.format("Timed run of %s failed.", callback.getClass()), t);
             }

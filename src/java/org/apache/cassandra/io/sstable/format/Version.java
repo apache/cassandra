@@ -85,11 +85,13 @@ public abstract class Version
      */
     public static boolean validate(String ver)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8413
         return ver != null && VALIDATION.matcher(ver).matches();
     }
 
     abstract public boolean isCompatible();
     abstract public boolean isCompatibleForStreaming();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
     @Override
     public String toString()

@@ -47,6 +47,7 @@ public class ListSnapshots extends NodeToolCmd
             }
 
             final long trueSnapshotsSize = probe.trueSnapshotsSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7950
             TableBuilder table = new TableBuilder();
             // display column names only once
             final List<String> indexNames = snapshotDetails.entrySet().iterator().next().getValue().getTabularType().getIndexNames();
@@ -58,6 +59,7 @@ public class ListSnapshots extends NodeToolCmd
                 for (Object eachValue : values)
                 {
                     final List<?> value = (List<?>) eachValue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7950
                     table.add(value.toArray(new String[value.size()]));
                 }
             }

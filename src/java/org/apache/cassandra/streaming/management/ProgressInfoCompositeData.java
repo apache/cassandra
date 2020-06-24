@@ -32,7 +32,9 @@ public class ProgressInfoCompositeData
 {
     private static final String[] ITEM_NAMES = new String[]{"planId",
                                                             "peer",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                             "peer storage port",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
                                                             "sessionIndex",
                                                             "fileName",
                                                             "direction",
@@ -40,8 +42,10 @@ public class ProgressInfoCompositeData
                                                             "totalBytes"};
     private static final String[] ITEM_DESCS = new String[]{"String representation of Plan ID",
                                                             "Session peer",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                             "Session peer storage port",
                                                             "Index of session",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
                                                             "Name of the stream",
                                                             "Direction('IN' or 'OUT')",
                                                             "Current bytes transferred",
@@ -49,6 +53,7 @@ public class ProgressInfoCompositeData
     private static final OpenType<?>[] ITEM_TYPES = new OpenType[]{SimpleType.STRING,
                                                                    SimpleType.STRING,
                                                                    SimpleType.INTEGER,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                    SimpleType.INTEGER,
                                                                    SimpleType.STRING,
                                                                    SimpleType.STRING,
@@ -76,6 +81,7 @@ public class ProgressInfoCompositeData
     {
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         valueMap.put(ITEM_NAMES[1], progressInfo.peer.address.getHostAddress());
         valueMap.put(ITEM_NAMES[2], progressInfo.peer.port);
         valueMap.put(ITEM_NAMES[3], progressInfo.sessionIndex);
@@ -98,6 +104,7 @@ public class ProgressInfoCompositeData
         Object[] values = cd.getAll(ITEM_NAMES);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new ProgressInfo(InetAddressAndPort.getByNameOverrideDefaults((String) values[1], (Integer)values[2]),
                                     (int) values[3],
                                     (String) values[4],

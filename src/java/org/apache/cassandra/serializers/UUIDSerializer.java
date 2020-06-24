@@ -29,11 +29,13 @@ public class UUIDSerializer implements TypeSerializer<UUID>
 
     public UUID deserialize(ByteBuffer bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return bytes.remaining() == 0 ? null : UUIDGen.getUUID(bytes);
     }
 
     public ByteBuffer serialize(UUID value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10410
         return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : UUIDGen.toByteBuffer(value);
     }
 
@@ -46,6 +48,7 @@ public class UUIDSerializer implements TypeSerializer<UUID>
 
     public String toString(UUID value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7088
         return value == null ? "" : value.toString();
     }
 

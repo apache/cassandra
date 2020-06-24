@@ -70,6 +70,7 @@ public class SSTableIndex
 
     public OnDiskIndexBuilder.Mode mode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
         return index.mode();
     }
 

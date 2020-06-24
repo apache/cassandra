@@ -40,6 +40,8 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 
 public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         implements ReadRepair<E, P>
 {
     public final Map<InetAddressAndPort, Mutation> sent = new HashMap<>();
@@ -70,6 +72,8 @@ public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             {
                 assert rowListenerClosed;
                 rowListenerClosed = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                 return new RowIteratorMergeListener<E>(partitionKey, columns(versions), isReversed(versions), endpoints, command, TestableReadRepair.this) {
                     @Override
                     public void close()

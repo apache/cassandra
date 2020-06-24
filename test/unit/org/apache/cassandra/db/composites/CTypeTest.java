@@ -30,6 +30,7 @@ public class CTypeTest
     {
         CompositeType baseType = CompositeType.getInstance(AsciiType.instance, UUIDType.instance, LongType.instance);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         ByteBuffer a1 = CompositeType.build(
                 ByteBufferUtil.bytes("a"),
                 UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"),
@@ -105,6 +106,7 @@ public class CTypeTest
     public void testSimpleType2()
     {
         CompositeType baseType = CompositeType.getInstance(UUIDType.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         ByteBuffer a = CompositeType.build(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"));
         ByteBuffer z = CompositeType.build(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
 
@@ -118,6 +120,7 @@ public class CTypeTest
     public void testSimpleType1()
     {
         CompositeType baseType = CompositeType.getInstance(BytesType.instance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         ByteBuffer a = CompositeType.build(ByteBufferUtil.bytes("a"));
         ByteBuffer z = CompositeType.build(ByteBufferUtil.bytes("z"));
 

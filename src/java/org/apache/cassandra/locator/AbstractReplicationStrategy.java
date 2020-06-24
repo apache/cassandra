@@ -52,6 +52,7 @@ public abstract class AbstractReplicationStrategy
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
     final String keyspaceName;
     private Keyspace keyspace;
     public final Map<String, String> configOptions;
@@ -65,10 +66,12 @@ public abstract class AbstractReplicationStrategy
     protected AbstractReplicationStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         assert keyspaceName != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1194
         assert snitch != null;
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
         this.keyspaceName = keyspaceName;
         // lazy-initialize keyspace itself since we don't create them until after the replication strategies
@@ -80,12 +83,14 @@ public abstract class AbstractReplicationStrategy
     {
         long lastVersion = tokenMetadata.getRingVersion();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6488
         if (lastVersion > lastInvalidatedVersion)
         {
             synchronized (this)
             {
                 if (lastVersion > lastInvalidatedVersion)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                     logger.trace("clearing cached endpoints");
                     cachedReplicas.clear();
                     lastInvalidatedVersion = lastVersion;
@@ -115,6 +120,7 @@ public abstract class AbstractReplicationStrategy
         EndpointsForRange endpoints = getCachedReplicas(keyToken);
         if (endpoints == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6488
             TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
             keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
@@ -127,6 +133,7 @@ public abstract class AbstractReplicationStrategy
 
     public Replica getLocalReplicaFor(RingPosition searchPosition)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14704
         return getNaturalReplicas(searchPosition)
                .byEndpoint()
                .get(FBUtilities.getBroadcastAddressAndPort());
@@ -155,6 +162,8 @@ public abstract class AbstractReplicationStrategy
                                                                        WriteType writeType,
                                                                        long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return getWriteResponseHandler(replicaPlan, callback, writeType, queryStartNanoTime, DatabaseDescriptor.getIdealConsistencyLevel());
     }
 
@@ -185,6 +194,8 @@ public abstract class AbstractReplicationStrategy
             //If ideal and requested are the same just use this handler to track the ideal consistency level
             //This is also used so that the ideal consistency level handler when constructed knows it is the ideal
             //one for tracking purposes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
             if (idealConsistencyLevel == replicaPlan.consistencyLevel())
             {
                 resultResponseHandler.setIdealCLResponseHandler(resultResponseHandler);
@@ -233,6 +244,7 @@ public abstract class AbstractReplicationStrategy
     public RangesByEndpoint getAddressReplicas(TokenMetadata metadata)
     {
         RangesByEndpoint.Builder map = new RangesByEndpoint.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         for (Token token : metadata.sortedTokens())
         {
@@ -245,6 +257,7 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return map.build();
     }
 
@@ -270,6 +283,7 @@ public abstract class AbstractReplicationStrategy
     public EndpointsByRange getRangeAddresses(TokenMetadata metadata)
     {
         EndpointsByRange.Builder map = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
         for (Token token : metadata.sortedTokens())
         {
@@ -282,6 +296,7 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return map.build();
     }
 
@@ -317,6 +332,7 @@ public abstract class AbstractReplicationStrategy
     public Collection<String> recognizedOptions()
     {
         // We default to null for backward compatibility sake
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         return null;
     }
 
@@ -332,8 +348,10 @@ public abstract class AbstractReplicationStrategy
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
             strategy = constructor.newInstance(keyspaceName, tokenMetadata, snitch, strategyOptions);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8909
         catch (InvocationTargetException e)
         {
             Throwable targetException = e.getTargetException();
@@ -353,6 +371,8 @@ public abstract class AbstractReplicationStrategy
                                                                         Map<String, String> strategyOptions)
     {
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
 
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
@@ -407,6 +427,7 @@ public abstract class AbstractReplicationStrategy
                                                    IEndpointSnitch snitch,
                                                    Map<String, String> strategyOptions) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
@@ -419,6 +440,7 @@ public abstract class AbstractReplicationStrategy
     public static Class<AbstractReplicationStrategy> getClass(String cls) throws ConfigurationException
     {
         String className = cls.contains(".") ? cls : "org.apache.cassandra.locator." + cls;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(className, "replication strategy");
         if (!AbstractReplicationStrategy.class.isAssignableFrom(strategyClass))
         {
@@ -451,6 +473,7 @@ public abstract class AbstractReplicationStrategy
 
     protected void validateExpectedOptions() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4795
         Collection expectedOptions = recognizedOptions();
         if (expectedOptions == null)
             return;
@@ -458,6 +481,7 @@ public abstract class AbstractReplicationStrategy
         for (String key : configOptions.keySet())
         {
             if (!expectedOptions.contains(key))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                 throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), keyspaceName));
         }
     }

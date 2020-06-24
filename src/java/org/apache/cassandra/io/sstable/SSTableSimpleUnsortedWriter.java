@@ -67,10 +67,12 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         super(directory, metadata, columns);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
         this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         this.helper = new SerializationHelper(this.header);
         diskWriter.start();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
     PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
     {
         assert key != null;
@@ -93,6 +95,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         // improve that. In particular, what we count is closer to the serialized value, but it's debatable that it's the right thing
         // to count since it will take a lot more space in memory and the bufferSize if first and foremost used to avoid OOM when
         // using this writer.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         currentSize += UnfilteredSerializer.serializer.serializedSize(row, helper, 0, formatType.info.getLatestVersion().correspondingMessagingVersion());
     }
 
@@ -113,11 +116,13 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     private PartitionUpdate.Builder createPartitionUpdateBuilder(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         return new PartitionUpdate.Builder(metadata.get(), key, columns, 4)
         {
             @Override
             public void add(Row row)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 super.add(row);
                 countRow(row);
                 maybeSync();
@@ -129,6 +134,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     public void close() throws IOException
     {
         sync();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8807
         put(SENTINEL);
         try
         {
@@ -148,6 +154,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         if (buffer.isEmpty())
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8807
         put(buffer);
         buffer = new Buffer();
         currentSize = 0;
@@ -157,6 +164,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     {
         while (true)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             checkForWriterException();
             try
             {
@@ -178,12 +186,14 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             if (diskWriter.exception instanceof IOException)
                 throw (IOException) diskWriter.exception;
             else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                 throw Throwables.propagate(diskWriter.exception);
         }
     }
 
     static class SyncException extends RuntimeException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         SyncException(IOException ioe)
         {
             super(ioe);
@@ -196,6 +206,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private class DiskWriter extends FastThreadLocalThread
     {
         volatile Throwable exception = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
 
         public void run()
         {
@@ -207,15 +218,21 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     if (b == SENTINEL)
                         return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11844
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12551
                         try (SSTableTxnWriter writer = createWriter())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                         for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
                             writer.append(entry.getValue().build().unfilteredIterator());
                         writer.finish(false);
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                 catch (Throwable e)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
                     JVMStabilityInspector.inspectThrowable(e);
                     // Keep only the first exception
                     if (exception == null)

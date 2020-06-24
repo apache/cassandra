@@ -47,6 +47,7 @@ public class StreamingMetrics
     public static StreamingMetrics get(InetAddressAndPort ip)
     {
        /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15108
          computeIfAbsent doesn't work for this situation. Since JMX metrics register themselves in their ctor, we need
          to create the metric exactly once, otherwise we'll get duplicate name exceptions. Although computeIfAbsent is
          thread safe in the context of the map, it uses compare and swap to add the computed value to the map. This
@@ -71,7 +72,9 @@ public class StreamingMetrics
 
     public StreamingMetrics(final InetAddressAndPort peer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.toString().replace(':', '.'));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         incomingBytes = Metrics.counter(factory.createMetricName("IncomingBytes"));
         outgoingBytes= Metrics.counter(factory.createMetricName("OutgoingBytes"));
     }

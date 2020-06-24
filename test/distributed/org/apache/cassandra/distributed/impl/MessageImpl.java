@@ -53,6 +53,7 @@ public class MessageImpl implements IMessage
 
     public int id()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         return (int) id;
     }
 

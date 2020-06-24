@@ -31,6 +31,7 @@ public abstract class FileDirectSegment extends CommitLogSegment
 {
     volatile long lastWrittenPos = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
     FileDirectSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         super(commitLog, manager);
@@ -56,11 +57,13 @@ public abstract class FileDirectSegment extends CommitLogSegment
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             manager.getBufferPool().releaseBuffer(buffer);
             super.internalClose();
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
             manager.notifyBufferFreed();
         }
     }

@@ -36,15 +36,18 @@ import com.google.common.io.Resources;
 
 import org.apache.cassandra.stress.generate.Distribution;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12258
 class SettingsMisc implements Serializable
 {
 
     static boolean maybeDoSpecial(Map<String, String[]> clArgs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
         if (maybePrintHelp(clArgs))
             return true;
         if (maybePrintDistribution(clArgs))
             return true;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12258
         if (maybePrintVersion(clArgs))
             return true;
         return false;
@@ -53,6 +56,7 @@ class SettingsMisc implements Serializable
     private static final class PrintDistribution extends GroupedOptions
     {
         final OptionDistribution dist = new OptionDistribution("dist=", null, "A mathematical distribution");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
 
         @Override
         public List<? extends Option> options()
@@ -84,6 +88,7 @@ class SettingsMisc implements Serializable
         out.println("% of samples    Range       % of total");
         String format = "%-16.1f%-12d%12.1f";
         double rangemax = dist.inverseCumProb(1d) / 100d;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12258
         for (double d : new double[]{ 0.1d, 0.2d, 0.3d, 0.4d, 0.5d, 0.6d, 0.7d, 0.8d, 0.9d, 0.95d, 0.99d, 1d })
         {
             double sampleperc = d * 100;
@@ -108,6 +113,7 @@ class SettingsMisc implements Serializable
                 {
                     String p = clArgs.keySet().iterator().next();
                     if (clArgs.get(p).length == 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12258
                         params = new String[]{ p };
                 }
             }
@@ -127,6 +133,7 @@ class SettingsMisc implements Serializable
 
     private static boolean maybePrintVersion(Map<String, String[]> clArgs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12258
         if (clArgs.containsKey("version"))
         {
             try
@@ -194,6 +201,7 @@ class SettingsMisc implements Serializable
 
     static Runnable helpHelpPrinter()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12563
         return () -> {
             System.out.println("Usage: ./bin/cassandra-stress help <command|option>");
             System.out.println("Commands:");
@@ -212,6 +220,7 @@ class SettingsMisc implements Serializable
             @Override
             public List<? extends Option> options()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
                 return Arrays.asList(new OptionDistribution("dist=", null, "A mathematical distribution"));
             }
         });

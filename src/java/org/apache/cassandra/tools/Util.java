@@ -129,6 +129,7 @@ public final class Util
         int maxCountLength = 5;
         int maxOffsetLength = 5;
         Map<? extends Number, Long> histogram;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
         LongFunction<String> offsetName;
         LongFunction<String> countName;
         String title;
@@ -171,6 +172,8 @@ public final class Util
 
         public TermHistogram(EstimatedHistogram histogram,
                 String title,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13982
                 LongFunction<String> offsetName,
                 LongFunction<String> countName)
         {
@@ -274,6 +277,7 @@ public final class Util
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             DatabaseDescriptor.toolInitialization();
         }
         catch (Throwable e)
@@ -296,6 +300,7 @@ public final class Util
 
     public static <T> Stream<T> iterToStream(Iterator<T> iter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11483
         Spliterator<T> splititer = Spliterators.spliteratorUnknownSize(iter, Spliterator.IMMUTABLE);
         return StreamSupport.stream(splititer, false);
     }

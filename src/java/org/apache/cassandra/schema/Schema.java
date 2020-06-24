@@ -98,7 +98,9 @@ public final class Schema
      */
     public void loadFromDisk(boolean updateVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.schemataLoading(this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
         if (updateVersion)
             updateVersion();
@@ -131,12 +133,14 @@ public final class Schema
            .indexTables()
            .forEach((name, metadata) -> indexMetadataRefs.put(Pair.create(ksm.name, name), new TableMetadataRef(metadata)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.metadataInitialized(this, ksm);
     }
 
     private void reload(KeyspaceMetadata previous, KeyspaceMetadata updated)
     {
         Keyspace keyspace = getKeyspaceInstance(updated.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         if (null != keyspace)
             keyspace.setMetadata(updated);
 
@@ -171,6 +175,7 @@ public final class Schema
                    .map(MapDifference.ValueDifference::rightValue)
                    .forEach(indexTable -> indexMetadataRefs.get(Pair.create(indexTable.keyspace, indexTable.indexName().get())).set(indexTable));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.metadataReloaded(this, previous, updated, tablesDiff, viewsDiff, indexesDiff);
     }
 
@@ -256,6 +261,7 @@ public final class Schema
            .keySet()
            .forEach(name -> indexMetadataRefs.remove(Pair.create(ksm.name, name)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.metadataRemoved(this, ksm);
     }
 
@@ -281,6 +287,7 @@ public final class Schema
     public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
     {
         assert keyspaceName != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         KeyspaceMetadata keyspace = keyspaces.getNullable(keyspaceName);
         return null != keyspace ? keyspace : VirtualKeyspaceRegistry.instance.getKeyspaceMetadataNullable(keyspaceName);
     }
@@ -364,6 +371,7 @@ public final class Schema
         return indexMetadataRefs.get(Pair.create(keyspace, index));
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
     Map<Pair<String, String>, TableMetadataRef> getIndexTableMetadataRefs()
     {
         return indexMetadataRefs;
@@ -386,6 +394,7 @@ public final class Schema
         return getTableMetadataRef(descriptor.ksname, descriptor.cfname);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
     Map<TableId, TableMetadataRef> getTableMetadataRefs()
     {
         return metadataRefs;
@@ -406,6 +415,7 @@ public final class Schema
         assert keyspace != null;
         assert table != null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         KeyspaceMetadata ksm = getKeyspaceMetadata(keyspace);
         return ksm == null
              ? null
@@ -424,6 +434,7 @@ public final class Schema
         if (tableName.isEmpty())
             throw new InvalidRequestException("non-empty table is required");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         KeyspaceMetadata keyspace = getKeyspaceMetadata(keyspaceName);
         if (keyspace == null)
             throw new KeyspaceNotDefinedException(format("keyspace %s does not exist", keyspaceName));
@@ -469,6 +480,7 @@ public final class Schema
     {
         if (!name.hasKeyspace())
             throw new IllegalArgumentException(String.format("Function name must be fully qualified: got %s", name));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13132
 
         KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
         return ksm == null
@@ -510,6 +522,7 @@ public final class Schema
      */
     public boolean isSameVersion(UUID schemaVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
         return schemaVersion != null && schemaVersion.equals(version);
     }
 
@@ -529,6 +542,7 @@ public final class Schema
     {
         version = SchemaKeyspace.calculateSchemaDigest();
         SystemKeyspace.updateSchemaVersion(version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.versionUpdated(this);
     }
 
@@ -538,6 +552,7 @@ public final class Schema
     public void updateVersionAndAnnounce()
     {
         updateVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         passiveAnnounceVersion();
     }
 
@@ -548,6 +563,7 @@ public final class Schema
     private void passiveAnnounceVersion()
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.versionAnnounced(this);
     }
 
@@ -558,6 +574,7 @@ public final class Schema
     {
         getNonSystemKeyspaces().forEach(k -> unload(getKeyspaceMetadata(k)));
         updateVersionAndAnnounce();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.schemataCleared(this);
     }
 
@@ -569,6 +586,7 @@ public final class Schema
     {
         Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name));
         Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         merge(Keyspaces.diff(before, after));
         updateVersionAndAnnounce();
     }
@@ -589,6 +607,7 @@ public final class Schema
 
     public synchronized TransformationResult transform(SchemaTransformation transformation, boolean locally, long now)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         KeyspacesDiff diff;
         try
         {
@@ -655,6 +674,7 @@ public final class Schema
         // apply the schema mutations and fetch the new versions of the altered keyspaces
         Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         merge(Keyspaces.diff(before, after));
     }
 
@@ -668,6 +688,7 @@ public final class Schema
     private void alterKeyspace(KeyspaceDiff delta)
     {
         SchemaDiagnostics.keyspaceAltering(this, delta);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
 
         // drop tables and views
         delta.views.dropped.forEach(this::dropView);
@@ -708,6 +729,7 @@ public final class Schema
         delta.views.altered.forEach(diff -> notifyAlterView(diff.before, diff.after));
         delta.udfs.altered.forEach(diff -> notifyAlterFunction(diff.before, diff.after));
         delta.udas.altered.forEach(diff -> notifyAlterAggregate(diff.before, diff.after));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.keyspaceAltered(this, delta);
     }
 
@@ -723,6 +745,7 @@ public final class Schema
         keyspace.views.forEach(this::notifyCreateView);
         keyspace.functions.udfs().forEach(this::notifyCreateFunction);
         keyspace.functions.udas().forEach(this::notifyCreateAggregate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.keyspaceCreated(this, keyspace);
     }
 
@@ -743,27 +766,32 @@ public final class Schema
         keyspace.tables.forEach(this::notifyDropTable);
         keyspace.types.forEach(this::notifyDropType);
         notifyDropKeyspace(keyspace);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.keyspaceDroped(this, keyspace);
     }
 
     private void dropView(ViewMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14646
         Keyspace.open(metadata.keyspace()).viewManager.dropView(metadata.name());
         dropTable(metadata.metadata);
     }
 
     private void dropTable(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.tableDropping(this, metadata);
         ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
         assert cfs != null;
         // make sure all the indexes are dropped, or else.
         cfs.indexManager.markAllIndexesRemoved();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), (sstable) -> true, true);
         if (DatabaseDescriptor.isAutoSnapshot())
             cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
         Keyspace.open(metadata.keyspace).dropCf(metadata.id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.tableDropped(this, metadata);
     }
 
@@ -776,11 +804,13 @@ public final class Schema
 
     private void createView(ViewMetadata view)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Keyspace.open(view.keyspace()).initCf(metadataRefs.get(view.metadata.id), true);
     }
 
     private void alterTable(TableMetadata updated)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         SchemaDiagnostics.tableAltering(this, updated);
         Keyspace.open(updated.keyspace).getColumnFamilyStore(updated.name).reload();
         SchemaDiagnostics.tableAltered(this, updated);
@@ -788,6 +818,7 @@ public final class Schema
 
     private void alterView(ViewMetadata updated)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Keyspace.open(updated.keyspace()).getColumnFamilyStore(updated.name()).reload();
     }
 
@@ -803,6 +834,7 @@ public final class Schema
 
     private void notifyCreateView(ViewMetadata view)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         changeListeners.forEach(l -> l.onCreateView(view.keyspace(), view.name()));
     }
 
@@ -823,6 +855,7 @@ public final class Schema
 
     private void notifyAlterKeyspace(KeyspaceMetadata before, KeyspaceMetadata after)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         changeListeners.forEach(l -> l.onAlterKeyspace(after.name));
     }
 
@@ -865,6 +898,7 @@ public final class Schema
 
     private void notifyDropView(ViewMetadata view)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         changeListeners.forEach(l -> l.onDropView(view.keyspace(), view.name()));
     }
 
@@ -890,6 +924,7 @@ public final class Schema
      */
     public static String schemaVersionToString(UUID version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
         return version == null
                ? "unknown"
                : SchemaConstants.emptyVersion.equals(version)

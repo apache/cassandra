@@ -50,6 +50,7 @@ public class TruncateResponseHandler implements RequestCallback
 
     public void get() throws TimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         long timeoutNanos = DatabaseDescriptor.getTruncateRpcTimeout(NANOSECONDS) - (System.nanoTime() - start);
         boolean success;
         try
@@ -71,6 +72,7 @@ public class TruncateResponseHandler implements RequestCallback
     {
         responses.incrementAndGet();
         if (responses.get() >= responseCount)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5691
             condition.signalAll();
     }
 }

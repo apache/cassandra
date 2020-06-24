@@ -47,6 +47,7 @@ public class AuditLogEntry
     private final QueryState state;
 
     private AuditLogEntry(AuditLogEntryType type,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
                           InetAddressAndPort source,
                           String user,
                           long timestamp,
@@ -66,6 +67,7 @@ public class AuditLogEntry
         this.scope = scope;
         this.operation = operation;
         this.options = options;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
         this.state = state;
     }
 
@@ -155,6 +157,7 @@ public class AuditLogEntry
 
     public QueryState getState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         return state;
     }
 
@@ -191,6 +194,7 @@ public class AuditLogEntry
         public Builder(QueryState queryState)
         {
             state = queryState;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
 
             ClientState clientState = queryState.getClientState();
 
@@ -228,6 +232,7 @@ public class AuditLogEntry
             scope = entry.scope;
             operation = entry.operation;
             options = entry.options;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
             state = entry.state;
         }
 
@@ -313,6 +318,7 @@ public class AuditLogEntry
         public AuditLogEntry build()
         {
             timestamp = timestamp > 0 ? timestamp : System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
             return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options, state);
         }
     }

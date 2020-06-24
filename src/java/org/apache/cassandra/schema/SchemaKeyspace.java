@@ -109,6 +109,7 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "durable_writes boolean,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "replication frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
 
@@ -119,26 +120,34 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "table_name text,"
               + "bloom_filter_fp_chance double,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "caching frozen<map<text, text>>,"
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
               + "crc_check_chance double,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13910
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
               + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
               + "gc_grace_seconds int,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "id uuid,"
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
               + "min_index_interval int,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13910
               + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
               + "additional_write_policy text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
               + "cdc boolean,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
               + "read_repair text,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
 
     private static final TableMetadata Columns =
         parse(COLUMNS,
@@ -147,8 +156,11 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "table_name text,"
               + "column_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "clustering_order text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "column_name_bytes blob,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "kind text,"
               + "position int,"
               + "type text,"
@@ -156,12 +168,14 @@ public final class SchemaKeyspace
 
     private static final TableMetadata DroppedColumns =
         parse(DROPPED_COLUMNS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               "dropped column registry",
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "table_name text,"
               + "column_name text,"
               + "dropped_time timestamp,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14948
               + "kind text,"
               + "type text,"
               + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
@@ -173,24 +187,30 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "table_name text,"
               + "trigger_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "options frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name, trigger_name))");
 
     private static final TableMetadata Views =
         parse(VIEWS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
               "view definitions",
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "view_name text,"
               + "base_table_id uuid,"
               + "base_table_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
               + "where_clause text,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
               + "crc_check_chance double,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13910
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
@@ -200,10 +220,14 @@ public final class SchemaKeyspace
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
               + "min_index_interval int,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13910
               + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
               + "additional_write_policy text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
               + "cdc boolean,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
               + "read_repair text,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
@@ -214,6 +238,8 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "table_name text,"
               + "index_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12705
               + "kind text,"
               + "options frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name, index_name))");
@@ -224,6 +250,7 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "type_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "field_names frozen<list<text>>,"
               + "field_types frozen<list<text>>,"
               + "PRIMARY KEY ((keyspace_name), type_name))");
@@ -235,10 +262,12 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "function_name text,"
               + "argument_types frozen<list<text>>,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
               + "argument_names frozen<list<text>>,"
               + "body text,"
               + "language text,"
               + "return_type text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
               + "called_on_null_input boolean,"
               + "PRIMARY KEY ((keyspace_name), function_name, argument_types))");
 
@@ -248,16 +277,20 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "aggregate_name text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
               + "argument_types frozen<list<text>>,"
               + "final_func text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
               + "initcond text,"
               + "return_type text,"
               + "state_func text,"
               + "state_type text,"
               + "PRIMARY KEY ((keyspace_name), aggregate_name, argument_types))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
 
     private static final List<TableMetadata> ALL_TABLE_METADATA =
         ImmutableList.of(Keyspaces, Tables, Columns, Triggers, DroppedColumns, Views, Types, Functions, Aggregates, Indexes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
     private static TableMetadata parse(String name, String description, String cql)
     {
@@ -277,6 +310,7 @@ public final class SchemaKeyspace
     static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
     {
         Map<String, Mutation> mutations = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         diff.created.forEach(k -> mutations.put(k.name, makeCreateKeyspaceMutation(k, timestamp).build()));
         diff.dropped.forEach(k -> mutations.put(k.name, makeDropKeyspaceMutation(k, timestamp).build()));
@@ -331,6 +365,7 @@ public final class SchemaKeyspace
         }
 
         // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
         makeCreateKeyspaceMutation(system, timestamp + 1).build().apply();
         makeCreateKeyspaceMutation(schema, timestamp + 1).build().apply();
     }
@@ -342,6 +377,7 @@ public final class SchemaKeyspace
 
     private static void flush()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         if (!DatabaseDescriptor.isUnsafeSystem())
             ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush()));
     }
@@ -352,9 +388,11 @@ public final class SchemaKeyspace
      */
     static UUID calculateSchemaDigest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         Digest digest = Digest.forSchema();
         for (String table : ALL)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             ReadCommand cmd = getReadCommandForTableSchema(table);
             try (ReadExecutionController executionController = cmd.executionController();
                  PartitionIterator schema = cmd.executeInternal(executionController))
@@ -364,6 +402,7 @@ public final class SchemaKeyspace
                     try (RowIterator partition = schema.next())
                     {
                         if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
                             RowIterators.digest(partition, digest);
                     }
                 }
@@ -378,6 +417,7 @@ public final class SchemaKeyspace
      */
     private static ColumnFamilyStore getSchemaCFS(String schemaTableName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         return Keyspace.open(SchemaConstants.SCHEMA_KEYSPACE_NAME).getColumnFamilyStore(schemaTableName);
     }
 
@@ -394,6 +434,7 @@ public final class SchemaKeyspace
     static Collection<Mutation> convertSchemaToMutations()
     {
         Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutationMap = new HashMap<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
 
         for (String table : ALL)
             convertSchemaToMutations(mutationMap, table);
@@ -415,6 +456,7 @@ public final class SchemaKeyspace
                         continue;
 
                     DecoratedKey key = partition.partitionKey();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
                     Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
                     puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()));
                 }
@@ -434,6 +476,7 @@ public final class SchemaKeyspace
         // and #12697). Otherwise though, we just simply "buffer" the content of the partition into a PartitionUpdate.
         if (DatabaseDescriptor.isCDCEnabled() || !TABLES_WITH_CDC_ADDED.contains(partition.metadata().name))
             return PartitionUpdate.fromIterator(partition, filter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12697
 
         // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
         // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
@@ -459,6 +502,7 @@ public final class SchemaKeyspace
     @SuppressWarnings("unchecked")
     private static DecoratedKey decorate(TableMetadata metadata, Object value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         return metadata.partitioner.decorateKey(((AbstractType) metadata.partitionKeyType).decompose(value));
     }
 
@@ -490,6 +534,7 @@ public final class SchemaKeyspace
 
     static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
 
@@ -549,6 +594,7 @@ public final class SchemaKeyspace
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13910
                .add("dclocal_read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("default_time_to_live", params.defaultTimeToLive)
                .add("gc_grace_seconds", params.gcGraceSeconds)
@@ -557,11 +603,14 @@ public final class SchemaKeyspace
                .add("min_index_interval", params.minIndexInterval)
                .add("read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("speculative_retry", params.speculativeRetry.toString())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
                .add("additional_write_policy", params.additionalWritePolicy.toString())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
                .add("crc_check_chance", params.crcCheckChance)
                .add("caching", params.caching.asMap())
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
                .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions);
 
@@ -596,6 +645,7 @@ public final class SchemaKeyspace
         // newly dropped columns
         for (DroppedColumn column : droppedColumnDiff.entriesOnlyOnRight().values())
             addDroppedColumnToSchemaMutation(newTable, column, builder);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
 
         // columns added then dropped again
         for (ByteBuffer name : droppedColumnDiff.entriesDiffering().keySet())
@@ -604,6 +654,7 @@ public final class SchemaKeyspace
         MapDifference<String, TriggerMetadata> triggerDiff = triggersDiff(oldTable.triggers, newTable.triggers);
 
         // dropped triggers
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         for (TriggerMetadata trigger : triggerDiff.entriesOnlyOnLeft().values())
             dropTriggerFromSchemaMutation(oldTable, trigger, builder);
 
@@ -627,6 +678,7 @@ public final class SchemaKeyspace
     }
 
     static Mutation.SimpleBuilder makeUpdateTableMutation(KeyspaceMetadata keyspace,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                                           TableMetadata oldTable,
                                                           TableMetadata newTable,
                                                           long timestamp)
@@ -662,6 +714,7 @@ public final class SchemaKeyspace
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         addDropTableToSchemaMutation(table, builder);
         return builder;
     }
@@ -685,6 +738,7 @@ public final class SchemaKeyspace
 
     private static void addColumnToSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         AbstractType<?> type = column.type;
         if (type instanceof ReversedType)
             type = ((ReversedType) type).baseType;
@@ -693,6 +747,7 @@ public final class SchemaKeyspace
                .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
                .add("kind", column.kind.toString().toLowerCase())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10491
                .add("position", column.position())
                .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
                .add("type", type.asCQL3Type().toString());
@@ -709,6 +764,7 @@ public final class SchemaKeyspace
         builder.update(DroppedColumns)
                .row(table.name, column.column.name.toString())
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                .add("type", column.column.type.asCQL3Type().toString())
                .add("kind", column.column.kind.toString().toLowerCase());
     }
@@ -734,6 +790,7 @@ public final class SchemaKeyspace
     {
         TableMetadata table = view.metadata;
         Row.SimpleBuilder rowBuilder = builder.update(Views)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                               .row(view.name())
                                               .add("include_all_columns", view.includeAllColumns)
                                               .add("base_table_id", view.baseTableId.asUUID())
@@ -756,6 +813,7 @@ public final class SchemaKeyspace
     private static void addDropViewToSchemaMutation(ViewMetadata view, Mutation.SimpleBuilder builder)
     {
         builder.update(Views).row(view.name()).delete();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         TableMetadata table = view.metadata;
         for (ColumnMetadata column : table.columns())
@@ -814,6 +872,7 @@ public final class SchemaKeyspace
 
     private static String bbToString(ByteBuffer bb)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         try
         {
             return ByteBufferUtil.string(bb);
@@ -839,6 +898,7 @@ public final class SchemaKeyspace
                .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
                .add("initcond", aggregate.initialCondition() != null
                                 // must use the frozen state type here, as 'null' for unfrozen collections may mean 'empty'
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                                 ? aggregate.stateType().freeze().asCQL3Type().toCQLLiteral(aggregate.initialCondition(), ProtocolVersion.CURRENT)
                                 : null);
     }
@@ -884,6 +944,7 @@ public final class SchemaKeyspace
     private static KeyspaceParams fetchKeyspaceParams(String keyspaceName)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
@@ -894,6 +955,7 @@ public final class SchemaKeyspace
     private static Types fetchTypes(String keyspaceName)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TYPES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         Types.RawBuilder types = org.apache.cassandra.schema.Types.rawBuilder(keyspaceName);
         for (UntypedResultSet.Row row : query(query, keyspaceName))
@@ -909,6 +971,7 @@ public final class SchemaKeyspace
     private static Tables fetchTables(String keyspaceName, Types types)
     {
         String query = format("SELECT table_name FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         Tables.Builder tables = org.apache.cassandra.schema.Tables.builder();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
@@ -947,6 +1010,7 @@ public final class SchemaKeyspace
 
     private static TableMetadata fetchTable(String keyspaceName, String tableName, Types types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
         UntypedResultSet rows = query(query, keyspaceName, tableName);
         if (rows.isEmpty())
@@ -974,6 +1038,7 @@ public final class SchemaKeyspace
     {
         return TableParams.builder()
                           .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
                           .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
                           .comment(row.getString("comment"))
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
@@ -984,22 +1049,29 @@ public final class SchemaKeyspace
                           .maxIndexInterval(row.getInt("max_index_interval"))
                           .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
                           .minIndexInterval(row.getInt("min_index_interval"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
                           .crcCheckChance(row.getDouble("crc_check_chance"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14293
                           .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
                           .additionalWritePolicy(row.has("additional_write_policy") ?
                                                      SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
                                                      SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
                           .readRepair(getReadRepairStrategy(row))
                           .build();
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13180
         UntypedResultSet columnRows = query(query, keyspace, table);
         if (columnRows.isEmpty())
             throw new MissingColumns("Columns not found in schema table for " + keyspace + '.' + table);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         List<ColumnMetadata> columns = new ArrayList<>();
         columnRows.forEach(row -> columns.add(createColumnFromRow(row, types)));
@@ -1019,18 +1091,21 @@ public final class SchemaKeyspace
 
         int position = row.getInt("position");
         ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
 
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
 
         ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14468
 
         return new ColumnMetadata(keyspace, table, name, type, position, kind);
     }
 
     private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, DROPPED_COLUMNS);
         Map<ByteBuffer, DroppedColumn> columns = new HashMap<>();
         for (UntypedResultSet.Row row : query(query, keyspace, table))
@@ -1065,6 +1140,7 @@ public final class SchemaKeyspace
 
     private static Indexes fetchIndexes(String keyspace, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, INDEXES);
         Indexes.Builder indexes = org.apache.cassandra.schema.Indexes.builder();
         query(query, keyspace, table).forEach(row -> indexes.add(createIndexMetadataFromRow(row)));
@@ -1081,6 +1157,7 @@ public final class SchemaKeyspace
 
     private static Triggers fetchTriggers(String keyspace, String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TRIGGERS);
         Triggers.Builder triggers = org.apache.cassandra.schema.Triggers.builder();
         query(query, keyspace, table).forEach(row -> triggers.add(createTriggerFromRow(row)));
@@ -1090,6 +1167,7 @@ public final class SchemaKeyspace
     private static TriggerMetadata createTriggerFromRow(UntypedResultSet.Row row)
     {
         String name = row.getString("trigger_name");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         String classOption = row.getFrozenTextMap("options").get("class");
         return new TriggerMetadata(name, classOption);
     }
@@ -1097,15 +1175,18 @@ public final class SchemaKeyspace
     private static Views fetchViews(String keyspaceName, Types types)
     {
         String query = format("SELECT view_name FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, VIEWS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         Views.Builder views = org.apache.cassandra.schema.Views.builder();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             views.put(fetchView(keyspaceName, row.getString("view_name"), types));
         return views.build();
     }
 
     private static ViewMetadata fetchView(String keyspaceName, String viewName, Types types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND view_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, VIEWS);
         UntypedResultSet rows = query(query, keyspaceName, viewName);
         if (rows.isEmpty())
@@ -1116,11 +1197,13 @@ public final class SchemaKeyspace
         String baseTableName = row.getString("base_table_name");
         boolean includeAll = row.getBoolean("include_all_columns");
         String whereClauseString = row.getString("where_clause");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         List<ColumnMetadata> columns = fetchColumns(keyspaceName, viewName, types);
 
         TableMetadata metadata =
             TableMetadata.builder(keyspaceName, viewName, TableId.fromUUID(row.getUUID("id")))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                          .kind(TableMetadata.Kind.VIEW)
                          .addColumns(columns)
                          .droppedColumns(fetchDroppedColumns(keyspaceName, viewName))
@@ -1128,6 +1211,7 @@ public final class SchemaKeyspace
                          .build();
 
         WhereClause whereClause;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         try
         {
@@ -1152,6 +1236,7 @@ public final class SchemaKeyspace
     private static Collection<UDFunction> fetchUDFs(String keyspaceName, Types types)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, FUNCTIONS);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         Collection<UDFunction> functions = new ArrayList<>();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
@@ -1166,6 +1251,7 @@ public final class SchemaKeyspace
         FunctionName name = new FunctionName(ksName, functionName);
 
         List<ColumnIdentifier> argNames = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         for (String arg : row.getFrozenList("argument_names", UTF8Type.instance))
             argNames.add(new ColumnIdentifier(arg, true));
 
@@ -1183,7 +1269,9 @@ public final class SchemaKeyspace
          * TODO: find a way to get rid of Schema.instance dependency; evaluate if the opimisation below makes a difference
          * in the first place. Remove if it isn't.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         org.apache.cassandra.cql3.functions.Function existing = Schema.instance.findFunction(name, argTypes).orElse(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9475
         if (existing instanceof UDFunction)
         {
             // This check prevents duplicate compilation of effectively the same UDF.
@@ -1206,6 +1294,7 @@ public final class SchemaKeyspace
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8374
             return UDFunction.create(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
         }
         catch (InvalidRequestException e)
@@ -1218,7 +1307,9 @@ public final class SchemaKeyspace
     private static Collection<UDAggregate> fetchUDAs(String keyspaceName, Collection<UDFunction> udfs, Types types)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, AGGREGATES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         Collection<UDAggregate> aggregates = new ArrayList<>();
         query(query, keyspaceName).forEach(row -> aggregates.add(createUDAFromRow(row, udfs, types)));
         return aggregates;
@@ -1243,7 +1334,10 @@ public final class SchemaKeyspace
         FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? CQLTypeParser.parse(ksName, row.getString("state_type"), types) : null;
         ByteBuffer initcond = row.has("initcond") ? Terms.asBytes(ksName, row.getString("initcond"), stateType) : null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10434
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
     }
 
@@ -1281,6 +1375,7 @@ public final class SchemaKeyspace
          * query, to filter out the keyspaces that had been dropped by the applied mutation set.
          */
         String query = format("SELECT keyspace_name FROM %s.%s WHERE keyspace_name IN ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
         for (UntypedResultSet.Row row : query(query, new ArrayList<>(toFetch)))
@@ -1291,6 +1386,7 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static class MissingColumns extends RuntimeException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13180
         MissingColumns(String message)
         {
             super(message);
@@ -1299,6 +1395,7 @@ public final class SchemaKeyspace
 
     private static ReadRepairStrategy getReadRepairStrategy(UntypedResultSet.Row row)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14635
         return row.has("read_repair")
                ? ReadRepairStrategy.fromString(row.getString("read_repair"))
                : ReadRepairStrategy.BLOCKING;

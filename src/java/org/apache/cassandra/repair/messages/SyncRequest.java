@@ -53,6 +53,7 @@ public class SyncRequest extends RepairMessage
 
    public SyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
    {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(desc);
         this.initiator = initiator;
         this.src = src;
@@ -64,9 +65,11 @@ public class SyncRequest extends RepairMessage
     @Override
     public boolean equals(Object o)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12934
         if (!(o instanceof SyncRequest))
             return false;
         SyncRequest req = (SyncRequest)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return desc.equals(req.desc) &&
                initiator.equals(req.initiator) &&
                src.equals(req.src) &&
@@ -78,6 +81,7 @@ public class SyncRequest extends RepairMessage
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         return Objects.hash(desc, initiator, src, dst, ranges, previewKind);
     }
 
@@ -86,6 +90,7 @@ public class SyncRequest extends RepairMessage
         public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(message.initiator, out, version);
             inetAddressAndPortSerializer.serialize(message.src, out, version);
             inetAddressAndPortSerializer.serialize(message.dst, out, version);
@@ -93,14 +98,17 @@ public class SyncRequest extends RepairMessage
             for (Range<Token> range : message.ranges)
             {
                 IPartitioner.validate(range);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             out.writeInt(message.previewKind.getSerializationVal());
         }
 
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort owner = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort src = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort dst = inetAddressAndPortSerializer.deserialize(in, version);
@@ -108,6 +116,7 @@ public class SyncRequest extends RepairMessage
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
                 ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             return new SyncRequest(desc, owner, src, dst, ranges, previewKind);
         }
@@ -115,23 +124,30 @@ public class SyncRequest extends RepairMessage
         public long serializedSize(SyncRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += 3 * inetAddressAndPortSerializer.serializedSize(message.initiator, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8375
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             return size;
         }
     };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
         return "SyncRequest{" +
                 "initiator=" + initiator +
                 ", src=" + src +
                 ", dst=" + dst +
                 ", ranges=" + ranges +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                 ", previewKind=" + previewKind +
                 "} " + super.toString();
     }

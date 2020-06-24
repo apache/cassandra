@@ -32,6 +32,7 @@ public class FinalizePropose extends RepairMessage
 
     public FinalizePropose(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
         super(null);
         assert sessionID != null;
         this.sessionID = sessionID;

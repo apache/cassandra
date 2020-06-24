@@ -32,6 +32,7 @@ public interface RequestCallback<T>
      * @param msg response received.
      */
     void onResponse(Message<T> msg);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
     /**
      * Called when there is an exception on the remote node or timeout happens
@@ -57,6 +58,7 @@ public interface RequestCallback<T>
         return false;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
     default boolean supportsBackPressure()
     {
         return false;

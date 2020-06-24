@@ -65,12 +65,16 @@ public final class TraceKeyspace
 
     private static final TableMetadata Sessions =
         parse(SESSIONS,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 "tracing sessions",
                 "CREATE TABLE %s ("
                 + "session_id uuid,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
                 + "command text,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8162
                 + "client inet,"
                 + "coordinator inet,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15385
                 + "coordinator_port int,"
                 + "duration int,"
                 + "parameters map<text, text>,"
@@ -86,6 +90,7 @@ public final class TraceKeyspace
                 + "event_id timeuuid,"
                 + "activity text,"
                 + "source inet,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15385
                 + "source_port int,"
                 + "source_elapsed int,"
                 + "thread text,"
@@ -114,6 +119,7 @@ public final class TraceKeyspace
                                              int ttl)
     {
         PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(Sessions, sessionId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14897
         Row.SimpleBuilder rb = builder.row();
         rb.ttl(ttl)
           .add("client", client)
@@ -144,6 +150,7 @@ public final class TraceKeyspace
                                               .ttl(ttl);
 
         rowBuilder.add("activity", message)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14897
                   .add("source", FBUtilities.getBroadcastAddressAndPort().address);
         if (!Gossiper.instance.haveMajorVersion3Nodes())
             rowBuilder.add("source_port", FBUtilities.getBroadcastAddressAndPort().port);

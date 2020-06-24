@@ -31,6 +31,7 @@ import com.google.common.primitives.Longs;
  */
 public class IntegerInterval
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
     volatile long interval;
     private static AtomicLongFieldUpdater<IntegerInterval> intervalUpdater =
             AtomicLongFieldUpdater.newUpdater(IntegerInterval.class, "interval");

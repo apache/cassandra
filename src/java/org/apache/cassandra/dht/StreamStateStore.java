@@ -56,6 +56,7 @@ public class StreamStateStore implements StreamEventHandler
     public boolean isDataAvailable(String keyspace, Token token)
     {
         SystemKeyspace.AvailableRanges availableRanges = getAvailableRanges(keyspace, token.getPartitioner());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
 
         return Streams.concat(availableRanges.full.stream(),
                               availableRanges.trans.stream())
@@ -75,9 +76,11 @@ public class StreamStateStore implements StreamEventHandler
             StreamEvent.SessionCompleteEvent se = (StreamEvent.SessionCompleteEvent) event;
             if (se.success)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12008
                 Set<String> keyspaces = se.transferredRangesPerKeyspace.keySet();
                 for (String keyspace : keyspaces)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
                     SystemKeyspace.updateTransferredRanges(se.streamOperation, se.peer, keyspace, se.transferredRangesPerKeyspace.get(keyspace));
                 }
                 for (StreamRequest request : se.requests)

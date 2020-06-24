@@ -60,6 +60,7 @@ public class IntervalTreeTest
 
         IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertEquals(3, it.search(Interval.<Integer, Void>create(4, 4)).size());
         assertEquals(4, it.search(Interval.<Integer, Void>create(4, 5)).size());
         assertEquals(7, it.search(Interval.<Integer, Void>create(-1, 10)).size());
@@ -116,6 +117,7 @@ public class IntervalTreeTest
         IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
 
         Collections.sort(intervals, Interval.<Integer, Void>minOrdering());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8988
 
         List<Interval<Integer, Void>> l = new ArrayList<Interval<Integer, Void>>();
         for (Interval<Integer, Void> i : it)
@@ -145,6 +147,7 @@ public class IntervalTreeTest
         IntervalTree<Integer, String, Interval<Integer, String>> it = IntervalTree.build(intervals);
 
         IVersionedSerializer<IntervalTree<Integer, String, Interval<Integer, String>>> serializer = IntervalTree.serializer(
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 new ISerializer<Integer>()
                 {
                     public void serialize(Integer i, DataOutputPlus out) throws IOException
@@ -187,6 +190,7 @@ public class IntervalTreeTest
         serializer.serialize(it, out, 0);
 
         DataInputPlus in = new DataInputBuffer(out.toByteArray());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9863
 
         IntervalTree<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
         List<Interval<Integer, String>> intervals2 = new ArrayList<Interval<Integer, String>>();

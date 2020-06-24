@@ -57,6 +57,7 @@ public class ForwardingInfoTest
                                                               InetAddressAndPort.getByName("2001:0db8:0000:0000:0000:ff00:0042:8329"),
                                                               InetAddressAndPort.getByName("[2001:0db8:0000:0000:0000:ff00:0042:8329]:7000"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ForwardingInfo ftc = new ForwardingInfo(addresses, new long[] { 44, 45, 46, 47, 48, 49 });
         ByteBuffer buffer;
         try (DataOutputBuffer dob = new DataOutputBuffer())

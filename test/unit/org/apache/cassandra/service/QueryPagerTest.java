@@ -66,6 +66,7 @@ public class QueryPagerTest
         SchemaLoader.prepareServer();
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
 
@@ -116,6 +117,7 @@ public class QueryPagerTest
             for (int j = 0; j < nbCols; j++)
             {
                 RowUpdateBuilder builder = new RowUpdateBuilder(cfs().metadata(), FBUtilities.timestampMicros(), "k" + i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 builder.clustering("c" + j).add("val", "").build().applyUnsafe();
             }
         }
@@ -123,11 +125,13 @@ public class QueryPagerTest
 
     private static ColumnFamilyStore cfs()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         return Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
     }
 
     private static List<FilteredPartition> query(QueryPager pager, int expectedSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return query(pager, expectedSize, expectedSize);
     }
 
@@ -211,6 +215,7 @@ public class QueryPagerTest
 
     private static void assertRow(FilteredPartition partition, String key, ByteBuffer... names)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertEquals(key, string(partition.partitionKey().getKey()));
         assertFalse(partition.isEmpty());
         int i = 0;
@@ -234,6 +239,7 @@ public class QueryPagerTest
     public void namesQueryTest() throws Exception
     {
         QueryPager pager = namesQuery("k0", "c1", "c5", "c7", "c8").getPager(null, ProtocolVersion.CURRENT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         assertFalse(pager.isExhausted());
         List<FilteredPartition> partition = query(pager, 5, 4);
@@ -258,6 +264,7 @@ public class QueryPagerTest
         QueryPager pager = command.getPager(null, protocolVersion);
 
         assertFalse(pager.isExhausted());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<FilteredPartition> partition = query(pager, 3);
         assertRow(partition.get(0), "k0", "c1", "c2", "c3");
         assertFalse(pager.isExhausted());
@@ -292,6 +299,7 @@ public class QueryPagerTest
         QueryPager pager = command.getPager(null, protocolVersion);
 
         assertFalse(pager.isExhausted());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<FilteredPartition> partition = query(pager, 3);
         assertRow(partition.get(0), "k0", "c6", "c7", "c8");
         assertFalse(pager.isExhausted());
@@ -322,7 +330,9 @@ public class QueryPagerTest
 
     public void multiQueryTest(boolean testPagingState, ProtocolVersion protocolVersion) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10572
         ReadQuery command = new SinglePartitionReadCommand.Group(new ArrayList<SinglePartitionReadCommand>()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         {{
             add(sliceQuery("k1", "c2", "c6", 10));
             add(sliceQuery("k4", "c3", "c5", 10));
@@ -365,6 +375,7 @@ public class QueryPagerTest
         QueryPager pager = command.getPager(null, protocolVersion);
 
         assertFalse(pager.isExhausted());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<FilteredPartition> partitions = query(pager, 3 * 3);
         for (int i = 1; i <= 3; i++)
             assertRow(partitions.get(i-1), "k" + i, "c1", "c4", "c8");
@@ -395,6 +406,7 @@ public class QueryPagerTest
         QueryPager pager = command.getPager(null, protocolVersion);
 
         assertFalse(pager.isExhausted());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<FilteredPartition> partitions = query(pager, 5);
         assertRow(partitions.get(0), "k2", "c1", "c2", "c3", "c4", "c5");
         assertFalse(pager.isExhausted());
@@ -445,10 +457,12 @@ public class QueryPagerTest
         // Insert rows but with a tombstone as last cell
         for (int i = 0; i < 5; i++)
             executeInternal(String.format("INSERT INTO %s.%s (k, c, v) VALUES ('k%d', 'c%d', null)", keyspace, table, 0, i));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
 
         ReadCommand command = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, Util.dk("k0"), Slice.ALL);
 
         QueryPager pager = command.getPager(null, ProtocolVersion.CURRENT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
 
         for (int i = 0; i < 5; i++)
         {

@@ -35,6 +35,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
     public RangeTombstoneBoundaryMarker(ClusteringBoundary bound, DeletionTime endDeletion, DeletionTime startDeletion)
     {
         super(bound);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         assert bound.isBoundary();
         this.endDeletion = endDeletion;
         this.startDeletion = startDeletion;
@@ -42,6 +43,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public static RangeTombstoneBoundaryMarker exclusiveCloseInclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBoundary bound = ClusteringBoundary.exclusiveCloseInclusiveOpen(reversed, boundValues);
         DeletionTime endDeletion = reversed ? openDeletion : closeDeletion;
         DeletionTime startDeletion = reversed ? closeDeletion : openDeletion;
@@ -50,6 +52,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public static RangeTombstoneBoundaryMarker inclusiveCloseExclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBoundary bound = ClusteringBoundary.inclusiveCloseExclusiveOpen(reversed, boundValues);
         DeletionTime endDeletion = reversed ? openDeletion : closeDeletion;
         DeletionTime startDeletion = reversed ? closeDeletion : openDeletion;
@@ -84,11 +87,13 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public boolean openIsInclusive(boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return (bound.kind() == ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY) ^ reversed;
     }
 
     public ClusteringBound openBound(boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         return bound.openBound(reversed);
     }
 
@@ -116,21 +121,25 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public boolean hasInvalidDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         return !startDeletion.validate() || !endDeletion.validate();
     }
 
     public RangeTombstoneBoundaryMarker copy(AbstractAllocator allocator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return new RangeTombstoneBoundaryMarker(clustering().copy(allocator), endDeletion, startDeletion);
     }
 
     public RangeTombstoneBoundaryMarker withNewOpeningDeletionTime(boolean reversed, DeletionTime newDeletionTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13341
         return new RangeTombstoneBoundaryMarker(clustering(), reversed ? newDeletionTime : endDeletion, reversed ? startDeletion : newDeletionTime);
     }
 
     public static RangeTombstoneBoundaryMarker makeBoundary(boolean reversed, ClusteringBound close, ClusteringBound open, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         assert ClusteringPrefix.Kind.compare(close.kind(), open.kind()) == 0 : "Both bound don't form a boundary";
         boolean isExclusiveClose = close.isExclusive() || (close.isInclusive() && open.isInclusive() && openDeletion.supersedes(closeDeletion));
         return isExclusiveClose
@@ -140,6 +149,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public RangeTombstoneBoundMarker createCorrespondingCloseMarker(boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14672
         return new RangeTombstoneBoundMarker(closeBound(reversed), closeDeletionTime(reversed));
     }
 
@@ -150,6 +160,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public void digest(Digest digest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         bound.digest(digest);
         endDeletion.digest(digest);
         startDeletion.digest(digest);
@@ -157,6 +168,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
 
     public String toString(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14330
         return String.format("Marker %s@%d/%d-%d/%d",
                              bound.toString(metadata),
                              endDeletion.markedForDeleteAt(), endDeletion.localDeletionTime(),

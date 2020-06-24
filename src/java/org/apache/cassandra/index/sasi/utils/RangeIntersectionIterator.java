@@ -63,6 +63,7 @@ public class RangeIntersectionIterator
             // we can simply return an empty iterator, because it's not going to produce any results.
             if (statistics.isDisjoint())
                 return new EmptyRangeIterator<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12915
 
             if (rangeCount() == 1)
                 return ranges.poll();

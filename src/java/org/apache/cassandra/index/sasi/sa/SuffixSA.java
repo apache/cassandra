@@ -71,6 +71,7 @@ public class SuffixSA extends SA<CharBuffer>
                 {
                     Term currentTerm = terms.get((int) ++termIndex);
                     currentTermLength = currentTerm.getPosition() + currentTerm.length();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
                     isComplete = true;
                 }
 
@@ -81,6 +82,7 @@ public class SuffixSA extends SA<CharBuffer>
                 isComplete = false;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12845
             LongTimSort.sort(suffixes, (a, b) -> {
                 Term aTerm = terms.get((int) (a >>> 32));
                 Term bTerm = terms.get((int) (b >>> 32));
@@ -122,6 +124,7 @@ public class SuffixSA extends SA<CharBuffer>
                         return endOfData();
 
                     Pair<IndexedTerm, TokenTreeBuilder> result = finishSuffix();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11434
 
                     lastProcessedSuffix = null;
                     return result;

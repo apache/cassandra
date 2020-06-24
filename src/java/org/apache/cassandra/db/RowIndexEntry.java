@@ -143,6 +143,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         indexEntrySizeHistogram = Metrics.histogram(factory.createMetricName("IndexedEntrySize"), false);
         indexInfoCountHistogram = Metrics.histogram(factory.createMetricName("IndexInfoCount"), false);
         indexInfoGetsHistogram = Metrics.histogram(factory.createMetricName("IndexInfoGets"), false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         indexInfoReadsHistogram = Metrics.histogram(factory.createMetricName("IndexInfoReads"), false);
     }
 
@@ -179,6 +180,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
     public long unsharedHeapSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
         return EMPTY_SIZE;
     }
 
@@ -194,6 +196,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
      * @param idxInfoSerializer the {@link IndexInfo} serializer
      */
     public static RowIndexEntry<IndexInfo> create(long dataFilePosition, long indexFilePosition,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                                                   DeletionTime deletionTime, long headerLength, int columnIndexCount,
                                                   int indexedPartSize,
                                                   List<IndexInfo> indexSamples, int[] offsets,
@@ -228,6 +231,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         void serialize(RowIndexEntry<T> rie, DataOutputPlus out, ByteBuffer indexInfo) throws IOException;
 
         RowIndexEntry<T> deserialize(DataInputPlus in, long indexFilePosition) throws IOException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
         default RowIndexEntry<T> deserialize(RandomAccessReader reader) throws IOException
         {
             return deserialize(reader, reader.getFilePointer());
@@ -255,6 +259,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         public Serializer(Version version, SerializationHeader header)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             this.idxInfoSerializer = IndexInfo.serializer(version, header);
             this.version = version;
         }
@@ -266,6 +271,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         public void serialize(RowIndexEntry<IndexInfo> rie, DataOutputPlus out, ByteBuffer indexInfo) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
             rie.serialize(out, indexInfo);
         }
 
@@ -283,6 +289,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 case CACHE_NOT_INDEXED:
                     return new RowIndexEntry<>(position);
                 case CACHE_INDEXED:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                     return new IndexedEntry(position, in, idxInfoSerializer);
                 case CACHE_INDEXED_SHALLOW:
                     return new ShallowIndexedEntry(position, in, idxInfoSerializer);
@@ -293,6 +300,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         public static void skipForCache(DataInputPlus in) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
             in.readUnsignedVInt();
             switch (in.readByte())
             {
@@ -329,6 +337,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 if (size <= DatabaseDescriptor.getColumnIndexCacheSize())
                 {
                     return new IndexedEntry(position, in, deletionTime, headerLength, columnsIndexCount,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                                             idxInfoSerializer, indexedPartSize);
                 }
                 else
@@ -346,6 +355,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         public long deserializePositionAndSkip(DataInputPlus in) throws IOException
         {
             long position = in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
 
             int size = (int) in.readUnsignedVInt();
             if (size > 0)
@@ -361,11 +371,13 @@ public class RowIndexEntry<T> implements IMeasurableMemory
          */
         public static long readPosition(DataInputPlus in) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             return in.readUnsignedVInt();
         }
 
         public static void skip(DataInputPlus in, Version version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
             readPosition(in);
             skipPromotedIndex(in);
         }
@@ -376,6 +388,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (size <= 0)
                 return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10322
             in.skipBytesFully(size);
         }
 
@@ -445,6 +458,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         private IndexedEntry(long dataFilePosition, DataInputPlus in,
                              DeletionTime deletionTime, long headerLength, int columnIndexCount,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
                              IndexInfo.Serializer idxInfoSerializer, int indexedPartSize) throws IOException
         {
             super(dataFilePosition);
@@ -457,6 +471,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             for (int i = 0; i < columnsIndexCount; i++)
                 this.columnsIndex[i] = idxInfoSerializer.deserialize(in);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             this.offsets = new int[this.columnsIndex.length];
             for (int i = 0; i < offsets.length; i++)
                 offsets[i] = in.readInt();
@@ -536,6 +551,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         {
             long entrySize = 0;
             for (IndexInfo idx : columnsIndex)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7421
                 entrySize += idx.unsharedHeapSize();
             return BASE_SIZE
                 + entrySize
@@ -675,6 +691,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                             VIntCoding.computeUnsignedVIntSize(indexedPartSize + fieldsSerializedSize) +
                                             fieldsSerializedSize,
                                             offsetsOffset - fieldsSerializedSize,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12731
                                             indexFile.createReader(), idxInfoSerializer);
         }
 
@@ -716,7 +733,9 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         static void skipForCache(DataInputPlus in) throws IOException
         {
             in.readUnsignedVInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
             in.readUnsignedVInt();
             DeletionTime.serializer.skip(in);
             in.readUnsignedVInt();
@@ -732,6 +751,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         private ShallowInfoRetriever(long indexInfoFilePosition, int offsetsOffset,
                                      FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12731
             super(indexInfoFilePosition, indexReader, idxInfoSerializer);
             this.offsetsOffset = offsetsOffset;
         }
@@ -779,6 +799,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
          * @param indexReader file data input to access the index file, closed by this instance
          * @param idxInfoSerializer the index serializer to deserialize {@link IndexInfo} objects
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12731
         FileIndexInfoRetriever(long indexInfoFilePosition, FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
         {
             this.indexInfoFilePosition = indexInfoFilePosition;
@@ -788,6 +809,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         public final IndexInfo columnsIndex(int index) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
             retrievals++;
             return fetchIndex(index);
         }
@@ -799,6 +821,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             indexReader.close();
 
             indexInfoGetsHistogram.update(retrievals);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15469
             indexInfoReadsHistogram.update(retrievals);
         }
     }

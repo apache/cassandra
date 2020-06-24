@@ -43,11 +43,13 @@ public class SerializationsTest extends AbstractSerializationsTester
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     private void testEndpointStateWrite() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         DataOutputStreamPlus out = getOutput("gms.EndpointState.bin");
         HeartBeatState.serializer.serialize(Statics.HeartbeatSt, out, getVersion());
         EndpointState.serializer.serialize(Statics.EndpointSt, out, getVersion());
@@ -68,6 +70,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testEndpointStateWrite();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         DataInputStreamPlus in = getInput("gms.EndpointState.bin");
         assert HeartBeatState.serializer.deserialize(in, getVersion()) != null;
         assert EndpointState.serializer.deserialize(in, getVersion()) != null;
@@ -78,15 +81,18 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testGossipDigestWrite() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, EndpointState> states = new HashMap<>();
         states.put(InetAddressAndPort.getByName("127.0.0.1"), Statics.EndpointSt);
         states.put(InetAddressAndPort.getByName("127.0.0.2"), Statics.EndpointSt);
         GossipDigestAck ack = new GossipDigestAck(Statics.Digests, states);
         GossipDigestAck2 ack2 = new GossipDigestAck2(states);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name",
                                                   StorageService.instance.getTokenMetadata().partitioner.getClass().getCanonicalName(),
                                                   Statics.Digests);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         DataOutputStreamPlus out = getOutput("gms.Gossip.bin");
         for (GossipDigest gd : Statics.Digests)
             GossipDigest.serializer.serialize(gd, out, getVersion());
@@ -110,6 +116,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             testGossipDigestWrite();
 
         int count = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         DataInputStreamPlus in = getInput("gms.Gossip.bin");
         while (count < Statics.Digests.size())
             assert GossipDigestAck2.serializer.deserialize(in, getVersion()) != null;
@@ -132,6 +139,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         {
             HeartbeatSt.updateHeartBeat();
             EndpointSt.addApplicationState(ApplicationState.LOAD, vv0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             EndpointSt.addApplicationState(ApplicationState.STATUS_WITH_PORT, vv1);
             for (int i = 0; i < 100; i++)
                 Digests.add(new GossipDigest(FBUtilities.getBroadcastAddressAndPort(), 100 + i, 1000 + 2 * i));

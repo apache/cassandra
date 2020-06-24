@@ -84,6 +84,7 @@ public class IndexInfo
 
     public static IndexInfo.Serializer serializer(Version version, SerializationHeader header)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return new IndexInfo.Serializer(version, header.clusteringTypes());
     }
 
@@ -100,6 +101,7 @@ public class IndexInfo
 
         public Serializer(Version version, List<AbstractType<?>> clusteringTypes)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             this.version = version.correspondingMessagingVersion();
             this.clusteringTypes = clusteringTypes;
         }
@@ -118,6 +120,7 @@ public class IndexInfo
 
         public void skip(DataInputPlus in) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             ClusteringPrefix.serializer.skip(in, version, clusteringTypes);
             ClusteringPrefix.serializer.skip(in, version, clusteringTypes);
             in.readUnsignedVInt();

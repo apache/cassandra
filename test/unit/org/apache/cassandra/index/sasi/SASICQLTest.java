@@ -91,6 +91,7 @@ public class SASICQLTest extends CQLTester
     public void testClientWarningOnCreate()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14866
 
         ClientWarn.instance.captureWarnings();
         createIndex("CREATE CUSTOM INDEX ON %s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex'");
@@ -135,6 +136,7 @@ public class SASICQLTest extends CQLTester
     @Test
     public void testNonLiteralStringCompare() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15169
         for (String mode : new String[]{ "PREFIX", "CONTAINS", "SPARSE"})
         {
             for (boolean forceFlush : new boolean[]{ false, true })

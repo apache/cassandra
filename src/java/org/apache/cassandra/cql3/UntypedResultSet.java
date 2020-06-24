@@ -42,6 +42,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 {
     public static UntypedResultSet create(ResultSet rs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5417
         return new FromResultSet(rs);
     }
 
@@ -52,6 +53,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
     public static UntypedResultSet create(SelectStatement select, QueryPager pager, int pageSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
         return new FromPager(select, pager, pageSize);
     }
 
@@ -98,6 +100,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             if (cqlRows.size() != 1)
                 throw new IllegalStateException("One row required, " + cqlRows.size() + " found");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10363
             return new Row(cqlRows.metadata.requestNames(), cqlRows.rows.get(0));
         }
 
@@ -111,6 +114,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                 {
                     if (!iter.hasNext())
                         return endOfData();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10363
                     return new Row(cqlRows.metadata.requestNames(), iter.next());
                 }
             };
@@ -133,11 +137,13 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public int size()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4329
             return cqlRows.size();
         }
 
         public Row one()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             if (cqlRows.size() != 1)
                 throw new IllegalStateException("One row required, " + cqlRows.size() + " found");
             return new Row(cqlRows.get(0));
@@ -160,6 +166,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public List<ColumnSpecification> metadata()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             throw new UnsupportedOperationException();
         }
     }
@@ -173,6 +180,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         private FromPager(SelectStatement select, QueryPager pager, int pageSize)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6975
             this.select = select;
             this.pager = pager;
             this.pageSize = pageSize;
@@ -242,6 +250,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             this.clientState = clientState;
             this.pager = pager;
             this.pageSize = pageSize;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10363
             this.metadata = select.getResultMetadata().requestNames();
         }
 
@@ -264,6 +273,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                 protected Row computeNext()
                 {
                     int nowInSec = FBUtilities.nowInSeconds();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8560
                     while (currentPage == null || !currentPage.hasNext())
                     {
                         if (pager.isExhausted())
@@ -271,6 +281,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
                         try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, System.nanoTime()))
                         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                             currentPage = select.process(iter, nowInSec).rows.iterator();
                         }
                     }
@@ -281,6 +292,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public List<ColumnSpecification> metadata()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7248
             return metadata;
         }
     }
@@ -292,13 +304,17 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public Row(Map<String, ByteBuffer> data)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5542
             this.data.putAll(data);
         }
 
         public Row(List<ColumnSpecification> names, List<ByteBuffer> columns)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6000
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5990
             this.columns.addAll(names);
             for (int i = 0; i < names.size(); i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6253
                 data.put(names.get(i).name.toString(), columns.get(i));
         }
 
@@ -316,6 +332,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
             for (ColumnMetadata def : metadata.regularAndStaticColumns())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 if (def.isSimple())
                 {
                     Cell cell = row.getCell(def);
@@ -326,6 +343,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                 {
                     ComplexColumnData complexData = row.getComplexColumnData(def);
                     if (complexData != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                         data.put(def.name.toString(), ((CollectionType)def.type).serializeForNativeProtocol(complexData.iterator(), ProtocolVersion.V3));
                 }
             }
@@ -341,6 +359,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public ByteBuffer getBlob(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7809
             return data.get(column);
         }
 
@@ -356,6 +375,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public byte getByte(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8951
             return ByteType.instance.compose(data.get(column));
         }
 
@@ -381,32 +401,38 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public InetAddress getInetAddress(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4018
             return InetAddressType.instance.compose(data.get(column));
         }
 
         public UUID getUUID(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4329
             return UUIDType.instance.compose(data.get(column));
         }
 
         public Date getTimestamp(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5723
             return TimestampType.instance.compose(data.get(column));
         }
 
         public long getLong(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5314
             return LongType.instance.compose(data.get(column));
         }
 
         public <T> Set<T> getSet(String column, AbstractType<T> type)
         {
             ByteBuffer raw = data.get(column);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
             return raw == null ? null : SetType.getInstance(type, true).compose(raw);
         }
 
         public <T> List<T> getList(String column, AbstractType<T> type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6000
             ByteBuffer raw = data.get(column);
             return raw == null ? null : ListType.getInstance(type, true).compose(raw);
         }
@@ -419,11 +445,13 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public Map<String, String> getTextMap(String column)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
             return getMap(column, UTF8Type.instance, UTF8Type.instance);
         }
 
         public <T> Set<T> getFrozenSet(String column, AbstractType<T> type)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
             ByteBuffer raw = data.get(column);
             return raw == null ? null : SetType.getInstance(type, false).compose(raw);
         }

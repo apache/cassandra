@@ -73,6 +73,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
         this.header = streamHeader;
         this.session = session;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15783
         this.messageHeader = messageHeader;
         this.tableId = messageHeader.tableId;
         this.fileSequenceNumber = messageHeader.sequenceNumber;
@@ -135,6 +136,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(totalSize));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15783
             Function<StatsMetadata, StatsMetadata> transform = stats -> stats.mutateLevel(header.sstableLevel)
                                                                              .mutateRepairedMetadata(messageHeader.repairedAt, messageHeader.pendingRepair, false);
             writer.descriptor.getMetadataSerializer().mutate(writer.descriptor, transform);

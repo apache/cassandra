@@ -44,6 +44,7 @@ public class ProtocolVersionTrackerTest
             pvt.addConnection(addr, ProtocolVersion.V4);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         Collection<ClientStat> clientIPAndTimes1 = pvt.getAll(ProtocolVersion.V4);
         assertEquals(10, clientIPAndTimes1.size());
 
@@ -74,6 +75,7 @@ public class ProtocolVersionTrackerTest
             pvt.addConnection(addr, ProtocolVersion.V3);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         assertEquals(17, pvt.getAll().size());
         assertEquals(0, pvt.getAll(ProtocolVersion.V2).size());
         assertEquals(7, pvt.getAll(ProtocolVersion.V3).size());
@@ -90,6 +92,7 @@ public class ProtocolVersionTrackerTest
             pvt.addConnection(addr, ProtocolVersion.V3);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         assertEquals(7, pvt.getAll(ProtocolVersion.V3).size());
         pvt.clear();
 

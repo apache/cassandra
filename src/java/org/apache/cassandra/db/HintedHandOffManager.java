@@ -41,11 +41,13 @@ public final class HintedHandOffManager implements HintedHandOffManagerMBean
 
     public void registerMBean()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     public void deleteHintsForEndpoint(String host)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         HintsService.instance.deleteAllHintsForEndpoint(host);
     }
 

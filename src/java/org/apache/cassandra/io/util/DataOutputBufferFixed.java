@@ -38,6 +38,7 @@ public class DataOutputBufferFixed extends DataOutputBuffer
 
     public DataOutputBufferFixed(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12269
         super(size);
     }
 
@@ -65,6 +66,7 @@ public class DataOutputBufferFixed extends DataOutputBuffer
 
     public void clear()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         buffer.clear();
     }
 }

@@ -50,6 +50,7 @@ public final class KeyspaceMetadata
 {
     public enum Kind
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         REGULAR, VIRTUAL
     }
 
@@ -68,12 +69,15 @@ public final class KeyspaceMetadata
         this.params = params;
         this.tables = tables;
         this.views = views;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         this.types = types;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
         this.functions = functions;
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return new KeyspaceMetadata(name, Kind.REGULAR, params, Tables.none(), Views.none(), Types.none(), Functions.none());
     }
 
@@ -128,6 +132,7 @@ public final class KeyspaceMetadata
      */
     public KeyspaceMetadata withUpdatedUserType(UserType udt)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return new KeyspaceMetadata(name,
                                     kind,
                                     params,
@@ -153,6 +158,7 @@ public final class KeyspaceMetadata
 
     public boolean hasTable(String tableName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return tables.get(tableName).isPresent();
     }
 
@@ -193,6 +199,7 @@ public final class KeyspaceMetadata
     @Override
     public int hashCode()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return Objects.hashCode(name, kind, params, tables, views, functions, types);
     }
 
@@ -202,15 +209,19 @@ public final class KeyspaceMetadata
         if (this == o)
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         if (!(o instanceof KeyspaceMetadata))
             return false;
 
         KeyspaceMetadata other = (KeyspaceMetadata) o;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
         return name.equals(other.name)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             && kind == other.kind
             && params.equals(other.params)
             && tables.equals(other.tables)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
             && views.equals(other.views)
             && functions.equals(other.functions)
             && types.equals(other.types);
@@ -221,11 +232,16 @@ public final class KeyspaceMetadata
     {
         return MoreObjects.toStringHelper(this)
                           .add("name", name)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                           .add("kind", kind)
                           .add("params", params)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                           .add("tables", tables)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
                           .add("views", views)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9665
                           .add("functions", functions)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                           .add("types", types)
                           .toString();
     }
@@ -236,11 +252,13 @@ public final class KeyspaceMetadata
         {
             throw new ConfigurationException(format("Keyspace name must not be empty, more than %s characters long, "
                                                     + "or contain non-alphanumeric-underscore characters (got \"%s\")",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                                     SchemaConstants.NAME_LENGTH,
                                                     name));
         }
 
         params.validate(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10569
 
         tablesAndViews().forEach(TableMetadata::validate);
 
@@ -259,6 +277,7 @@ public final class KeyspaceMetadata
 
     public AbstractReplicationStrategy createReplicationStrategy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return AbstractReplicationStrategy.createReplicationStrategy(name,
                                                                      params.replication.klass,
                                                                      StorageService.instance.getTokenMetadata(),

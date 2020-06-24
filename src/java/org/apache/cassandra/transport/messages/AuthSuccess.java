@@ -37,6 +37,7 @@ public class AuthSuccess extends Message.Response
         public AuthSuccess decode(ByteBuf body, ProtocolVersion version)
         {
             ByteBuffer b = CBUtil.readValue(body);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9727
             byte[] token = null;
             if (b != null)
             {

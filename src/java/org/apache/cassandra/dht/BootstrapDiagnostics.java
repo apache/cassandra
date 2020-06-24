@@ -45,6 +45,7 @@ final class BootstrapDiagnostics
                                                address,
                                                null,
                                                allocationKeyspace,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
                                                null,
                                                numTokens,
                                                ImmutableList.copyOf(initialTokens)));
@@ -70,6 +71,7 @@ final class BootstrapDiagnostics
                                                address,
                                                metadata.cloneOnlyTokenMap(),
                                                allocationKeyspace,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
                                                null,
                                                numTokens,
                                                ImmutableList.copyOf(tokens)));
@@ -82,6 +84,7 @@ final class BootstrapDiagnostics
             service.publish(new BootstrapEvent(BootstrapEventType.TOKENS_ALLOCATED,
                                                address,
                                                metadata.cloneOnlyTokenMap(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15260
                                                null,
                                                rf,
                                                numTokens,

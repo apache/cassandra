@@ -185,6 +185,7 @@ public class CustomCassandraIndex implements Index
 
     public boolean dependsOn(ColumnMetadata column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         return column.equals(indexedColumn);
     }
 
@@ -196,6 +197,7 @@ public class CustomCassandraIndex implements Index
 
     public AbstractType<?> customExpressionValueType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10217
         return null;
     }
 
@@ -206,6 +208,7 @@ public class CustomCassandraIndex implements Index
 
     public long getEstimatedResultRows()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15285
         return indexCfs.getMeanEstimatedCellPerPartitionCount();
     }
 
@@ -288,6 +291,7 @@ public class CustomCassandraIndex implements Index
     public Indexer indexerFor(final DecoratedKey key,
                               final RegularAndStaticColumns columns,
                               final int nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                               final WriteContext ctx,
                               final IndexTransaction.Type transactionType)
     {
@@ -377,7 +381,9 @@ public class CustomCassandraIndex implements Index
                 insert(key.getKey(),
                        clustering,
                        cell,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                        LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                        ctx);
             }
 
@@ -395,6 +401,7 @@ public class CustomCassandraIndex implements Index
                 if (cell == null || !cell.isLive(nowInSec))
                     return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                 delete(key.getKey(), clustering, cell, ctx, nowInSec);
             }
 
@@ -404,6 +411,7 @@ public class CustomCassandraIndex implements Index
             {
                 if (liveness.timestamp() != LivenessInfo.NO_TIMESTAMP)
                     insert(key.getKey(), clustering, null, liveness, ctx);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
 
                 if (!deletion.isLive())
                     delete(key.getKey(), clustering, deletion.time(), ctx);
@@ -425,6 +433,7 @@ public class CustomCassandraIndex implements Index
                         }
                     }
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11207
                 return LivenessInfo.create(timestamp, ttl, nowInSec);
             }
         };
@@ -441,6 +450,7 @@ public class CustomCassandraIndex implements Index
     public void deleteStaleEntry(DecoratedKey indexKey,
                                  Clustering indexClustering,
                                  DeletionTime deletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                                  WriteContext ctx)
     {
         doDelete(indexKey, indexClustering, deletion, ctx);
@@ -454,6 +464,7 @@ public class CustomCassandraIndex implements Index
                         Clustering clustering,
                         Cell cell,
                         LivenessInfo info,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         WriteContext ctx)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
@@ -471,6 +482,7 @@ public class CustomCassandraIndex implements Index
     private void delete(ByteBuffer rowKey,
                         Clustering clustering,
                         Cell cell,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         WriteContext ctx,
                         int nowInSec)
     {
@@ -480,6 +492,7 @@ public class CustomCassandraIndex implements Index
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, cell),
                  new DeletionTime(cell.timestamp(), nowInSec),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                  ctx);
     }
 
@@ -489,6 +502,7 @@ public class CustomCassandraIndex implements Index
     private void delete(ByteBuffer rowKey,
                         Clustering clustering,
                         DeletionTime deletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                         WriteContext ctx)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
@@ -497,6 +511,7 @@ public class CustomCassandraIndex implements Index
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, null),
                  deletion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14118
                  ctx);
     }
 
@@ -553,6 +568,7 @@ public class CustomCassandraIndex implements Index
             throw new InvalidRequestException(String.format(
                                                            "Cannot index value of size %d for index %s on %s.%s(%s) (maximum allowed size=%d)",
                                                            value.remaining(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                                                            metadata.name,
                                                            baseCfs.metadata.keyspace,
                                                            baseCfs.metadata.name,
@@ -594,6 +610,7 @@ public class CustomCassandraIndex implements Index
     {
         // interrupt in-progress compactions
         Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true);
         CompactionManager.instance.waitForCessation(cfss, (sstable) -> true);
         indexCfs.keyspace.writeOrder.awaitNewBarrier();
@@ -624,6 +641,7 @@ public class CustomCassandraIndex implements Index
     {
         baseCfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
              Refs<SSTableReader> sstables = viewFragment.refs)
         {
@@ -632,6 +650,7 @@ public class CustomCassandraIndex implements Index
                 logger.info("No SSTable data for {}.{} to build index {} from, marking empty index as built",
                             baseCfs.metadata.keyspace,
                             baseCfs.metadata.name,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
                             metadata.name);
                 return;
             }
@@ -642,12 +661,14 @@ public class CustomCassandraIndex implements Index
 
             SecondaryIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
                                                                          Collections.singleton(this),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                                                                          new ReducingKeyIterator(sstables),
                                                                          ImmutableSet.copyOf(sstables));
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10595
         logger.info("Index build of {} complete", metadata.name);
     }
 

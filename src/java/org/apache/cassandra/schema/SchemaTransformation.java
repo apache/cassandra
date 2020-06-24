@@ -27,5 +27,6 @@ public interface SchemaTransformation
      * @param schema Keyspaces to base the transformation on
      * @return Keyspaces transformed by the statement
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
     Keyspaces apply(Keyspaces schema);
 }

@@ -152,6 +152,7 @@ public abstract class ResultMessage extends Message.Response
             public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
                 CBUtil.writeAsciiString(((SetKeyspace)msg).keyspace, dest);
             }
 
@@ -219,8 +220,10 @@ public abstract class ResultMessage extends Message.Response
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.PreparedMetadata metadata = ResultSet.PreparedMetadata.codec.decode(body, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
 
                 ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.EMPTY;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     resultMetadata = ResultSet.ResultMetadata.codec.decode(body, version);
 
@@ -237,7 +240,9 @@ public abstract class ResultMessage extends Message.Response
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     CBUtil.writeBytes(prepared.resultMetadataId.bytes, dest);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
                 ResultSet.PreparedMetadata.codec.encode(prepared.metadata, dest, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     ResultSet.ResultMetadata.codec.encode(prepared.resultMetadata, dest, version);
             }
@@ -252,7 +257,9 @@ public abstract class ResultMessage extends Message.Response
                 size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     size += CBUtil.sizeOfBytes(prepared.resultMetadataId.bytes);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7660
                 size += ResultSet.PreparedMetadata.codec.encodedSize(prepared.metadata, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     size += ResultSet.ResultMetadata.codec.encodedSize(prepared.resultMetadata, version);
                 return size;
@@ -286,6 +293,7 @@ public abstract class ResultMessage extends Message.Response
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5770
             return "RESULT PREPARED " + statementId + " " + metadata + " (resultMetadata=" + resultMetadata + ")";
         }
     }
@@ -304,6 +312,7 @@ public abstract class ResultMessage extends Message.Response
         {
             public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7413
                 return new SchemaChange(Event.SchemaChange.deserializeEvent(body, version));
             }
 
@@ -325,6 +334,7 @@ public abstract class ResultMessage extends Message.Response
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7413
             return "RESULT schema change " + change;
         }
     }

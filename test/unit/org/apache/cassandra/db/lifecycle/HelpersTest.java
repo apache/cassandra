@@ -48,8 +48,10 @@ public class HelpersTest
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9561
         MockSchema.cleanup();
     }
 
@@ -150,6 +152,7 @@ public class HelpersTest
     @Test
     public void testSetupDeletionNotification()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         Throwable accumulate = Helpers.setReplaced(readers, null);
@@ -163,12 +166,14 @@ public class HelpersTest
     @Test
     public void testMarkObsolete()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         LogTransaction txnLogs = new LogTransaction(OperationType.UNKNOWN);
         Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         Iterable<SSTableReader> readersToKeep = Lists.newArrayList(MockSchema.sstable(3, cfs), MockSchema.sstable(4, cfs));
 
         List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
         Helpers.prepareForObsoletion(readers, txnLogs, obsoletions, null);
         assertNotNull(obsoletions);
         assertEquals(2, obsoletions.size());
@@ -193,6 +198,7 @@ public class HelpersTest
         ColumnFamilyStore cfs = MockSchema.newCFS();
         LogTransaction txnLogs = new LogTransaction(OperationType.UNKNOWN);
         List<SSTableReader> readers = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12763
 
         for (int i = 0; i < 10000; i++)
         {

@@ -39,6 +39,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
 
     public static RangeTombstoneBoundMarker inclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime deletion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         ClusteringBound bound = ClusteringBound.inclusiveOpen(reversed, boundValues);
         return new RangeTombstoneBoundMarker(bound, deletion);
     }
@@ -68,6 +69,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
 
     public boolean hasInvalidDeletions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         return !deletionTime().validate();
     }
 
@@ -95,6 +97,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
 
     public boolean openIsInclusive(boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         if (!isOpen(reversed))
             throw new IllegalStateException();
         return bound.isInclusive();
@@ -109,6 +112,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
 
     public ClusteringBound openBound(boolean reversed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         return isOpen(reversed) ? clustering() : null;
     }
 
@@ -124,6 +128,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
 
     public RangeTombstoneBoundMarker withNewOpeningDeletionTime(boolean reversed, DeletionTime newDeletionTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13341
         if (!isOpen(reversed))
             throw new IllegalStateException();
 
@@ -132,12 +137,14 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
 
     public void digest(Digest digest)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         bound.digest(digest);
         deletion.digest(digest);
     }
 
     public String toString(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14330
         return String.format("Marker %s@%d/%d", bound.toString(metadata), deletion.markedForDeleteAt(), deletion.localDeletionTime());
     }
 

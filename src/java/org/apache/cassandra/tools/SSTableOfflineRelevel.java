@@ -86,6 +86,7 @@ public class SSTableOfflineRelevel
         }
 
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         boolean dryRun = args[0].equals("--dry-run");
         String keyspace = args[args.length - 2];
@@ -93,21 +94,26 @@ public class SSTableOfflineRelevel
         Schema.instance.loadFromDisk(false);
 
         if (Schema.instance.getTableMetadataRef(keyspace, columnfamily) == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                     keyspace,
                     columnfamily));
 
         Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnfamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         SetMultimap<File, SSTableReader> sstableMultimap = HashMultimap.create();
         for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())
         {
             if (sstable.getKey() != null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9088
                 try
                 {
                     SSTableReader reader = SSTableReader.open(sstable.getKey());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
                     sstableMultimap.put(reader.descriptor.directory, reader);
                 }
                 catch (Throwable t)
@@ -117,6 +123,7 @@ public class SSTableOfflineRelevel
                 }
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         if (sstableMultimap.isEmpty())
         {
             out.println("No sstables to relevel for "+keyspace+"."+columnfamily);
@@ -147,6 +154,7 @@ public class SSTableOfflineRelevel
 
         private void printLeveling(Iterable<SSTableReader> sstables)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9588
             Multimap<Integer, SSTableReader> leveling = ArrayListMultimap.create();
             int maxLevel = 0;
             for (SSTableReader sstable : sstables)

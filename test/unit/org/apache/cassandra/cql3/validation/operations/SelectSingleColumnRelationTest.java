@@ -36,6 +36,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         createIndex("CREATE INDEX ON %s (c)");
         createIndex("CREATE INDEX ON %s (d)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a '=' relation",
                              "SELECT * FROM %s WHERE a = 0 AND b=?", set(0));
         assertInvalidMessage("Collection column 'c' (list<int>) cannot be restricted by a '=' relation",
@@ -52,6 +53,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (0, {0}, 0)");
 
         // non-EQ operators
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a '>' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b > ?", set(0));
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a '>=' relation",
@@ -62,6 +64,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE c = 0 AND b <= ?", set(0));
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a 'IN' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b IN (?)", set(0));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         assertInvalidMessage("Unsupported \"!=\" relation: b != 5",
                 "SELECT * FROM %s WHERE c = 0 AND b != 5");
         assertInvalidMessage("Unsupported restriction: b IS NOT NULL",
@@ -72,6 +75,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void testClusteringColumnRelations() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, d int, primary key(a, b, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4762
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 1, 5, 1);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 2, 6, 2);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 3, 7, 3);
@@ -114,6 +118,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row("first", 2, 6, 2),
                    row("first", 3, 7, 3));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         assertInvalidMessage("Invalid null value for column b",
                              "select * from %s where a = ? and b in ? and c in ?", "first", null, Arrays.asList(7, 6));
 
@@ -130,6 +135,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertRows(execute("select * from %s where a = ? and c < ? and b in (?, ?)", "first", 7, 3, 2),
                    row("first", 2, 6, 2));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
         assertRows(execute("select * from %s where a = ? and c >= ? and c <= ? and b in (?, ?)", "first", 6, 7, 3, 2),
                    row("first", 2, 6, 2),
                    row("first", 3, 7, 3));
@@ -164,6 +170,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 1, 1, 1);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 2, 2, 2);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 3, 3, 3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7855
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 4, 4, 4);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "second", 1, 1, 1);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "second", 4, 4, 4);
@@ -189,6 +196,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row("second", 1, 1, 1),
                    row("second", 4, 4, 4));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "select * from %s where a in (?, ?)", "first", "second");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -206,6 +214,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     @Test
     public void testClusteringColumnRelationsWithClusteringOrder() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createTable("CREATE TABLE %s (a text, b int, c int, d int, primary key(a, b, c)) WITH CLUSTERING ORDER BY (b DESC, c ASC);");
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 1, 5, 1);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 2, 6, 2);
@@ -227,6 +236,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void testAllowFilteringWithClusteringColumn() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
 
         execute("INSERT INTO %s (k, c, v) VALUES(?, ?, ?)", 1, 2, 1);
         execute("INSERT INTO %s (k, c, v) VALUES(?, ?, ?)", 1, 3, 2);
@@ -250,6 +260,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE k = ? AND c = ? ALLOW FILTERING", 1, 2), row(1, 2, 1));
 
         // Require filtering, allowed only with ALLOW FILTERING
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = ?", 2);
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -286,6 +298,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     @Test
     public void testAllowFilteringWithIndexedColumnAndStaticColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         createTable("CREATE TABLE %s (a int, b int, c int, s int static, PRIMARY KEY(a, b))");
         createIndex("CREATE INDEX ON %s(c)");
 
@@ -354,6 +367,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage("IN restrictions are not supported on indexed columns",
                              "SELECT v1 FROM %s WHERE id2 = 0 and time IN (1, 2) ALLOW FILTERING");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11510
         assertRows(execute("SELECT v1 FROM %s WHERE author > 'ted' AND time = 1 ALLOW FILTERING"), row("E"));
         assertRows(execute("SELECT v1 FROM %s WHERE author > 'amy' AND author < 'zoe' AND time = 0 ALLOW FILTERING"),
                            row("A"), row("D"));
@@ -383,6 +397,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertEmpty(execute("SELECT content FROM %s WHERE time1 = 1 AND time2 = 1 AND author='foo' ALLOW FILTERING"));
         assertEmpty(execute("SELECT content FROM %s WHERE time1 = 1 AND time2 > 0 AND author='foo' ALLOW FILTERING"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT content FROM %s WHERE time2 >= 0 AND author='foo'");
     }
@@ -399,6 +415,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
         execute(q, 2, 2, 0);
         execute(q, 3, 3, 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE setid = 0 AND row < 1;");
         assertRows(execute("SELECT * FROM %s WHERE setid = 0 AND row < 1 ALLOW FILTERING;"), row(0, 0, 0));
@@ -409,6 +427,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8419
         for (int i = 0; i <= 2; i++)
             for (int j = 0; j <= 2; j++)
                 execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", i, j, i + j);
@@ -462,6 +481,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 2, 0, 0, 5);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c = ?", 0, 1);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? ALLOW FILTERING", 0, 1),
@@ -475,6 +496,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 0, 4),
                    row(0, 0, 1, 1, 1, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?) AND  d IN (?) ALLOW FILTERING", 0, 1, 1),
                 row(0, 0, 1, 1, 0, 4),
                 row(0, 0, 1, 1, 1, 5));
@@ -484,6 +506,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
                 row(0, 0, 1, 1, 1, 5),
                 row(0, 0, 2, 0, 0, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ?", 0, 0, 1, 5);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ? ALLOW FILTERING", 0, 1, 3, 5),
@@ -496,16 +520,20 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(0, 0, 2, 0, 0, 5));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                              "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND d IN (?) AND f = ?", 0, 1, 3, 0, 3);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND d IN (?) AND f = ? ALLOW FILTERING", 0, 1, 3, 0, 3),
                    row(0, 0, 1, 0, 0, 3));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c >= ? ALLOW FILTERING", 0, 1),
                 row(0, 0, 1, 0, 0, 3),
                 row(0, 0, 1, 1, 0, 4),
                 row(0, 0, 1, 1, 1, 5),
                 row(0, 0, 2, 0, 0, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c >= ? AND f = ?", 0, 1, 5);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND c >= ? AND f = ?", 0, 0, 1, 5),
@@ -516,6 +544,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 1, 5),
                    row(0, 0, 2, 0, 0, 5));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ?", 0, 1, 1, 5);
 
@@ -530,6 +560,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void testFunctionCallWithUnset() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s text, i int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
 
         assertInvalidMessage("Invalid unset value for argument in call to function token",
                              "SELECT * FROM %s WHERE token(k) >= token(?)", unset());
@@ -566,6 +597,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i IN(?,?)", 1, unset());
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE i = ? ALLOW FILTERING", unset());
         // indexed column
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
         assertInvalidMessage("Unsupported unset value for column s", "SELECT * from %s WHERE s = ?", unset());
         // range
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i > ?", unset());
@@ -575,6 +608,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void testInvalidSliceRestrictionOnPartitionKey() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c text)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 and a < 4");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
@@ -587,6 +621,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY ((a, b)))");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE (a, b) >= (1, 1) and (a, b) < (4, 1)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE a >= 1 and (a, b) < (4, 1)");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
@@ -603,6 +638,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void testInvalidColumnNames() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c map<int, int>, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name d", "SELECT * FROM %s WHERE d = 0");
         assertInvalidMessage("Undefined column name d", "SELECT * FROM %s WHERE d IN (0, 1)");
         assertInvalidMessage("Undefined column name d", "SELECT * FROM %s WHERE d > 0 and d <= 2");
@@ -619,6 +655,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     @Test
     public void testInvalidNonFrozenUDTRelation() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13247
         String type = createType("CREATE TYPE %s (a int)");
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b " + type + ")");
         Object udt = userType("a", 1);

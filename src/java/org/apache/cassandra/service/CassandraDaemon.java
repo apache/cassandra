@@ -89,11 +89,13 @@ public class CassandraDaemon
     @VisibleForTesting
     public static CassandraDaemon getInstanceForTesting()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
         return instance;
     }
 
     static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9378
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
         {
             @Override
@@ -127,6 +129,7 @@ public class CassandraDaemon
         }
 
         System.setProperty("java.rmi.server.randomIDs", "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10091
 
         // If a remote port has been specified then use that to set up a JMX
         // connector server which can be accessed remotely. Otherwise, look
@@ -171,12 +174,14 @@ public class CassandraDaemon
 
     public CassandraDaemon()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7997
         this(false);
     }
 
     public CassandraDaemon(boolean runManaged)
     {
         this.runManaged = runManaged;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
         this.startupChecks = new StartupChecks().withDefaultTests();
         this.setupCompleted = false;
     }
@@ -189,20 +194,28 @@ public class CassandraDaemon
     protected void setup()
     {
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11578
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11578
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11750
 
         // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
         maybeInitJmx();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12274
 
         Mx4jTool.maybeLoad();
 
         ThreadAwareSecurityManager.install();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9402
 
         logSystemInfo();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
 
         NativeLibrary.tryMlockall();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
 
         CommitLog.instance.start();
 
@@ -215,6 +228,7 @@ public class CassandraDaemon
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14412
         try
         {
             SystemKeyspace.snapshotOnVersionChange();
@@ -229,15 +243,19 @@ public class CassandraDaemon
         SystemKeyspace.persistLocalMetadata();
 
         Thread.setDefaultUncaughtExceptionHandler(CassandraDaemon::uncaughtException);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
 
         SystemKeyspaceMigrator40.migrate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
         StorageService.instance.populateTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9317
 
         try
         {
             // load schema from disk
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8261
             Schema.instance.loadFromDisk();
         }
         catch (Exception e)
@@ -249,18 +267,22 @@ public class CassandraDaemon
         setupVirtualKeyspaces();
 
         SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
 
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
         {
             // Skip system as we've already cleaned it
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             if (keyspaceName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 continue;
 
             for (TableMetadata cfm : Schema.instance.getTablesAndViews(keyspaceName))
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10112
                 try
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5202
                     ColumnFamilyStore.scrubDataDirectories(cfm);
                 }
                 catch (StartupException e)
@@ -300,10 +322,12 @@ public class CassandraDaemon
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7638
             GCInspector.register();
         }
         catch (Throwable t)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
             JVMStabilityInspector.inspectThrowable(t);
             logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
@@ -311,6 +335,7 @@ public class CassandraDaemon
         // Replay any CommitLogSegments found on disk
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             CommitLog.instance.recoverSegmentsOnDisk();
         }
         catch (IOException e)
@@ -320,8 +345,10 @@ public class CassandraDaemon
 
         // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
         StorageService.instance.populateTokenMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10293
 
         SystemKeyspace.finishStartup();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
 
         // Clean up system.size_estimates entries left lying around from missed keyspace drops (CASSANDRA-14905)
         StorageService.instance.cleanupSizeEstimates();
@@ -333,11 +360,14 @@ public class CassandraDaemon
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
         ActiveRepairService.instance.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
 
         // Prepared statements
         QueryProcessor.preloadPreparedStatement();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8831
 
         // Metrics
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4430
         String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");
         if (metricsReporterConfigFile != null)
         {
@@ -345,6 +375,7 @@ public class CassandraDaemon
             try
             {
                 // enable metrics provided by metrics-jvm.jar
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13103
                 CassandraMetricsRegistry.Metrics.register("jvm.buffers", new BufferPoolMetricSet(ManagementFactory.getPlatformMBeanServer()));
                 CassandraMetricsRegistry.Metrics.register("jvm.gc", new GarbageCollectorMetricSet());
                 CassandraMetricsRegistry.Metrics.register("jvm.memory", new MemoryUsageGaugeSet());
@@ -358,6 +389,7 @@ public class CassandraDaemon
                 else
                 {
                     String reportFileLocation = resource.getFile();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8149
                     ReporterConfig.loadFromFile(reportFileLocation).enableAll(CassandraMetricsRegistry.Metrics);
                 }
             }
@@ -368,19 +400,23 @@ public class CassandraDaemon
         }
 
         // start server internals
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9594
         StorageService.instance.registerDaemon(this);
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-700
             StorageService.instance.initServer();
         }
         catch (ConfigurationException e)
         {
             System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7997
             exitOrFail(1, "Fatal configuration error", e);
         }
 
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
         // happens in StorageService.instance.initServer()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         Runnable viewRebuild = () -> {
             for (Keyspace keyspace : Keyspace.all())
             {
@@ -391,10 +427,13 @@ public class CassandraDaemon
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 
         // re-enable auto-compaction after gossip is settled, so correct disk boundaries are used
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         for (Keyspace keyspace : Keyspace.all())
         {
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
@@ -402,6 +441,7 @@ public class CassandraDaemon
                 for (final ColumnFamilyStore store : cfs.concatWithIndexes())
                 {
                     store.reload(); //reload CFs in case there was a change of disk boundaries
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9342
                     if (store.getCompactionStrategyManager().shouldBeEnabled())
                     {
                         store.enableAutoCompaction();
@@ -411,6 +451,7 @@ public class CassandraDaemon
         }
 
         AuditLogManager.instance.initialize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
 
         // schedule periodic background compaction task submission. this is simply a backstop against compactions stalling
         // due to scheduling errors or race conditions
@@ -419,18 +460,22 @@ public class CassandraDaemon
         // schedule periodic recomputation of speculative retry thresholds
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(
             () -> Keyspace.all().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
             DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
             NANOSECONDS
         );
 
         initializeNativeTransport();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15347
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8515
         completeSetup();
     }
 
     public void setupVirtualKeyspaces()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
     }
@@ -439,26 +484,34 @@ public class CassandraDaemon
     {
         // Native transport
         if (nativeTransportService == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
             nativeTransportService = new NativeTransportService();
     }
 
     @VisibleForTesting
     public static void uncaughtException(Thread t, Throwable e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13387
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
         StorageMetrics.uncaughtExceptions.inc();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13108
         logger.error("Exception in thread " + t, e);
         Tracing.trace("Exception in thread {}", t, e);
         for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
         {
             JVMStabilityInspector.inspectThrowable(e2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
 
             if (e2 instanceof FSError)
             {
                 if (e2 != e) // make sure FSError gets logged exactly once.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13108
                     logger.error("Exception in thread " + t, e2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4847
                 FileUtils.handleFSError((FSError) e2);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6646
             if (e2 instanceof CorruptSSTableException)
             {
                 if (e2 != e)
@@ -487,6 +540,7 @@ public class CassandraDaemon
     @VisibleForTesting
     public void completeSetup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9686
         setupCompleted = true;
     }
 
@@ -499,8 +553,11 @@ public class CassandraDaemon
     {
     	if (logger.isInfoEnabled())
     	{
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6456
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8049
 	        try
 	        {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 	            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName() + ":" + DatabaseDescriptor.getStoragePort() + ":" + DatabaseDescriptor.getSSLStoragePort());
 	        }
 	        catch (UnknownHostException e1)
@@ -509,15 +566,18 @@ public class CassandraDaemon
 	        }
 
 	        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
 	        logger.info("Heap size: {}/{}",
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().totalMemory()),
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6657
 	        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
 	            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
 
 	        logger.info("Classpath: {}", System.getProperty("java.class.path"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10764
             logger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
     	}
     }
@@ -533,6 +593,7 @@ public class CassandraDaemon
      */
     public void init(String[] arguments) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2478
         setup();
     }
 
@@ -551,6 +612,7 @@ public class CassandraDaemon
         // We only start transports if bootstrap has completed and we're not in survey mode,
         // OR if we are in survey mode and streaming has completed but we're not using auth
         // OR if we have not joined the ring yet.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
         if (StorageService.instance.hasJoined())
         {
             if (StorageService.instance.isSurveyMode())
@@ -575,6 +637,7 @@ public class CassandraDaemon
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
             startNativeTransport();
             StorageService.instance.setRpcReady(true);
         }
@@ -598,6 +661,7 @@ public class CassandraDaemon
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
             System.exit(0);
 
@@ -638,16 +702,24 @@ public class CassandraDaemon
     public void activate()
     {
         // Do not put any references to DatabaseDescriptor above the forceStaticInitialization call.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7838
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9594
         try
         {
             applyConfig();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
             MBeanWrapper.instance.registerMBean(new StandardMBean(new NativeAccess(), NativeAccessMBean.class), MBEAN_NAME, MBeanWrapper.OnException.LOG);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14821
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
             if (FBUtilities.isWindows)
             {
                 // We need to adjust the system timer on windows from the default 15ms down to the minimum of 1ms as this
                 // impacts timer intervals, thread scheduling, driver interrupts, etc.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9634
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
                 WindowsTimer.startTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
             }
 
@@ -681,6 +753,7 @@ public class CassandraDaemon
                     logger.error("Exception encountered during startup", e);
                 // try to warn user on stdout too, if we haven't already detached
                 e.printStackTrace();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7997
                 exitOrFail(3, "Exception encountered during startup", e);
             }
             else
@@ -696,6 +769,7 @@ public class CassandraDaemon
 
     public void applyConfig()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -729,6 +803,7 @@ public class CassandraDaemon
     {
         validateTransportsCanStart();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9590
         if (nativeTransportService == null)
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
         else
@@ -755,8 +830,10 @@ public class CassandraDaemon
         stop();
         destroy();
         // completely shut down cassandra
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9594
         if(!runManaged)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8136
             System.exit(0);
         }
     }
@@ -783,6 +860,7 @@ public class CassandraDaemon
 
     private void exitOrFail(int code, String message, Throwable cause)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9594
         if (runManaged)
         {
             RuntimeException t = cause!=null ? new RuntimeException(message, cause) : new RuntimeException(message);
@@ -799,6 +877,7 @@ public class CassandraDaemon
     {
         public boolean isAvailable()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13333
             return NativeLibrary.isAvailable();
         }
 

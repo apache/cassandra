@@ -52,6 +52,7 @@ public abstract class ToolsTester
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15780
         preventIllegalAccessWarnings();
     }
 
@@ -89,6 +90,7 @@ public abstract class ToolsTester
                               .collect(Collectors.toSet());
 
         Set<String> current = Arrays.stream(threads.getThreadInfo(threads.getAllThreadIds()))
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15575
                                     .filter(Objects::nonNull)
                                     .map(ThreadInfo::getThreadName)
                                     .collect(Collectors.toSet());

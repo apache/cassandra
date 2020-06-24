@@ -78,6 +78,7 @@ public final class FileUtils
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
             clsDirectBuffer = Class.forName("sun.nio.ch.DirectBuffer");
             Method mDirectBufferCleaner = clsDirectBuffer.getMethod("cleaner");
             mhDirectBufferCleaner = MethodHandles.lookup().unreflect(mDirectBufferCleaner);
@@ -87,6 +88,7 @@ public final class FileUtils
             ByteBuffer buf = ByteBuffer.allocateDirect(1);
             clean(buf);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15468
         catch (IllegalAccessException e)
         {
             logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
@@ -98,6 +100,7 @@ public final class FileUtils
         catch (Throwable t)
         {
             logger.error("FATAL: Cannot initialize optimized memory deallocator.");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7507
             JVMStabilityInspector.inspectThrowable(t);
             throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
         }
@@ -105,11 +108,13 @@ public final class FileUtils
 
     public static void createHardLink(String from, String to)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6916
         createHardLink(new File(from), new File(to));
     }
 
     public static void createHardLink(File from, File to)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         if (to.exists())
             throw new RuntimeException("Tried to create duplicate hard link to " + to);
         if (!from.exists())
@@ -117,6 +122,7 @@ public final class FileUtils
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5383
             Files.createLink(to.toPath(), from.toPath());
         }
         catch (IOException e)
@@ -130,6 +136,7 @@ public final class FileUtils
 
     public static File getTempDir()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         return tempDir;
     }
 
@@ -172,25 +179,30 @@ public final class FileUtils
 
     public static File createTempFile(String prefix, String suffix)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         return createTempFile(prefix, suffix, tempDir);
     }
 
     public static File createDeletableTempFile(String prefix, String suffix)
     {
         File f = createTempFile(prefix, suffix, getTempDir());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14153
         f.deleteOnExit();
         return f;
     }
 
     public static Throwable deleteWithConfirm(String filePath, Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15143
         return deleteWithConfirm(new File(filePath), accumulate);
     }
 
     public static Throwable deleteWithConfirm(File file, Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5383
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15705
             if (!StorageService.instance.isDaemonSetupCompleted())
                 logger.info("Deleting file during startup: {}", file);
 
@@ -217,6 +229,7 @@ public final class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15143
         maybeFail(deleteWithConfirm(file, null));
     }
 
@@ -245,6 +258,7 @@ public final class FileUtils
             logger.trace("Renaming {} to {}", from.getPath(), to.getPath());
         // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
         // and Windows is picky about that.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5383
         try
         {
             atomicMoveWithFallback(from.toPath(), to.toPath());
@@ -269,6 +283,7 @@ public final class FileUtils
         }
         catch (AtomicMoveNotSupportedException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Could not do an atomic move", e);
             Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
         }
@@ -276,6 +291,7 @@ public final class FileUtils
     }
     public static void truncate(String path, long size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8952
         try(FileChannel channel = FileChannel.open(Paths.get(path), StandardOpenOption.READ, StandardOpenOption.WRITE))
         {
             channel.truncate(size);
@@ -301,6 +317,9 @@ public final class FileUtils
 
     public static void closeQuietly(AutoCloseable c)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1886
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         try
         {
             if (c != null)
@@ -314,11 +333,14 @@ public final class FileUtils
 
     public static void close(Closeable... cs) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2319
         close(Arrays.asList(cs));
     }
 
     public static void close(Iterable<? extends Closeable> cs) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15225
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15225
         Throwable e = null;
         for (Closeable c : cs)
         {
@@ -327,6 +349,8 @@ public final class FileUtils
                 if (c != null)
                     c.close();
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15225
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15225
             catch (Throwable ex)
             {
                 if (e == null) e = ex;
@@ -339,6 +363,7 @@ public final class FileUtils
 
     public static void closeQuietly(Iterable<? extends AutoCloseable> cs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         for (AutoCloseable c : cs)
         {
             try
@@ -355,6 +380,7 @@ public final class FileUtils
 
     public static String getCanonicalPath(String filename)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         try
         {
             return new File(filename).getCanonicalPath();
@@ -380,6 +406,7 @@ public final class FileUtils
     /** Return true if file is contained in folder */
     public static boolean isContained(File folder, File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13974
         Path folderPath = Paths.get(getCanonicalPath(folder));
         Path filePath = Paths.get(getCanonicalPath(file));
 
@@ -391,6 +418,7 @@ public final class FileUtils
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             return Paths.get(basePath).relativize(Paths.get(path)).toString();
         }
         catch(Exception ex)
@@ -402,6 +430,7 @@ public final class FileUtils
 
     public static void clean(ByteBuffer buffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         if (buffer == null || !buffer.isDirect())
             return;
 
@@ -430,6 +459,8 @@ public final class FileUtils
 
     public static void createDirectory(String directory)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3359
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
         createDirectory(new File(directory));
     }
 
@@ -438,12 +469,14 @@ public final class FileUtils
         if (!directory.exists())
         {
             if (!directory.mkdirs())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
                 throw new FSWriteError(new IOException("Failed to mkdirs " + directory), directory);
         }
     }
 
     public static boolean delete(String file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15705
         if (!StorageService.instance.isDaemonSetupCompleted())
             logger.info("Deleting file during startup: {}", file);
 
@@ -453,8 +486,10 @@ public final class FileUtils
 
     public static void delete(File... files)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1522
         for ( File file : files )
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15705
             if (!StorageService.instance.isDaemonSetupCompleted())
                 logger.info("Deleting file during startup: {}", file);
 
@@ -464,18 +499,22 @@ public final class FileUtils
 
     public static void deleteAsync(final String file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
         Runnable runnable = new Runnable()
         {
             public void run()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1471
                 deleteWithConfirm(new File(file));
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8055
         ScheduledExecutors.nonPeriodicTasks.execute(runnable);
     }
 
     public static long parseFileSize(String value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
         long result;
         if (!value.matches("\\d+(\\.\\d+)? (GiB|KiB|MiB|TiB|bytes)"))
         {
@@ -516,10 +555,12 @@ public final class FileUtils
     public static String stringifyFileSize(double value)
     {
         double d;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13067
         if ( value >= ONE_TB )
         {
             d = value / ONE_TB;
             String val = df.format(d);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             return val + " TiB";
         }
         else if ( value >= ONE_GB )
@@ -543,6 +584,7 @@ public final class FileUtils
         else
         {
             String val = df.format(value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-385
             return val + " bytes";
         }
     }
@@ -584,6 +626,7 @@ public final class FileUtils
 
     public static void handleCorruptSSTable(CorruptSSTableException e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11578
         fsErrorHandler.get().ifPresent(handler -> handler.handleCorruptSSTable(e));
     }
 
@@ -602,6 +645,7 @@ public final class FileUtils
      */
     public static void handleFSErrorAndPropagate(FSError e)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15053
         handleFSError(e);
         throw propagate(e);
     }
@@ -613,6 +657,7 @@ public final class FileUtils
      */
     public static long folderSize(File folder)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10677
         final long [] sizeArr = {0L};
         try
         {
@@ -628,6 +673,7 @@ public final class FileUtils
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13723
             logger.error("Error while getting {} folder size. {}", folder, e.getMessage());
         }
         return sizeArr[0];
@@ -635,6 +681,7 @@ public final class FileUtils
 
     public static void copyTo(DataInput in, OutputStream out, int length) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         byte[] buffer = new byte[64 * 1024];
         int copiedBytes = 0;
 
@@ -701,6 +748,7 @@ public final class FileUtils
      */
     public static void write(File file, List<String> lines, StandardOpenOption ... options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14134
         Set<StandardOpenOption> optionsSet = new HashSet<>(Arrays.asList(options));
         //Emulate the old FileSystemProvider.newOutputStream behavior for open options.
         if (optionsSet.isEmpty())
@@ -744,6 +792,7 @@ public final class FileUtils
         }
         catch (IOException ex)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10109
             if (ex instanceof NoSuchFileException)
                 return Collections.emptyList();
 
@@ -753,6 +802,7 @@ public final class FileUtils
 
     public static void setFSErrorHandler(FSErrorHandler handler)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11578
         fsErrorHandler.getAndSet(Optional.ofNullable(handler));
     }
 
@@ -766,6 +816,7 @@ public final class FileUtils
      */
     public static long getTotalSpace(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13067
         return handleLargeFileSystem(file.getTotalSpace());
     }
 

@@ -106,6 +106,7 @@ public class CommitLogDescriptorTest
     public void testDescriptorPersistence() throws IOException
     {
         testDescriptorPersistence(new CommitLogDescriptor(11, null, neverEnabledEncryption));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 13, null, neverEnabledEncryption));
         testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 15, null, neverEnabledEncryption));
         testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 17, new ParameterizedClass("LZ4Compressor", null), neverEnabledEncryption));
@@ -122,6 +123,7 @@ public class CommitLogDescriptorTest
         for (int i=0; i<65535; ++i)
             params.put("key"+i, Integer.toString(i, 16));
         try {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             CommitLogDescriptor desc = new CommitLogDescriptor(CommitLogDescriptor.current_version,
                                                                21,
                                                                new ParameterizedClass("LZ4Compressor", params),

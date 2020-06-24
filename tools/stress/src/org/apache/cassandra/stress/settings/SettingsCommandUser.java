@@ -60,11 +60,13 @@ public class SettingsCommandUser extends SettingsCommand
     {
         super(Command.USER, options.parent);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         this.options = options;
         clustering = options.clustering.get();
         ratios = options.ops.ratios();
         default_profile_name=null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
 
         String yamlPath = options.profile.value();
         profiles = new LinkedHashMap<>();
@@ -90,13 +92,16 @@ public class SettingsCommandUser extends SettingsCommand
 
     public boolean hasInsertOnly()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8524
         return ratios.size() == 1 && ratios.containsKey("insert");
     }
 
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
         final SeedManager seeds = new SeedManager(settings);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
         final Map<String, TokenRangeIterator> tokenRangeIterators = new LinkedHashMap<>();
         profiles.forEach((k,v)->tokenRangeIterators.put(k, (v.tokenRangeQueries.isEmpty()
                                                             ? null
@@ -154,6 +159,7 @@ public class SettingsCommandUser extends SettingsCommand
             this.parent = parent;
         }
         final OptionDistribution clustering = new OptionDistribution("clustering=", "gaussian(1..10)", "Distribution clustering runs of operations of the same kind");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
         final OptionSimple profile = new OptionSimple("profile=", ".*", null, "Specify the path to a yaml cql3 profile. Multiple comma separated files can be added.", true);
         final OptionAnyProbabilities ops = new OptionAnyProbabilities("ops", "Specify the ratios for inserts/queries to perform; e.g. ops(insert=2,<query1>=1) will perform 2 inserts for each query1. When using multiple files, specify as keyspace.table.op.");
 
@@ -171,6 +177,7 @@ public class SettingsCommandUser extends SettingsCommand
         super.printSettings(out);
         out.printf("  Command Ratios: %s%n", ratios);
         out.printf("  Command Clustering Distribution: %s%n", options.clustering.getOptionAsString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
         out.printf("  Profile File(s): %s%n", options.profile.value());
     }
 

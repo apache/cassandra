@@ -60,8 +60,11 @@ public abstract class StreamEvent
             super(Type.STREAM_COMPLETE, session.planId());
             this.peer = session.peer;
             this.success = session.isSuccess();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
             this.sessionIndex = session.sessionIndex();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8838
             this.requests = ImmutableSet.copyOf(session.requests);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
             this.streamOperation = session.streamOperation();
             this.transferredRangesPerKeyspace = Collections.unmodifiableMap(session.transferredRangesPerKeyspace);
         }

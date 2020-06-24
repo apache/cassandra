@@ -70,6 +70,7 @@ public class ReadRepairTest
     static EndpointsForRange targets;
 
     private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
             extends BlockingPartitionRepair
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
@@ -160,6 +161,7 @@ public class ReadRepairTest
 
     private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, EndpointsForRange all, EndpointsForRange targets)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         ReplicaPlan.ForRangeRead readPlan = AbstractReadRepairTest.replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, all, targets);
         ReplicaPlan.ForTokenWrite writePlan = AbstractReadRepairTest.repairPlan(readPlan);
         return new InstrumentedReadRepairHandler(repairs, writePlan);
@@ -197,6 +199,7 @@ public class ReadRepairTest
         repairs.put(target2, repair2);
 
         InstrumentedReadRepairHandler<?, ?> handler = createRepairHandler(repairs, targets, EndpointsForRange.of(target1, target2));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
 
         Assert.assertTrue(handler.mutationsSent.isEmpty());
 
@@ -213,6 +216,7 @@ public class ReadRepairTest
         assertMutationEqual(resolved, handler.mutationsSent.get(target3.endpoint()));
 
         // check repairs stop blocking after receiving 2 acks
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1.endpoint());
         Assert.assertFalse(getCurrentRepairStatus(handler));
@@ -231,6 +235,7 @@ public class ReadRepairTest
         repairs.put(target2, mutation(cell1));
 
         EndpointsForRange replicas = EndpointsForRange.of(target1, target2);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, replicas, targets);
         handler.sendInitialRepairs();
         handler.ack(target1.endpoint());
@@ -252,6 +257,7 @@ public class ReadRepairTest
         repairs.put(target1, mutation(cell2));
         repairs.put(target2, mutation(cell1));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, EndpointsForRange.of(target1, target2),
                                                                     EndpointsForRange.of(target1, target2));
         handler.sendInitialRepairs();
@@ -275,6 +281,7 @@ public class ReadRepairTest
         repairs.put(target1, repair1);
 
         // check that the correct initial mutations are sent out
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, targets, EndpointsForRange.of(target1, target2));
         handler.sendInitialRepairs();
         Assert.assertEquals(1, handler.mutationsSent.size());
@@ -298,9 +305,11 @@ public class ReadRepairTest
         Assert.assertEquals(3, repairs.size());
 
         EndpointsForRange replicas = EndpointsForRange.of(target1, target2, target3);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, replicas, replicas);
         handler.sendInitialRepairs();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
         Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1.endpoint());
         Assert.assertFalse(getCurrentRepairStatus(handler));
@@ -326,6 +335,7 @@ public class ReadRepairTest
         EndpointsForRange participants = EndpointsForRange.of(target1, target2, remote1, remote2);
         EndpointsForRange targets = EndpointsForRange.of(target1, target2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         InstrumentedReadRepairHandler handler = createRepairHandler(repairs, participants, targets);
         handler.sendInitialRepairs();
         Assert.assertEquals(2, handler.mutationsSent.size());
@@ -334,6 +344,7 @@ public class ReadRepairTest
 
         Assert.assertEquals(1, handler.waitingOn());
         Assert.assertFalse(getCurrentRepairStatus(handler));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15442
 
         handler.ack(remote1.endpoint());
         Assert.assertEquals(1, handler.waitingOn());

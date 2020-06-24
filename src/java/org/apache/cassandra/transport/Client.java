@@ -50,6 +50,7 @@ public class Client extends SimpleClient
 
     public Client(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
         super(host, port, version, version.isBeta(), encryptionOptions);
         setEventHandler(eventHandler);
     }
@@ -65,6 +66,7 @@ public class Client extends SimpleClient
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
         for (;;)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
             Event event;
             while ((event = eventHandler.queue.poll()) != null)
             {
@@ -92,6 +94,7 @@ public class Client extends SimpleClient
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 System.err.println("ERROR: " + e.getMessage());
             }
@@ -109,8 +112,10 @@ public class Client extends SimpleClient
         String msgType = iter.next().toUpperCase();
         if (msgType.equals("STARTUP"))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4539
             Map<String, String> options = new HashMap<String, String>();
             options.put(StartupMessage.CQL_VERSION, "3.0.0");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
             Compressor compressor = null;
             ChecksumType checksumType = null;
             while (iter.hasNext())
@@ -142,6 +147,7 @@ public class Client extends SimpleClient
                    case "adler32": {
                        if (options.containsKey(StartupMessage.CHECKSUM))
                            throw new RuntimeException("Multiple checksum types supplied");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14716
                        options.put(StartupMessage.CHECKSUM, ChecksumType.ADLER32.name());
                        checksumType = ChecksumType.ADLER32;
                        break;
@@ -165,6 +171,7 @@ public class Client extends SimpleClient
         }
         else if (msgType.equals("QUERY"))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4415
             line = line.substring(6);
             // Ugly hack to allow setting a page size, but that's playground code anyway
             String query = line;
@@ -182,6 +189,8 @@ public class Client extends SimpleClient
                     return null;
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
             return new QueryMessage(query, QueryOptions.create(ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), false, pageSize, null, null, version, null));
         }
         else if (msgType.equals("PREPARE"))
@@ -226,6 +235,7 @@ public class Client extends SimpleClient
         else if (msgType.equals("AUTHENTICATE"))
         {
             Map<String, String> credentials = readCredentials(iter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
             if(!credentials.containsKey(PasswordAuthenticator.USERNAME_KEY) || !credentials.containsKey(PasswordAuthenticator.PASSWORD_KEY))
             {
                 System.err.println("[ERROR] Authentication requires both 'username' and 'password'");
@@ -233,6 +243,7 @@ public class Client extends SimpleClient
             }
             return new AuthResponse(encodeCredentialsForSasl(credentials));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4480
         else if (msgType.equals("REGISTER"))
         {
             String type = line.substring(9).toUpperCase();
@@ -251,6 +262,7 @@ public class Client extends SimpleClient
 
     private Map<String, String> readCredentials(Iterator<String> iter)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5545
         final Map<String, String> credentials = new HashMap<String, String>();
         while (iter.hasNext())
         {
@@ -268,6 +280,7 @@ public class Client extends SimpleClient
 
     private byte[] encodeCredentialsForSasl(Map<String, String> credentials)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         byte[] username = credentials.get(PasswordAuthenticator.USERNAME_KEY).getBytes(StandardCharsets.UTF_8);
         byte[] password = credentials.get(PasswordAuthenticator.PASSWORD_KEY).getBytes(StandardCharsets.UTF_8);
         byte[] initialResponse = new byte[username.length + password.length + 2];
@@ -281,6 +294,7 @@ public class Client extends SimpleClient
     public static void main(String[] args) throws Exception
     {
         DatabaseDescriptor.clientInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         // Print usage if no argument is specified.
         if (args.length < 2 || args.length > 3)
@@ -293,7 +307,9 @@ public class Client extends SimpleClient
         String host = args[0];
         int port = Integer.parseInt(args[1]);
         ProtocolVersion version = args.length == 3 ? ProtocolVersion.decode(Integer.parseInt(args[2]), DatabaseDescriptor.getNativeTransportAllowOlderProtocols()) : ProtocolVersion.CURRENT;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14800
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
         EncryptionOptions encryptionOptions = new EncryptionOptions();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 

@@ -34,10 +34,13 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 
     public void doVerb(final Message<CounterMutation> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
         long queryStartNanoTime = System.nanoTime();
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
         // We should not wait for the result of the write in this thread,
         // otherwise we could have a distributed deadlock between replicas
@@ -46,6 +49,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
         // will not be called if the request timeout, but this is ok
         // because the coordinator of the counter mutation will timeout on
         // it's own in that case.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         StorageProxy.applyCounterMutationOnLeader(cm,
                                                   localDataCenter,
                                                   () -> MessagingService.instance().send(message.emptyResponse(), message.from()),

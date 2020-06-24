@@ -115,6 +115,7 @@ public class ErrorCollectorTest
     public void testAppendSnippetWithInvalidToken()
     {
         String query = "select * fom users";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7111
 
         ErrorCollector collector = new ErrorCollector(query);
 
@@ -135,6 +136,7 @@ public class ErrorCollectorTest
     public void testAppendSnippetWithInvalidToToken()
     {
         String query = "CREATE TABLE test (a int PRIMARY KEY, b set<int>;";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8455
 
         ErrorCollector collector = new ErrorCollector(query);
 

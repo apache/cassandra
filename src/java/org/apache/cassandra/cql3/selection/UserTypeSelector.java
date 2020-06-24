@@ -135,6 +135,7 @@ final class UserTypeSelector extends Selector
             @Override
             boolean areAllFetchedColumnsKnown()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 for (Factory factory : factories.values())
                 {
                     if (!factory.areAllFetchedColumnsKnown())

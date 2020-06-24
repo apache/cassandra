@@ -52,20 +52,24 @@ public class ViewTest
     @BeforeClass
     public static void setUp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9561
         MockSchema.cleanup();
     }
 
     @Test
     public void testSSTablesInBounds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         View initialView = fakeView(0, 5, cfs);
         for (int i = 0 ; i < 5 ; i++)
         {
             for (int j = i ; j < 5 ; j++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 PartitionPosition min = MockSchema.readerBounds(i);
                 PartitionPosition max = MockSchema.readerBounds(j);
                 for (boolean minInc : new boolean[] { true })//, false} )
@@ -76,6 +80,7 @@ public class ViewTest
                             continue;
 
                         AbstractBounds<PartitionPosition> bounds = AbstractBounds.bounds(min, minInc, max, maxInc);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11944
                         List<SSTableReader> r = ImmutableList.copyOf(initialView.liveSSTablesInBounds(bounds.left, bounds.right));
                         Assert.assertEquals(String.format("%d(%s) %d(%s)", i, minInc, j, maxInc), j - i + (minInc ? 0 : -1) + (maxInc ? 1 : 0), r.size());
                     }
@@ -88,6 +93,7 @@ public class ViewTest
     public void testCompaction()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12789
         View initialView = fakeView(0, 5, cfs, true);
         View cur = initialView;
         List<SSTableReader> readers = ImmutableList.copyOf(initialView.sstables);
@@ -105,6 +111,7 @@ public class ViewTest
         Assert.assertFalse(View.permitCompacting(readers.subList(1, 2)).apply(cur));
         Assert.assertTrue(readers.subList(2, 5).containsAll(copyOf(cur.getUncompacting(readers))));
         Assert.assertEquals(3, copyOf(cur.getUncompacting(readers)).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         Assert.assertTrue(ImmutableSet.copyOf(cur.select(SSTableSet.NONCOMPACTING)).containsAll(readers.subList(2, 5)));
         Assert.assertEquals(3, ImmutableSet.copyOf(cur.select(SSTableSet.NONCOMPACTING)).size());
 
@@ -114,6 +121,7 @@ public class ViewTest
         testFailure(View.updateCompacting(copyOf(readers.subList(0, 1)), readers.subList(1, 2)), cur);
 
         // make equivalents of readers.subList(0, 3) that are different instances
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         SSTableReader r0 = MockSchema.sstable(0, cfs), r1 = MockSchema.sstable(1, cfs), r2 = MockSchema.sstable(2, cfs);
         // attempt to mark compacting a version not in the live set
         testFailure(View.updateCompacting(emptySet(), of(r2)), cur);
@@ -134,11 +142,13 @@ public class ViewTest
         testFailure(View.updateCompacting(copyOf(readers.subList(0, 2)), emptySet()), cur);
         Assert.assertTrue(copyOf(concat(readers.subList(0, 1), readers.subList(2, 5))).containsAll(copyOf(cur.getUncompacting(readers))));
         Assert.assertEquals(4, copyOf(cur.getUncompacting(readers)).size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11996
         Set<SSTableReader> nonCompacting = ImmutableSet.copyOf(cur.select(SSTableSet.NONCOMPACTING));
         Assert.assertTrue(nonCompacting.containsAll(readers.subList(2, 5)));
         Assert.assertTrue(nonCompacting.containsAll(readers.subList(0, 1)));
         Assert.assertEquals(4, nonCompacting.size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12789
         for (SSTableReader sstable : initialView.sstables)
             sstable.selfRef().release();
     }
@@ -160,6 +170,7 @@ public class ViewTest
     @Test
     public void testFlushing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         ColumnFamilyStore cfs = MockSchema.newCFS();
         View initialView = fakeView(1, 0, cfs);
         View cur = initialView;
@@ -202,7 +213,9 @@ public class ViewTest
         Assert.assertEquals(memtable1, cur.flushingMemtables.get(0));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9537
         SSTableReader sstable = MockSchema.sstable(1, cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         cur = View.replaceFlushed(memtable1, singleton(sstable)).apply(cur);
         Assert.assertEquals(0, cur.flushingMemtables.size());
         Assert.assertEquals(1, cur.liveMemtables.size());
@@ -213,6 +226,7 @@ public class ViewTest
 
     static View fakeView(int memtableCount, int sstableCount, ColumnFamilyStore cfs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12789
         return fakeView(memtableCount, sstableCount, cfs, false);
     }
 
@@ -225,6 +239,8 @@ public class ViewTest
         for (int i = 0 ; i < sstableCount ; i++)
             sstables.add(MockSchema.sstable(i, keepRef, cfs));
         return new View(ImmutableList.copyOf(memtables), Collections.<Memtable>emptyList(), Helpers.identityMap(sstables),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
                         Collections.<SSTableReader, SSTableReader>emptyMap(), SSTableIntervalTree.build(sstables));
     }
 }

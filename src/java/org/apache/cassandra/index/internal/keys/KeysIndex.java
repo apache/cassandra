@@ -37,6 +37,7 @@ public class KeysIndex extends CassandraIndex
 {
     public KeysIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         super(baseCfs, indexDef);
     }
 

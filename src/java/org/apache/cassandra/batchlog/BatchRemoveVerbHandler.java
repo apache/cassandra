@@ -28,6 +28,7 @@ public final class BatchRemoveVerbHandler implements IVerbHandler<UUID>
 
     public void doVerb(Message<UUID> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9673
         BatchlogManager.remove(message.payload);
     }
 }

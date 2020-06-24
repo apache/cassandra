@@ -78,6 +78,7 @@ public final class Types implements Iterable<UserType>
 
     public static Types of(UserType... types)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         return builder().add(types).build();
     }
 
@@ -88,6 +89,7 @@ public final class Types implements Iterable<UserType>
 
     public Iterable<UserType> referencingUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return Iterables.filter(types.values(), t -> t.referencesUserType(name) && !t.name.equals(name));
     }
 
@@ -116,6 +118,7 @@ public final class Types implements Iterable<UserType>
 
     boolean containsType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return types.containsKey(name);
     }
 
@@ -133,6 +136,7 @@ public final class Types implements Iterable<UserType>
     {
         if (get(type.name).isPresent())
             throw new IllegalStateException(format("Type %s already exists", type.name));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10653
 
         return builder().add(this).add(type).build();
     }
@@ -144,7 +148,9 @@ public final class Types implements Iterable<UserType>
     {
         UserType type =
             get(name).orElseThrow(() -> new IllegalStateException(format("Type %s doesn't exists", name)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10653
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return without(type);
     }
 
@@ -183,6 +189,7 @@ public final class Types implements Iterable<UserType>
             if (!thisNext.getKey().equals(otherNext.getKey()))
                 return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             if (!thisNext.getValue().equals(otherNext.getValue()))
                 return false;
         }
@@ -223,6 +230,7 @@ public final class Types implements Iterable<UserType>
 
         public Builder add(UserType... types)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
             for (UserType type : types)
                 add(type);
             return this;
@@ -237,6 +245,7 @@ public final class Types implements Iterable<UserType>
 
     public static final class RawBuilder
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         final String keyspace;
         final List<RawUDT> definitions;
 
@@ -259,7 +268,9 @@ public final class Types implements Iterable<UserType>
             /*
              * build a DAG of UDT dependencies
              */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
             Map<RawUDT, Integer> vertices = Maps.newHashMapWithExpectedSize(definitions.size()); // map values are numbers of referenced types
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10653
             for (RawUDT udt : definitions)
                 vertices.put(udt, 0);
 
@@ -326,6 +337,7 @@ public final class Types implements Iterable<UserType>
 
             boolean referencesUserType(RawUDT other)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10653
                 return fieldTypes.stream().anyMatch(t -> t.referencesUserType(other.name));
             }
 
@@ -333,11 +345,13 @@ public final class Types implements Iterable<UserType>
             {
                 List<FieldIdentifier> preparedFieldNames =
                     fieldNames.stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                               .map(FieldIdentifier::forInternalString)
                               .collect(toList());
 
                 List<AbstractType<?>> preparedFieldTypes =
                     fieldTypes.stream()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
                               .map(t -> t.prepareInternal(keyspace, types).getType())
                               .collect(toList());
 
@@ -347,6 +361,7 @@ public final class Types implements Iterable<UserType>
             @Override
             public int hashCode()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10653
                 return name.hashCode();
             }
 
@@ -360,6 +375,7 @@ public final class Types implements Iterable<UserType>
 
     static TypesDiff diff(Types before, Types after)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return TypesDiff.diff(before, after);
     }
 

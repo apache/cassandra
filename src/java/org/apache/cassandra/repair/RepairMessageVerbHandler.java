@@ -47,11 +47,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
     private boolean isIncremental(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         return ActiveRepairService.instance.consistent.local.isSessionInProgress(sessionID);
     }
 
     private PreviewKind previewKind(UUID sessionID)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
@@ -62,10 +64,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         RepairJobDesc desc = message.payload.desc;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
             switch (message.verb())
             {
                 case PREPARE_MSG:
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
                     logger.debug("Preparing, {}", prepareMessage);
                     List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.tableIds.size());
                     for (TableId tableId : prepareMessage.tableIds)
@@ -74,6 +78,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         if (columnFamilyStore == null)
                         {
                             logErrorAndSendFailureResponse(String.format("Table with id %s was dropped during prepare phase of repair",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                                                                          tableId), message);
                             return;
                         }
@@ -85,22 +90,26 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                              prepareMessage.ranges,
                                                                              prepareMessage.isIncremental,
                                                                              prepareMessage.timestamp,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                                                                              prepareMessage.isGlobal,
                                                                              prepareMessage.previewKind);
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 case SNAPSHOT_MSG:
                     logger.debug("Snapshotting {}", desc);
                     final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
                     if (cfs == null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                         logErrorAndSendFailureResponse(String.format("Table %s.%s was dropped during snapshot phase of repair %s",
                                                                      desc.keyspace, desc.columnFamily, desc.parentSessionId), message);
                         return;
                     }
 
                     ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
                     TableRepairManager repairManager = cfs.getRepairManager();
                     if (prs.isGlobal)
                     {
@@ -110,10 +119,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     {
                         repairManager.snapshot(desc.parentSessionId.toString(), desc.ranges, true);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from());
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 case VALIDATION_REQ:
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
@@ -121,21 +132,27 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
                     if (store == null)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
                         logger.error("Table {}.{} was dropped during snapshot phase of repair {}",
                                      desc.keyspace, desc.columnFamily, desc.parentSessionId);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                         MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
                         return;
                     }
 
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
                     Validator validator = new Validator(desc, message.from(), validationRequest.nowInSec,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
                                                         isIncremental(desc.parentSessionId), previewKind(desc.parentSessionId));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
                     ValidationManager.instance.submitValidation(store, validator);
                     break;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 case SYNC_REQ:
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7586
                     logger.debug("Syncing {}", request);
                     StreamingRepairTask task = new StreamingRepairTask(desc,
                                                                        request.initiator,
@@ -148,6 +165,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     task.run();
                     break;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 case ASYMMETRIC_SYNC_REQ:
                     // forwarded sync request
                     AsymmetricSyncRequest asymmetricSyncRequest = (AsymmetricSyncRequest) message.payload;
@@ -163,10 +181,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     asymmetricTask.run();
                     break;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
                 case CLEANUP_MSG:
                     logger.debug("cleaning up repair");
                     CleanupMessage cleanup = (CleanupMessage) message.payload;
                     ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                     break;
 
@@ -179,6 +199,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case FINALIZE_PROPOSE_MSG:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     ActiveRepairService.instance.consistent.local.handleFinalizeProposeMessage(message.from(), (FinalizePropose) message.payload);
                     break;
 
@@ -187,6 +208,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case FINALIZE_COMMIT_MSG:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     ActiveRepairService.instance.consistent.local.handleFinalizeCommitMessage(message.from(), (FinalizeCommit) message.payload);
                     break;
 
@@ -221,6 +243,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     private void logErrorAndSendFailureResponse(String errorMessage, Message<?> respondTo)
     {
         logger.error(errorMessage);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
         MessagingService.instance().send(reply, respondTo.from());
     }

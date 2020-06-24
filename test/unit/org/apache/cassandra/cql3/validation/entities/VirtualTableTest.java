@@ -279,6 +279,7 @@ public class VirtualTableTest extends CQLTester
     @Test
     public void testInvalidDDLOperations() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "DROP KEYSPACE test_virtual_ks");
 

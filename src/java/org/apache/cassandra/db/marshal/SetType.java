@@ -52,6 +52,7 @@ public class SetType<T> extends CollectionType<Set<T>>
 
     public static <T> SetType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ConcurrentHashMap<AbstractType<?>, SetType> internMap = isMultiCell ? instances : frozenInstances;
         SetType<T> t = internMap.get(elements);
         return null == t
@@ -61,8 +62,10 @@ public class SetType<T> extends CollectionType<Set<T>>
 
     public SetType(AbstractType<T> elements, boolean isMultiCell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM, Kind.SET);
         this.elements = elements;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10162
         this.serializer = SetSerializer.getInstance(elements.getSerializer(), elements);
         this.isMultiCell = isMultiCell;
     }
@@ -70,6 +73,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return elements.referencesUserType(name);
     }
 
@@ -108,6 +112,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     @Override
     public boolean isMultiCell()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         return isMultiCell;
     }
 
@@ -149,11 +154,13 @@ public class SetType<T> extends CollectionType<Set<T>>
     @Override
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6783
         return ListType.compareListOrSet(elements, o1, o2);
     }
 
     public SetSerializer<T> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return serializer;
     }
 
@@ -162,6 +169,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     {
         boolean includeFrozenType = !ignoreFreezing && !isMultiCell();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         StringBuilder sb = new StringBuilder();
         if (includeFrozenType)
             sb.append(FrozenType.class.getName()).append("(");
@@ -174,6 +182,7 @@ public class SetType<T> extends CollectionType<Set<T>>
 
     public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
         while (cells.hasNext())
             bbs.add(cells.next().path().get(0));
@@ -183,9 +192,11 @@ public class SetType<T> extends CollectionType<Set<T>>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         if (parsed instanceof String)
             parsed = Json.decodeJson((String) parsed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(
                     "Expected a list (representing a set), but got a %s: %s", parsed.getClass().getSimpleName(), parsed));

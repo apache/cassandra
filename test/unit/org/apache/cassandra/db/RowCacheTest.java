@@ -63,13 +63,18 @@ public class RowCacheTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12453
         System.setProperty("org.caffinitas.ohc.segmentCount", "16");
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHEDNOCLUSTER, 1, AsciiType.instance, AsciiType.instance, null)
                                                 .caching(new CachingParams(true, 100)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingParams.CACHE_EVERYTHING),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHEDINT, 1, IntegerType.instance)
                                                 .caching(new CachingParams(true, 100)));
     }
@@ -84,6 +89,7 @@ public class RowCacheTest
     public void testRoundTrip() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         String cf = "CachedIntCF";
@@ -108,6 +114,7 @@ public class RowCacheTest
         // populate row cache, we should not get a row cache hit;
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(1).build());
         assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
         // do another query, limit is 20, which is < 100 that we cache, we should get a hit and it should be in range
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(1).build());
@@ -119,6 +126,7 @@ public class RowCacheTest
         for (Unfiltered unfiltered : Util.once(cachedCf.unfilteredIterator(ColumnFilter.selection(cachedCf.columns()), Slices.ALL, false)))
         {
             Row r = (Row) unfiltered;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             for (ColumnData c : r)
             {
                 assertEquals(((Cell)c).value(), ByteBufferUtil.bytes("val" + 0));
@@ -143,12 +151,14 @@ public class RowCacheTest
 
         // inserting 100 rows into both column families
         SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, 0, 100);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
 
         // now reading rows one by one and checking if row change grows
         for (int i = 0; i < 100; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             Util.getAll(Util.cmd(cachedStore, key).build());
             assert CacheService.instance.rowCache.size() == i + 1;
             assert cachedStore.containsCachedParition(key); // current key should be stored in the cache
@@ -172,6 +182,7 @@ public class RowCacheTest
 
         // insert 10 more keys
         SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, 100, 10);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
 
         for (int i = 100; i < 110; i++)
         {
@@ -213,6 +224,8 @@ public class RowCacheTest
     public void testRowCacheNoClustering() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12499
 
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(CF_CACHEDNOCLUSTER);
@@ -244,6 +257,7 @@ public class RowCacheTest
         {
             DecoratedKey key = Util.dk("key" + i);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             Util.getAll(Util.cmd(cachedStore, key).build());
             assert cachedStore.containsCachedParition(key); // cache should be populated with the latest rows read (old ones should be popped)
 
@@ -255,6 +269,8 @@ public class RowCacheTest
                 Row r = (Row)ai.next();
                 assertFalse(ai.hasNext());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 Iterator<Cell> ci = r.cells().iterator();
                 assert(ci.hasNext());
                 Cell cell = ci.next();
@@ -292,7 +308,9 @@ public class RowCacheTest
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, Integer.MAX_VALUE, 1000);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         ColumnFamilyStore store = Keyspace.open(KEYSPACE_CACHED).getColumnFamilyStore(CF_CACHED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         assertEquals(CacheService.instance.rowCache.size(), 100);
         store.cleanupCache();
         assertEquals(CacheService.instance.rowCache.size(), 100);
@@ -300,9 +318,11 @@ public class RowCacheTest
         byte[] tk1, tk2;
         tk1 = "key1000".getBytes();
         tk2 = "key1050".getBytes();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
         store.cleanupCache();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7438
         assertEquals(50, CacheService.instance.rowCache.size());
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
@@ -310,6 +330,7 @@ public class RowCacheTest
     @Test
     public void testInvalidateRowCache() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10341
         StorageService.instance.initServer(0);
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, Integer.MAX_VALUE, 1000);
@@ -385,6 +406,7 @@ public class RowCacheTest
     public void testRowCacheDisabled() throws Exception
     {
         CacheService.instance.setRowCacheCapacityInMB(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2524
         rowCacheLoad(100, 50, 0);
         CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
         CacheService.instance.setRowCacheCapacityInMB(0);
@@ -400,9 +422,13 @@ public class RowCacheTest
     {
         CompactionManager.instance.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         String cf = "CachedIntCF";
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(cf);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
         long startRowCacheHits = cachedStore.metric.rowCacheHit.getCount();
         long startRowCacheOutOfRange = cachedStore.metric.rowCacheHitOutOfRange.getCount();
         // empty the row cache
@@ -412,8 +438,11 @@ public class RowCacheTest
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         DecoratedKey dk = cachedStore.decorateKey(key);
         RowCacheKey rck = new RowCacheKey(cachedStore.metadata(), dk);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String values[] = new String[200];
         for (int i = 0; i < 200; i++)
         {
@@ -428,6 +457,8 @@ public class RowCacheTest
         // populate row cache, we should not get a row cache hit;
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(10).build());
         assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
 
         // do another query, limit is 20, which is < 100 that we cache, we should get a hit and it should be in range
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(10).build());
@@ -448,8 +479,10 @@ public class RowCacheTest
         CacheService.instance.invalidateRowCache();
 
         // try to populate row cache with a limit > rows to cache, we should still populate row cache;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(105).build());
         assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
 
         // validate the stuff in cache;
         CachedPartition cachedCf = (CachedPartition)CacheService.instance.rowCache.get(rck);
@@ -462,6 +495,7 @@ public class RowCacheTest
 
             assertEquals(r.clustering().get(0), ByteBufferUtil.bytes(values[i].substring(3)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
             for (ColumnData c : r)
             {
                 assertEquals(((Cell)c).value(), ByteBufferUtil.bytes(values[i]));
@@ -477,6 +511,7 @@ public class RowCacheTest
     {
         CompactionManager.instance.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(CF_CACHED);
 
@@ -532,6 +567,7 @@ public class RowCacheTest
 
         // insert data and fill the cache
         SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, offset, totalKeys);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         readData(KEYSPACE_CACHED, CF_CACHED, offset, totalKeys);
         assertEquals(totalKeys, CacheService.instance.rowCache.size());
 
@@ -547,6 +583,7 @@ public class RowCacheTest
     private static void readData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
         ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         for (int i = offset; i < offset + numberOfRows; i++)
         {

@@ -32,6 +32,7 @@ public class StopDaemon extends NodeToolCmd
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13030
             DatabaseDescriptor.toolInitialization();
             probe.stopCassandraDaemon();
         } catch (Exception e)

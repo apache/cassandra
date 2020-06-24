@@ -73,6 +73,7 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
 
     public long serializedSize(SnapshotCommand sc, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return TypeSizes.sizeof(sc.keyspace)
              + TypeSizes.sizeof(sc.column_family)
              + TypeSizes.sizeof(sc.snapshot_name)

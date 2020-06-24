@@ -36,6 +36,7 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
     public BulkLoadConnectionFactory(int secureStoragePort, EncryptionOptions.ServerEncryptionOptions encryptionOptions, boolean outboundBindAny)
     {
         this.secureStoragePort = secureStoragePort;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         this.encryptionOptions = encryptionOptions;
         this.outboundBindAny = outboundBindAny;
     }

@@ -37,6 +37,7 @@ import static java.time.format.ResolverStyle.STRICT;
 public class SimpleDateSerializer implements TypeSerializer<Integer>
 {
     private static final DateTimeFormatter formatter =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
             DateTimeFormatter.ISO_LOCAL_DATE.withZone(UTC).withResolverStyle(STRICT);
     private static final long minSupportedDateMillis = TimeUnit.DAYS.toMillis(Integer.MIN_VALUE);
     private static final long maxSupportedDateMillis = TimeUnit.DAYS.toMillis(Integer.MAX_VALUE);
@@ -61,6 +62,7 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
         // Raw day value in unsigned int form, epoch @ 2^31
         if (rawPattern.matcher(source).matches())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
             return parseRaw(source);
         }
 
@@ -76,6 +78,7 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
                 throw new MarshalException(String.format("Input date %s is greater than max supported date %s", source,
                         ZonedDateTime.ofInstant(Instant.ofEpochMilli(maxSupportedDateMillis), UTC).toString()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
             return timeInMillisToDay(millis);
         }
         catch (DateTimeParseException| ArithmeticException e1)
@@ -125,6 +128,7 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
         if (value == null)
             return "";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15257
         return Instant.ofEpochMilli(dayToTimeInMillis(value)).atZone(UTC).format(formatter);
     }
 

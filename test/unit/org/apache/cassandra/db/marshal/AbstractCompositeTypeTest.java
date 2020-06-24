@@ -29,6 +29,7 @@ public class AbstractCompositeTypeTest
     @Test
     public void testEscape()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
         assertEquals("", AbstractCompositeType.escape(""));
         assertEquals("Ab!CdXy \\Z123-345", AbstractCompositeType.escape("Ab!CdXy \\Z123-345"));
         assertEquals("Ab!CdXy \\Z123-345!!", AbstractCompositeType.escape("Ab!CdXy \\Z123-345!"));

@@ -46,13 +46,16 @@ public class SettingsSchema implements Serializable
     public SettingsSchema(Options options, SettingsCommand command)
     {
         if (command instanceof SettingsCommandUser)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8780
             keyspace = null; //this should never be used - StressProfile passes keyspace name directly
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9374
         else
             keyspace = options.keyspace.value();
 
         replicationStrategy = options.replication.getStrategy();
         replicationStrategyOptions = options.replication.getOptions();
         compression = options.compression.value();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
         compactionStrategy = options.compaction.getStrategy();
         compactionStrategyOptions = options.compaction.getOptions();
     }
@@ -220,9 +223,11 @@ public class SettingsSchema implements Serializable
     // CLI Utility Methods
     public void printSettings(ResultLogger out)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         out.println("  Keyspace: " + keyspace);
         out.println("  Replication Strategy: " + replicationStrategy);
         out.println("  Replication Strategy Options: " + replicationStrategyOptions);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13349
 
         out.println("  Table Compression: " + compression);
         out.println("  Table Compaction Strategy: " + compactionStrategy);
@@ -236,6 +241,7 @@ public class SettingsSchema implements Serializable
         if (params == null)
             return new SettingsSchema(new Options(), command);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         if (command instanceof SettingsCommandUser)
             throw new IllegalArgumentException("-schema can only be provided with predefined operations insert, read, etc.; the 'user' command requires a schema yaml instead");
 

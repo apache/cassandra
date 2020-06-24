@@ -85,10 +85,12 @@ public class MessagePayloadTest extends CQLTester
         try
         {
             Field modifiersField = Field.class.getDeclaredField("modifiers");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9072
             modifiersField.setAccessible(true);
             modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() | Modifier.FINAL);
 
             cqlQueryHandlerField.setAccessible(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
 
             modifiersField.setAccessible(modifiersAccessible);
         }
@@ -101,6 +103,7 @@ public class MessagePayloadTest extends CQLTester
     @After
     public void dropCreatedTable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7807
         try
         {
             QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
@@ -114,6 +117,8 @@ public class MessagePayloadTest extends CQLTester
     @Test
     public void testMessagePayloadBeta() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
         QueryHandler queryHandler = (QueryHandler) cqlQueryHandlerField.get(null);
         cqlQueryHandlerField.set(null, new TestQueryHandler());
         try
@@ -126,6 +131,7 @@ public class MessagePayloadTest extends CQLTester
                                                    nativePort,
                                                    ProtocolVersion.V5,
                                                    true,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10404
                                                    new EncryptionOptions());
             try
             {
@@ -206,7 +212,10 @@ public class MessagePayloadTest extends CQLTester
             try
             {
                 client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 Map<String, ByteBuffer> reqMap;
                 Map<String, ByteBuffer> respMap;
 
@@ -215,7 +224,10 @@ public class MessagePayloadTest extends CQLTester
                                                             QueryOptions.DEFAULT
                 );
                 PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable", null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 reqMap = Collections.singletonMap("foo", bytes(42));
                 responsePayload = respMap = Collections.singletonMap("bar", bytes(42));
                 queryMessage.setCustomPayload(reqMap);
@@ -242,6 +254,7 @@ public class MessagePayloadTest extends CQLTester
                                                              Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
                                                              Collections.singletonList(Collections.<ByteBuffer>emptyList()),
                                                              QueryOptions.DEFAULT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 reqMap = Collections.singletonMap("foo", bytes(45));
                 responsePayload = respMap = Collections.singletonMap("bar", bytes(45));
                 batchMessage.setCustomPayload(reqMap);
@@ -271,19 +284,25 @@ public class MessagePayloadTest extends CQLTester
 
             Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
             SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3);
             try
             {
                 client.connect(false, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13304
 
                 Map<String, ByteBuffer> reqMap;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
 
                 QueryMessage queryMessage = new QueryMessage(
                                                             "CREATE TABLE " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)",
                                                             QueryOptions.DEFAULT
                 );
                 PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable", null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 reqMap = Collections.singletonMap("foo", bytes(42));
                 responsePayload = Collections.singletonMap("bar", bytes(42));
                 queryMessage.setCustomPayload(reqMap);
@@ -299,6 +318,7 @@ public class MessagePayloadTest extends CQLTester
                 queryMessage.setCustomPayload(null);
                 client.execute(queryMessage);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 reqMap = Collections.singletonMap("foo", bytes(43));
                 responsePayload = Collections.singletonMap("bar", bytes(43));
                 prepareMessage.setCustomPayload(reqMap);
@@ -315,6 +335,7 @@ public class MessagePayloadTest extends CQLTester
                 ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
 
                 ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, prepareResponse.resultMetadataId, QueryOptions.DEFAULT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 reqMap = Collections.singletonMap("foo", bytes(44));
                 responsePayload = Collections.singletonMap("bar", bytes(44));
                 executeMessage.setCustomPayload(reqMap);
@@ -332,6 +353,7 @@ public class MessagePayloadTest extends CQLTester
                                                              Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
                                                              Collections.singletonList(Collections.<ByteBuffer>emptyList()),
                                                              QueryOptions.DEFAULT);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                 reqMap = Collections.singletonMap("foo", bytes(45));
                 responsePayload = Collections.singletonMap("bar", bytes(45));
                 batchMessage.setCustomPayload(reqMap);
@@ -361,6 +383,7 @@ public class MessagePayloadTest extends CQLTester
         Assert.assertNotNull(map1);
         Assert.assertNotNull(map2);
         Assert.assertEquals(map1.keySet(), map2.keySet());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
         for (Map.Entry<String, ByteBuffer> e : map1.entrySet())
             Assert.assertEquals(e.getValue(), map2.get(e.getKey()));
     }
@@ -374,10 +397,13 @@ public class MessagePayloadTest extends CQLTester
 
         public CQLStatement parse(String query, QueryState state, QueryOptions options)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             return QueryProcessor.instance.parse(query, state, options);
         }
 
         public ResultMessage.Prepared prepare(String query,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10145
                                               ClientState clientState,
                                               Map<String, ByteBuffer> customPayload)
                                                       throws RequestValidationException
@@ -402,6 +428,7 @@ public class MessagePayloadTest extends CQLTester
         {
             if (customPayload != null)
                 requestPayload = customPayload;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
             ResultMessage result = QueryProcessor.instance.process(statement, state, options, customPayload, queryStartNanoTime);
             if (customPayload != null)
             {
@@ -412,8 +439,10 @@ public class MessagePayloadTest extends CQLTester
         }
 
         public ResultMessage processBatch(BatchStatement statement,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                                           QueryState state,
                                           BatchQueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                           Map<String, ByteBuffer> customPayload,
                                           long queryStartNanoTime)
                                                   throws RequestExecutionException, RequestValidationException
@@ -430,8 +459,10 @@ public class MessagePayloadTest extends CQLTester
         }
 
         public ResultMessage processPrepared(CQLStatement statement,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9515
                                              QueryState state,
                                              QueryOptions options,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                              Map<String, ByteBuffer> customPayload,
                                              long queryStartNanoTime)
                                                     throws RequestExecutionException, RequestValidationException

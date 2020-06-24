@@ -52,14 +52,18 @@ public class StreamInitMessage extends StreamMessage
     public final PreviewKind previewKind;
 
     public StreamInitMessage(InetAddressAndPort from, int sessionIndex, UUID planId, StreamOperation streamOperation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
                              UUID pendingRepair, PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         super(Type.STREAM_INIT);
         this.from = from;
         this.sessionIndex = sessionIndex;
         this.planId = planId;
         this.streamOperation = streamOperation;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         this.pendingRepair = pendingRepair;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         this.previewKind = previewKind;
     }
 
@@ -83,21 +87,27 @@ public class StreamInitMessage extends StreamMessage
     {
         public void serialize(StreamInitMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(message.from, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
             out.writeInt(message.sessionIndex);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);
             out.writeUTF(message.streamOperation.getDescription());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             out.writeBoolean(message.pendingRepair != null);
             if (message.pendingRepair != null)
             {
                 UUIDSerializer.serializer.serialize(message.pendingRepair, out, MessagingService.current_version);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
             out.writeInt(message.previewKind.getSerializationVal());
         }
 
         public StreamInitMessage deserialize(DataInputPlus in, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort from = inetAddressAndPortSerializer.deserialize(in, version);
             int sessionIndex = in.readInt();
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
@@ -105,22 +115,27 @@ public class StreamInitMessage extends StreamMessage
 
             UUID pendingRepair = in.readBoolean() ? UUIDSerializer.serializer.deserialize(in, version) : null;
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             return new StreamInitMessage(from, sessionIndex, planId, StreamOperation.fromString(description),
                                          pendingRepair, previewKind);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long size = inetAddressAndPortSerializer.serializedSize(message.from, version);
             size += TypeSizes.sizeof(message.sessionIndex);
             size += UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
             size += TypeSizes.sizeof(message.streamOperation.getDescription());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
             size += TypeSizes.sizeof(message.pendingRepair != null);
             if (message.pendingRepair != null)
             {
                 size += UUIDSerializer.serializer.serializedSize(message.pendingRepair, MessagingService.current_version);
             }
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
 
             return size;
         }

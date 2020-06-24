@@ -60,6 +60,7 @@ public class RowTest
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
         TableMetadata.Builder metadata =
             TableMetadata.builder(KEYSPACE1, CF_STANDARD1)
@@ -85,6 +86,7 @@ public class RowTest
     @Test
     public void testMergeRangeTombstones()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         PartitionUpdate.Builder update1 = new PartitionUpdate.Builder(metadata, dk, metadata.regularAndStaticColumns(), 1);
         writeRangeTombstone(update1, "1", "11", 123, 123);
         writeRangeTombstone(update1, "2", "22", 123, 123);
@@ -111,7 +113,9 @@ public class RowTest
             while (merged.hasNext())
             {
                 RangeTombstoneBoundMarker openMarker = (RangeTombstoneBoundMarker)merged.next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
                 ClusteringBound openBound = openMarker.clustering();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
                 DeletionTime openDeletion = new DeletionTime(openMarker.deletionTime().markedForDeleteAt(),
                                                                    openMarker.deletionTime().localDeletionTime());
 
@@ -146,6 +150,7 @@ public class RowTest
         row = (Row) unfiltered;
         assertEquals("a2", defA.cellValueType().getString(row.getCell(defA).value()));
         assertEquals("b1", defB.cellValueType().getString(row.getCell(defB).value()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         assertEquals(2, row.columns().size());
     }
 
@@ -193,6 +198,7 @@ public class RowTest
         AbstractType clusteringType = (AbstractType) metadata.comparator.subtype(0);
 
         assertEquals(1, start.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
         assertEquals(start.kind(), ClusteringPrefix.Kind.INCL_START_BOUND);
         assertEquals(expected[0], clusteringType.getString(start.get(0)));
 

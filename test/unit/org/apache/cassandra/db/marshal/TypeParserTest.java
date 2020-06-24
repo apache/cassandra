@@ -34,6 +34,7 @@ public class TypeParserTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -41,6 +42,7 @@ public class TypeParserTest
     public void testParse() throws ConfigurationException, SyntaxException
     {
         AbstractType<?> type;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         type = TypeParser.parse(null);
         assert type == BytesType.instance;
@@ -66,6 +68,7 @@ public class TypeParserTest
         type = TypeParser.parse("LongType(reversed=true)");
         assert type == ReversedType.getInstance(LongType.instance);
         assert ((ReversedType<?>)type).baseType == LongType.instance;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
         type = TypeParser.parse("LongType(reversed)");
         assert type == ReversedType.getInstance(LongType.instance);
@@ -80,8 +83,10 @@ public class TypeParserTest
             TypeParser.parse("y");
             fail("Should not pass");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         catch (ConfigurationException e) {}
         catch (SyntaxException e) {}
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
 
         try
         {
@@ -89,12 +94,14 @@ public class TypeParserTest
             fail("Should not pass");
         }
         catch (ConfigurationException e) {}
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
         catch (SyntaxException e) {}
     }
 
     @Test
     public void testParsePartitionerOrder() throws ConfigurationException, SyntaxException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
                                                             ByteOrderedPartitioner.instance,
                                                             RandomPartitioner.instance,

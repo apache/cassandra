@@ -140,6 +140,7 @@ public final class Operations implements Iterable<Operation>
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         regularOperations.forEach(p -> p.addFunctionsTo(functions));
         staticOperations.forEach(p -> p.addFunctionsTo(functions));
     }

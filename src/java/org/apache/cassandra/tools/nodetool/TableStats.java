@@ -38,15 +38,18 @@ public class TableStats extends NodeToolCmd
 
     @Option(title = "human_readable",
             name = {"-H", "--human-readable"},
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
     @Option(title = "format",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5977
             name = {"-F", "--format"},
             description = "Output format (json, yaml)")
     private String outputFormat = "";
 
     @Option(title = "sort_key",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
             name = {"-s", "--sort"},
             description = "Sort tables by specified sort key (average_live_cells_per_slice_last_five_minutes, "
                         + "average_tombstones_per_slice_last_five_minutes, bloom_filter_false_positives, "
@@ -76,6 +79,7 @@ public class TableStats extends NodeToolCmd
             throw new IllegalArgumentException("arguments for -F are json,yaml only.");
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13889
         if (!sortKey.isEmpty() && !Arrays.asList(StatsTableComparator.supportedSortKeys).contains(sortKey))
         {
             throw new IllegalArgumentException(String.format("argument for sort must be one of: %s",

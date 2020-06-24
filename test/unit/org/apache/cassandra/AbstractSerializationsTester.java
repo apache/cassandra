@@ -38,8 +38,11 @@ public class AbstractSerializationsTester
 {
     protected static final String CUR_VER = System.getProperty("cassandra.version", "4.0");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1949
     {{
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         put("3.0", MessagingService.VERSION_30);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         put("4.0", MessagingService.VERSION_40);
     }};
 
@@ -52,6 +55,7 @@ public class AbstractSerializationsTester
 
     protected <T> void testSerializedSize(T obj, IVersionedSerializer<T> serializer) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         DataOutputBuffer out = new DataOutputBuffer();
         serializer.serialize(obj, out, getVersion());
         assert out.getLength() == serializer.serializedSize(obj, getVersion());
@@ -59,6 +63,7 @@ public class AbstractSerializationsTester
 
     protected static DataInputStreamPlus getInput(String name) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8413
         return getInput(CUR_VER, name);
     }
 
@@ -66,12 +71,14 @@ public class AbstractSerializationsTester
     {
         File f = new File("test/data/serialization/" + version + '/' + name);
         assert f.exists() : f.getPath();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return new DataInputPlus.DataInputStreamPlus(new FileInputStream(f));
     }
 
     @SuppressWarnings("resource")
     protected static DataOutputStreamPlus getOutput(String name) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8413
         return getOutput(CUR_VER, name);
     }
 
@@ -80,6 +87,7 @@ public class AbstractSerializationsTester
     {
         File f = new File("test/data/serialization/" + version + '/' + name);
         f.getParentFile().mkdirs();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         return new BufferedDataOutputStreamPlus(new FileOutputStream(f).getChannel());
     }
 }

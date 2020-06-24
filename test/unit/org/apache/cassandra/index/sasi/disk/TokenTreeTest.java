@@ -66,7 +66,9 @@ public class TokenTreeTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
         singleOffset.add(1);
         bigSingleOffset.add(2147521562L);
         shortPackableCollision.add(2L); shortPackableCollision.add(3L);
@@ -100,6 +102,7 @@ public class TokenTreeTest
         public void accept(C c) throws Exception;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13869
     final static List<SortedMap<Long, LongSet>> tokenMaps = Arrays.asList(simpleTokenMap, bigTokensMap);
     private void forAllTokenMaps(CheckedConsumer<SortedMap<Long, LongSet>> c) throws Exception {
         for (SortedMap<Long, LongSet> tokens : tokenMaps)
@@ -107,6 +110,7 @@ public class TokenTreeTest
     }
 
     final static SequentialWriterOption DEFAULT_OPT = SequentialWriterOption.newBuilder().bufferSize(4096).build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
 
     @Test
     public void testSerializedSizeDynamic() throws Exception
@@ -124,6 +128,7 @@ public class TokenTreeTest
     public void testSerializedSize(final TokenTreeBuilder builder) throws Exception
     {
         builder.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File treeFile = FileUtils.createTempFile("token-tree-size-test", "tt");
         treeFile.deleteOnExit();
 
@@ -141,6 +146,7 @@ public class TokenTreeTest
     @Test
     public void buildSerializeAndIterateDynamic() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13869
         forAllTokenMaps(tokens -> buildSerializeAndIterate(new DynamicTokenTreeBuilder(tokens), tokens));
     }
 
@@ -156,6 +162,7 @@ public class TokenTreeTest
     {
 
         builder.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File treeFile = FileUtils.createTempFile("token-tree-iterate-test1", "tt");
         treeFile.deleteOnExit();
 
@@ -220,6 +227,7 @@ public class TokenTreeTest
     @Test
     public void buildSerializeIterateAndSkipDynamic() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13869
         forAllTokenMaps(tokens -> buildSerializeIterateAndSkip(new DynamicTokenTreeBuilder(tokens), tokens));
     }
 
@@ -235,6 +243,7 @@ public class TokenTreeTest
     public void buildSerializeIterateAndSkip(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
     {
         builder.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File treeFile = FileUtils.createTempFile("token-tree-iterate-test2", "tt");
         treeFile.deleteOnExit();
 
@@ -294,6 +303,7 @@ public class TokenTreeTest
     public void skipPastEnd(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
     {
         builder.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File treeFile = FileUtils.createTempFile("token-tree-skip-past-test", "tt");
         treeFile.deleteOnExit();
 
@@ -385,6 +395,7 @@ public class TokenTreeTest
     @Test
     public void testMergingOfEqualTokenTrees() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11525
         testMergingOfEqualTokenTrees(simpleTokenMap);
         testMergingOfEqualTokenTrees(bigTokensMap);
     }
@@ -437,6 +448,7 @@ public class TokenTreeTest
     private static TokenTree buildTree(TokenTreeBuilder builder) throws Exception
     {
         builder.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File treeFile = FileUtils.createTempFile("token-tree-", "db");
         treeFile.deleteOnExit();
 
@@ -616,6 +628,7 @@ public class TokenTreeTest
 
     private static LongSet convert(long... values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
         LongSet result = new LongHashSet(values.length);
         for (long v : values)
             result.add(v);
@@ -647,6 +660,7 @@ public class TokenTreeTest
         {{
                 for (long i = minToken; i <= maxToken; i++)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
                     LongSet offsetSet = new LongHashSet();
                     offsetSet.add(i);
                     put(i, offsetSet);
@@ -655,9 +669,16 @@ public class TokenTreeTest
 
         final TokenTreeBuilder builder = isStatic ? new StaticTokenTreeBuilder(new FakeCombinedTerm(toks)) : new DynamicTokenTreeBuilder(toks);
         builder.finish();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         final File treeFile = FileUtils.createTempFile("token-tree-get-test", "tt");
         treeFile.deleteOnExit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);

@@ -107,8 +107,10 @@ public class TokenMetadata
 
     public TokenMetadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         this(SortedBiMultiValMap.<Token, InetAddressAndPort>create(),
              HashBiMap.create(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
              Topology.empty(),
              DatabaseDescriptor.getPartitioner());
     }
@@ -140,7 +142,9 @@ public class TokenMetadata
     public int pendingRangeChanges(InetAddressAndPort source)
     {
         int n = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4121
         Collection<Range<Token>> sourceRanges = getPrimaryRangesFor(getTokens(source));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3881
         lock.readLock().lock();
         try
         {
@@ -166,6 +170,7 @@ public class TokenMetadata
 
     public void updateNormalTokens(Collection<Token> tokens, InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Token> endpointTokens = HashMultimap.create();
         for (Token token : tokens)
             endpointTokens.put(endpoint, token);
@@ -187,7 +192,9 @@ public class TokenMetadata
         try
         {
             boolean shouldSortTokens = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             Topology.Builder topologyBuilder = topology.unbuild();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (InetAddressAndPort endpoint : endpointTokens.keySet())
             {
                 Collection<Token> tokens = endpointTokens.get(endpoint);
@@ -196,13 +203,16 @@ public class TokenMetadata
 
                 bootstrapTokens.removeValue(endpoint);
                 tokenToEndpointMap.removeValue(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
                 topologyBuilder.addEndpoint(endpoint);
                 leavingEndpoints.remove(endpoint);
                 replacementToOriginal.remove(endpoint);
                 removeFromMoving(endpoint); // also removing this endpoint from moving
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
 
                 for (Token token : tokens)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                     InetAddressAndPort prev = tokenToEndpointMap.put(token, endpoint);
                     if (!endpoint.equals(prev))
                     {
@@ -213,6 +223,7 @@ public class TokenMetadata
                 }
             }
             topology = topologyBuilder.build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
 
             if (shouldSortTokens)
                 sortedTokens = sortTokens();
@@ -229,12 +240,15 @@ public class TokenMetadata
      */
     public void updateHostId(UUID hostId, InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
         assert hostId != null;
         assert endpoint != null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6103
         lock.writeLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             InetAddressAndPort storedEp = endpointToHostIdMap.inverse().get(hostId);
             if (storedEp != null)
             {
@@ -280,6 +294,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
             return endpointToHostIdMap.inverse().get(hostId);
         }
         finally
@@ -294,6 +309,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             Map<InetAddressAndPort, UUID> readMap = new HashMap<>();
             readMap.putAll(endpointToHostIdMap);
             return readMap;
@@ -307,6 +323,7 @@ public class TokenMetadata
     @Deprecated
     public void addBootstrapToken(Token token, InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4121
         addBootstrapTokens(Collections.singleton(token), endpoint);
     }
 
@@ -325,6 +342,7 @@ public class TokenMetadata
         {
 
             InetAddressAndPort oldEndpoint;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
             for (Token token : tokens)
             {
@@ -377,6 +395,7 @@ public class TokenMetadata
 
     public Optional<InetAddressAndPort> getReplacementNode(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         lock.readLock().lock();
         try
         {
@@ -404,6 +423,7 @@ public class TokenMetadata
     public void removeBootstrapTokens(Collection<Token> tokens)
     {
         assert tokens != null && !tokens.isEmpty();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
 
         lock.writeLock().lock();
         try
@@ -456,18 +476,24 @@ public class TokenMetadata
     {
         assert endpoint != null;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-435
         lock.writeLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4121
             bootstrapTokens.removeValue(endpoint);
             tokenToEndpointMap.removeValue(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             topology = topology.unbuild().removeEndpoint(endpoint).build();
             leavingEndpoints.remove(endpoint);
             if (replacementToOriginal.remove(endpoint) != null)
             {
                 logger.debug("Node {} failed during replace.", endpoint);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4120
             endpointToHostIdMap.remove(endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-525
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-525
             sortedTokens = sortTokens();
             invalidateCachedRings();
         }
@@ -483,11 +509,13 @@ public class TokenMetadata
     public Topology updateTopology(InetAddressAndPort endpoint)
     {
         assert endpoint != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
 
         lock.writeLock().lock();
         try
         {
             logger.info("Updating topology for {}", endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             topology = topology.unbuild().updateEndpoint(endpoint).build();
             invalidateCachedRings();
             return topology;
@@ -508,6 +536,7 @@ public class TokenMetadata
         try
         {
             logger.info("Updating topology for all endpoints that have changed");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             topology = topology.unbuild().updateEndpoints().build();
             invalidateCachedRings();
             return topology;
@@ -525,6 +554,7 @@ public class TokenMetadata
     public void removeFromMoving(InetAddressAndPort endpoint)
     {
         assert endpoint != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
 
         lock.writeLock().lock();
         try
@@ -550,6 +580,7 @@ public class TokenMetadata
     {
         assert endpoint != null;
         assert isMember(endpoint); // don't want to return nulls
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-522
 
         lock.readLock().lock();
         try
@@ -565,6 +596,7 @@ public class TokenMetadata
     @Deprecated
     public Token getToken(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4121
         return getTokens(endpoint).iterator().next();
     }
 
@@ -575,6 +607,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
             return tokenToEndpointMap.inverse().containsKey(endpoint);
         }
         finally
@@ -586,10 +619,13 @@ public class TokenMetadata
     public boolean isLeaving(InetAddressAndPort endpoint)
     {
         assert endpoint != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4559
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-994
             return leavingEndpoints.contains(endpoint);
         }
         finally
@@ -605,6 +641,8 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (Pair<Token, InetAddressAndPort> pair : movingEndpoints)
             {
                 if (pair.right.equals(endpoint))
@@ -627,11 +665,14 @@ public class TokenMetadata
      */
     public TokenMetadata cloneOnlyTokenMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6488
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new TokenMetadata(SortedBiMultiValMap.create(tokenToEndpointMap),
                                      HashBiMap.create(endpointToHostIdMap),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
                                      topology,
                                      partitioner);
         }
@@ -657,6 +698,7 @@ public class TokenMetadata
         // synchronize to prevent thundering herd (CASSANDRA-6345)
         synchronized (this)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6488
             if ((tm = cachedTokenMap.get()) != null)
                 return tm;
 
@@ -687,6 +729,7 @@ public class TokenMetadata
 
     private static TokenMetadata removeEndpoints(TokenMetadata allLeftMetadata, Set<InetAddressAndPort> leavingEndpoints)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (InetAddressAndPort endpoint : leavingEndpoints)
             allLeftMetadata.removeEndpoint(endpoint);
 
@@ -701,11 +744,13 @@ public class TokenMetadata
      */
     public TokenMetadata cloneAfterAllSettled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1427
         lock.readLock().lock();
         try
         {
             TokenMetadata metadata = cloneOnlyTokenMap();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (InetAddressAndPort endpoint : leavingEndpoints)
                 metadata.removeEndpoint(endpoint);
 
@@ -737,6 +782,7 @@ public class TokenMetadata
     public Collection<Range<Token>> getPrimaryRangesFor(Collection<Token> tokens)
     {
         Collection<Range<Token>> ranges = new ArrayList<>(tokens.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4121
         for (Token right : tokens)
             ranges.add(new Range<>(getPredecessor(right), right));
         return ranges;
@@ -750,11 +796,14 @@ public class TokenMetadata
 
     public ArrayList<Token> sortedTokens()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-525
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3881
         return sortedTokens;
     }
 
     public EndpointsByRange getPendingRangesMM(String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder byRange = new EndpointsByRange.Builder();
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
 
@@ -815,10 +864,12 @@ public class TokenMetadata
     public void calculatePendingRanges(AbstractReplicationStrategy strategy, String keyspaceName)
     {
         // avoid race between both branches - do not use a lock here as this will block any other unrelated operations!
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         long startedAt = System.currentTimeMillis();
         synchronized (pendingRanges)
         {
             TokenMetadataDiagnostics.pendingRangeCalculationStarted(this, keyspaceName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
 
             // create clone of current state
             BiMultiValMap<Token, InetAddressAndPort> bootstrapTokensClone;
@@ -836,6 +887,7 @@ public class TokenMetadata
                         logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
                     if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
                         if (logger.isTraceEnabled())
                             logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
                         pendingRanges.put(keyspaceName, new PendingRangeMaps());
@@ -854,6 +906,7 @@ public class TokenMetadata
                 lock.readLock().unlock();
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
             pendingRanges.put(keyspaceName, calculatePendingRanges(strategy, metadata, bootstrapTokensClone,
                                                                    leavingEndpointsClone, movingEndpointsClone));
             if (logger.isDebugEnabled())
@@ -878,6 +931,8 @@ public class TokenMetadata
                                                            Set<Pair<Token, InetAddressAndPort>> movingEndpoints)
     {
         PendingRangeMaps newPendingRanges = new PendingRangeMaps();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9258
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9258
 
         RangesByEndpoint addressRanges = strategy.getAddressReplicas(metadata);
 
@@ -913,6 +968,7 @@ public class TokenMetadata
         // the newly pending ranges means there are now fewer endpoints that there were originally and
         // causes its next neighbour to take over its primary range which affects the next RF endpoints
         // in the ring.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Token> bootstrapAddresses = bootstrapTokens.inverse();
         for (InetAddressAndPort endpoint : bootstrapAddresses.keySet())
         {
@@ -930,6 +986,7 @@ public class TokenMetadata
 
         // For each of the moving nodes, we do the same thing we did for bootstrapping:
         // simply add and remove them one by one to allLeftMetadata and check in between what their ranges would be.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         for (Pair<Token, InetAddressAndPort> moving : movingEndpoints)
         {
             //Calculate all the ranges which will could be affected. This will include the ranges before and after the move.
@@ -983,6 +1040,7 @@ public class TokenMetadata
 
     public Token getPredecessor(Token token)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10200
         List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
         assert index >= 0 : token + " not found in " + tokenToEndpointMapKeysAsStrings();
@@ -993,6 +1051,8 @@ public class TokenMetadata
     {
         List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         assert index >= 0 : token + " not found in " + tokenToEndpointMapKeysAsStrings();
         return (index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1);
     }
@@ -1016,6 +1076,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             return new BiMultiValMap<>(bootstrapTokens);
         }
         finally
@@ -1039,9 +1100,12 @@ public class TokenMetadata
 
     public int getSizeOfAllEndpoints()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3881
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6103
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
             return endpointToHostIdMap.size();
         }
         finally
@@ -1069,6 +1133,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
             return leavingEndpoints.size();
         }
         finally
@@ -1099,6 +1164,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12999
             return movingEndpoints.size();
         }
         finally
@@ -1134,8 +1200,10 @@ public class TokenMetadata
     public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start, boolean includeMin)
     {
         if (ring.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
             return includeMin ? Iterators.singletonIterator(start.getPartitioner().getMinimumToken())
                               : Collections.emptyIterator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10200
 
         final boolean insertMin = includeMin && !ring.get(0).isMinimum();
         final int startIndex = firstTokenIndex(ring, start, insertMin);
@@ -1150,8 +1218,10 @@ public class TokenMetadata
                 {
                     // return minimum for index == -1
                     if (j == -1)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                         return start.getPartitioner().getMinimumToken();
                     // return ring token for other indexes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1194
                     return ring.get(j);
                 }
                 finally
@@ -1170,6 +1240,7 @@ public class TokenMetadata
     /** used by tests */
     public void clearUnsafe()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-483
         lock.writeLock().lock();
         try
         {
@@ -1177,9 +1248,11 @@ public class TokenMetadata
             endpointToHostIdMap.clear();
             bootstrapTokens.clear();
             leavingEndpoints.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-525
             pendingRanges.clear();
             movingEndpoints.clear();
             sortedTokens.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
             topology = Topology.empty();
             invalidateCachedRings();
         }
@@ -1195,6 +1268,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             Multimap<InetAddressAndPort, Token> endpointToTokenMap = tokenToEndpointMap.inverse();
             Set<InetAddressAndPort> eps = endpointToTokenMap.keySet();
 
@@ -1215,6 +1289,7 @@ public class TokenMetadata
             {
                 sb.append("Bootstrapping Tokens:" );
                 sb.append(System.getProperty("line.separator"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 for (Map.Entry<Token, InetAddressAndPort> entry : bootstrapTokens.entrySet())
                 {
                     sb.append(entry.getValue()).append(':').append(entry.getKey());
@@ -1226,6 +1301,7 @@ public class TokenMetadata
             {
                 sb.append("Leaving Endpoints:");
                 sb.append(System.getProperty("line.separator"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 for (InetAddressAndPort ep : leavingEndpoints)
                 {
                     sb.append(ep);
@@ -1252,6 +1328,8 @@ public class TokenMetadata
     {
         StringBuilder sb = new StringBuilder();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9258
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9258
         for (PendingRangeMaps pendingRangeMaps : pendingRanges.values())
         {
             sb.append(pendingRangeMaps.printPendingRanges());
@@ -1262,6 +1340,8 @@ public class TokenMetadata
 
     public EndpointsForToken pendingEndpointsForToken(Token token, String keyspaceName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9258
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9258
         PendingRangeMaps pendingRangeMaps = this.pendingRanges.get(keyspaceName);
         if (pendingRangeMaps == null)
             return EndpointsForToken.empty(token);
@@ -1276,12 +1356,15 @@ public class TokenMetadata
     public EndpointsForToken getWriteEndpoints(Token token, String keyspaceName, EndpointsForToken natural)
     {
         EndpointsForToken pending = pendingEndpointsForToken(token, keyspaceName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return ReplicaLayout.forTokenWrite(natural, pending).all();
     }
 
     /** @return an endpoint to token multimap representation of tokenToEndpointMap (a copy) */
     public Multimap<InetAddressAndPort, Token> getEndpointToTokenMapForReading()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4122
         lock.readLock().lock();
         try
         {
@@ -1292,6 +1375,7 @@ public class TokenMetadata
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-483
             lock.readLock().unlock();
         }
     }
@@ -1302,11 +1386,14 @@ public class TokenMetadata
      */
     public Map<Token, InetAddressAndPort> getNormalAndBootstrappingTokenToEndpointMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6103
         lock.readLock().lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             Map<Token, InetAddressAndPort> map = new HashMap<>(tokenToEndpointMap.size() + bootstrapTokens.size());
             map.putAll(tokenToEndpointMap);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3881
             map.putAll(bootstrapTokens);
             return map;
         }
@@ -1336,11 +1423,13 @@ public class TokenMetadata
     public void invalidateCachedRings()
     {
         ringVersion++;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6488
         cachedTokenMap.set(null);
     }
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
         return partitioner.decorateKey(key);
     }
 
@@ -1390,9 +1479,11 @@ public class TokenMetadata
          */
         public Pair<String, String> getLocation(InetAddressAndPort addr)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10200
             return currentLocations.get(addr);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
         Builder unbuild()
         {
             return new Builder(this);
@@ -1500,6 +1591,7 @@ public class TokenMetadata
                 if (snitch == null)
                     return this;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 for (InetAddressAndPort ep : currentLocations.keySet())
                     updateEndpoint(ep, snitch);
 

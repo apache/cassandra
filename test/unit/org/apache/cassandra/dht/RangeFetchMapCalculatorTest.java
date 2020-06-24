@@ -46,6 +46,7 @@ public class RangeFetchMapCalculatorTest
     public static void setupUpSnitch()
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         DatabaseDescriptor.setPartitionerUnsafe(RandomPartitioner.instance);
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {
@@ -70,6 +71,7 @@ public class RangeFetchMapCalculatorTest
 
             private int getIPLastPart(InetAddressAndPort endpoint)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 String str = endpoint.address.toString();
                 int index = str.lastIndexOf(".");
                 return Integer.parseInt(str.substring(index + 1).trim());
@@ -80,7 +82,9 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithSingleSource() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
@@ -88,6 +92,7 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 41, 50, "127.0.0.5");
 
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Collections.emptyList(), "Test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> map = calculator.getRangeFetchMap();
         validateRange(rangesWithSources, map);
 
@@ -97,7 +102,9 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithNonOverlappingSource() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3", "127.0.0.4");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.5", "127.0.0.6");
@@ -105,6 +112,7 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 41, 50, "127.0.0.9", "127.0.0.10");
 
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Collections.emptyList(), "Test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> map = calculator.getRangeFetchMap();
         validateRange(rangesWithSources, map);
 
@@ -114,7 +122,9 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithRFThreeReplacement() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2", "127.0.0.3");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3", "127.0.0.4");
@@ -130,7 +140,9 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForMultipleRoundsComputation() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
@@ -144,6 +156,7 @@ public class RangeFetchMapCalculatorTest
         //We should validate that it streamed from 2 unique sources
         Assert.assertEquals(2, map.asMap().keySet().size());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         assertArrays(Arrays.asList(generateNonTrivialRange(1, 10), generateNonTrivialRange(11, 20), generateNonTrivialRange(21, 30), generateNonTrivialRange(31, 40)),
                 map.asMap().get(InetAddressAndPort.getByName("127.0.0.3")));
         assertArrays(Arrays.asList(generateNonTrivialRange(41, 50)), map.asMap().get(InetAddressAndPort.getByName("127.0.0.2")));
@@ -152,6 +165,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForMultipleRoundsComputationWithLocalHost() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.1");
@@ -172,7 +186,9 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForEmptyGraph() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.1");
@@ -180,6 +196,7 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 41, 50, "127.0.0.1");
 
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Collections.emptyList(), "Test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> map = calculator.getRangeFetchMap();
         //All ranges map to local host so we will not stream anything.
         assertTrue(map.isEmpty());
@@ -188,12 +205,14 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithNoSourceWithLocal() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.5");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
 
         //Return false for all except 127.0.0.5
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         final RangeStreamer.SourceFilter filter = new RangeStreamer.SourceFilter()
         {
             public boolean apply(Replica replica)
@@ -217,6 +236,7 @@ public class RangeFetchMapCalculatorTest
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Arrays.asList(filter), "Test");
         Multimap<InetAddressAndPort, Range<Token>> map = calculator.getRangeFetchMap();
 
@@ -232,11 +252,13 @@ public class RangeFetchMapCalculatorTest
     @Test (expected = IllegalStateException.class)
     public void testWithNoLiveSource() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.5");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         final RangeStreamer.SourceFilter allDeadFilter = new RangeStreamer.SourceFilter()
         {
             public boolean apply(Replica replica)
@@ -250,6 +272,7 @@ public class RangeFetchMapCalculatorTest
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Arrays.asList(allDeadFilter), "Test");
         calculator.getRangeFetchMap();
     }
@@ -258,6 +281,7 @@ public class RangeFetchMapCalculatorTest
     public void testForLocalDC() throws Exception
     {
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.3", "127.0.0.53");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.1", "127.0.0.3", "127.0.0.57");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.2", "127.0.0.59", "127.0.0.61");
@@ -281,6 +305,7 @@ public class RangeFetchMapCalculatorTest
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.2", "127.0.0.59");
 
         //Reject only 127.0.0.3 and accept everyone else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         final RangeStreamer.SourceFilter localHostFilter = new RangeStreamer.SourceFilter()
         {
             public boolean apply(Replica replica)
@@ -304,7 +329,9 @@ public class RangeFetchMapCalculatorTest
             }
         };
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Arrays.asList(localHostFilter), "Test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> map = calculator.getRangeFetchMap();
         validateRange(rangesWithSources, map);
         Assert.assertEquals(3, map.asMap().size());
@@ -318,6 +345,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testTrivialRanges() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
         // add non-trivial ranges
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3", "127.0.0.51");
@@ -326,6 +354,7 @@ public class RangeFetchMapCalculatorTest
         // and a trivial one:
         addTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3", "127.0.0.51");
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Collections.emptyList(), "Test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> optMap = calculator.getRangeFetchMapForNonTrivialRanges();
         Multimap<InetAddressAndPort, Range<Token>> trivialMap = calculator.getRangeFetchMapForTrivialRanges(optMap);
         assertTrue(trivialMap.get(InetAddressAndPort.getByName("127.0.0.3")).contains(generateTrivialRange(1,10)) ^
@@ -336,6 +365,8 @@ public class RangeFetchMapCalculatorTest
     @Test(expected = IllegalStateException.class)
     public void testNotEnoughEndpointsForTrivialRange() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         EndpointsByRange.Builder rangesWithSources = new EndpointsByRange.Builder();
         // add non-trivial ranges
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3", "127.0.0.51");
@@ -344,6 +375,7 @@ public class RangeFetchMapCalculatorTest
         // and a trivial one:
         addTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         RangeStreamer.SourceFilter filter = new RangeStreamer.SourceFilter()
         {
             public boolean apply(Replica replica)
@@ -365,7 +397,9 @@ public class RangeFetchMapCalculatorTest
                 return "Not 127.0.0.3";
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources.build(), Collections.singleton(filter), "Test");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> optMap = calculator.getRangeFetchMapForNonTrivialRanges();
         Multimap<InetAddressAndPort, Range<Token>> trivialMap = calculator.getRangeFetchMapForTrivialRanges(optMap);
 
@@ -414,6 +448,7 @@ public class RangeFetchMapCalculatorTest
     private Range<Token> generateNonTrivialRange(int left, int right)
     {
         // * 1000 to make sure we dont filter away any trivial ranges:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
         return new Range<>(new RandomPartitioner.BigIntegerToken(String.valueOf(left * 10000)), new RandomPartitioner.BigIntegerToken(String.valueOf(right * 10000)));
     }
 

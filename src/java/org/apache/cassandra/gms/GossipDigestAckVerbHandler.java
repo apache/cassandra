@@ -38,9 +38,11 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
 
     public void doVerb(Message<GossipDigestAck> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         InetAddressAndPort from = message.from();
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestAckMessage from {}", from);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5916
         if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
         {
             if (logger.isTraceEnabled())
@@ -50,8 +52,10 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
 
         GossipDigestAck gDigestAckMessage = message.payload;
         List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
         logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5916
 
         if (Gossiper.instance.isInShadowRound())
         {
@@ -81,6 +85,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         }
 
         /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<InetAddressAndPort, EndpointState>();
         for (GossipDigest gDigest : gDigestList)
         {
@@ -90,6 +95,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
                 deltaEpStateMap.put(addr, localEpStatePtr);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<GossipDigestAck2> gDigestAck2Message = Message.out(GOSSIP_DIGEST_ACK2, new GossipDigestAck2(deltaEpStateMap));
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestAck2Message to {}", from);

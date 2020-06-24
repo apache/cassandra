@@ -26,6 +26,7 @@ public class AsciiSerializer extends AbstractTextSerializer
 
     private AsciiSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6290
         super(StandardCharsets.US_ASCII);
     }
 
@@ -35,6 +36,7 @@ public class AsciiSerializer extends AbstractTextSerializer
         for (int i = bytes.position(); i < bytes.limit(); i++)
         {
             byte b = bytes.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
             if (b < 0)
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }

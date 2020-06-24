@@ -40,11 +40,14 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 
     public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
                                 Directories directories,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
                                 LifecycleTransaction txn,
                                 Set<SSTableReader> nonExpiredSSTables,
                                 long maxSSTableSize,
                                 int level)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, level, false);
     }
 
@@ -58,6 +61,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
                                 boolean offline,
                                 boolean keepOriginals)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, level, keepOriginals);
     }
 
@@ -83,6 +87,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
      */
     private static long getTotalWriteSize(Iterable<SSTableReader> nonExpiredSSTables, long estimatedTotalKeys, ColumnFamilyStore cfs, OperationType compactionType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11344
         long estimatedKeysBeforeCompaction = 0;
         for (SSTableReader sstable : nonExpiredSSTables)
             estimatedKeysBeforeCompaction += sstable.estimatedKeys();
@@ -95,8 +100,10 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     protected boolean realAppend(UnfilteredRowIterator partition)
     {
         RowIndexEntry rie = sstableWriter.append(partition);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11623
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > maxSSTableSize)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
             switchCompactionLocation(sstableDirectory);
         }
         return rie != null;
@@ -107,14 +114,17 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     {
         sstableDirectory = location;
         @SuppressWarnings("resource")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
                                                     estimatedTotalKeys / estimatedSSTables,
                                                     minRepairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                     pendingRepair,
                                                     isTransient,
                                                     cfs.metadata,
                                                     new MetadataCollector(allSSTables, cfs.metadata().comparator, level),
                                                     SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10678
                                                     cfs.indexManager.listIndexes(),
                                                     txn);
 

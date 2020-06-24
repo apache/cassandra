@@ -57,6 +57,7 @@ public class RepairAdmin extends NodeTool.NodeToolCmd
                                                                   "state",
                                                                   "last activity",
                                                                   "coordinator",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                   "participants",
                                                                   "participants_wp");
 
@@ -68,6 +69,7 @@ public class RepairAdmin extends NodeTool.NodeToolCmd
                                   session.get(LocalSessionInfo.STATE),
                                   Integer.toString(now - updated) + " (s)",
                                   session.get(LocalSessionInfo.COORDINATOR),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                   session.get(LocalSessionInfo.PARTICIPANTS),
                                   session.get(LocalSessionInfo.PARTICIPANTS_WP));
     }

@@ -28,6 +28,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 public final class FilteredPartitions extends BasePartitions<RowIterator, BasePartitionIterator<?>> implements PartitionIterator
 {
     // wrap basic iterator for transformation
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
     FilteredPartitions(PartitionIterator input)
     {
         super(input);

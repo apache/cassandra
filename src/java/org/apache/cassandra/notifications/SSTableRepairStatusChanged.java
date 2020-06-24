@@ -28,6 +28,7 @@ public class SSTableRepairStatusChanged implements INotification
 
     public SSTableRepairStatusChanged(Collection<SSTableReader> repairStatusChanged)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         this.sstables = repairStatusChanged;
     }
 }

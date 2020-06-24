@@ -42,6 +42,7 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
     public Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException
     {
         EventLoop eventLoop = MessagingService.instance().socketFactory.outboundStreamingGroup().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         int attempts = 0;
         while (true)

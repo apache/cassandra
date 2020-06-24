@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.Pair;
 public abstract class PartitionIterator implements Iterator<Row>
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
     abstract boolean reset(double useChance, double rowPopulationRatio, int targetCount, boolean isWrite, PartitionGenerator.Order order);
     // picks random (inclusive) bounds to iterate, and returns them
     public abstract Pair<Row, Row> resetToBounds(Seed seed, int clusteringComponentDepth);
@@ -64,6 +65,7 @@ public abstract class PartitionIterator implements Iterator<Row>
     final SeedManager seedManager;
 
     // we reuse these objects to save garbage
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
     final Object[] partitionKey;
     final Row row;
 
@@ -83,6 +85,7 @@ public abstract class PartitionIterator implements Iterator<Row>
         this.row = new Row(partitionKey, new Object[generator.clusteringComponents.size() + generator.valueComponents.size()]);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
     void setSeed(Seed seed)
     {
         long idseed = 0;
@@ -104,6 +107,7 @@ public abstract class PartitionIterator implements Iterator<Row>
     {
         setSeed(seed);
         this.order = generator.order;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
         return reset(useChance, rowPopulationRatio, 0, isWrite, PartitionIterator.this.order);
     }
 
@@ -157,6 +161,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             double valueColumn = 0.0;
             for (int i = 0 ; i < row.row.length ; i++)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
                 if (generator.permitNulls(i) && (++valueColumn/totalValueColumns) > rowPopulationRatio)
                 {
                     row.row[i] = null;
@@ -195,6 +200,7 @@ public abstract class PartitionIterator implements Iterator<Row>
         // probability any single row will be generated in this iteration
         double useChance;
         double rowPopulationRatio;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
         final double totalValueColumns;
         // we want our chance of selection to be applied uniformly, so we compound the roll we make at each level
         // so that we know with what chance we reached there, and we adjust our roll at that level by that amount
@@ -202,6 +208,7 @@ public abstract class PartitionIterator implements Iterator<Row>
         final double[] rollmodifier = new double[generator.clusteringComponents.size()];
 
         // track where in the partition we are, and where we are limited to
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
         final int[] currentRow = new int[generator.clusteringComponents.size()];
         final int[] lastRow = new int[currentRow.length];
         boolean hasNext, isFirstWrite, isWrite;
@@ -217,6 +224,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                 clusteringComponents[i] = new ArrayDeque<>();
             rollmodifier[0] = 1f;
             chancemodifier[0] = generator.clusteringDescendantAverages[0];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
             this.totalValueColumns = generator.valueComponents.size();
         }
 
@@ -235,8 +243,10 @@ public abstract class PartitionIterator implements Iterator<Row>
          */
         boolean reset(double useChance, double rowPopulationRatio, int targetCount, boolean isWrite, PartitionGenerator.Order order)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
             this.isWrite = isWrite;
             this.rowPopulationRatio = rowPopulationRatio;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
 
             this.order = order;
             // set the seed for the first clustering component
@@ -251,6 +261,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             if (isWrite)
                 expectedRowCount = firstComponentCount * generator.clusteringDescendantAverages[0];
             else if (position != 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                 expectedRowCount = setLastRow(position - 1);
             else
                 expectedRowCount = setNoLastRow(firstComponentCount);
@@ -258,6 +269,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             if (Double.isNaN(useChance))
                 useChance = Math.max(0d, Math.min(1d, targetCount / (double) expectedRowCount));
             setUseChance(useChance);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
 
             while (true)
             {
@@ -268,7 +280,9 @@ public abstract class PartitionIterator implements Iterator<Row>
                 for (Queue<?> q : clusteringComponents)
                     q.clear();
                 fill(0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                 if (!isWrite)
                 {
                     if (seek(0) != State.SUCCESS)
@@ -292,6 +306,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
         void setUseChance(double useChance)
         {
             if (this.useChance < 1d)
@@ -309,6 +324,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             setUseChance(1d);
             if (clusteringComponentDepth == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
                 reset(1d, 1d, -1, false, PartitionGenerator.Order.SORTED);
                 return Pair.create(new Row(partitionKey), new Row(partitionKey));
             }
@@ -364,6 +380,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             for (int i = 0 ; i <= depth ; i++)
             {
                 int p = currentRow[i], l = lastRow[i], r = clusteringComponents[i].size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
                 if (prev < 0)
                 {
                     // if we're behind our last position in theory, and have known more items to visit in practice
@@ -410,6 +427,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                 decomposed[i] = scalar / avg;
                 scalar %= avg;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
             for (int i = lastRow.length - 1 ; i > 0 ; i--)
             {
                 int avg = generator.clusteringComponentAverages[i];
@@ -423,6 +441,7 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         private static int compare(int[] l, int[] r)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             for (int i = 0 ; i < l.length ; i++)
                 if (l[i] != r[i])
                     return Integer.compare(l[i], r[i]);
@@ -444,10 +463,12 @@ public abstract class PartitionIterator implements Iterator<Row>
         {
             if (scalar == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                 this.currentRow[0] = -1;
                 clusteringComponents[0].addFirst(this);
                 return setHasNext(advance(0, true));
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             decompose(scalar, this.currentRow);
             return seekToCurrentRow();
         }
@@ -466,6 +487,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                 if (clusteringComponents[i].isEmpty())
                 {
                     int j = i;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                     while (true)
                     {
                         // if we've exhausted the whole partition, we're done
@@ -501,6 +523,7 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         // normal method for moving the iterator forward; maintains the row object, and delegates to advance(int)
         // to move the iterator to the next item
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
         Row advance()
         {
             // we are always at the leaf level when this method is invoked
@@ -509,6 +532,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             long parentSeed = clusteringSeeds[depth];
             long rowSeed = seed(clusteringComponents[depth].peek(), generator.clusteringComponents.get(depth).type, parentSeed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             Row result = row.copy();
             // and then fill the row with the _non-clustering_ values for the position we _were_ at, as this is what we'll deliver
             double valueColumn = 0.0;
@@ -516,6 +540,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             for (int i = clusteringSeeds.length ; i < row.row.length ; i++)
             {
                 Generator gen = generator.valueComponents.get(i - clusteringSeeds.length);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9522
                 if (++valueColumn / totalValueColumns > rowPopulationRatio)
                 {
                     result.row[i] = null;
@@ -534,9 +559,11 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         private boolean advance(int depth, boolean first)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             ThreadLocalRandom random = ThreadLocalRandom.current();
             // advance the leaf component
             clusteringComponents[depth].poll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
             currentRow[depth]++;
             while (true)
             {
@@ -547,6 +574,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                         return false;
                     depth--;
                     clusteringComponents[depth].poll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                     if (++currentRow[depth] > lastRow[depth])
                         return false;
                     continue;
@@ -580,6 +608,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                         rollmodifier[depth] = rollmodifier[depth - 1] / Math.min(1d, thischance);
                         chancemodifier[depth] = generator.clusteringDescendantAverages[depth] * rollmodifier[depth];
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                     currentRow[depth] = 0;
                     fill(depth);
                     continue;
@@ -590,12 +619,14 @@ public abstract class PartitionIterator implements Iterator<Row>
 
                 // if we don't descend, we remove the clustering suffix we've skipped and continue
                 clusteringComponents[depth].poll();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8608
                 currentRow[depth]++;
             }
         }
 
         private Pair<int[], Object[]> randomBound(int clusteringComponentDepth)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             ThreadLocalRandom rnd = ThreadLocalRandom.current();
             int[] position = new int[clusteringComponentDepth];
             Object[] bound = new Object[clusteringComponentDepth];
@@ -632,6 +663,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                 return;
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             switch (order)
             {
                 case SORTED:
@@ -642,6 +674,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                             tosort.add(generator.generate());
                         Collections.sort((List<Comparable>) (List<?>) tosort);
                         for (int i = 0 ; i < count ; i++)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
                             if (i == 0 || ((Comparable) tosort.get(i - 1)).compareTo(tosort.get(i)) < 0)
                                 queue.add(tosort.get(i));
                         break;
@@ -687,6 +720,7 @@ public abstract class PartitionIterator implements Iterator<Row>
         {
             if (!hasNext())
                 throw new NoSuchElementException();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8773
             return advance();
         }
 
@@ -697,6 +731,7 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         private State setHasNext(boolean hasNext)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7964
             this.hasNext = hasNext;
             if (!hasNext)
             {

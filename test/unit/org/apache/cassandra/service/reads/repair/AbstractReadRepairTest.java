@@ -176,6 +176,7 @@ public abstract  class AbstractReadRepairTest
     static Message<ReadResponse> msg(InetAddressAndPort from, Cell... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return Message.builder(INTERNAL_RSP, ReadResponse.createDataResponse(iter, command))
                       .from(from)
                       .build();
@@ -214,6 +215,7 @@ public abstract  class AbstractReadRepairTest
 
         cfs.sampleReadLatencyNanos = 0;
         cfs.additionalWriteLatencyNanos = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
 
         target1 = InetAddressAndPort.getByName("127.0.0.255");
         target2 = InetAddressAndPort.getByName("127.0.0.254");
@@ -227,7 +229,10 @@ public abstract  class AbstractReadRepairTest
         replicas = EndpointsForRange.of(replica1, replica2, replica3);
 
         replicaPlan = replicaPlan(ConsistencyLevel.QUORUM, replicas);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         StorageService.instance.getTokenMetadata().clearUnsafe();
         StorageService.instance.getTokenMetadata().updateNormalToken(ByteOrderedPartitioner.instance.getToken(ByteBuffer.wrap(new byte[] { 0 })), replica1.endpoint());
         StorageService.instance.getTokenMetadata().updateNormalToken(ByteOrderedPartitioner.instance.getToken(ByteBuffer.wrap(new byte[] { 1 })), replica2.endpoint());
@@ -259,16 +264,20 @@ public abstract  class AbstractReadRepairTest
         assert configured : "configureClass must be called in a @BeforeClass method";
 
         cfs.sampleReadLatencyNanos = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14820
         cfs.additionalWriteLatencyNanos = 0;
     }
 
     static ReplicaPlan.ForRangeRead replicaPlan(ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         return replicaPlan(ks, consistencyLevel, replicas, replicas);
     }
 
     static ReplicaPlan.ForTokenWrite repairPlan(ReplicaPlan.ForRangeRead readPlan)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         return repairPlan(readPlan, readPlan.candidates());
     }
 
@@ -330,6 +339,10 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void noSpeculationRequired()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
@@ -337,6 +350,7 @@ public abstract  class AbstractReadRepairTest
         repair.startRepair(null, consumer);
 
         Assert.assertEquals(epSet(target1, target2), repair.getReadRecipients());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         repair.getReadCallback().onResponse(msg(target1, cell1));
         repair.getReadCallback().onResponse(msg(target2, cell1));
 

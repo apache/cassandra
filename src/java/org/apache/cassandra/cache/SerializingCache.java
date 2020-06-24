@@ -48,6 +48,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     {
         this.serializer = serializer;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         this.cache = Caffeine.newBuilder()
                    .weigher(weigher)
                    .maximumWeight(capacity)
@@ -81,10 +82,12 @@ public class SerializingCache<K, V> implements ICache<K, V>
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             return serializer.deserialize(new MemoryInputStream(mem));
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Cannot fetch in memory data, we will fallback to read from disk ", e);
             return null;
         }
@@ -93,9 +96,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
     @SuppressWarnings("resource")
     private RefCountedMemory serialize(V value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         long serializedSize = serializer.serializedSize(value);
         if (serializedSize > Integer.MAX_VALUE)
             throw new IllegalArgumentException(String.format("Unable to allocate %s", FBUtilities.prettyPrintMemory(serializedSize)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
 
         RefCountedMemory freeableMemory;
         try
@@ -109,11 +114,14 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             serializer.serialize(value, new WrappedDataOutputStreamPlus(new MemoryOutputStream(freeableMemory)));
         }
         catch (IOException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7074
             freeableMemory.unreference();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2116
             throw new RuntimeException(e);
         }
         return freeableMemory;
@@ -121,6 +129,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
     public long capacity()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         return cache.policy().eviction().get().getMaximum();
     }
 
@@ -155,6 +164,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         RefCountedMemory mem = cache.getIfPresent(key);
         if (mem == null)
             return null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2951
         if (!mem.reference())
             return null;
         try
@@ -177,6 +187,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         RefCountedMemory old;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             old = cache.asMap().put(key, mem);
         }
         catch (Throwable t)
@@ -196,9 +207,12 @@ public class SerializingCache<K, V> implements ICache<K, V>
         if (mem == null)
             return false; // out of memory.  never mind.
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7074
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7074
         RefCountedMemory old;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             old = cache.asMap().putIfAbsent(key, mem);
         }
         catch (Throwable t)
@@ -217,10 +231,12 @@ public class SerializingCache<K, V> implements ICache<K, V>
     public boolean replace(K key, V oldToReplace, V value)
     {
         // if there is no old value in our cache, we fail
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         RefCountedMemory old = cache.getIfPresent(key);
         if (old == null)
             return false;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7074
         V oldValue;
         // reference old guy before de-serializing
         if (!old.reference())
@@ -240,6 +256,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         boolean success;
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             success = cache.asMap().replace(key, old, mem);
         }
         catch (Throwable t)
@@ -258,8 +275,10 @@ public class SerializingCache<K, V> implements ICache<K, V>
     public void remove(K key)
     {
         @SuppressWarnings("resource")
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         RefCountedMemory mem = cache.asMap().remove(key);
         if (mem != null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2951
             mem.unreference();
     }
 

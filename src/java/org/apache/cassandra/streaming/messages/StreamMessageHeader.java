@@ -110,6 +110,7 @@ public class StreamMessageHeader
         public void serialize(StreamMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
             header.tableId.serialize(out);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(header.sender, out, version);
             UUIDSerializer.serializer.serialize(header.planId, out, version);
             out.writeBoolean(header.sendByFollower);
@@ -126,6 +127,7 @@ public class StreamMessageHeader
         public StreamMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort sender = inetAddressAndPortSerializer.deserialize(in, version);
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             boolean sendByFollower = in.readBoolean();
@@ -140,6 +142,7 @@ public class StreamMessageHeader
         public long serializedSize(StreamMessageHeader header, int version)
         {
             long size = header.tableId.serializedSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(header.sender, version);
             size += UUIDSerializer.serializer.serializedSize(header.planId, version);
             size += TypeSizes.sizeof(header.sendByFollower);

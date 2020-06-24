@@ -35,6 +35,7 @@ public abstract class RoleManagementStatement extends AuthenticationStatement
 
     public RoleManagementStatement(RoleName name, RoleName grantee)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         this.role = RoleResource.role(name.getName());
         this.grantee = RoleResource.role(grantee.getName());
     }
@@ -50,6 +51,7 @@ public abstract class RoleManagementStatement extends AuthenticationStatement
 
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
             throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
 
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee.getRoleName()));
@@ -58,6 +60,7 @@ public abstract class RoleManagementStatement extends AuthenticationStatement
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

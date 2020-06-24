@@ -85,6 +85,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
      */
     public String getDatacenter(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myDC;
 
@@ -93,10 +94,13 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         {
             if (psnitch == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5133
                 if (savedEndpoints == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                     savedEndpoints = SystemKeyspace.loadDcRackInfo();
                 if (savedEndpoints.containsKey(endpoint))
                     return savedEndpoints.get(endpoint).get("data_center");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5133
                 return DEFAULT_DC;
             }
             else
@@ -113,6 +117,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
      */
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myRack;
 
@@ -121,10 +126,13 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         {
             if (psnitch == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5133
                 if (savedEndpoints == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
                     savedEndpoints = SystemKeyspace.loadDcRackInfo();
                 if (savedEndpoints.containsKey(endpoint))
                     return savedEndpoints.get(endpoint).get("rack");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5133
                 return DEFAULT_RACK;
             }
             else
@@ -137,6 +145,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
     {
         super.gossiperStarting();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT,
                                                    StorageService.instance.valueFactory.internalAddressAndPort(FBUtilities.getLocalAddressAndPort()));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,

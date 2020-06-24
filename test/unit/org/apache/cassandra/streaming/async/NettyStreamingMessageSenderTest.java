@@ -63,6 +63,7 @@ public class NettyStreamingMessageSenderTest
         channel = new TestChannel(Integer.MAX_VALUE);
         channel.attr(NettyStreamingMessageSender.TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
         UUID pendingRepair = UUID.randomUUID();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         session = new StreamSession(StreamOperation.BOOTSTRAP, REMOTE_ADDR, (template, messagingVersion) -> null, true, 0, pendingRepair, PreviewKind.ALL);
         StreamResultFuture future = StreamResultFuture.createFollower(0, UUID.randomUUID(), StreamOperation.REPAIR, REMOTE_ADDR, channel, pendingRepair, session.getPreviewKind());
         session.init(future);

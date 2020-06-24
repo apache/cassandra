@@ -72,7 +72,9 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
                 logger.warn("Invalid replica host name: {}, skipping it", replica);
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14488
         if (logger.isTraceEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Created instance with the following replicas: {}", Arrays.asList(replicas));
     }
 
@@ -95,6 +97,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
         }
         liveReplicaHosts.addAll(replicaHosts);
         allowedDCs.addAll(dcs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
         logger.trace("Initialized with replica hosts: {}", replicaHosts);
     }
 
@@ -137,6 +140,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
         Collections.shuffle(remote);
 
         logger.trace("Using the following hosts order for the new query plan: {} | {}", local, remote);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
 
         return Iterators.concat(local.iterator(), remote.iterator());
     }
@@ -147,6 +151,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
         if (liveReplicaHosts.contains(host))
         {
             liveReplicaHosts.add(host);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Added a new host {}", host);
         }
     }
@@ -157,6 +162,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
         if (liveReplicaHosts.contains(host))
         {
             liveReplicaHosts.add(host);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("The host {} is now up", host);
         }
     }
@@ -166,6 +172,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     {
         if (liveReplicaHosts.remove(host))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("The host {} is now down", host);
         }
     }
@@ -176,6 +183,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     {
         if (liveReplicaHosts.remove(host))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Removed the host {}", host);
         }
     }

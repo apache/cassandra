@@ -65,6 +65,7 @@ public class DistributionSequence extends Distribution
     @Override
     public void setSeed(long seed)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12490
         next.set(seed);
     }
 

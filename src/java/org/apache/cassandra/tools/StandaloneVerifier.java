@@ -56,6 +56,7 @@ public class StandaloneVerifier
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
         Util.initDatabaseDescriptor();
         System.out.println("sstableverify using the following options: " + options);
 
@@ -77,6 +78,7 @@ public class StandaloneVerifier
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
 
             List<SSTableReader> sstables = new ArrayList<>();
 
@@ -100,10 +102,12 @@ public class StandaloneVerifier
                         e.printStackTrace(System.err);
                 }
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
             Verifier.Options verifyOptions = Verifier.options().invokeDiskFailurePolicy(false)
                                                                .extendedVerification(options.extended)
                                                                .checkVersion(options.checkVersion)
                                                                .mutateRepairStatus(options.mutateRepairStatus)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
                                                                .checkOwnsTokens(!options.tokens.isEmpty())
                                                                .tokenLookup(ignore -> options.tokens)
                                                                .build();
@@ -193,10 +197,12 @@ public class StandaloneVerifier
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.extended = cmd.hasOption(EXTENDED_OPTION);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
                 opts.checkVersion = cmd.hasOption(CHECK_VERSION);
                 opts.mutateRepairStatus = cmd.hasOption(MUTATE_REPAIR_STATUS);
                 opts.quick = cmd.hasOption(QUICK);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
                 if (cmd.hasOption(TOKEN_RANGE))
                 {
                     opts.tokens = Stream.of(cmd.getOptionValues(TOKEN_RANGE))
@@ -219,6 +225,7 @@ public class StandaloneVerifier
 
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             return "Options{" +
                    "keyspaceName='" + keyspaceName + '\'' +
                    ", cfName='" + cfName + '\'' +
@@ -246,9 +253,11 @@ public class StandaloneVerifier
             options.addOption("e",  EXTENDED_OPTION,       "extended verification");
             options.addOption("v",  VERBOSE_OPTION,        "verbose output");
             options.addOption("h",  HELP_OPTION,           "display this help message");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14201
             options.addOption("c",  CHECK_VERSION,         "make sure sstables are the latest version");
             options.addOption("r",  MUTATE_REPAIR_STATUS,  "don't mutate repair status");
             options.addOption("q",  QUICK,                 "do a quick check, don't read all data");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
             options.addOptionList("t", TOKEN_RANGE, "range", "long token range of the format left,right. This may be provided multiple times to define multiple different ranges");
             return options;
         }
@@ -267,6 +276,7 @@ public class StandaloneVerifier
 
     private static Range<Token> parseTokenRange(String line)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15753
         String[] split = line.split(",");
         if (split.length != 2)
             throw new IllegalArgumentException("Unable to parse token range from " + line + "; format is left,right but saw " + split.length + " parts");

@@ -44,6 +44,7 @@ public interface DiskOptimizationStrategy
     {
         if (size <= 0)
             return MIN_BUFFER_SIZE;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13897
 
         size = (size + MIN_BUFFER_SIZE_MASK) & ~MIN_BUFFER_SIZE_MASK;
         return (int)Math.min(size, MAX_BUFFER_SIZE);

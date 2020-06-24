@@ -27,6 +27,7 @@ public class BulkLoadException extends Exception
 
     public BulkLoadException(Throwable cause)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10637
         super(cause);
     }
 

@@ -179,6 +179,8 @@ public class BloomCalculations
      */
     public static int maxBucketsPerElement(long numElements)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1555
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         numElements = Math.max(1, numElements);
         double v = (Long.MAX_VALUE - EXCESS) / (double)numElements;
         if (v < 1.0)
@@ -196,6 +198,7 @@ public class BloomCalculations
     {
         int maxBuckets = probs.length - 1;
         int maxK = probs[maxBuckets].length - 1;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11920
         return probs[maxBuckets][maxK];
     }
 }

@@ -69,6 +69,7 @@ public class TermSelector extends Selector
 
             public boolean areAllFetchedColumnsKnown()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 return true;
             }
         };

@@ -52,6 +52,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -100,6 +101,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @Test
     public void testZSTDWriter() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14482
         compressionParameters = CompressionParams.zstd();
         runTests("ZSTD");
     }
@@ -115,17 +117,21 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     {
         final String filename = f.getAbsolutePath();
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
 
         byte[] dataPre = new byte[bytesToTest];
         byte[] rawPost = new byte[bytesToTest];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
                 null, SequentialWriterOption.DEFAULT,
                 compressionParameters,
                 sstableMetadataCollector))
         {
             Random r = new Random(42);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
 
             // Test both write with byte[] and ByteBuffer
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
             r.nextBytes(dataPre);
             r.nextBytes(rawPost);
             ByteBuffer dataPost = makeBB(bytesToTest);
@@ -134,6 +140,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
             writer.write(dataPre);
             DataPosition mark = writer.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10990
 
             // Write enough garbage to transition chunk
             for (int i = 0; i < DEFAULT_CHUNK_LENGTH; i++)
@@ -255,6 +262,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
     private ByteBuffer makeBB(int size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
         return compressionParameters.getSstableCompressor().preferredBufferType().allocate(size);
     }
 
@@ -263,6 +271,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @After
     public void cleanup()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         for (TestableCSW sw : writers)
             sw.cleanup();
         writers.clear();
@@ -272,7 +281,10 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @Override
     public void resetAndTruncateTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12743
         File tempFile = new File(Files.createTempDir(), "reset.txt");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14153
         File offsetsFile = FileUtils.createDeletableTempFile("compressedsequentialwriter.offset", "test");
         final int bufferSize = 48;
         final int writeSize = 64;
@@ -331,6 +343,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
         private TestableCSW(File file, File offsetsFile) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11579
             this(file, offsetsFile, new CompressedSequentialWriter(file, offsetsFile.getPath(),
                                                                    null, SequentialWriterOption.DEFAULT,
                                                                    CompressionParams.lz4(BUFFER_SIZE, MAX_COMPRESSED),
@@ -350,6 +363,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
             Assert.assertFalse(offsetsFile.exists());
             byte[] compressed = readFileToByteArray(file);
             byte[] uncompressed = new byte[partialContents.length];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
             LZ4Compressor.create(Collections.<String, String>emptyMap()).uncompress(compressed, 0, compressed.length - 4, uncompressed, 0);
             Assert.assertTrue(Arrays.equals(partialContents, uncompressed));
         }
@@ -369,6 +383,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
             int offset = (int) offsets.readLong();
             byte[] compressed = readFileToByteArray(file);
             byte[] uncompressed = new byte[fullContents.length];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11051
             LZ4Compressor.create(Collections.<String, String>emptyMap()).uncompress(compressed, 0, offset - 4, uncompressed, 0);
             LZ4Compressor.create(Collections.<String, String>emptyMap()).uncompress(compressed, offset, compressed.length - (4 + offset), uncompressed, partialContents.length);
             Assert.assertTrue(Arrays.equals(fullContents, uncompressed));

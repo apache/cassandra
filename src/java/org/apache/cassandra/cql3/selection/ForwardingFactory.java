@@ -86,6 +86,7 @@ abstract class ForwardingFactory extends Factory
     @Override
     public boolean isSimpleSelectorFactory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return delegate().isSimpleSelectorFactory();
     }
 

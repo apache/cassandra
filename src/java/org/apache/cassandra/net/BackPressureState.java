@@ -28,6 +28,7 @@ public interface BackPressureState
      * Called when a message is sent to a replica.
      */
     void onMessageSent(Message<?> message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
     /**
      * Called when a response is received from a replica.
@@ -47,5 +48,6 @@ public interface BackPressureState
     /**
      * Returns the host this state refers to.
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
     InetAddressAndPort getHost();
 }

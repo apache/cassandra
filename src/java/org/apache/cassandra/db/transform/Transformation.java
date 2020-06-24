@@ -38,6 +38,7 @@ import org.apache.cassandra.db.rows.*;
 public abstract class Transformation<I extends BaseRowIterator<?>>
 {
     // internal methods for StoppableTransformation only
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9975
     void attachTo(BasePartitions partitions) { }
     void attachTo(BaseRows rows) { }
 
@@ -118,6 +119,7 @@ public abstract class Transformation<I extends BaseRowIterator<?>>
      */
     protected RegularAndStaticColumns applyToPartitionColumns(RegularAndStaticColumns columns)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12697
         return columns;
     }
 

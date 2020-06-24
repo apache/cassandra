@@ -55,6 +55,7 @@ public class Hex
     {
         if (str.length() % 2 == 1)
             throw new NumberFormatException("An hex string representing bytes must have an even length");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2851
 
         byte[] bytes = new byte[str.length() / 2];
         for (int i = 0; i < bytes.length; i++)
@@ -70,6 +71,7 @@ public class Hex
 
     public static String bytesToHex(byte... bytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9241
         return bytesToHex(bytes, 0, bytes.length);
     }
 
@@ -105,12 +107,14 @@ public class Hex
             catch (InvocationTargetException ite)
             {
                 // The underlying constructor failed. Unwrapping the exception.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6656
                 Throwable cause = ite.getCause();
                 logger.error("Underlying string constructor threw an error: {}",
                     cause == null ? ite.getMessage() : cause.getMessage());
             }
             catch (Exception e)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
                 JVMStabilityInspector.inspectThrowable(e);
                 // Swallowing as we'll just use a copying constructor
             }

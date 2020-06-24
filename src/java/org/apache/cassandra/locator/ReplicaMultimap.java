@@ -42,6 +42,7 @@ public abstract class ReplicaMultimap<K, C extends ReplicaCollection<?>>
 
     public static abstract class Builder
             <K, B extends ReplicaCollection.Builder<?>>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
 
     {
         protected abstract B newBuilder(K key);

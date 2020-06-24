@@ -138,6 +138,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
                     throw new IllegalStateException("Can only allocate one ByteBuffer");
                 limiter.acquire(size);
                 holder.promise = beginFlush(size, defaultLowWaterMark, defaultHighWaterMark);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
                 holder.buffer = BufferPool.get(size, BufferType.OFF_HEAP);
                 return holder.buffer;
             });
@@ -172,6 +173,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
     {
         // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
         // the data is never brought in process and is gated by the wire anyway
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15740
         if (channel.pipeline().get(SslHandler.class) != null)
             return writeFileToChannel(file, limiter, 1 << 20, 1 << 20, 2 << 20);
         else

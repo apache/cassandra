@@ -110,11 +110,13 @@ public class QueryPlan
                     if (!keyRange.right.isMinimum() && keyRange.right.compareTo(key) < 0)
                         return endOfData();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13302
                     if (!keyRange.inclusiveLeft() && key.compareTo(keyRange.left) == 0)
                         continue;
 
                     try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11183
                         Row staticRow = partition.staticRow();
                         List<Unfiltered> clusters = new ArrayList<>();
 
@@ -138,6 +140,7 @@ public class QueryPlan
 
             public PartitionIterator(UnfilteredRowIterator partition, Collection<Unfiltered> content)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11990
                 super(partition.metadata(),
                       partition.partitionKey(),
                       partition.partitionLevelDeletion(),

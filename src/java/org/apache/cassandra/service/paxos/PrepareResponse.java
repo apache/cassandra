@@ -44,8 +44,10 @@ public class PrepareResponse
 
     public PrepareResponse(boolean promised, Commit inProgressCommit, Commit mostRecentCommit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assert inProgressCommit.update.partitionKey().equals(mostRecentCommit.update.partitionKey());
         assert inProgressCommit.update.metadata().id.equals(mostRecentCommit.update.metadata().id);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14356
 
         this.promised = promised;
         this.mostRecentCommit = mostRecentCommit;
@@ -64,6 +66,7 @@ public class PrepareResponse
         {
             out.writeBoolean(response.promised);
             Commit.serializer.serialize(response.inProgressCommit, out, version);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             Commit.serializer.serialize(response.mostRecentCommit, out, version);
         }
 

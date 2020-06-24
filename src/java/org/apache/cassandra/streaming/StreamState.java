@@ -39,6 +39,7 @@ public class StreamState implements Serializable
     {
         this.planId = planId;
         this.sessions = sessions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         this.streamOperation = streamOperation;
     }
 
@@ -55,6 +56,7 @@ public class StreamState implements Serializable
 
     public List<SessionSummary> createSummaries()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         return Lists.newArrayList(Iterables.transform(sessions, SessionInfo::createSummary));
     }
 }

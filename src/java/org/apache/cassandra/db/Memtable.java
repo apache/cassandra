@@ -68,6 +68,7 @@ public class Memtable implements Comparable<Memtable>
 
     private static MemtablePool createMemtableAllocatorPool()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMb() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMb() << 20;
         switch (DatabaseDescriptor.getMemtableAllocationType())
@@ -111,6 +112,7 @@ public class Memtable implements Comparable<Memtable>
     {
         public LastCommitLogPosition(CommitLogPosition copy)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             super(copy.segmentId, copy.position);
         }
     }
@@ -138,8 +140,10 @@ public class Memtable implements Comparable<Memtable>
     {
         this.cfs = cfs;
         this.commitLogLowerBound = commitLogLowerBound;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
         this.allocator = MEMORY_POOL.newAllocator();
         this.initialComparator = cfs.metadata().comparator;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-4237
         this.cfs.scheduleFlush();
         this.columnsCollector = new ColumnsCollector(cfs.metadata().regularAndStaticColumns());
     }
@@ -148,6 +152,7 @@ public class Memtable implements Comparable<Memtable>
     @VisibleForTesting
     public Memtable(TableMetadata metadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
         this.initialComparator = metadata.comparator;
         this.cfs = null;
         this.allocator = null;
@@ -173,6 +178,7 @@ public class Memtable implements Comparable<Memtable>
     public void setDiscarding(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
     {
         assert this.writeBarrier == null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         this.commitLogUpperBound = commitLogUpperBound;
         this.writeBarrier = writeBarrier;
         allocator.setDiscarding();
@@ -194,6 +200,7 @@ public class Memtable implements Comparable<Memtable>
         if (!barrier.isAfter(opGroup))
             return false;
         // if we aren't durable we are directed only by the barrier
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
         if (commitLogPosition == null)
             return true;
         while (true)
@@ -203,6 +210,7 @@ public class Memtable implements Comparable<Memtable>
             // its current value and ours; if it HAS been finalised, we simply accept its judgement
             // this permits us to coordinate a safe boundary, as the boundary choice is made
             // atomically wrt our max() maintenance, so an operation cannot sneak into the past
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
             CommitLogPosition currentLast = commitLogUpperBound.get();
             if (currentLast instanceof LastCommitLogPosition)
                 return currentLast.compareTo(commitLogPosition) >= 0;
@@ -220,6 +228,7 @@ public class Memtable implements Comparable<Memtable>
 
     public CommitLogPosition getCommitLogUpperBound()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         return commitLogUpperBound.get();
     }
 
@@ -230,6 +239,7 @@ public class Memtable implements Comparable<Memtable>
 
     public boolean isClean()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return partitions.isEmpty();
     }
 
@@ -244,6 +254,7 @@ public class Memtable implements Comparable<Memtable>
     public boolean isExpired()
     {
         int period = cfs.metadata().params.memtableFlushPeriodInMs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
@@ -253,9 +264,11 @@ public class Memtable implements Comparable<Memtable>
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
         AtomicBTreePartition previous = partitions.get(update.partitionKey());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         long initialSize = 0;
         if (previous == null)
@@ -275,6 +288,7 @@ public class Memtable implements Comparable<Memtable>
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         long[] pair = previous.addAllWithSizeDelta(update, opGroup, indexer);
         minTimestamp = Math.min(minTimestamp, previous.stats().minTimestamp);
         liveDataSize.addAndGet(initialSize + pair[0]);
@@ -291,6 +305,7 @@ public class Memtable implements Comparable<Memtable>
 
     public List<FlushRunnable> flushRunnables(LifecycleTransaction txn)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
         return createFlushRunnables(txn);
     }
 
@@ -309,6 +324,7 @@ public class Memtable implements Comparable<Memtable>
             for (int i = 0; i < boundaries.size(); i++)
             {
                 PartitionPosition t = boundaries.get(i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13215
                 runnables.add(new FlushRunnable(rangeStart, t, locations.get(i), txn));
                 rangeStart = t;
             }
@@ -331,6 +347,7 @@ public class Memtable implements Comparable<Memtable>
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9681
                              cfs.name, hashCode(), FBUtilities.prettyPrintMemory(liveDataSize.get()), currentOperations,
                              100 * allocator.onHeap().ownershipRatio(), 100 * allocator.offHeap().ownershipRatio());
     }
@@ -338,6 +355,7 @@ public class Memtable implements Comparable<Memtable>
     public MemtableUnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter, final DataRange dataRange)
     {
         AbstractBounds<PartitionPosition> keyRange = dataRange.keyRange();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         boolean startIsMin = keyRange.left.isMinimum();
         boolean stopIsMin = keyRange.right.isMinimum();
@@ -356,11 +374,13 @@ public class Memtable implements Comparable<Memtable>
         int minLocalDeletionTime = Integer.MAX_VALUE;
 
         // avoid iterating over the memtable if we purge all tombstones
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
         if (cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
             minLocalDeletionTime = findMinLocalDeletionTime(subMap.entrySet().iterator());
 
         final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter = subMap.entrySet().iterator();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         return new MemtableUnfilteredPartitionIterator(cfs, iter, minLocalDeletionTime, columnFilter, dataRange);
     }
 
@@ -382,6 +402,7 @@ public class Memtable implements Comparable<Memtable>
 
     public long getMinTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9949
         return minTimestamp;
     }
 
@@ -391,6 +412,7 @@ public class Memtable implements Comparable<Memtable>
     @VisibleForTesting
     public void makeUnflushable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         liveDataSize.addAndGet(1L * 1024 * 1024 * 1024 * 1024 * 1024);
     }
 
@@ -430,12 +452,15 @@ public class Memtable implements Comparable<Memtable>
             }
             estimatedSize = (long) ((keySize // index entries
                                     + keySize // keys in data file
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5549
                                     + liveDataSize.get()) // data
                                     * 1.2); // bloom filter and row index overhead
 
             this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
             if (flushLocation == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
                 writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
             else
                 writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
@@ -450,6 +475,7 @@ public class Memtable implements Comparable<Memtable>
         private void writeSortedContents()
         {
             logger.info("Writing {}, flushed range = ({}, {}]", Memtable.this.toString(), from, to);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
 
             boolean trackContention = logger.isTraceEnabled();
             int heavilyContendedRowCount = 0;
@@ -462,9 +488,11 @@ public class Memtable implements Comparable<Memtable>
                 // we don't need to preserve tombstones for repair. So if both operation are in this
                 // memtable (which will almost always be the case if there is no ongoing failure), we can
                 // just skip the entry (CASSANDRA-4667).
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                 if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
                     continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15367
                 if (trackContention && partition.useLock())
                     heavilyContendedRowCount++;
 
@@ -477,7 +505,9 @@ public class Memtable implements Comparable<Memtable>
                 }
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11420
             long bytesFlushed = writer.getFilePointer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
             logger.info("Completed flushing {} ({}) for commitlog position {}",
                          writer.getFilename(),
                          FBUtilities.prettyPrintMemory(bytesFlushed),
@@ -492,6 +522,7 @@ public class Memtable implements Comparable<Memtable>
         public SSTableMultiWriter createFlushWriter(LifecycleTransaction txn,
                                                     Descriptor descriptor,
                                                     RegularAndStaticColumns columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                                                     EncodingStats stats)
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata().comparator)
@@ -499,7 +530,9 @@ public class Memtable implements Comparable<Memtable>
 
             return cfs.createSSTableMultiWriter(descriptor,
                                                 toFlush.size(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                 ActiveRepairService.NO_PENDING_REPAIR,
                                                 false,
                                                 sstableMetadataCollector,
@@ -531,6 +564,7 @@ public class Memtable implements Comparable<Memtable>
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
             allocator.setDiscarding();
             allocator.setDiscarded();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7327
             return rowOverhead;
         }
     }
@@ -545,6 +579,7 @@ public class Memtable implements Comparable<Memtable>
 
         public MemtableUnfilteredPartitionIterator(ColumnFamilyStore cfs, Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter, int minLocalDeletionTime, ColumnFilter columnFilter, DataRange dataRange)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
             this.cfs = cfs;
             this.iter = iter;
             this.minLocalDeletionTime = minLocalDeletionTime;
@@ -631,6 +666,7 @@ public class Memtable implements Comparable<Memtable>
         {
             while (true)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9828
                 EncodingStats current = stats.get();
                 EncodingStats updated = current.mergeWith(newStats);
                 if (stats.compareAndSet(current, updated))

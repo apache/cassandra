@@ -28,5 +28,6 @@ public interface RatioDistributionFactory extends Serializable
 
     RatioDistribution get();
     String getConfigAsString();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
 
 }

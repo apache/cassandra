@@ -94,6 +94,7 @@ public class NeverPurgeTest extends CQLTester
         Thread.sleep(1000);
         cfs.forceBlockingFlush();
         cfs.forceMajorCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11828
         verifyContainsTombstones(cfs.getLiveSSTables(), 1);
     }
 

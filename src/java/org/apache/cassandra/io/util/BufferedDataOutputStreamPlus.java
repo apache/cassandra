@@ -118,6 +118,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
                 doFlush(len - copied);
             }
         }
@@ -135,6 +136,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         int srcPos = src.position();
         int srcCount;
         int trgAvailable;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         while ((srcCount = src.limit() - srcPos) > (trgAvailable = buffer.remaining()))
         {
             FastByteOperations.copy(src, srcPos, buffer, buffer.position(), trgAvailable);
@@ -150,6 +152,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     public void write(int b) throws IOException
     {
         if (!buffer.hasRemaining())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
             doFlush(1);
         buffer.put((byte) (b & 0xFF));
     }
@@ -158,6 +161,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     public void writeBoolean(boolean v) throws IOException
     {
         if (!buffer.hasRemaining())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
             doFlush(1);
         buffer.put(v ? (byte)1 : (byte)0);
     }
@@ -171,6 +175,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     @Override
     public void writeShort(int v) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
         writeChar(v);
     }
 
@@ -204,6 +209,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     @Override
     public void writeFloat(float v) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
         writeInt(Float.floatToRawIntBits(v));
     }
 
@@ -260,6 +266,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     @Override
     public void flush() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10592
         doFlush(0);
     }
 

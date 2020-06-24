@@ -132,6 +132,7 @@ public abstract class AbstractReadResponseTest
                      .addRegularColumn("one", AsciiType.instance)
                      .addRegularColumn("two", AsciiType.instance);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14740
         TableMetadata.Builder builder3 =
         TableMetadata.builder(KEYSPACE3, CF_STANDARD)
                      .addPartitionKeyColumn("key", BytesType.instance)
@@ -246,6 +247,7 @@ public abstract class AbstractReadResponseTest
         ReadResponse response = isDigestResponse
                                 ? ReadResponse.createDigestResponse(data, command)
                                 : ReadResponse.createRemoteDataResponse(data, repairedDataDigest, hasPendingRepair, command, fromVersion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return Message.builder(READ_REQ, response)
                       .from(from)
                       .build();

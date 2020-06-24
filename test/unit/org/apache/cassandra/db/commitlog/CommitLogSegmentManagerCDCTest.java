@@ -45,7 +45,9 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14141
         DatabaseDescriptor.setCDCEnabled(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15688
         DatabaseDescriptor.setCDCSpaceInMB(1024);
         CQLTester.setUpClass();
     }
@@ -53,6 +55,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @Before
     public void beforeTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         super.beforeTest();
         // Need to clean out any files from previous test runs. Prevents flaky test failures.
         CommitLog.instance.stopUnsafe(true);
@@ -82,6 +85,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
                         .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
                         .build().apply();
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                 Assert.fail("Expected CDCWriteException from full CDC but did not receive it.");
             }
             catch (CDCWriteException e)
@@ -134,6 +138,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
                         .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
                         .build().apply();
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                 Assert.fail("Expected CDCWriteException from full CDC but did not receive it.");
             }
             catch (CDCWriteException e) { }
@@ -163,6 +168,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @Test
     public void testCDCIndexFileWriteOnSync() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
         new RowUpdateBuilder(currentTableMetadata(), 0, 1)
             .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
@@ -205,6 +211,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         {
             // pass. Expected since we'll have a file or two linked on restart of CommitLog due to replay
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14195
         finally
         {
             DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
@@ -283,6 +290,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         // Assert.assertEquals(0, new File(DatabaseDescriptor.getCDCLogLocation()).listFiles().length);
         String table_name = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
         Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14195
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14195
 
         DatabaseDescriptor.setCDCSpaceInMB(8);
         TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(table_name).metadata();
@@ -300,6 +309,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         {
             // pass
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14195
         finally
         {
             DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
@@ -438,6 +448,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private void expectCurrentCDCState(CDCState expectedState)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         CDCState currentState = CommitLog.instance.segmentManager.allocatingFrom().getCDCState();
         if (currentState != expectedState)
         {

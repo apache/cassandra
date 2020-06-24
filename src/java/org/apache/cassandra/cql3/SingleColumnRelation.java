@@ -57,6 +57,7 @@ public final class SingleColumnRelation extends Relation
         this.value = value;
         this.inValues = inValues;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         if (type == Operator.IS_NOT)
             assert value == Constants.NULL_LITERAL;
     }
@@ -71,6 +72,7 @@ public final class SingleColumnRelation extends Relation
      */
     public SingleColumnRelation(ColumnMetadata.Raw entity, Term.Raw mapKey, Operator type, Term.Raw value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
         this(entity, mapKey, type, value, null);
     }
 
@@ -88,6 +90,7 @@ public final class SingleColumnRelation extends Relation
 
     public Term.Raw getValue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         return value;
     }
 
@@ -108,11 +111,13 @@ public final class SingleColumnRelation extends Relation
 
     public Term.Raw getMapKey()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
         return mapKey;
     }
 
     @Override
     protected Term toTerm(List<? extends ColumnSpecification> receivers,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7981
                           Raw raw,
                           String keyspace,
                           VariableSpecifications boundNames)
@@ -127,9 +132,11 @@ public final class SingleColumnRelation extends Relation
 
     public SingleColumnRelation withNonStrictOperator()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7059
         switch (relationType)
         {
             case GT: return new SingleColumnRelation(entity, Operator.GTE, value);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
             case LT: return new SingleColumnRelation(entity, Operator.LTE, value);
             default: return this;
         }
@@ -137,6 +144,7 @@ public final class SingleColumnRelation extends Relation
 
     public Relation renameIdentifier(ColumnMetadata.Raw from, ColumnMetadata.Raw to)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
         return entity.equals(from)
                ? new SingleColumnRelation(to, mapKey, operator(), value, inValues)
                : this;
@@ -145,12 +153,14 @@ public final class SingleColumnRelation extends Relation
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
         String entityAsString = entity.toString();
         if (mapKey != null)
             entityAsString = String.format("%s[%s]", entityAsString, mapKey);
 
         if (isIN())
             return String.format("%s IN %s", entityAsString, Tuples.tupleToString(inValues));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         return String.format("%s %s %s", entityAsString, relationType, value);
     }
@@ -172,6 +182,7 @@ public final class SingleColumnRelation extends Relation
 
         SingleColumnRelation scr = (SingleColumnRelation) o;
         return Objects.equals(entity, scr.entity)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
             && Objects.equals(relationType, scr.relationType)
             && Objects.equals(mapKey, scr.mapKey)
             && Objects.equals(value, scr.value)
@@ -206,6 +217,7 @@ public final class SingleColumnRelation extends Relation
         }
 
         // An IN restrictions with only one element is the same than an EQ restriction
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
         if (terms.size() == 1)
             return new SingleColumnRestriction.EQRestriction(columnDef, terms.get(0));
 
@@ -220,6 +232,7 @@ public final class SingleColumnRelation extends Relation
     {
         ColumnMetadata columnDef = entity.prepare(table);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         if (columnDef.type.referencesDuration())
         {
             checkFalse(columnDef.type.isCollection(), "Slice restrictions are not supported on collections containing durations");
@@ -244,6 +257,7 @@ public final class SingleColumnRelation extends Relation
 
     @Override
     protected Restriction newIsNotRestriction(TableMetadata table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
                                               VariableSpecifications boundNames) throws InvalidRequestException
     {
         ColumnMetadata columnDef = entity.prepare(table);
@@ -286,7 +300,9 @@ public final class SingleColumnRelation extends Relation
 
         checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
         checkFalse(isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8473
         if (mapKey != null)
         {
             checkFalse(receiver.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not currently supported.", receiver.name);
@@ -296,6 +312,7 @@ public final class SingleColumnRelation extends Relation
         }
 
         // Non-frozen UDTs don't support any operator
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13247
         checkFalse(receiver.type.isUDT() && receiver.type.isMultiCell(),
                    "Non-frozen UDT column '%s' (%s) cannot be restricted by any relation",
                    receiver.name,
@@ -343,6 +360,7 @@ public final class SingleColumnRelation extends Relation
 
     private boolean canHaveOnlyOneValue()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11067
         return isEQ() || isLIKE() || (isIN() && inValues != null && inValues.size() == 1);
     }
 }

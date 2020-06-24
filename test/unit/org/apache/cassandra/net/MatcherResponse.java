@@ -41,6 +41,7 @@ public class MatcherResponse
 {
     private final Matcher<?> matcher;
     private final Multimap<Long, InetAddressAndPort> sendResponses =
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Multimaps.newListMultimap(new HashMap<>(), ArrayList::new);
     private final MockMessagingSpy spy = new MockMessagingSpy();
     private final AtomicInteger limitCounter = new AtomicInteger(Integer.MAX_VALUE);
@@ -56,6 +57,7 @@ public class MatcherResponse
      */
     public MockMessagingSpy dontReply()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return respond((Message<?>)null);
     }
 
@@ -107,6 +109,7 @@ public class MatcherResponse
      */
     public <T, S> MockMessagingSpy respondNWithPayloadForEachReceiver(Function<Message<T>, S> fnResponse, Verb verb, int limit)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return respondN((Message<T> msg, InetAddressAndPort to) -> {
                     S payload = fnResponse.apply(msg);
                     if (payload == null)
@@ -159,6 +162,7 @@ public class MatcherResponse
 
         assert sink == null: "destroy() must be called first to register new response";
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         sink = new BiPredicate<Message<?>, InetAddressAndPort>()
         {
             public boolean test(Message message, InetAddressAndPort to)
@@ -174,6 +178,7 @@ public class MatcherResponse
 
                     synchronized (sendResponses)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         if (message.hasId())
                         {
                             assert !sendResponses.get(message.id()).contains(to) : "ID re-use for outgoing message";
@@ -203,6 +208,7 @@ public class MatcherResponse
             }
         };
         MessagingService.instance().outboundSink.add(sink);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         return spy;
     }
@@ -212,6 +218,8 @@ public class MatcherResponse
         if (!MessagingService.instance().inboundSink.allow(message))
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         message.verb().stage.execute(() -> {
             try
             {

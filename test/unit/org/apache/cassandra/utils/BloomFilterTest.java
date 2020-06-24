@@ -47,6 +47,7 @@ public class BloomFilterTest
 
     public static IFilter testSerialize(IFilter f, boolean oldBfFormat) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         f.add(FilterTestHelper.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
         if (oldBfFormat)
@@ -68,6 +69,7 @@ public class BloomFilterTest
 
     static void compare(IBitSet bs, IBitSet newbs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         assertEquals(bs.capacity(), newbs.capacity());
         for (long i = 0; i < bs.capacity(); i++)
             assertEquals(bs.get(i), newbs.get(i));
@@ -125,6 +127,7 @@ public class BloomFilterTest
         {
             return;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         IFilter bf2 = FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE);
         int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
         FilterTestHelper.testFalsePositives(bf2,
@@ -155,13 +158,17 @@ public class BloomFilterTest
         while (keys.hasNext())
         {
             hashes.clear();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
             FilterKey buf = FilterTestHelper.wrap(keys.next());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
             BloomFilter bf = (BloomFilter) FilterFactory.getFilter(10, 1);
             for (long hashIndex : bf.getHashBuckets(buf, MAX_HASH_COUNT, 1024 * 1024))
             {
                 hashes.add(hashIndex);
             }
             collisions += (MAX_HASH_COUNT - hashes.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
             bf.close();
         }
         Assert.assertTrue("collisions=" + collisions, collisions <= 100);
@@ -171,6 +178,7 @@ public class BloomFilterTest
     public void testOffHeapException()
     {
         long numKeys = ((long)Integer.MAX_VALUE) * 64L + 1L; // approx 128 Billion
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         FilterFactory.getFilter(numKeys, 0.01d).close();
     }
 
@@ -196,6 +204,7 @@ public class BloomFilterTest
                 bf3.add(cached);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
             compare(bf1.bitset, bf2.bitset);
             compare(bf1.bitset, bf3.bitset);
         }
@@ -207,18 +216,25 @@ public class BloomFilterTest
     {
         ByteBuffer test = ByteBuffer.wrap(new byte[] {0, 1});
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14153
         File file = FileUtils.createDeletableTempFile("bloomFilterTest-", ".dat");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14152
         BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         filter.add(FilterTestHelper.wrap(test));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(file));
         BloomFilterSerializer.serialize(filter, out);
         out.close();
         filter.close();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
 
         DataInputStream in = new DataInputStream(new FileInputStream(file));
         BloomFilter filter2 = BloomFilterSerializer.deserialize(in, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7096
         Assert.assertTrue(filter2.isPresent(FilterTestHelper.wrap(test)));
         FileUtils.closeQuietly(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         filter2.close();
     }
 

@@ -67,7 +67,9 @@ public class SSTableWriterTestBase extends SchemaLoader
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
         if (FBUtilities.isWindows)
         {
             standardMode = DatabaseDescriptor.getDiskAccessMode();
@@ -83,6 +85,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                                     SchemaLoader.standardCFMD(KEYSPACE, CF),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF_SMALL_MAX_VALUE));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11912
         maxValueSize = DatabaseDescriptor.getMaxValueSize();
         DatabaseDescriptor.setMaxValueSize(1024 * 1024); // set max value size to 1MB
     }

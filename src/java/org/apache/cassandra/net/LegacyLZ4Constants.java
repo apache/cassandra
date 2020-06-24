@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.net;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 abstract class LegacyLZ4Constants
 {
     static final int XXHASH_SEED = 0x9747B28C;
@@ -49,6 +50,6 @@ abstract class LegacyLZ4Constants
     static final int BLOCK_TYPE_NON_COMPRESSED = 0x10;
     static final int BLOCK_TYPE_COMPRESSED     = 0x20;
 
-    // xxhash to Checksum adapter discards most significant nibble of value ¯\_(ツ)_/¯
+    // xxhash to Checksum adapter discards most significant nibble of value ¯\_(�?)_/¯
     static final int XXHASH_MASK = 0xFFFFFFF;
 }

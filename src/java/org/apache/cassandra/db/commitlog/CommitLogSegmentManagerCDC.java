@@ -54,6 +54,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     void start()
     {
         cdcSizeTracker.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         super.start();
     }
 
@@ -64,6 +65,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         cdcSizeTracker.processDiscardedSegment(segment);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
         if (delete)
             FileUtils.deleteWithConfirm(segment.logFile);
 
@@ -87,6 +89,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     public void shutdown()
     {
         cdcSizeTracker.shutdown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
         super.shutdown();
     }
 
@@ -111,6 +114,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             // Failed to allocate, so move to a new segment with enough room if possible.
             advanceAllocatingFrom(segment);
             segment = allocatingFrom();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
 
             throwIfForbidden(mutation, segment);
         }
@@ -126,6 +130,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         if (mutation.trackedByCDC() && segment.getCDCState() == CDCState.FORBIDDEN)
         {
             cdcSizeTracker.submitOverflowSizeRecalculation();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
             String logMsg = String.format("Rejecting mutation to keyspace %s. Free up space in %s by processing CDC logs.",
                 mutation.getKeyspaceName(), DatabaseDescriptor.getCDCLogLocation());
             NoSpamLogger.log(logger,
@@ -144,6 +149,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     public CommitLogSegment createSegment()
     {
         CommitLogSegment segment = CommitLogSegment.createSegment(commitLog, this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
 
         // Hard link file in cdc folder for realtime tracking
         FileUtils.createHardLink(segment.logFile, segment.getCDCFile());
@@ -224,12 +230,14 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         void processNewSegment(CommitLogSegment segment)
         {
             // See synchronization in CommitLogSegment.setCDCState
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12198
             synchronized(segment.cdcStateLock)
             {
                 segment.setCDCState(defaultSegmentSize() + totalCDCSizeOnDisk() > allowableCDCBytes()
                                     ? CDCState.FORBIDDEN
                                     : CDCState.PERMITTED);
                 if (segment.getCDCState() == CDCState.PERMITTED)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                     size += defaultSegmentSize();
             }
 
@@ -240,12 +248,14 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         void processDiscardedSegment(CommitLogSegment segment)
         {
             // See synchronization in CommitLogSegment.setCDCState
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12198
             synchronized(segment.cdcStateLock)
             {
                 // Add to flushed size before decrementing unflushed so we don't have a window of false generosity
                 if (segment.getCDCState() == CDCState.CONTAINS)
                     size += segment.onDiskSize();
                 if (segment.getCDCState() != CDCState.FORBIDDEN)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                     size -= defaultSegmentSize();
             }
 
@@ -274,6 +284,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         {
             rateLimiter.acquire();
             calculateSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10202
             CommitLogSegment allocatingFrom = segmentManager.allocatingFrom();
             if (allocatingFrom.getCDCState() == CDCState.FORBIDDEN)
                 processNewSegment(allocatingFrom);
@@ -289,6 +300,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             try
             {
                 // The Arrays.stream approach is considerably slower on Windows than linux
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
                 sizeInProgress = 0;
                 Files.walkFileTree(path.toPath(), this);
                 size = sizeInProgress;
@@ -302,6 +314,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12018
             sizeInProgress += attrs.size();
             return FileVisitResult.CONTINUE;
         }
@@ -311,6 +324,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         {
             if (cdcSizeCalculationExecutor != null && !cdcSizeCalculationExecutor.isShutdown())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12148
                 cdcSizeCalculationExecutor.shutdown();
             }
         }

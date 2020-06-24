@@ -153,6 +153,7 @@ public class StandardAnalyzerTest
         while (tokenizer.hasNext())
             tokens.add(tokenizer.next());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12078
         assertEquals(37739, tokens.size());
     }
 

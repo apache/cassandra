@@ -335,6 +335,8 @@ public class SelectTest extends CQLTester
                        row("test", 5, set("lmn"))
             );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             assertInvalidMessage("Unsupported null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
@@ -369,6 +371,8 @@ public class SelectTest extends CQLTester
                        row("test", 5, list("lmn"))
             );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             assertInvalidMessage("Unsupported null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
@@ -426,6 +430,8 @@ public class SelectTest extends CQLTester
                        row("test", 5, map("lmn", "foo"))
             );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             assertInvalidMessage("Unsupported null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, null);
 
@@ -467,6 +473,8 @@ public class SelectTest extends CQLTester
                        row("test", 5, map("lmn", "foo"))
             );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             assertInvalidMessage("Unsupported null value for column categories",
                                  "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
@@ -489,6 +497,7 @@ public class SelectTest extends CQLTester
         createTable("CREATE TABLE %s (account text, id int, categories map<text,text>, PRIMARY KEY (account, id))");
 
         // create an index on
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
         createIndex("CREATE INDEX ON %s(id)");
         createIndex("CREATE INDEX ON %s(categories)");
 
@@ -568,6 +577,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn", "foo2"));
 
         beforeAndAfterFlush(() -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                  "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo");
 
@@ -593,6 +603,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn2", "foo"));
 
         beforeAndAfterFlush(() -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6377
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                  "SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn");
 
@@ -1029,6 +1040,8 @@ public class SelectTest extends CQLTester
 
     @Test
     public void testSelectDistinctWithWhereClause() throws Throwable {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11339
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11339
         createTable("CREATE TABLE %s (k int, a int, b int, PRIMARY KEY (k, a))");
         createIndex("CREATE INDEX ON %s (b)");
 
@@ -1126,6 +1139,7 @@ public class SelectTest extends CQLTester
     {
         createTable("create table %s (field1 text, field2 timeuuid, field3 boolean, primary key(field1, field2))");
         createIndex("create index on %s (field3)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
 
         execute("insert into %s (field1, field2, field3) values ('hola', now(), false)");
         execute("insert into %s (field1, field2, field3) values ('hola', now(), false)");
@@ -1177,6 +1191,8 @@ public class SelectTest extends CQLTester
         for (int i = 0; i < 5; i++)
             execute("INSERT INTO %s (id, name) VALUES (?, ?) USING TTL 10 AND TIMESTAMP 0", i, Integer.toString(i));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         assertInvalidMessage("Undefined column name user_id",
                              "SELECT id AS user_id, name AS user_name FROM %s WHERE user_id = 0");
 
@@ -1190,6 +1206,7 @@ public class SelectTest extends CQLTester
     public void testAllowFilteringOnPartitionKeyOnStaticColumnsWithRowsWithOnlyStaticValues() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, s int static, c int, d int, primary key (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
 
         for (int i = 0; i < 5; i++)
         {
@@ -1601,6 +1618,7 @@ public class SelectTest extends CQLTester
         assertInvalidMessage("Index expression values may not be larger than 64K",
                              "SELECT * FROM %s WHERE c = ?  ALLOW FILTERING", TOO_BIG);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
         dropIndex("DROP INDEX %s." + idx);
         assertEmpty(execute("SELECT * FROM %s WHERE c = ?  ALLOW FILTERING", TOO_BIG));
     }
@@ -1860,6 +1878,7 @@ public class SelectTest extends CQLTester
 
         // test clutering order
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a, b), c, d)) WITH CLUSTERING ORDER BY (c DESC, d ASC)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 11, 13, 14, 15)");
         execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 11, 14, 17, 18)");
@@ -2189,6 +2208,7 @@ public class SelectTest extends CQLTester
     @Test
     public void testContainsOnPartitionKey() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13275
         testContainsOnPartitionKey("CREATE TABLE %s (pk frozen<map<int, int>>, ck int, v int, PRIMARY KEY (pk, ck))");
     }
 
@@ -2416,6 +2436,7 @@ public class SelectTest extends CQLTester
 
         // compound, first column DESC order
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b, c)) WITH CLUSTERING ORDER BY (b DESC, c ASC)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         execute("INSERT INTO %s (a, b, c) VALUES ('a', 2, 4)");
         execute("INSERT INTO %s (a, b, c) VALUES ('a', 3, 5)");
@@ -2484,6 +2505,7 @@ public class SelectTest extends CQLTester
     public void testIndexQueryWithCompositePartitionKey() throws Throwable
     {
         createTable("CREATE TABLE %s (p1 int, p2 int, v int, PRIMARY KEY ((p1, p2)))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE p1 = 1 AND v = 3");
         createIndex("CREATE INDEX ON %s(v)");
@@ -2817,6 +2839,7 @@ public class SelectTest extends CQLTester
     @Test
     public void testWithDistinctAndJsonAsColumnName() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         createTable("CREATE TABLE %s (distinct int, json int, value int, PRIMARY KEY(distinct, json))");
         execute("INSERT INTO %s (distinct, json, value) VALUES (0, 0, 0)");
 
@@ -2827,6 +2850,7 @@ public class SelectTest extends CQLTester
     @Test
     public void testFilteringOnDurationColumn() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         createTable("CREATE TABLE %s (k int PRIMARY KEY, d duration)");
         execute("INSERT INTO %s (k, d) VALUES (0, 1s)");
         execute("INSERT INTO %s (k, d) VALUES (1, 2s)");
@@ -2992,6 +3016,7 @@ public class SelectTest extends CQLTester
     public void testFilteringOnCollectionsWithNull() throws Throwable
     {
         createTable(" CREATE TABLE %s ( k int, v int, l list<int>, s set<text>, m map<text, int>, PRIMARY KEY (k, v))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13246
 
         createIndex("CREATE INDEX ON %s (v)");
         createIndex("CREATE INDEX ON %s (s)");
@@ -3037,6 +3062,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k) VALUES (2);");
         execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TTL 100;");
         execute("INSERT INTO %s (k, i) VALUES (3, 3) USING TTL 100;");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13764
         assertRows(execute("SELECT k, i FROM %s "),
                    row(1, 1),
                    row(2, null),
@@ -3065,6 +3091,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k, c) VALUES (1, 2) ;");
         execute("INSERT INTO %s (k, c, i) VALUES (1, 3, 3) USING TTL 100;");
         execute("INSERT INTO %s (k, c, i) VALUES (3, 3, 3) USING TTL 100;");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13764
         assertRows(execute("SELECT k, c, i FROM %s "),
                    row(1, 1, 1),
                    row(1, 2, null),

@@ -84,6 +84,7 @@ import org.apache.cassandra.utils.Pair;
  * all of them in parallel otherwise.
  */
 public class RepairSession extends AbstractFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
                                                                                   IFailureDetectionEventListener,
                                                                                   LocalSessions.Listener
 {
@@ -137,6 +138,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          boolean isIncremental,
                          boolean pullRepair,
                          boolean force,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                          PreviewKind previewKind,
                          boolean optimiseStreams,
                          String... cfnames)
@@ -175,8 +177,11 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         this.commonRange = commonRange;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13818
         this.isIncremental = isIncremental;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         this.previewKind = previewKind;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9876
         this.pullRepair = pullRepair;
         this.skippedReplicas = forceSkippedReplicas;
         this.optimiseStreams = optimiseStreams;
@@ -205,6 +210,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
     public void trackValidationCompletion(Pair<RepairJobDesc, InetAddressAndPort> key, ValidationTask task)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
         validating.put(key, task);
     }
 
@@ -230,8 +236,10 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         String message = String.format("Received merkle tree for %s from %s", desc.columnFamily, endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         logger.info("{} {}", previewKind.logPrefix(getId()), message);
         Tracing.traceRepair(message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         task.treesReceived(trees);
     }
 
@@ -252,6 +260,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         if (logger.isDebugEnabled())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             logger.debug("{} Repair completed between {} and {} on {}", previewKind.logPrefix(getId()), nodes.coordinator, nodes.peer, desc.columnFamily);
         task.syncComplete(success, summaries);
     }
@@ -282,9 +291,11 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public void start(ListeningExecutorService executor)
     {
         String message;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
         if (terminated)
             return;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15599
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
                     previewKind.logPrefix(getId()), parentRepairSession, repairedNodes(), commonRange, keyspace, Arrays.toString(cfnames));
         Tracing.traceRepair("Syncing range {}", commonRange);
@@ -308,16 +319,21 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         // Checking all nodes are live
         for (InetAddressAndPort endpoint : commonRange.endpoints)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10446
             if (!FailureDetector.instance.isAlive(endpoint) && !skippedReplicas)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5483
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                 logger.error("{} {}", previewKind.logPrefix(getId()), message);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5839
                 Exception e = new IOException(message);
                 setException(e);
                 if (!previewKind.isPreview())
                 {
                     SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, e);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
                 return;
             }
         }
@@ -326,6 +342,8 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
             RepairJob job = new RepairJob(this, cfname);
             executor.execute(job);
             jobs.add(job);
@@ -337,10 +355,12 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             public void onSuccess(List<RepairResult> results)
             {
                 // this repair session is completed
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                 logger.info("{} {}", previewKind.logPrefix(getId()), "Session completed successfully");
                 Tracing.traceRepair("Completed sync of range {}", commonRange);
                 set(new RepairSessionResult(id, keyspace, commonRange.ranges, results, skippedReplicas));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6566
                 taskExecutor.shutdown();
                 // mark this session as terminated
                 terminate();
@@ -348,10 +368,13 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
             public void onFailure(Throwable t)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                 logger.error("{} Session completed with the following error", previewKind.logPrefix(getId()), t);
                 Tracing.traceRepair("Session completed with the following error: {}", t);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9260
                 forceShutdown(t);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         }, MoreExecutors.directExecutor());
     }
 
@@ -370,6 +393,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public void forceShutdown(Throwable reason)
     {
         setException(reason);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6566
         taskExecutor.shutdownNow();
         terminate();
     }
@@ -413,6 +437,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public void onIRStateChange(LocalSession session)
     {
         // we should only be registered as listeners for PreviewKind.REPAIRED, but double check here
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15553
         if (previewKind == PreviewKind.REPAIRED &&
             session.getState() == ConsistentSession.State.FINALIZED &&
             includesTables(session.tableIds))

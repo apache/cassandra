@@ -55,6 +55,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     public static <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         ConcurrentHashMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> internMap = isMultiCell ? instances : frozenInstances;
         Pair<AbstractType<?>, AbstractType<?>> p = Pair.create(keys, values);
         MapType<K, V> t = internMap.get(p);
@@ -65,9 +66,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     private MapType(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
         super(ComparisonType.CUSTOM, Kind.MAP);
         this.keys = keys;
         this.values = values;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10162
         this.serializer = MapSerializer.getInstance(keys.getSerializer(), values.getSerializer(), keys);
         this.isMultiCell = isMultiCell;
     }
@@ -75,6 +78,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return keys.referencesUserType(name) || values.referencesUserType(name);
     }
 
@@ -99,6 +103,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public boolean referencesDuration()
     {
         // Maps cannot be created with duration as keys
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         return getValuesType().referencesDuration();
     }
 
@@ -125,6 +130,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public boolean isMultiCell()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         return isMultiCell;
     }
 
@@ -178,12 +184,14 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     public static int compareMaps(AbstractType<?> keysComparator, AbstractType<?> valuesComparator, ByteBuffer o1, ByteBuffer o2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6934
          if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
         ProtocolVersion protocolVersion = ProtocolVersion.V3;
         int size1 = CollectionSerializer.readCollectionSize(bb1, protocolVersion);
         int size2 = CollectionSerializer.readCollectionSize(bb2, protocolVersion);
@@ -209,12 +217,14 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public MapSerializer<K, V> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         return serializer;
     }
 
     @Override
     protected int collectionSize(List<ByteBuffer> values)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         return values.size() / 2;
     }
 
@@ -222,6 +232,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     {
         boolean includeFrozenType = !ignoreFreezing && !isMultiCell();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7859
         StringBuilder sb = new StringBuilder();
         if (includeFrozenType)
             sb.append(FrozenType.class.getName()).append("(");
@@ -234,6 +245,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
         assert isMultiCell;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
         while (cells.hasNext())
         {
@@ -247,9 +259,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         if (parsed instanceof String)
             parsed = Json.decodeJson((String) parsed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
                     "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
@@ -272,6 +286,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13592
         ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("{");
         int size = CollectionSerializer.readCollectionSize(value, protocolVersion);

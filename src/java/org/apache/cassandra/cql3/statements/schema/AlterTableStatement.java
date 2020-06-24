@@ -84,6 +84,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
@@ -166,8 +167,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             {
                 // After #8099, not safe to re-add columns of incompatible types - until *maybe* deser logic with dropped
                 // columns is pushed deeper down the line. The latter would still be problematic in cases of schema races.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15203
                 if (!type.isValueCompatibleWith(droppedColumn.type))
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14913
                     throw ire("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
                               name,
                               type.asCQL3Type(),
@@ -262,6 +265,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw ire("Cannot drop column %s on base table %s with materialized views", currentColumn, table.name);
 
             builder.removeRegularOrStaticColumn(name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15303
             builder.recordColumnDrop(currentColumn, getTimestamp());
         }
 
@@ -270,6 +274,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
          */
         private long getTimestamp()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15557
             return timestamp == null ? ClientState.getTimestamp() : timestamp;
         }
     }

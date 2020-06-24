@@ -69,6 +69,7 @@ public class RefCountedTest
     public void testLeak() throws InterruptedException
     {
         Tidier tidier = new Tidier();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         Ref<?> obj = new Ref(null, tidier);
         obj.tryRef();
         obj.release();
@@ -82,6 +83,7 @@ public class RefCountedTest
     public void testSeriousLeak() throws InterruptedException
     {
         Tidier tidier = new Tidier();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         new Ref(null, tidier);
         System.gc();
         System.gc();
@@ -98,6 +100,7 @@ public class RefCountedTest
         try
         {
             tidier = new Tidier();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
             Ref<?> obj = new Ref(null, tidier);
             obj.release();
             obj.release();
@@ -111,6 +114,7 @@ public class RefCountedTest
     @Test
     public void testMemoryLeak()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9549
         Tidier tidier = new Tidier();
         Ref<Object> ref = new Ref(null, tidier);
         long initialSize = ObjectSizes.measureDeep(ref);
@@ -343,6 +347,7 @@ public class RefCountedTest
         for (int i = 0; i < entryCount; i += 2)
             objects[i] = new Object();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("foo", "bar");
         RefCounted.Tidy tidier = new RefCounted.Tidy() {
             Object ref = objects;
@@ -378,6 +383,7 @@ public class RefCountedTest
     public void testWeakRef() throws Exception
     {
         AtomicReference dontRefMe = new AtomicReference();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11120
 
         WeakReference<Object> weakRef = new WeakReference(dontRefMe);
 

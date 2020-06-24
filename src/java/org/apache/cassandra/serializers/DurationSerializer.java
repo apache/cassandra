@@ -81,8 +81,10 @@ public final class DurationSerializer implements TypeSerializer<Duration>
         if (bytes.remaining() < 3)
             throw new MarshalException(String.format("Expected at least 3 bytes for a duration (%d)", bytes.remaining()));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13143
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13218
             long monthsAsLong = in.readVInt();
             long daysAsLong = in.readVInt();
             long nanoseconds = in.readVInt();
@@ -116,6 +118,7 @@ public final class DurationSerializer implements TypeSerializer<Duration>
      */
     private boolean canBeCastToInt(long l)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13218
         return ((int) l) == l;
     }
 

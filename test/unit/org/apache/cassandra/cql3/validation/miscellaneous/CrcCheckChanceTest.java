@@ -42,6 +42,7 @@ public class CrcCheckChanceTest extends CQLTester
     @Test
     public void testChangingCrcCheckChanceNewFormat() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9839
         testChangingCrcCheckChance(true);
     }
 
@@ -67,9 +68,11 @@ public class CrcCheckChanceTest extends CQLTester
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
         Assert.assertEquals(0.99, cfs.getCrcCheckChance(), 0.0);
         Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCrcCheckChance(), 0.0);
 
@@ -114,6 +117,7 @@ public class CrcCheckChanceTest extends CQLTester
         //Now let's change via JMX
         cfs.setCrcCheckChance(0.01);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
         Assert.assertEquals(0.01, cfs.getCrcCheckChance(), 0.0);
         Assert.assertEquals(0.01, cfs.getLiveSSTables().iterator().next().getCrcCheckChance(), 0.0);
         Assert.assertEquals(0.01, indexCfs.getCrcCheckChance(), 0.0);
@@ -136,6 +140,7 @@ public class CrcCheckChanceTest extends CQLTester
 
         //We should be able to get the new value by accessing directly the schema metadata
         Assert.assertEquals(0.5, cfs.metadata().params.crcCheckChance, 0.0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
 
         //but previous JMX-set value will persist until next restart
         Assert.assertEquals(0.01, cfs.getLiveSSTables().iterator().next().getCrcCheckChance(), 0.0);
@@ -153,9 +158,11 @@ public class CrcCheckChanceTest extends CQLTester
         // note: only compressed files currently perform crc checks, so only the dfile reader is relevant here
         SSTableReader baseSSTable = cfs.getLiveSSTables().iterator().next();
         SSTableReader idxSSTable = indexCfs.getLiveSSTables().iterator().next();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5863
         try (RandomAccessReader baseDataReader = baseSSTable.openDataReader();
              RandomAccessReader idxDataReader = idxSSTable.openDataReader())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14431
             Assert.assertEquals(0.03, baseDataReader.getCrcCheckChance(), 0.0);
             Assert.assertEquals(0.03, idxDataReader.getCrcCheckChance(), 0.0);
 
@@ -169,6 +176,7 @@ public class CrcCheckChanceTest extends CQLTester
     public void testDropDuringCompaction() throws Throwable
     {
         CompactionManager.instance.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9251
 
         //Start with crc_check_chance of 99%
         createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
@@ -186,6 +194,7 @@ public class CrcCheckChanceTest extends CQLTester
         }
 
         DatabaseDescriptor.setCompactionThroughputMbPerSec(1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         List<Future<?>> futures = CompactionManager.instance.submitMaximal(cfs, CompactionManager.getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()), false); 
         execute("DROP TABLE %s");
 

@@ -61,6 +61,7 @@ public class MigrationManager
     public static void scheduleSchemaPull(InetAddressAndPort endpoint, EndpointState state)
     {
         UUID schemaVersion = state.getSchemaVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) && schemaVersion != null)
             maybeScheduleSchemaPull(schemaVersion, endpoint, state.getApplicationState(ApplicationState.RELEASE_VERSION).value);
     }
@@ -77,8 +78,10 @@ public class MigrationManager
             logger.debug("Not pulling schema because release version in Gossip is not major version {}, it is {}", ourMajorVersion, releaseVersion);
             return;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
         if (Schema.instance.getVersion() == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
             logger.debug("Not pulling schema from {}, because local schema version is not known yet",
                          endpoint);
             SchemaMigrationDiagnostics.unknownLocalSchemaVersion(endpoint, theirVersion);
@@ -89,6 +92,7 @@ public class MigrationManager
             logger.debug("Not pulling schema from {}, because schema versions match ({})",
                          endpoint,
                          Schema.schemaVersionToString(theirVersion));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
             SchemaMigrationDiagnostics.versionMatch(endpoint, theirVersion);
             return;
         }
@@ -117,6 +121,7 @@ public class MigrationManager
             Runnable runnable = () ->
             {
                 // grab the latest version of the schema since it may have changed again since the initial scheduling
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
                 UUID epSchemaVersion = Gossiper.instance.getSchemaVersion(endpoint);
                 if (epSchemaVersion == null)
                 {
@@ -134,6 +139,7 @@ public class MigrationManager
                              Schema.schemaVersionToString(epSchemaVersion));
                 submitMigrationTask(endpoint);
             };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12251
             ScheduledExecutors.nonPeriodicTasks.schedule(runnable, MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
         }
     }
@@ -144,6 +150,8 @@ public class MigrationManager
          * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
          * running in the gossip stage.
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         return MIGRATION.submit(new MigrationTask(endpoint));
     }
 
@@ -153,8 +161,10 @@ public class MigrationManager
          * Don't request schema from nodes with a differnt or unknonw major version (may have incompatible schema)
          * Don't request schema from fat clients
          */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return MessagingService.instance().versions.knows(endpoint)
                 && MessagingService.instance().versions.getRaw(endpoint) == MessagingService.current_version
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7820
                 && !Gossiper.instance.isGossipOnlyMember(endpoint);
     }
 
@@ -162,12 +172,14 @@ public class MigrationManager
     {
         // only push schema to nodes with known and equal versions
         return !endpoint.equals(FBUtilities.getBroadcastAddressAndPort())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                && MessagingService.instance().versions.knows(endpoint)
                && MessagingService.instance().versions.getRaw(endpoint) == MessagingService.current_version;
     }
 
     public static boolean isReadyForBootstrap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10731
         return MigrationTask.getInflightTasks().isEmpty();
     }
 
@@ -205,13 +217,16 @@ public class MigrationManager
 
         if (Schema.instance.getKeyspaceMetadata(ksm.name) != null)
             throw new AlreadyExistsException(ksm.name);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3979
 
         logger.info("Create new Keyspace: {}", ksm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         announce(SchemaKeyspace.makeCreateKeyspaceMutation(ksm, timestamp), announceLocally);
     }
 
     public static void announceNewTable(TableMetadata cfm)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         announceNewTable(cfm, true, FBUtilities.timestampMicros());
     }
 
@@ -227,6 +242,7 @@ public class MigrationManager
      */
     public static void forceAnnounceNewTable(TableMetadata cfm)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         announceNewTable(cfm, false, 0);
     }
 
@@ -242,6 +258,7 @@ public class MigrationManager
             throw new AlreadyExistsException(cfm.keyspace, cfm.name);
 
         logger.info("Create new table: {}", cfm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, timestamp), false);
     }
 
@@ -254,6 +271,7 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
         logger.info("Update Keyspace '{}' From {} To {}", ksm.name, oldKsm, ksm);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         announce(SchemaKeyspace.makeCreateKeyspaceMutation(ksm.name, ksm.params, FBUtilities.timestampMicros()), false);
     }
 
@@ -272,6 +290,7 @@ public class MigrationManager
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(current.keyspace);
 
         updated.validateCompatibility(current);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         long timestamp = FBUtilities.timestampMicros();
 
@@ -313,6 +332,7 @@ public class MigrationManager
         if (announceLocally)
             Schema.instance.merge(mutations);
         else
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             announce(mutations);
     }
 
@@ -324,12 +344,17 @@ public class MigrationManager
     public static void announce(Collection<Mutation> schema)
     {
         Future<?> f = MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
         Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<Collection<Mutation>> message = Message.out(SCHEMA_PUSH_REQ, schema);
         for (InetAddressAndPort endpoint : Gossiper.instance.getLiveMembers())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             if (shouldPushSchemaTo(endpoint))
             {
                 MessagingService.instance().send(message, endpoint);
@@ -351,6 +376,8 @@ public class MigrationManager
 
         Future<Schema.TransformationResult> future =
             MIGRATION.submit(() -> Schema.instance.transform(transformation, locally, now));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
 
         Schema.TransformationResult result = Futures.getUnchecked(future);
         if (!result.success)
@@ -359,8 +386,10 @@ public class MigrationManager
         if (locally || result.diff.isEmpty())
             return result.diff;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
         Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message<Collection<Mutation>> message = Message.out(SCHEMA_PUSH_REQ, result.mutations);
         for (InetAddressAndPort endpoint : Gossiper.instance.getLiveMembers())
         {
@@ -390,15 +419,20 @@ public class MigrationManager
         logger.info("Starting local schema reset...");
 
         logger.debug("Truncating schema tables...");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5845
 
         SchemaMigrationDiagnostics.resetLocalSchema();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
 
         SchemaKeyspace.truncate();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
 
         logger.debug("Clearing local schema keyspace definitions...");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5845
 
         Schema.instance.clear();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Set<InetAddressAndPort> liveEndpoints = Gossiper.instance.getLiveMembers();
         liveEndpoints.remove(FBUtilities.getBroadcastAddressAndPort());
 
@@ -476,6 +510,7 @@ public class MigrationManager
         {
             int count = in.readInt();
             Collection<Mutation> schema = new ArrayList<>(count);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8261
 
             for (int i = 0; i < count; i++)
                 schema.add(Mutation.serializer.deserialize(in, version));
@@ -487,6 +522,7 @@ public class MigrationManager
         {
             int size = TypeSizes.sizeof(schema.size());
             for (Mutation mutation : schema)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14781
                 size += mutation.serializedSize(version);
             return size;
         }

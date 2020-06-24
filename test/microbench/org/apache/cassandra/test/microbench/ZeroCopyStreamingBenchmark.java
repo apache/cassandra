@@ -122,6 +122,7 @@ public class ZeroCopyStreamingBenchmark
             blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(blockStreamCaptureChannel);
             blockStreamWriter.write(out);
             serializedBlockStream = blockStreamCaptureChannel.getSerializedStream();
@@ -152,6 +153,7 @@ public class ZeroCopyStreamingBenchmark
             partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);
 
             CapturingNettyChannel partialStreamChannel = new CapturingNettyChannel(STREAM_SIZE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             partialStreamWriter.write(new AsyncStreamingOutputPlus(partialStreamChannel));
             serializedPartialStream = partialStreamChannel.getSerializedStream();
 
@@ -213,6 +215,7 @@ public class ZeroCopyStreamingBenchmark
 
         private StreamSession setupStreamingSessionForTest()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
             StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
@@ -230,6 +233,7 @@ public class ZeroCopyStreamingBenchmark
     public void blockStreamWriter(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
         state.blockStreamWriter.write(out);
         out.close();
@@ -241,6 +245,7 @@ public class ZeroCopyStreamingBenchmark
     public void blockStreamReader(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
         in.append(state.serializedBlockStream.retainedDuplicate());
         SSTableMultiWriter sstableWriter = state.blockStreamReader.read(in);
@@ -254,6 +259,7 @@ public class ZeroCopyStreamingBenchmark
     public void partialStreamWriter(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
         state.partialStreamWriter.write(out);
         out.close();
@@ -265,6 +271,7 @@ public class ZeroCopyStreamingBenchmark
     public void partialStreamReader(BenchmarkState state) throws Exception
     {
         EmbeddedChannel channel = createMockNettyChannel();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
         in.append(state.serializedPartialStream.retainedDuplicate());
         SSTableMultiWriter sstableWriter = state.partialStreamReader.read(in);

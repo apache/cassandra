@@ -66,11 +66,13 @@ public class StreamTransferTask extends StreamTask
 
     public synchronized void addTransferStream(OutgoingStream stream)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         Preconditions.checkArgument(tableId.equals(stream.getTableId()));
         OutgoingStreamMessage message = new OutgoingStreamMessage(tableId, session, stream, sequenceNumber.getAndIncrement());
         message = StreamHook.instance.reportOutgoingStream(session, stream, message);
         streams.put(message.header.sequenceNumber, message);
         totalSize += message.stream.getSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         totalFiles += message.stream.getNumFiles();
     }
 
@@ -82,12 +84,16 @@ public class StreamTransferTask extends StreamTask
     public void complete(int sequenceNumber)
     {
         boolean signalComplete;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
         synchronized (this)
         {
             ScheduledFuture timeout = timeoutTasks.remove(sequenceNumber);
             if (timeout != null)
                 timeout.cancel(false);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
             OutgoingStreamMessage stream = streams.remove(sequenceNumber);
             if (stream != null)
                 stream.complete();
@@ -111,7 +117,9 @@ public class StreamTransferTask extends StreamTask
             future.cancel(false);
         timeoutTasks.clear();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8815
         Throwable fail = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         for (OutgoingStreamMessage stream : streams.values())
         {
             try
@@ -131,6 +139,7 @@ public class StreamTransferTask extends StreamTask
 
     public synchronized int getTotalNumberOfFiles()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15694
         return totalFiles;
     }
 
@@ -143,6 +152,7 @@ public class StreamTransferTask extends StreamTask
     {
         // We may race between queuing all those messages and the completion of the completion of
         // the first ones. So copy the values to avoid a ConcurrentModificationException
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
         return new ArrayList<>(streams.values());
     }
 
@@ -174,6 +184,9 @@ public class StreamTransferTask extends StreamTask
         {
             public void run()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7704
                 synchronized (StreamTransferTask.this)
                 {
                     // remove so we don't cancel ourselves

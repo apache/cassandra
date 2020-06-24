@@ -65,6 +65,7 @@ public class HeartBeatState
         generation += 1;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8336
     void forceHighestPossibleVersionUnsafe()
     {
         version = Integer.MAX_VALUE;
@@ -91,6 +92,7 @@ class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
 
     public long serializedSize(HeartBeatState state, int version)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         return TypeSizes.sizeof(state.getGeneration()) + TypeSizes.sizeof(state.getHeartBeatVersion());
     }
 }

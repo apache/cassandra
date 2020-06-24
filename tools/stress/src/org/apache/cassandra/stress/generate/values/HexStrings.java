@@ -28,6 +28,7 @@ public class HexStrings extends Generator<String>
 
     public HexStrings(String name, GeneratorConfig config)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7519
         super(UTF8Type.instance, config, name, String.class);
         chars = new char[(int) sizeDistribution.maxValue()];
     }

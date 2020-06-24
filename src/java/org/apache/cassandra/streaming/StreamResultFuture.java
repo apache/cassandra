@@ -64,10 +64,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     private StreamResultFuture(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         this.planId = planId;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         this.streamOperation = streamOperation;
         this.coordinator = coordinator;
 
         // if there is no session to listen to, we immediately set result for returning
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (!coordinator.isFollower() && !coordinator.hasActiveSessions())
             set(getCurrentState());
     }
@@ -81,6 +83,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
                                                      StreamCoordinator coordinator)
     {
         StreamResultFuture future = createAndRegisterInitiator(planId, streamOperation, coordinator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6636
         if (listeners != null)
         {
             for (StreamEventHandler listener : listeners)
@@ -96,14 +99,19 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         }
 
         coordinator.connect(future);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6992
 
         return future;
     }
 
     public static synchronized StreamResultFuture createFollower(int sessionIndex,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
                                                                  UUID planId,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
                                                                  StreamOperation streamOperation,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                  InetAddressAndPort from,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
                                                                  Channel channel,
                                                                  UUID pendingRepair,
                                                                  PreviewKind previewKind)
@@ -111,14 +119,18 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
         if (future == null)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14566
             logger.info("[Stream #{} ID#{}] Creating new streaming plan for {} from {} channel.remote {} channel.local {}" +
                         " channel.id {}", planId, sessionIndex, streamOperation.getDescription(),
                         from, channel.remoteAddress(), channel.localAddress(), channel.id());
 
             // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14115
             future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             StreamManager.instance.registerFollower(future);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         future.attachConnection(from, sessionIndex, channel);
         logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} channel.remote {} channel.local {} channel.id {}",
                     planId, sessionIndex, streamOperation.getDescription(), from, channel.remoteAddress(), channel.localAddress(), channel.id());
@@ -128,6 +140,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     private static StreamResultFuture createAndRegisterInitiator(UUID planId, StreamOperation streamOperation, StreamCoordinator coordinator)
     {
         StreamResultFuture future = new StreamResultFuture(planId, streamOperation, coordinator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         StreamManager.instance.registerInitiator(future);
         return future;
     }
@@ -139,12 +152,14 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     private void attachConnection(InetAddressAndPort from, int sessionIndex, Channel channel)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14389
         StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
         session.init(this);
     }
 
     public void addEventListener(StreamEventHandler listener)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14655
         Futures.addCallback(this, listener, MoreExecutors.directExecutor());
         eventListeners.add(listener);
     }
@@ -154,6 +169,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
      */
     public StreamState getCurrentState()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13065
         return new StreamState(planId, streamOperation, coordinator.getAllSessionInfo());
     }
 
@@ -175,6 +191,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     void handleSessionPrepared(StreamSession session)
     {
         SessionInfo sessionInfo = session.getSessionInfo();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
         logger.info("[Stream #{} ID#{}] Prepare completed. Receiving {} files({}), sending {} files({})",
                               session.planId(),
                               session.sessionIndex(),
@@ -191,6 +208,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     {
         logger.info("[Stream #{}] Session with {} is complete", session.planId(), session.peer);
         fireStreamEvent(new StreamEvent.SessionCompleteEvent(session));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3668
         SessionInfo sessionInfo = session.getSessionInfo();
         coordinator.addSessionInfo(sessionInfo);
         maybeComplete();
@@ -229,6 +247,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     public StreamSession getSession(InetAddressAndPort peer, int sessionIndex)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12229
         return coordinator.getSessionById(peer, sessionIndex);
     }
 

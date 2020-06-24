@@ -66,6 +66,7 @@ public class MessagingServiceTest
     {
         public boolean authenticate(InetAddress remoteAddress, int remotePort)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13324
             return false;
         }
 
@@ -85,10 +86,13 @@ public class MessagingServiceTest
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9318
         DatabaseDescriptor.setBackPressureStrategy(new MockBackPressureStrategy(Collections.emptyMap()));
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.0.0.1"));
         originalAuthenticator = DatabaseDescriptor.getInternodeAuthenticator();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
         originalServerEncryptionOptions = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         originalListenAddress = InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getListenAddress(), DatabaseDescriptor.getStoragePort());
     }
 
@@ -97,6 +101,7 @@ public class MessagingServiceTest
     @Before
     public void before() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         messagingService.metrics.resetDroppedMessages(Integer.toString(metricScopeId++));
         MockBackPressureStrategy.applied = false;
         messagingService.closeOutbound(InetAddressAndPort.getByName("127.0.0.2"));
@@ -106,9 +111,12 @@ public class MessagingServiceTest
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
         DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14314
         DatabaseDescriptor.setInternodeMessagingEncyptionOptions(originalServerEncryptionOptions);
         DatabaseDescriptor.setShouldListenOnBroadcastAddress(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         DatabaseDescriptor.setListenAddress(originalListenAddress.address);
         FBUtilities.reset();
     }
@@ -117,6 +125,7 @@ public class MessagingServiceTest
     public void testDroppedMessages()
     {
         Verb verb = Verb.READ_REQ;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         for (int i = 1; i <= 5000; i++)
             messagingService.metrics.recordDroppedMessage(verb, i, MILLISECONDS, i % 2 == 0);
@@ -125,6 +134,7 @@ public class MessagingServiceTest
         messagingService.metrics.resetAndConsumeDroppedErrors(logs::add);
         assertEquals(1, logs.size());
         Pattern regexp = Pattern.compile("READ_REQ messages were dropped in last 5000 ms: (\\d+) internal and (\\d+) cross node. Mean internal dropped latency: (\\d+) ms and Mean cross-node dropped latency: (\\d+) ms");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13216
         Matcher matcher = regexp.matcher(logs.get(0));
         assertTrue(matcher.find());
         assertEquals(2500, Integer.parseInt(matcher.group(1)));
@@ -142,6 +152,7 @@ public class MessagingServiceTest
 
         logs.clear();
         messagingService.metrics.resetAndConsumeDroppedErrors(logs::add);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13216
         assertEquals(1, logs.size());
         matcher = regexp.matcher(logs.get(0));
         assertTrue(matcher.find());
@@ -149,6 +160,7 @@ public class MessagingServiceTest
         assertEquals(1250, Integer.parseInt(matcher.group(2)));
         assertTrue(Integer.parseInt(matcher.group(3)) > 0);
         assertTrue(Integer.parseInt(matcher.group(4)) > 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         assertEquals(7500, (int) messagingService.metrics.getDroppedMessages().get(verb.toString()));
     }
 
@@ -204,6 +216,7 @@ public class MessagingServiceTest
     {
         int latency = -100;
         Verb verb = Verb.MUTATION_REQ;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         Map<Verb, Timer> queueWaitLatency = MessagingService.instance().metrics.internalLatency;
         queueWaitLatency.clear();
@@ -216,7 +229,9 @@ public class MessagingServiceTest
     @Test
     public void testUpdatesBackPressureOnSendWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getBackPressureState(InetAddressAndPort.getByName("127.0.0.2"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         RequestCallback bpCallback = new BackPressureCallback();
         RequestCallback noCallback = new NoBackPressureCallback();
         Message<?> ignored = null;
@@ -238,6 +253,7 @@ public class MessagingServiceTest
     public void testUpdatesBackPressureOnReceiveWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
         MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getBackPressureState(InetAddressAndPort.getByName("127.0.0.2"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         RequestCallback bpCallback = new BackPressureCallback();
         RequestCallback noCallback = new NoBackPressureCallback();
         boolean timeout = false;
@@ -261,7 +277,9 @@ public class MessagingServiceTest
     @Test
     public void testUpdatesBackPressureOnTimeoutWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getBackPressureState(InetAddressAndPort.getByName("127.0.0.2"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         RequestCallback bpCallback = new BackPressureCallback();
         RequestCallback noCallback = new NoBackPressureCallback();
         boolean timeout = true;
@@ -286,6 +304,7 @@ public class MessagingServiceTest
     public void testAppliesBackPressureWhenEnabled() throws UnknownHostException
     {
         DatabaseDescriptor.setBackPressureEnabled(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         messagingService.applyBackPressure(Arrays.asList(InetAddressAndPort.getByName("127.0.0.2")), ONE_SECOND);
         assertFalse(MockBackPressureStrategy.applied);
 
@@ -304,6 +323,7 @@ public class MessagingServiceTest
 
     private static void addDCLatency(long sentAt, long nowTime) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().metrics.internodeLatencyRecorder(InetAddressAndPort.getLocalHost()).accept(nowTime - sentAt, MILLISECONDS);
     }
 
@@ -414,8 +434,10 @@ public class MessagingServiceTest
         MessagingService ms = MessagingService.instance();
         DatabaseDescriptor.setInternodeAuthenticator(ALLOW_NOTHING_AUTHENTICATOR);
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.250");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
         //Should return null
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Message messageOut = Message.out(Verb.ECHO_REQ, NoPayload.noPayload);
         assertFalse(ms.isConnected(address, messageOut));
 
@@ -522,11 +544,13 @@ public class MessagingServiceTest
         if (listenOnBroadcastAddr)
         {
             DatabaseDescriptor.setShouldListenOnBroadcastAddress(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             listenAddress = InetAddresses.increment(FBUtilities.getBroadcastAddressAndPort().address);
             DatabaseDescriptor.setListenAddress(listenAddress);
             FBUtilities.reset();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         InboundConnectionSettings settings = new InboundConnectionSettings()
                                              .withEncryption(serverEncryptionOptions);
         InboundSockets connections = new InboundSockets(settings);

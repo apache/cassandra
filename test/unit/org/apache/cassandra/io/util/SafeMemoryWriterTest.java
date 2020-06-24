@@ -34,6 +34,7 @@ public class SafeMemoryWriterTest
     static final long maxDirectMemory;
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14681
         try
         {
             Class<?> cVM;
@@ -71,6 +72,7 @@ public class SafeMemoryWriterTest
         while (initialSize * 2 / 3 > 1024L * 1024L * DataOutputBuffer.DOUBLING_THRESHOLD)
             initialSize = initialSize * 2 / 3;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14681
         if (maxDirectMemory * 2 / 3 < testSize)
         {
             testSize = maxDirectMemory * 2 / 3;

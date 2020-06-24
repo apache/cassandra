@@ -51,6 +51,7 @@ public final class ClientMetrics
 
     public void markAuthSuccess()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14524
         authSuccess.mark();
     }
 
@@ -67,6 +68,7 @@ public final class ClientMetrics
     public List<ConnectedClient> allConnectedClients()
     {
         List<ConnectedClient> clients = new ArrayList<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14458
 
         for (Server server : servers)
             clients.addAll(server.getConnectedClients());
@@ -76,6 +78,7 @@ public final class ClientMetrics
 
     public synchronized void init(Collection<Server> servers)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         if (initialized)
             return;
 
@@ -100,6 +103,7 @@ public final class ClientMetrics
     {
         int count = 0;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15013
         for (Server server : servers)
             count += server.countConnectedClients();
 

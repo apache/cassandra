@@ -78,6 +78,7 @@ public class AutoSavingCacheTest
         }
 
         Assert.assertEquals(2, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
 
         // preheat key cache
         for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -93,6 +94,7 @@ public class AutoSavingCacheTest
 
         // then load saved
         keyCache.loadSavedAsync().get();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             Assert.assertNotNull(keyCache.get(new KeyCacheKey(cfs.metadata(), sstable.descriptor, ByteBufferUtil.bytes("key1"))));
     }

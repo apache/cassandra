@@ -46,7 +46,9 @@ public class GoogleCloudSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         SchemaLoader.mkdirs();
@@ -74,6 +76,7 @@ public class GoogleCloudSnitchTest
     {
         az = "us-central1-a";
         GoogleCloudSnitch snitch = new TestGoogleCloudSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -95,6 +98,7 @@ public class GoogleCloudSnitchTest
     {
         az = "asia-east1-a";
         GoogleCloudSnitch snitch = new TestGoogleCloudSnitch();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("asia-east1", snitch.getDatacenter(local));
         assertEquals("a", snitch.getRack(local));

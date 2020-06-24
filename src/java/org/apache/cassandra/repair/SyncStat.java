@@ -32,6 +32,7 @@ public class SyncStat
 
     public SyncStat(SyncNodePair nodes, long numberOfDifferences)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         this(nodes, numberOfDifferences, null);
     }
 

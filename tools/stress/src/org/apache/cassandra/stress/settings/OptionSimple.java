@@ -34,6 +34,8 @@ import com.google.common.base.Function;
 class OptionSimple extends Option implements Serializable
 {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6199
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6835
     final String displayPrefix;
     private final Pattern matchPrefix;
     private final String defaultValue;
@@ -44,6 +46,7 @@ class OptionSimple extends Option implements Serializable
 
     private static final class ValueMatcher implements Function<String, String>, Serializable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
         final Pattern pattern;
         private ValueMatcher(Pattern pattern)
         {
@@ -110,6 +113,7 @@ class OptionSimple extends Option implements Serializable
             if (value != null)
                 throw new IllegalArgumentException("Suboption " + displayPrefix + " has been specified more than once");
             String v = param.substring(displayPrefix.length());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
             value = valueAdapter.apply(v);
             assert value != null;
             return true;
@@ -142,6 +146,7 @@ class OptionSimple extends Option implements Serializable
 
     public String longDisplay()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6451
         if (description.equals("") && defaultValue == null
             && (valueAdapter instanceof ValueMatcher && ((ValueMatcher) valueAdapter).pattern.pattern().equals("")))
             return null;
@@ -164,6 +169,7 @@ class OptionSimple extends Option implements Serializable
 
     public String getOptionAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11914
         StringBuilder sb = new StringBuilder();
         sb.append(displayPrefix);
 

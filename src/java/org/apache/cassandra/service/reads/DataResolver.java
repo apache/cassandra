@@ -62,6 +62,8 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
         super(command, replicaPlan, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
@@ -94,6 +96,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (repairedDataTracker != null)
         {
             messages.forEach(msg -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 if (msg.payload.mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from()).isFull())
                 {
                     repairedDataTracker.recordDigest(msg.from(),
@@ -281,10 +284,15 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private String makeResponsesDebugString(DecoratedKey partitionKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         return Joiner.on(",\n").join(transform(getMessages().snapshot(), m -> m.from() + " => " + m.payload.toDebugString(command, partitionKey)));
     }
 
     private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                                                          P sources,
                                                                          RepairedDataTracker repairedDataTracker)
     {
@@ -292,6 +300,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         // in which case we need to inject the tracker & verify on close
         if (partitionListener == UnfilteredPartitionIterators.MergeListener.NOOP)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14755
             if (repairedDataTracker == null)
                 return partitionListener;
 
@@ -310,6 +319,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             };
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14353
         return new UnfilteredPartitionIterators.MergeListener()
         {
             public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
@@ -380,6 +390,12 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                            table,
                                                            merged == null ? "null" : merged.toString(table),
                                                            '[' + Joiner.on(", ").join(transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14404
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14705
                                                            sources.contacts(),
                                                            makeResponsesDebugString(partitionKey));
                             throw new AssertionError(details, e);

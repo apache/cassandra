@@ -36,6 +36,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     public SinglePartitionPager(SinglePartitionReadQuery query, PagingState state, ProtocolVersion protocolVersion)
     {
         super(query, protocolVersion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         if (state != null)
         {
@@ -45,6 +46,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     }
 
     private SinglePartitionPager(SinglePartitionReadQuery query,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                                  ProtocolVersion protocolVersion,
                                  PagingState.RowMark rowMark,
                                  int remaining,
@@ -67,6 +69,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
 
     public ByteBuffer key()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return query.partitionKey().getKey();
     }
 
@@ -85,7 +88,9 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     @Override
     protected SinglePartitionReadQuery nextPageReadQuery(int pageSize)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         Clustering clustering = lastReturned == null ? null : lastReturned.clustering(query.metadata());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
         DataLimits limits = lastReturned == null
                           ? limits().forPaging(pageSize)
                           : limits().forPaging(pageSize, key(), remainingInPartition());
@@ -101,6 +106,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
 
     protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9775
         return lastReturned != null;
     }
 }

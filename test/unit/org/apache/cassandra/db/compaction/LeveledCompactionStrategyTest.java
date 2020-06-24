@@ -86,10 +86,13 @@ public class LeveledCompactionStrategyTest
         System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
 
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDDLEVELED)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                                 .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1"))));
         }
 
@@ -98,6 +101,7 @@ public class LeveledCompactionStrategyTest
     {
         keyspace = Keyspace.open(KEYSPACE1);
         cfs = keyspace.getColumnFamilyStore(CF_STANDARDDLEVELED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5153
         cfs.enableAutoCompaction();
     }
 
@@ -119,6 +123,7 @@ public class LeveledCompactionStrategyTest
 
         //Need entropy to prevent compression so size is predictable with compression enabled/disabled
         new Random().nextBytes(value.array());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9278
 
         // Enough data to have a level 1 and 2
         int rows = 40;
@@ -135,6 +140,7 @@ public class LeveledCompactionStrategyTest
         }
 
         waitForLeveling(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         CompactionStrategyManager strategyManager = cfs.getCompactionStrategyManager();
         // Checking we're not completely bad at math
 
@@ -148,6 +154,7 @@ public class LeveledCompactionStrategyTest
             Assert.fail();
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(cfs.getLiveSSTables());
         for (Collection<SSTableReader> sstableGroup : groupedSSTables)
         {
@@ -191,6 +198,7 @@ public class LeveledCompactionStrategyTest
         }
 
         waitForLeveling(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         CompactionStrategyManager strategyManager = cfs.getCompactionStrategyManager();
         // Checking we're not completely bad at math
         assertTrue(strategyManager.getSSTableCountPerLevel()[1] > 0);
@@ -200,6 +208,7 @@ public class LeveledCompactionStrategyTest
         int gcBefore = keyspace.getColumnFamilyStore(CF_STANDARDDLEVELED).gcBefore(FBUtilities.nowInSeconds());
         UUID parentRepSession = UUID.randomUUID();
         ActiveRepairService.instance.registerParentRepairSession(parentRepSession,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                                                  FBUtilities.getBroadcastAddressAndPort(),
                                                                  Arrays.asList(cfs),
                                                                  Arrays.asList(range),
@@ -207,9 +216,12 @@ public class LeveledCompactionStrategyTest
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  true,
                                                                  PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5220
         RepairJobDesc desc = new RepairJobDesc(parentRepSession, UUID.randomUUID(), KEYSPACE1, CF_STANDARDDLEVELED, Arrays.asList(range));
         Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), gcBefore, PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         ValidationManager.instance.submitValidation(cfs, validator).get();
     }
 
@@ -219,6 +231,7 @@ public class LeveledCompactionStrategyTest
     public static void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException
     {
         CompactionStrategyManager strategyManager = cfs.getCompactionStrategyManager();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11079
         while (true)
         {
             // since we run several compaction strategies we wait until L0 in all strategies is empty and
@@ -250,6 +263,7 @@ public class LeveledCompactionStrategyTest
     public void testCompactionProgress() throws Exception
     {
         // make sure we have SSTables in L1
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9139
         byte [] b = new byte[100 * 1024];
         new Random().nextBytes(b);
         ByteBuffer value = ByteBuffer.wrap(b);
@@ -265,6 +279,7 @@ public class LeveledCompactionStrategyTest
         }
 
         waitForLeveling(cfs);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getStrategies().get(1).get(0);
         assert strategy.getLevelSize(1) > 0;
 
@@ -284,6 +299,7 @@ public class LeveledCompactionStrategyTest
     @Test
     public void testMutateLevel() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9575
         cfs.disableAutoCompaction();
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
@@ -301,18 +317,23 @@ public class LeveledCompactionStrategyTest
             cfs.forceBlockingFlush();
         }
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getStrategies().get(1).get(0);
         cfs.forceMajorCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9575
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader s : cfs.getLiveSSTables())
         {
             assertTrue(s.getSSTableLevel() != 6 && s.getSSTableLevel() > 0);
             strategy.manifest.remove(s);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
             s.descriptor.getMetadataSerializer().mutateLevel(s.descriptor, 6);
             s.reloadSSTableMetadata();
             strategy.manifest.add(s);
         }
         // verify that all sstables in the changed set is level 6
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader s : cfs.getLiveSSTables())
             assertEquals(6, s.getSSTableLevel());
 
@@ -324,6 +345,7 @@ public class LeveledCompactionStrategyTest
     @Test
     public void testNewRepairedSSTable() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9139
         byte [] b = new byte[100 * 1024];
         new Random().nextBytes(b);
         ByteBuffer value = ByteBuffer.wrap(b); // 100 KB value, make it easy to have multiple files
@@ -344,9 +366,11 @@ public class LeveledCompactionStrategyTest
         waitForLeveling(cfs);
         cfs.disableAutoCompaction();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         while(CompactionManager.instance.isCompacting(Arrays.asList(cfs), (sstable) -> true))
             Thread.sleep(100);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         CompactionStrategyManager manager = cfs.getCompactionStrategyManager();
         List<List<AbstractCompactionStrategy>> strategies = manager.getStrategies();
         LeveledCompactionStrategy repaired = (LeveledCompactionStrategy) strategies.get(0).get(0);
@@ -356,6 +380,7 @@ public class LeveledCompactionStrategyTest
         assertTrue(manager.getSSTableCountPerLevel()[1] > 0);
         assertTrue(manager.getSSTableCountPerLevel()[2] > 0);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         for (SSTableReader sstable : cfs.getLiveSSTables())
             assertFalse(sstable.isRepaired());
 
@@ -373,6 +398,7 @@ public class LeveledCompactionStrategyTest
         assertTrue(sstable1.isRepaired());
 
         manager.handleNotification(new SSTableRepairStatusChanged(Arrays.asList(sstable1)), this);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
 
         int repairedSSTableCount = 0;
         for (List<SSTableReader> level : repaired.manifest.generations)
@@ -396,6 +422,7 @@ public class LeveledCompactionStrategyTest
     {
         // Remove any existing data so we can start out clean with predictable number of sstables
         cfs.truncateBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10643
 
         // Disable auto compaction so cassandra does not compact
         CompactionManager.instance.disableAutoCompaction();
@@ -454,6 +481,8 @@ public class LeveledCompactionStrategyTest
         cfs.forceCompactionForTokenRange(tokenRanges2);
 
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         while(CompactionManager.instance.isCompacting(Arrays.asList(cfs), (sstable) -> true)) {
             Thread.sleep(100);
         }
@@ -462,6 +491,7 @@ public class LeveledCompactionStrategyTest
         assertEquals(1, cfs.getLiveSSTables().size());
         // Set it up again
         cfs.truncateBlocking();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15664
 
         // create 10 sstables that contain data for both key1 and key2
         for (int i = 0; i < numIterations; i++)
@@ -518,6 +548,7 @@ public class LeveledCompactionStrategyTest
     public void testCompactionCandidateOrdering() throws Exception
     {
         // add some data
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14879
         byte [] b = new byte[100 * 1024];
         new Random().nextBytes(b);
         ByteBuffer value = ByteBuffer.wrap(b);
@@ -551,6 +582,7 @@ public class LeveledCompactionStrategyTest
     public void testDisableSTCSInL0() throws IOException
     {
         /*
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15445
         First creates a bunch of sstables in L1, then overloads L0 with 50 sstables. Now with STCS in L0 enabled
         we should get a compaction task where the target level is 0, then we disable STCS-in-L0 and make sure that
         the compaction task we get targets L1 or higher.

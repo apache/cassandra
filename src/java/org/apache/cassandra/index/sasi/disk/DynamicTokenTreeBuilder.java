@@ -50,6 +50,7 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
         LongSet found = tokens.get(token);
         if (found == null)
             tokens.put(token, (found = new LongHashSet(2)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
 
         found.add(keyPosition);
     }
@@ -71,6 +72,7 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
             LongSet found = tokens.get(newEntry.getKey());
             if (found == null)
                 tokens.put(newEntry.getKey(), (found = new LongHashSet(4)));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12995
 
             for (LongCursor offset : newEntry.getValue())
                 found.add(offset.value);

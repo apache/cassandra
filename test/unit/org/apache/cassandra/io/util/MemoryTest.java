@@ -49,6 +49,7 @@ public class MemoryTest
         memory.setBytes(0, new byte[1000], 0, 1000);
         memory.setBytes(0, canon.duplicate());
         test(canon, memory);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
         memory.close();
     }
 

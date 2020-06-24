@@ -36,6 +36,7 @@ public class ViewWriteMetrics extends ClientRequestMetrics
         super(scope);
         viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
         viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
         viewWriteLatency = Metrics.timer(factory.createMetricName("ViewWriteLatency"));
         Metrics.register(factory.createMetricName("ViewPendingMutations"), new Gauge<Long>()
                 {
@@ -51,6 +52,7 @@ public class ViewWriteMetrics extends ClientRequestMetrics
         super.release();
         Metrics.remove(factory.createMetricName("ViewReplicasAttempted"));
         Metrics.remove(factory.createMetricName("ViewReplicasSuccess"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10323
         Metrics.remove(factory.createMetricName("ViewWriteLatency"));
         Metrics.remove(factory.createMetricName("ViewPendingMutations"));
     }

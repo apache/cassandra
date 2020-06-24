@@ -56,6 +56,7 @@ public class UserType extends TupleType
     {
         super(fieldTypes, false);
         assert fieldNames.size() == fieldTypes.size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6438
         this.keyspace = keyspace;
         this.name = name;
         this.fieldNames = fieldNames;
@@ -77,6 +78,7 @@ public class UserType extends TupleType
         Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> params = parser.getUserTypeParameters();
         String keyspace = params.left.left;
         ByteBuffer name = params.left.right;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         List<FieldIdentifier> columnNames = new ArrayList<>(params.right.size());
         List<AbstractType<?>> columnTypes = new ArrayList<>(params.right.size());
         for (Pair<ByteBuffer, AbstractType> p : params.right)
@@ -96,6 +98,7 @@ public class UserType extends TupleType
 
     public boolean isTuple()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         return false;
     }
 
@@ -128,6 +131,7 @@ public class UserType extends TupleType
 
     public String fieldNameAsString(int i)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7304
         return stringFieldNames.get(i);
     }
 
@@ -138,11 +142,13 @@ public class UserType extends TupleType
 
     public String getNameAsString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         return UTF8Type.instance.compose(name);
     }
 
     public int fieldPosition(FieldIdentifier fieldName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
         return fieldNames.indexOf(fieldName);
     }
 
@@ -184,6 +190,7 @@ public class UserType extends TupleType
 
     public void validateCell(Cell cell) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12916
         if (isMultiCell)
         {
             ByteBuffer path = cell.path().get(0);
@@ -200,9 +207,11 @@ public class UserType extends TupleType
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9190
         if (parsed instanceof String)
             parsed = Json.decodeJson((String) parsed);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
                     "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
@@ -334,9 +343,11 @@ public class UserType extends TupleType
     {
         if(!(o instanceof UserType))
             return false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
 
         UserType that = (UserType)o;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return equalsWithoutTypes(that) && types.equals(that.types);
     }
 
@@ -381,6 +392,7 @@ public class UserType extends TupleType
     @Override
     public boolean referencesUserType(ByteBuffer name)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return this.name.equals(name) || any(fieldTypes(), t -> t.referencesUserType(name));
     }
 
@@ -408,6 +420,7 @@ public class UserType extends TupleType
     @Override
     public boolean referencesDuration()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         return fieldTypes().stream().anyMatch(f -> f.referencesDuration());
     }
 
@@ -440,6 +453,7 @@ public class UserType extends TupleType
     @Override
     public TypeSerializer<ByteBuffer> getSerializer()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13646
         return serializer;
     }
 }

@@ -152,6 +152,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     public final boolean hasContains()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         for (SingleRestriction restriction : restrictions)
         {
             if (restriction.isContains())
@@ -168,6 +169,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     public final boolean hasSlice()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12153
         for (SingleRestriction restriction : restrictions)
         {
             if (restriction.isSlice())
@@ -199,6 +201,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     @Override
     public void addRowFilterTo(RowFilter filter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                                IndexRegistry indexRegistry,
                                QueryOptions options) throws InvalidRequestException
     {
@@ -207,6 +210,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         for (SingleRestriction restriction : restrictions)
         {
             // We ignore all the clustering columns that can be handled by slices.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexRegistry))
             {
                 restriction.addRowFilterTo(filter, indexRegistry, options);

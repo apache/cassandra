@@ -40,6 +40,8 @@ public final class IntegerType extends NumberType<BigInteger>
         int i = 0;
         for (; i < len; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             byte b0 = bytes.get(bytes.position() + i);
             if (b0 != 0 && b0 != -1)
                 break;
@@ -61,14 +63,17 @@ public final class IntegerType extends NumberType<BigInteger>
     }
 
     IntegerType() {super(ComparisonType.CUSTOM);}/* singleton */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9901
 
     public boolean isEmptyValueMeaningless()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9457
         return true;
     }
 
     public int compareCustom(ByteBuffer lhs, ByteBuffer rhs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7523
         return IntegerType.compareIntegers(lhs, rhs);
     }
 
@@ -89,6 +94,8 @@ public final class IntegerType extends NumberType<BigInteger>
         int lhsLenDiff = lhsLen - lhsMsbIdx;
         int rhsLenDiff = rhsLen - rhsMsbIdx;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         byte lhsMsb = lhs.get(lhs.position() + lhsMsbIdx);
         byte rhsMsb = rhs.get(rhs.position() + rhsMsbIdx);
 
@@ -120,6 +127,8 @@ public final class IntegerType extends NumberType<BigInteger>
         // remaining bytes are compared unsigned
         while (lhsMsbIdx < lhsLen)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1714
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             lhsMsb = lhs.get(lhs.position() + lhsMsbIdx++);
             rhsMsb = rhs.get(rhs.position() + rhsMsbIdx++);
 
@@ -137,6 +146,8 @@ public final class IntegerType extends NumberType<BigInteger>
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         BigInteger integerType;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1767
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
         try
         {
@@ -144,15 +155,19 @@ public final class IntegerType extends NumberType<BigInteger>
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2262
             throw new MarshalException(String.format("unable to make int from '%s'", source), e);
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2387
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return decompose(integerType);
     }
 
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
         try
         {
             return new Constants.Value(getSerializer().serialize(new BigInteger(parsed.toString())));
@@ -173,11 +188,13 @@ public final class IntegerType extends NumberType<BigInteger>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6766
         return this == otherType || Int32Type.instance.isValueCompatibleWith(otherType) || LongType.instance.isValueCompatibleWith(otherType);
     }
 
     public CQL3Type asCQL3Type()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5198
         return CQL3Type.Native.VARINT;
     }
 
@@ -189,6 +206,7 @@ public final class IntegerType extends NumberType<BigInteger>
     @Override
     protected int toInt(ByteBuffer value)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11935
         throw new UnsupportedOperationException();
     }
 

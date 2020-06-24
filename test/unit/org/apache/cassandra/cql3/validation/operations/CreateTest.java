@@ -91,6 +91,7 @@ public class CreateTest extends CQLTester
     @Test
     public void testCreateTableWithDurationColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'a'",
                              "CREATE TABLE cql_test_keyspace.table0 (a duration PRIMARY KEY, b int);");
 
@@ -100,6 +101,8 @@ public class CreateTest extends CQLTester
         assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'b'",
                              "CREATE TABLE cql_test_keyspace.table0 (a text, b duration, c duration, primary key (a, b)) with clustering order by (b DESC);");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         createTable("CREATE TABLE %s (a int, b int, c duration, primary key (a, b));");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1y2mo)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 2, -1y2mo)");
@@ -121,6 +124,7 @@ public class CreateTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (1, 18, P1Y3MT2H10M)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 19, P0000-00-00T30:20:00)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 20, P0001-03-00T02:10:00)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13143
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 21, duration(12, 10, 0));
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 22, duration(-12, -10, 0));
 
@@ -144,10 +148,12 @@ public class CreateTest extends CQLTester
                    row(1, 17, Duration.newInstance(0, 14, 0)),
                    row(1, 18, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
                    row(1, 19, Duration.newInstance(0, 0, 30 * NANOS_PER_HOUR + 20 * NANOS_PER_MINUTE)),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13143
                    row(1, 20, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
                    row(1, 21, Duration.newInstance(12, 10, 0)),
                    row(1, 22, Duration.newInstance(-12, -10, 0)));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13174
         assertInvalidMessage("Slice restrictions are not supported on duration columns",
                              "SELECT * FROM %s WHERE c > 1y ALLOW FILTERING");
 
@@ -161,12 +167,14 @@ public class CreateTest extends CQLTester
         assertInvalidMessage("Invalid duration. The total number of days must be less or equal to 2147483647",
                              "INSERT INTO %s (a, b, c) VALUES (1, 2, " + Long.MAX_VALUE + "d)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13143
         assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (2, -2, 0)",
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(2, -2, 0));
 
         assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (-2, 0, 2000000)",
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(-2, 0, 2000000));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13218
         assertInvalidMessage("The duration months must be a 32 bits integer but was: 9223372036854775807",
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(9223372036854775807L, 1, 0));
 
@@ -179,6 +187,7 @@ public class CreateTest extends CQLTester
         // Test duration within Map
         assertInvalidMessage("Durations are not allowed as map keys: map<duration, text>",
                              "CREATE TABLE cql_test_keyspace.table0(pk int PRIMARY KEY, m map<duration, text>)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, m map<text, duration>)");
         execute("INSERT INTO %s (pk, m) VALUES (1, {'one month' : 1mo, '60 days' : 60d})");
@@ -204,6 +213,7 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, list(Duration.from("1mo"), Duration.from("60d"))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'l'",
                              "CREATE TABLE cql_test_keyspace.table0(l frozen<list<duration>> PRIMARY KEY, v int)");
 
@@ -213,6 +223,7 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, tuple(1, Duration.from("1mo"))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("duration type is not supported for PRIMARY KEY column 't'",
                              "CREATE TABLE cql_test_keyspace.table0(t frozen<tuple<int, duration>> PRIMARY KEY, v int)");
 
@@ -224,6 +235,7 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, userType("a", Duration.from("1mo"))));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'u'",
                              "CREATE TABLE cql_test_keyspace.table0(pk int, u frozen<" + myType + ">, v int, PRIMARY KEY(pk, u))");
 
@@ -234,6 +246,7 @@ public class CreateTest extends CQLTester
 
     private ByteBuffer duration(long months, long days, long nanoseconds) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13143
         try(DataOutputBuffer output = new DataOutputBuffer())
         {
             output.writeVInt(months);
@@ -337,6 +350,7 @@ public class CreateTest extends CQLTester
     public void testObsoleteTableProperties() throws Throwable
     {
         assertInvalidThrow(SyntaxException.class, "CREATE TABLE cql_test_keyspace.table0 (foo text PRIMARY KEY, c int) WITH default_validation=timestamp");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         createTable("CREATE TABLE %s (foo text PRIMARY KEY, c int)");
         assertInvalidThrow(SyntaxException.class, "ALTER TABLE %s WITH default_validation=int");
@@ -358,6 +372,7 @@ public class CreateTest extends CQLTester
 
         execute("DROP KEYSPACE testXYZ");
         assertInvalidThrow(InvalidRequestException.class, "DROP KEYSPACE non_existing");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         execute("CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
 
@@ -395,6 +410,7 @@ public class CreateTest extends CQLTester
     @Test
     public void testCreateKeyspaceWithMultipleInstancesOfSameDCThrowsException() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13369
         try
         {
             assertInvalidThrow(SyntaxException.class, "CREATE KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2, '" + DATA_CENTER + "' : 3 }");
@@ -420,6 +436,7 @@ public class CreateTest extends CQLTester
 
         // repeated column
         assertInvalidMessage("Duplicate column 'k' declaration for table", String.format("CREATE TABLE %s (k int PRIMARY KEY, c int, k text)", table4));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         // compact storage limitations
         assertInvalidThrow(SyntaxException.class,
@@ -454,6 +471,7 @@ public class CreateTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         assertTriggerExists("trigger_1");
         execute("CREATE TRIGGER trigger_2 ON %s USING '" + TestTrigger.class.getName() + "'");
         assertTriggerExists("trigger_2");
@@ -469,6 +487,7 @@ public class CreateTest extends CQLTester
 
         execute("CREATE TRIGGER IF NOT EXISTS trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
         assertTriggerExists("trigger_1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         execute("CREATE TRIGGER IF NOT EXISTS trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
         assertTriggerExists("trigger_1");
@@ -481,6 +500,7 @@ public class CreateTest extends CQLTester
 
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
         assertTriggerExists("trigger_1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         execute("DROP TRIGGER trigger_1 ON %s");
         assertTriggerDoesNotExists("trigger_1");
@@ -504,6 +524,7 @@ public class CreateTest extends CQLTester
 
         execute("DROP TRIGGER IF EXISTS trigger_1 ON %s");
         assertTriggerDoesNotExists("trigger_1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
 
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
         assertTriggerExists("trigger_1");
@@ -533,6 +554,7 @@ public class CreateTest extends CQLTester
 
         // this forces the dc above to be added to the list of known datacenters (fixes static init problem
         // with this group of tests), ok to remove at some point if doing so doesn't break the test
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.255"));
         execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east-1' : 1 };");
 
@@ -558,13 +580,16 @@ public class CreateTest extends CQLTester
     public void testCreateTableWithCompression() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8384
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6717
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
@@ -605,9 +630,12 @@ public class CreateTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "2.0")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                     + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 1 };");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10520
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13703
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -615,6 +643,7 @@ public class CreateTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "1.0")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                     + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 0 };");
@@ -625,6 +654,7 @@ public class CreateTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13241
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
@@ -640,6 +670,12 @@ public class CreateTest extends CQLTester
                 + " WITH compression = { 'enabled' : 'false'};");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
@@ -690,6 +726,7 @@ public class CreateTest extends CQLTester
     @Test
     public void compactTableTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("COMPACT STORAGE tables are not allowed starting with version 4.0",
                              "CREATE TABLE compact_table_create (id text PRIMARY KEY, content text) WITH COMPACT STORAGE;");
     }

@@ -29,6 +29,7 @@ import org.junit.runner.RunWith;
 public class GCInspectorTest
 {
     
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12661
     GCInspector gcInspector;
     
     @BeforeClass
@@ -78,6 +79,7 @@ public class GCInspectorTest
     @Test
     public void testDefaults()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12661
         gcInspector.setGcLogThresholdInMs(200);
         gcInspector.setGcWarnThresholdInMs(1000);
     }

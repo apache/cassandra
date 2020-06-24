@@ -121,8 +121,10 @@ public class CollectionsTest extends CQLTester
                    row(set("v7"))
         );
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12232
         execute("UPDATE %s SET s += ? WHERE k = 0", set("v5"));
         execute("UPDATE %s SET s += {'v6'} WHERE k = 0");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"),
                    row(set("v5", "v6", "v7"))
@@ -152,6 +154,7 @@ public class CollectionsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, int>)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
         assertInvalidMessage("Value for a map addition has to be a map, but was: '{1}'",
                              "UPDATE %s SET m = m + {1} WHERE k = 0;");
         assertInvalidMessage("Not enough bytes to read a map",
@@ -193,6 +196,7 @@ public class CollectionsTest extends CQLTester
         );
 
         execute("UPDATE %s SET m = m - ? WHERE k = 0", set("v7"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12232
 
         assertRows(execute("SELECT m FROM %s WHERE k = 0"),
                    row(map("v5", 5, "v6", 6))
@@ -211,6 +215,7 @@ public class CollectionsTest extends CQLTester
         );
 
         execute("UPDATE %s SET m += {'v7': 7} WHERE k = 0");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
 
         assertRows(execute("SELECT m FROM %s WHERE k = 0"),
                    row(map("v5", 5, "v6", 6, "v7", 7))
@@ -285,6 +290,7 @@ public class CollectionsTest extends CQLTester
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v9", "v6", "v7")));
 
         execute("UPDATE %s SET l += ? WHERE k = 0", list("v8"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12232
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v9", "v6", "v7", "v8")));
 
@@ -303,9 +309,11 @@ public class CollectionsTest extends CQLTester
                              "UPDATE %s SET l[0] = ? WHERE k=0", list("v10"));
 
         execute("UPDATE %s SET l = l - ? WHERE k=0", list("v11"));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13197
         execute("UPDATE %s SET l = l + ? WHERE k = 0", list("v1", "v2", "v1", "v2", "v1", "v2"));
         execute("UPDATE %s SET l = l - ? WHERE k=0", list("v1", "v2"));
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
@@ -590,6 +598,7 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testInRestrictionWithCollection() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12654
         for (boolean frozen : new boolean[]{true, false})
         {
             createTable(frozen ? "CREATE TABLE %s (a int, b int, c int, d frozen<list<int>>, e frozen<map<int, int>>, f frozen<set<int>>, PRIMARY KEY (a, b, c))"
@@ -684,6 +693,7 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testDropAndReaddDroppedCollection() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createTable("create table %s (k int primary key, v set<text>, x int)");
         execute("insert into %s (k, v) VALUES (0, {'fffffffff'})");
         flush();
@@ -694,6 +704,7 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testMapWithLargePartition() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10001
         Random r = new Random();
         long seed = System.nanoTime();
         System.out.println("Seed " + seed);
@@ -763,6 +774,7 @@ public class CollectionsTest extends CQLTester
     public void testUpdateStaticList() throws Throwable
     {
         createTable("CREATE TABLE %s (k1 text, k2 text, s_list list<int> static, PRIMARY KEY (k1, k2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9838
 
         execute("insert into %s (k1, k2) VALUES ('a','b')");
         execute("update %s set s_list = s_list + [0] where k1='a'");
@@ -782,6 +794,7 @@ public class CollectionsTest extends CQLTester
     public void testListWithElementsBiggerThan64K() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<text>)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10374
 
         byte[] bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
         Arrays.fill(bytes, (byte) 1);
@@ -946,6 +959,7 @@ public class CollectionsTest extends CQLTester
     public void testRemovalThroughUpdate() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<int>)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10954
 
          execute("INSERT INTO %s(k, l) VALUES(?, ?)", 0, list(1, 2, 3));
          assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2, 3)));
@@ -999,6 +1013,7 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testMultipleOperationOnListWithinTheSameQuery() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13130
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, l list<int>)");
         execute("INSERT INTO %s (pk, l) VALUES (1, [1, 2, 3, 4])");
 
@@ -1099,6 +1114,7 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testMapOperation() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         createTable("CREATE TABLE %s (k int, c int, l text, " +
                     "m map<text, text>, " +
                     "fm frozen<map<text, text>>, " +
@@ -1198,6 +1214,7 @@ public class CollectionsTest extends CQLTester
 
         assertRows(execute("SELECT k, l, m['2'..'3'], o FROM %s WHERE k = 0"),
                    row(0, "foobar", map("22", "value22"), 42),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
                    row(0, "foobar", null, 42)
         );
 
@@ -1652,6 +1669,7 @@ public class CollectionsTest extends CQLTester
     public void testCollectionSliceOnMV() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, l text, m map<text, text>, o int, PRIMARY KEY (k, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage("Can only select columns by name when defining a materialized view (got m['abc'])",
                              "CREATE MATERIALIZED VIEW " + KEYSPACE + ".view1 AS SELECT m['abc'] FROM %s WHERE k IS NOT NULL AND c IS NOT NULL AND m IS NOT NULL PRIMARY KEY (c, k)");
         assertInvalidMessage("Can only select columns by name when defining a materialized view (got m['abc'..'def'])",
@@ -1711,6 +1729,7 @@ public class CollectionsTest extends CQLTester
 
         assertRows(result,
                    row(0,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
                        map("1", "one", "2", "two"), "two", map("2", "two"), map("1", "one", "2", "two"), null,
                        map("1", "one", "2", "two"), "two", map("2", "two"), map("1", "one", "2", "two"), map(),
                        set("1", "2", "3"), "2", set("2", "3"), set("1", "2"), set("3"),
@@ -1763,6 +1782,7 @@ public class CollectionsTest extends CQLTester
 
         assertInvalidMessage("Non-frozen UDTs are not allowed inside collections",
                              "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v map<text, " + type + ">)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         String mapType = "map<text, frozen<" + type + ">>";
         for (boolean frozen : new boolean[]{false, true})
@@ -1816,6 +1836,7 @@ public class CollectionsTest extends CQLTester
 
         assertRows(execute("SELECT m[7..8] FROM %s WHERE k=?", 0),
                    row((Map<Integer, Integer>) null));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
 
         assertRows(execute("SELECT m[0..3] FROM %s WHERE k=?", 0),
                    row(map(0, 0, 1, 1, 2, 2, 3, 3)));
@@ -1883,6 +1904,7 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testInsertingCollectionsWithInvalidElements() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13646
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s frozen<set<tuple<int, text, double>>>)");
         assertInvalidMessage("Invalid remaining data after end of tuple value",
                              "INSERT INTO %s (k, s) VALUES (0, ?)",
@@ -1920,6 +1942,7 @@ public class CollectionsTest extends CQLTester
     public void testSelectionOfEmptyCollections() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<text, int>>, s frozen<set<int>>)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14182
 
         execute("INSERT INTO %s(k) VALUES (0)");
         execute("INSERT INTO %s(k, m, s) VALUES (1, {}, {})");

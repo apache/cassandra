@@ -28,6 +28,7 @@ import static org.junit.Assert.assertEquals;
 
 public class PropertyDefinitionsTest {
     
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8755
     PropertyDefinitions pd;
     
     @Before

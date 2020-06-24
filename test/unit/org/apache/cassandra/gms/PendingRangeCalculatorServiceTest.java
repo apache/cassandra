@@ -54,6 +54,7 @@ public class PendingRangeCalculatorServiceTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15059
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         SchemaLoader.prepareServer();
         StorageService.instance.initServer();
@@ -67,6 +68,7 @@ public class PendingRangeCalculatorServiceTest
             action = "org.apache.cassandra.gms.PendingRangeCalculatorServiceTest.calculationLock.lock()")
     public void testDelayedResponse() throws UnknownHostException, InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort otherNodeAddr = InetAddressAndPort.getByName("127.0.0.2");
         UUID otherHostId = UUID.randomUUID();
 
@@ -126,6 +128,7 @@ public class PendingRangeCalculatorServiceTest
         state.addApplicationState(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(hostId));
         state.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Map<InetAddressAndPort, EndpointState> states = new HashMap<>();
         states.put(otherNodeAddr, state);
         return states;

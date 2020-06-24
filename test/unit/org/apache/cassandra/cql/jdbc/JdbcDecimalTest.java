@@ -30,9 +30,11 @@ public class JdbcDecimalTest
     @Test
     public void testComposeDecompose()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3837
         BigDecimal expected = new BigDecimal("123456789123456789.987654321");
         DecimalSerializer decimal = new DecimalSerializer();
         
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5744
         ByteBuffer buffer = decimal.serialize(expected);
         BigDecimal actual = decimal.deserialize(buffer);
         Assert.assertEquals(expected, actual);

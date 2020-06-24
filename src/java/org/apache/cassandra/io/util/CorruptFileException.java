@@ -25,6 +25,7 @@ public class CorruptFileException extends RuntimeException
 
     public CorruptFileException(Exception cause, String filePath)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
         super(cause);
         this.filePath = filePath;
     }

@@ -34,6 +34,7 @@ public class SingletonUnfilteredPartitionIterator implements UnfilteredPartition
 
     public TableMetadata metadata()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9847
         return iter.metadata();
     }
 
@@ -58,6 +59,7 @@ public class SingletonUnfilteredPartitionIterator implements UnfilteredPartition
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         if (!returned)
             iter.close();
     }

@@ -78,6 +78,7 @@ public class PasswordAuthenticator implements IAuthenticator
 
     protected static boolean checkpw(String password, String hash)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13626
         try
         {
             return BCrypt.checkpw(password, hash);
@@ -95,6 +96,7 @@ public class PasswordAuthenticator implements IAuthenticator
         String hash = cache.get(username);
         if (!checkpw(password, hash))
             throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12076
 
         return new AuthenticatedUser(username);
     }
@@ -106,6 +108,7 @@ public class PasswordAuthenticator implements IAuthenticator
             ResultMessage.Rows rows =
             authenticateStatement.execute(QueryState.forInternalCalls(),
                                             QueryOptions.forInternalCalls(consistencyForRole(username),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12256
                                                                           Lists.newArrayList(ByteBufferUtil.bytes(username))),
                                             System.nanoTime());
 
@@ -123,6 +126,7 @@ public class PasswordAuthenticator implements IAuthenticator
         }
         catch (RequestExecutionException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15041
             throw new AuthenticationException("Unable to perform authentication: " + e.getMessage(), e);
         }
     }
@@ -130,6 +134,7 @@ public class PasswordAuthenticator implements IAuthenticator
     public Set<DataResource> protectedResources()
     {
         // Also protected by CassandraRoleManager, but the duplication doesn't hurt and is more explicit
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES));
     }
 
@@ -145,6 +150,7 @@ public class PasswordAuthenticator implements IAuthenticator
                                      AuthKeyspace.ROLES);
         authenticateStatement = prepare(query);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7715
         cache = new CredentialsCache(this);
     }
 
@@ -157,17 +163,20 @@ public class PasswordAuthenticator implements IAuthenticator
         String password = credentials.get(PASSWORD_KEY);
         if (password == null)
             throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12076
 
         return authenticate(username, password);
     }
 
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5545
         return new PlainTextSaslAuthenticator();
     }
 
     private static SelectStatement prepare(String query)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
     }
 
@@ -210,10 +219,12 @@ public class PasswordAuthenticator implements IAuthenticator
          */
         private void decodeCredentials(byte[] bytes) throws AuthenticationException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10241
             logger.trace("Decoding credentials from client token");
             byte[] user = null;
             byte[] pass = null;
             int end = bytes.length;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15198
             for (int i = bytes.length - 1; i >= 0; i--)
             {
                 if (bytes[i] == NUL)
@@ -222,6 +233,7 @@ public class PasswordAuthenticator implements IAuthenticator
                         pass = Arrays.copyOfRange(bytes, i + 1, end);
                     else if (user == null)
                         user = Arrays.copyOfRange(bytes, i + 1, end);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15198
                     else
                         throw new AuthenticationException("Credential format error: username or password is empty or contains NUL(\\0) character");
 
@@ -234,6 +246,7 @@ public class PasswordAuthenticator implements IAuthenticator
             if (user == null || user.length == 0)
                 throw new AuthenticationException("Authentication ID must not be null");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
             username = new String(user, StandardCharsets.UTF_8);
             password = new String(pass, StandardCharsets.UTF_8);
         }
@@ -243,6 +256,7 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         private CredentialsCache(PasswordAuthenticator authenticator)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7715
             super("CredentialsCache",
                   DatabaseDescriptor::setCredentialsValidity,
                   DatabaseDescriptor::getCredentialsValidity,

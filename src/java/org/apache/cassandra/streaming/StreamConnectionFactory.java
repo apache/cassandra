@@ -25,5 +25,6 @@ import org.apache.cassandra.net.OutboundConnectionSettings;
 
 public interface StreamConnectionFactory
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
     Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException;
 }

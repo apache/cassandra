@@ -37,6 +37,7 @@ public class ColumnFamilyMetricTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("Keyspace1",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD("Keyspace1", "Standard2"));
     }
@@ -45,6 +46,7 @@ public class ColumnFamilyMetricTest
     public void testSizeMetric()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard2");
         cfs.disableAutoCompaction();
 
@@ -62,6 +64,7 @@ public class ColumnFamilyMetricTest
                     .applyUnsafe();
         }
         cfs.forceBlockingFlush();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         long size = 0;
         for (SSTableReader reader : sstables)
@@ -70,6 +73,7 @@ public class ColumnFamilyMetricTest
         }
 
         // size metrics should show the sum of all SSTable sizes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         assertEquals(size, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(size, cfs.metric.totalDiskSpaceUsed.getCount());
 

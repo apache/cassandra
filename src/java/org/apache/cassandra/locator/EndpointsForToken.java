@@ -33,6 +33,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 {
     private final Token token;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
     EndpointsForToken(Token token, ReplicaList list, ReplicaMap<InetAddressAndPort> byEndpoint)
     {
         super(list, byEndpoint);
@@ -48,6 +49,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
     @Override
     public Builder newBuilder(int initialCapacity)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return new Builder(token, initialCapacity);
     }
 
@@ -124,6 +126,7 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 
     public static EndpointsForToken empty(Token token)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         return new EndpointsForToken(token, EMPTY_LIST, EMPTY_MAP);
     }
 

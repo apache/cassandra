@@ -48,6 +48,7 @@ public class TableHistograms extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         Multimap<String, String> tablesList = HashMultimap.create();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14410
 
         // a <keyspace, set<table>> mapping for verification or as reference if none provided
         Multimap<String, String> allTables = HashMultimap.create();
@@ -89,6 +90,7 @@ public class TableHistograms extends NodeToolCmd
             for (String table : tablesList.get(keyspace))
             {
                 // calculate percentile of row size and column count
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 long[] estimatedPartitionSize = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedPartitionSizeHistogram");
                 long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedColumnCountHistogram");
 
@@ -97,6 +99,7 @@ public class TableHistograms extends NodeToolCmd
                 double[] estimatedColumnCountPercentiles = new double[7];
                 double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                 if (ArrayUtils.isEmpty(estimatedPartitionSize) || ArrayUtils.isEmpty(estimatedColumnCount))
                 {
                     System.out.println("No SSTables exists, unable to calculate 'Partition Size' and 'Cell Count' percentiles");
@@ -137,6 +140,7 @@ public class TableHistograms extends NodeToolCmd
                     }
 
                     // min value
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9448
                     estimatedRowSizePercentiles[5] = partitionSizeHist.min();
                     estimatedColumnCountPercentiles[5] = columnCountHist.min();
                     // max value
@@ -151,6 +155,7 @@ public class TableHistograms extends NodeToolCmd
 
                 System.out.println(format("%s/%s histograms", keyspace, table));
                 System.out.println(format("%-10s%18s%18s%18s%18s%18s",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11939
                         "Percentile", "Read Latency", "Write Latency", "SSTables", "Partition Size", "Cell Count"));
                 System.out.println(format("%-10s%18s%18s%18s%18s%18s",
                         "", "(micros)", "(micros)", "", "(bytes)", ""));

@@ -39,6 +39,7 @@ public final class TriggerMetadata
 
     public static TriggerMetadata create(String name, String classOption)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         return new TriggerMetadata(name, classOption);
     }
 
@@ -48,6 +49,7 @@ public final class TriggerMetadata
         if (this == o)
             return true;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         if (!(o instanceof TriggerMetadata))
             return false;
 

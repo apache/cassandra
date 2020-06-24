@@ -25,11 +25,13 @@ public class RoleName
 
     public void setName(String name, boolean keepCase)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13799
         this.name = keepCase ? name : (name == null ? name : name.toLowerCase(Locale.US));
     }
 
     public boolean hasName()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
         return name != null;
     }
 

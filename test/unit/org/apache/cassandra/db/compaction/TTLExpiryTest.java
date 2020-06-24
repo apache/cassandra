@@ -62,6 +62,7 @@ public class TTLExpiryTest
         System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
 
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13038
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -73,6 +74,7 @@ public class TTLExpiryTest
                                                  .addRegularColumn("col2", AsciiType.instance)
                                                  .addRegularColumn("col3", AsciiType.instance)
                                                  .addRegularColumn("col7", AsciiType.instance)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11353
                                                  .addRegularColumn("col8", MapType.getInstance(AsciiType.instance, AsciiType.instance, true))
                                                  .addRegularColumn("shadow", AsciiType.instance)
                                                  .gcGraceSeconds(0));
@@ -84,6 +86,7 @@ public class TTLExpiryTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();
         MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build(), true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String key = "ttl";
         new RowUpdateBuilder(cfs.metadata(), 1L, 1, key)
                     .add("col1", ByteBufferUtil.EMPTY_BYTE_BUFFER)
@@ -132,6 +135,7 @@ public class TTLExpiryTest
 
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         Set<SSTableReader> sstables = Sets.newHashSet(cfs.getLiveSSTables());
         int now = (int)(System.currentTimeMillis() / 1000);
         int gcBefore = now + 2;
@@ -148,6 +152,7 @@ public class TTLExpiryTest
     @Test
     public void testSimpleExpire() throws InterruptedException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11353
         testSimpleExpire(false);
     }
 
@@ -166,6 +171,7 @@ public class TTLExpiryTest
         // To reproduce #10944, we need our gcBefore to be equal to the locaDeletionTime. A gcGrace of 1 will (almost always) give us that.
         MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(force10944Bug ? 1 : 0).build(), true);
         long timestamp = System.currentTimeMillis();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         String key = "ttl";
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
                         .add("col", ByteBufferUtil.EMPTY_BYTE_BUFFER)
@@ -177,6 +183,7 @@ public class TTLExpiryTest
 
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
             .add("col2", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12236
             .add("col8", Collections.singletonMap("bar", "foo"))
             .delete("col1")
             .build()
@@ -203,6 +210,7 @@ public class TTLExpiryTest
         Thread.sleep(2000); // wait for ttl to expire
         assertEquals(4, cfs.getLiveSSTables().size());
         cfs.enableAutoCompaction(true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11353
         assertEquals(force10944Bug ? 1 : 0, cfs.getLiveSSTables().size());
     }
 
@@ -240,7 +248,10 @@ public class TTLExpiryTest
 
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
         assertEquals(4, cfs.getLiveSSTables().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5074
         cfs.enableAutoCompaction(true);
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
@@ -253,6 +264,7 @@ public class TTLExpiryTest
             UnfilteredRowIterator iter = scanner.next();
             assertEquals(Util.dk(noTTLKey), iter.partitionKey());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8893
         scanner.close();
     }
 

@@ -37,6 +37,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 
     public ReducingKeyIterator(Collection<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         iters = new ArrayList<>(sstables.size());
         for (SSTableReader sstable : sstables)
             iters.add(new KeyIterator(sstable.descriptor, sstable.metadata()));
@@ -49,10 +50,13 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
             mi = MergeIterator.get(iters, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey,DecoratedKey>()
             {
                 DecoratedKey reduced = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3978
 
                 @Override
                 public boolean trivialReduceIsTrivial()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3234
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1
                     return true;
                 }
 
@@ -90,6 +94,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
     public long getBytesRead()
     {
         maybeInit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
 
         long m = 0;
         for (Iterator<DecoratedKey> iter : mi.iterators())
@@ -101,7 +106,9 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 
     public boolean hasNext()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8897
         maybeInit();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2062
         return mi.hasNext();
     }
 

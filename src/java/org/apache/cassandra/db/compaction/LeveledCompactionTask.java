@@ -35,6 +35,8 @@ public class LeveledCompactionTask extends CompactionTask
 
     public LeveledCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int level, int gcBefore, long maxSSTableBytes, boolean majorCompaction)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9978
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7066
         super(cfs, txn, gcBefore);
         this.level = level;
         this.maxSSTableBytes = maxSSTableBytes;
@@ -48,6 +50,7 @@ public class LeveledCompactionTask extends CompactionTask
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
         if (majorCompaction)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11148
             return new MajorLeveledCompactionWriter(cfs, directories, txn, nonExpiredSSTables, maxSSTableBytes, false);
         return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, maxSSTableBytes, getLevel(), false);
     }
@@ -55,11 +58,13 @@ public class LeveledCompactionTask extends CompactionTask
     @Override
     protected boolean partialCompactionsAcceptable()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12040
         return level == 0;
     }
 
     protected int getLevel()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5371
         return level;
     }
 }

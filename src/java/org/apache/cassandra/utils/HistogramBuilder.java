@@ -77,6 +77,7 @@ public class HistogramBuilder
 
         if (count == 0)
             return new EstimatedHistogram(EMPTY_LONG_ARRAY, ZERO);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
 
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         double sum = 0, sumsq = 0;
@@ -118,6 +119,7 @@ public class HistogramBuilder
             // that begin at zero by default (or -Inf) in EstimatedHistogram we have to generate a min range
             // to indicate where we start from
             return ismin ? new long[] { mean - 1 } : EMPTY_LONG_ARRAY;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10750
 
         if (stdev < 1)
         {

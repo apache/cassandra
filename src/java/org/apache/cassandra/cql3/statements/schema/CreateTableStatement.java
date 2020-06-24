@@ -132,6 +132,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13457
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
@@ -205,6 +206,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             clusteringTypes.add(reverse ? ReversedType.getInstance(type.getType()) : type.getType());
         });
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15271
         if (clusteringOrder.size() > clusteringColumns.size())
             throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
 

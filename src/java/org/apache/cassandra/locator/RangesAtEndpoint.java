@@ -56,6 +56,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
 
     private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, ReplicaMap<Range<Token>> byRange)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         super(list);
         this.endpoint = endpoint;
         this.byRange = byRange;
@@ -91,6 +92,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
      */
     public Map<Range<Token>, Replica> byRange()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         ReplicaMap<Range<Token>> map = byRange;
         if (map == null)
             byRange = map = rangeMap(list);
@@ -130,6 +132,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
 
     public RangesAtEndpoint onlyFull()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
         RangesAtEndpoint result = onlyFull;
         if (onlyFull == null)
             onlyFull = result = filter(Replica::isFull);
@@ -195,6 +198,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
 
         public RangesAtEndpoint.Builder add(Replica replica, Conflict ignoreConflict)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14726
             if (built) throw new IllegalStateException();
             Preconditions.checkNotNull(replica);
             if (!Objects.equals(super.endpoint, replica.endpoint()))
@@ -303,6 +307,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
 
     public static boolean isDummyList(RangesAtEndpoint ranges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
         return all(ranges, range -> range.endpoint().getHostAddress(true).equals("0.0.0.0:0"));
     }
 

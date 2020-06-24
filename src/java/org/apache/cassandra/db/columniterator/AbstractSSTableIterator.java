@@ -62,6 +62,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                                       RowIndexEntry indexEntry,
                                       Slices slices,
                                       ColumnFilter columnFilter,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
                                       FileHandle ifile)
     {
         this.sstable = sstable;
@@ -71,6 +72,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         this.columns = columnFilter;
         this.slices = slices;
         this.helper = new DeserializationHelper(metadata, sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL, columnFilter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
 
         if (indexEntry == null)
         {
@@ -111,9 +113,11 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
                     this.reader = createReader(indexEntry, file, shouldCloseFile);
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
                 if (!partitionLevelDeletion.validate())
                     UnfilteredValidation.handleInvalid(metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11513
                 if (reader != null && !slices.isEmpty())
                     reader.setForSlice(nextSlice());
 
@@ -159,6 +163,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 
     private static Row readStaticRow(SSTableReader sstable,
                                      FileDataInput file,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
                                      DeserializationHelper helper,
                                      Columns statics) throws IOException
     {
@@ -180,6 +185,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 
     private Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11513
         return slices.isEmpty() ? new NoRowsReader(file, shouldCloseFile)
                                 : createReaderInternal(indexEntry, file, shouldCloseFile);
     };
@@ -279,6 +285,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 
     public void close()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
         try
         {
             closeInternal();
@@ -395,6 +402,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
     {
         private NoRowsReader(FileDataInput file, boolean shouldCloseFile)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11513
             super(file, shouldCloseFile);
         }
 
@@ -450,7 +458,9 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             if (blockIdx >= 0 && blockIdx < indexEntry.columnsIndexCount())
             {
                 reader.seekToPosition(columnOffset(blockIdx));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14513
                 mark = reader.file.mark();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10360
                 reader.deserializer.clearState();
             }
 
@@ -486,11 +496,13 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 
             while (currentIndexIdx + 1 < indexEntry.columnsIndexCount() && isPastCurrentBlock())
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10136
                 reader.openMarker = currentIndex().endOpenMarker;
                 ++currentIndexIdx;
 
                 // We have to set the mark, and we have to set it at the beginning of the block. So if we're not at the beginning of the block, this forces us to a weird seek dance.
                 // This can only happen when reading old file however.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10314
                 long startOfBlock = columnOffset(currentIndexIdx);
                 long currentFilePointer = reader.file.getFilePointer();
                 if (startOfBlock == currentFilePointer)
@@ -510,6 +522,8 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         public boolean isPastCurrentBlock() throws IOException
         {
             assert reader.deserializer != null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9859
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             return reader.file.bytesPastMark(mark) >= currentIndex().width;
         }
 
@@ -532,6 +546,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         // Will be -1 if the bound is before any block, and blocksCount() if it is after every block.
         public int findBlockIndex(ClusteringBound bound, int fromIdx) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11213
             if (bound == ClusteringBound.BOTTOM)
                 return -1;
             if (bound == ClusteringBound.TOP)

@@ -53,6 +53,8 @@ public class SafeMemory extends Memory implements SharedCloseable
     public void free()
     {
         ref.release();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8746
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9021
         peer = 0;
     }
 
@@ -64,6 +66,7 @@ public class SafeMemory extends Memory implements SharedCloseable
 
     public Throwable close(Throwable accumulate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8984
         return ref.ensureReleased(accumulate);
     }
 
@@ -88,6 +91,7 @@ public class SafeMemory extends Memory implements SharedCloseable
         {
             /** see {@link Memory#Memory(long)} re: null pointers*/
             if (peer != 0)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8714
                 MemoryUtil.free(peer);
         }
 
@@ -106,6 +110,7 @@ public class SafeMemory extends Memory implements SharedCloseable
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         identities.add(ref);
     }
 }

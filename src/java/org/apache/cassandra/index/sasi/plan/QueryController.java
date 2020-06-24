@@ -63,6 +63,7 @@ public class QueryController
     {
         this.cfs = cfs;
         this.command = command;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         this.range = command.dataRange();
         this.executionQuota = TimeUnit.MILLISECONDS.toNanos(timeQuotaMs);
         this.executionStart = System.nanoTime();
@@ -136,6 +137,7 @@ public class QueryController
                                                 ? RangeUnionIterator.<Long, Token>builder()
                                                 : RangeIntersectionIterator.<Long, Token>builder();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         Set<Map.Entry<Expression, Set<SSTableIndex>>> view = getView(op, expressions).entrySet();
         List<RangeIterator<Long, Token>> perIndexUnions = new ArrayList<>(view.size());
 
@@ -155,6 +157,7 @@ public class QueryController
     public void checkpoint()
     {
 	long executionTime = (System.nanoTime() - executionStart);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13677
 
         if (executionTime >= executionQuota)
             throw new TimeQuotaExceededException(
@@ -179,6 +182,7 @@ public class QueryController
 
     public void finish()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         resources.values().forEach(this::releaseIndexes);
     }
 
@@ -214,6 +218,7 @@ public class QueryController
             }
             else
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
                 readers.addAll(applyScope(view.match(e)));
             }
 
@@ -237,7 +242,10 @@ public class QueryController
             if (view == null)
                 continue;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
             Set<SSTableIndex> indexes = applyScope(view.match(e));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12910
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12910
             if (expression == null || primaryIndexes.size() > indexes.size())
             {
                 primaryIndexes = indexes;
@@ -250,6 +258,7 @@ public class QueryController
 
     private Set<SSTableIndex> applyScope(Set<SSTableIndex> indexes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11159
         return Sets.filter(indexes, index -> {
             SSTableReader sstable = index.getSSTable();
             return range.startKey().compareTo(sstable.last) <= 0 && (range.stopKey().isMinimum() || sstable.first.compareTo(range.stopKey()) <= 0);

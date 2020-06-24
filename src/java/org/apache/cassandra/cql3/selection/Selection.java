@@ -53,6 +53,7 @@ public abstract class Selection
     protected final List<ColumnMetadata> orderingColumns;
 
     protected Selection(TableMetadata table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                         List<ColumnMetadata> selectedColumns,
                         Set<ColumnMetadata> orderingColumns,
                         SelectionColumnMapping columnMapping,
@@ -129,6 +130,7 @@ public abstract class Selection
     {
         List<ColumnMetadata> all = new ArrayList<>(table.columns().size());
         Iterators.addAll(all, table.allColumnsInSelectOrder());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return new SimpleSelection(table, all, Collections.emptySet(), true, isJson);
     }
 
@@ -244,6 +246,7 @@ public abstract class Selection
      */
     protected final int getColumnIndex(ColumnMetadata c)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return columns.indexOf(c);
     }
 
@@ -295,6 +298,7 @@ public abstract class Selection
                                               List<ColumnMetadata> orderingColumns)
     {
         ByteBuffer[] jsonRow = new ByteBuffer[orderingColumns.size() + 1];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11526
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < metadata.names.size(); i++)
         {
@@ -320,6 +324,7 @@ public abstract class Selection
             sb.append('"');
             sb.append(Json.quoteAsJsonString(columnName));
             sb.append("\": ");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15435
             if (buffer == null)
                 sb.append("null");
             else
@@ -382,6 +387,7 @@ public abstract class Selection
         private final boolean isWildcard;
 
         public SimpleSelection(TableMetadata table,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                                List<ColumnMetadata> selectedColumns,
                                Set<ColumnMetadata> orderingColumns,
                                boolean isWildcard,
@@ -472,6 +478,7 @@ public abstract class Selection
                 @Override
                 public int numberOfFetchedColumns()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                     return getColumns().size();
                 }
 
@@ -484,6 +491,7 @@ public abstract class Selection
                 @Override
                 public boolean collectTimestamps()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
                     return false;
                 }
 
@@ -506,6 +514,7 @@ public abstract class Selection
 
         public SelectionWithProcessing(TableMetadata table,
                                        List<ColumnMetadata> columns,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                                        Set<ColumnMetadata> orderingColumns,
                                        Set<ColumnMetadata> nonPKRestrictedColumns,
                                        SelectionColumnMapping metadata,
@@ -532,12 +541,14 @@ public abstract class Selection
         @Override
         public void addFunctionsTo(List<Function> functions)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
             factories.addFunctionsTo(functions);
         }
 
         @Override
         public int getResultSetIndex(ColumnMetadata c)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return factories.indexOfSimpleSelectorFactory(super.getResultSetIndex(c));
         }
 
@@ -554,12 +565,15 @@ public abstract class Selection
 
                 public void reset()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                     for (Selector selector : selectors)
                         selector.reset();
                 }
 
                 public boolean isAggregate()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
                     return factories.doesAggregation();
                 }
 
@@ -569,6 +583,7 @@ public abstract class Selection
 
                     for (Selector selector: selectors)
                         outputRow.add(selector.getOutput(options.getProtocolVersion()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
 
                     return isJson ? rowToJson(outputRow, options.getProtocolVersion(), metadata, orderingColumns) : outputRow;
                 }

@@ -47,6 +47,7 @@ public class DebuggableThreadPoolExecutorTest
     @BeforeClass
     public static void setupDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -66,14 +67,17 @@ public class DebuggableThreadPoolExecutorTest
                 Thread.sleep(50);
             }
         };
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         long start = System.nanoTime();
         for (int i = 0; i < 10; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
             executor.execute(runnable);
         }
         assert q.size() > 0 : q.size();
         while (executor.getCompletedTaskCount() < 10)
             continue;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5581
         long delta = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         assert delta >= 9 * 50 : delta;
     }
@@ -81,6 +85,7 @@ public class DebuggableThreadPoolExecutorTest
     @Test
     public void testExecuteFutureTaskWhileTracing()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15332
         LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
         DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
                                                                                  Integer.MAX_VALUE,

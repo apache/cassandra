@@ -42,6 +42,7 @@ public class RewindableDataInputStreamPlusTest
     @Before
     public void setup() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         this.file = new File(FileUtils.getTempDir(), "subdir/test.buffer");
     }
 

@@ -39,6 +39,7 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
 
     private static final Map<AbstractType<?>, Charset> VALID_ANALYZABLE_TYPES = new HashMap<AbstractType<?>, Charset>()
     {{
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
         put(UTF8Type.instance, StandardCharsets.UTF_8);
         put(AsciiType.instance, StandardCharsets.US_ASCII);
     }};
@@ -87,6 +88,7 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
                 // loop until we see the next delimiter character, or reach end of data
                 boolean readaheadRemaining;
                 while ((readaheadRemaining = readahead.hasRemaining()) && readahead.get() != delimiter);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14450
 
                 char[] chars = new char[readahead.position() - cb.position() - (readaheadRemaining ? 1 : 0)];
                 cb.get(chars);
@@ -109,6 +111,7 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
     @Override
     public boolean isCompatibleWith(AbstractType<?> validator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13669
         return VALID_ANALYZABLE_TYPES.containsKey(validator);
     }
 }

@@ -165,6 +165,7 @@ public class ValidationManager
                 {
                     // we need to inform the remote end of our failure, otherwise it will hang on repair forever
                     validator.fail();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15661
                     logger.error("Validation failed.", e);
                     throw e;
                 }

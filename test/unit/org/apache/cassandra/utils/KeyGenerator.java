@@ -104,6 +104,7 @@ public class KeyGenerator
 
         public ByteBuffer next() 
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2367
             return ByteBufferUtil.bytes(Integer.toString(i++));
         }
 
@@ -137,6 +138,7 @@ public class KeyGenerator
         private int modulo;
         private int skip;
         byte[] next;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-767
 
         WordGenerator(int skip, int modulo) 
         {

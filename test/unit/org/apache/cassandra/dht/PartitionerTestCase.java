@@ -47,6 +47,7 @@ public abstract class PartitionerTestCase
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -54,6 +55,7 @@ public abstract class PartitionerTestCase
     @Before
     public void clean()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
         initPartitioner();
     }
 
@@ -82,6 +84,7 @@ public abstract class PartitionerTestCase
     private void assertMidpoint(Token left, Token right, Random rand, int depth)
     {
         Token mid = partitioner.midpoint(left, right);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1034
         assert new Range<Token>(left, right).contains(mid)
                 : "For " + left + "," + right + ": range did not contain mid:" + mid;
         if (depth < 1)
@@ -103,12 +106,15 @@ public abstract class PartitionerTestCase
     @Test
     public void testMidpointMinimum()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3772
         midpointMinimumTestCase();
     }
 
     protected void midpointMinimumTestCase()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8171
         Token mintoken = partitioner.getMinimumToken();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
         assert mintoken.compareTo(partitioner.midpoint(mintoken, mintoken)) != 0;
         assertMidpoint(mintoken, tok("a"), 16);
         assertMidpoint(mintoken, tok("aaa"), 16);
@@ -128,6 +134,7 @@ public abstract class PartitionerTestCase
      */
     public void assertSplit(Token left, Token right, int depth)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
         Random rand = new Random();
         for (int i = 0; i < 1000; i++)
         {
@@ -139,6 +146,7 @@ public abstract class PartitionerTestCase
 
     private void assertSplit(Token left, Token right, Random rand, int depth)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12858
         if (shouldStopRecursion(left, right))
         {
             System.out.println("Stop assertSplit at depth: " + depth);
@@ -166,6 +174,7 @@ public abstract class PartitionerTestCase
     @Test
     public void testTokenFactoryBytes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
         Token.TokenFactory factory = partitioner.getTokenFactory();
         assert tok("a").compareTo(factory.fromByteArray(factory.toByteArray(tok("a")))) == 0;
     }
@@ -183,7 +192,9 @@ public abstract class PartitionerTestCase
         // This call initializes StorageService, needed to populate the keyspaces.
         // TODO: This points to potential problems in the initialization sequence. Should be solved by CASSANDRA-7837.
         StorageService.instance.getKeyspaces();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5076
         try
         {
             testDescribeOwnershipWith(0);

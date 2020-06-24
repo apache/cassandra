@@ -317,6 +317,7 @@ public final class WaitQueue
 
         public boolean awaitUntilUninterruptibly(long until)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             long now;
             while (until > (now = System.nanoTime()) && !isSignalled())
             {
@@ -545,6 +546,7 @@ public final class WaitQueue
      */
     public static void waitOnCondition(BooleanSupplier condition, WaitQueue queue)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13652
         while (!condition.getAsBoolean())
         {
             Signal s = queue.register();

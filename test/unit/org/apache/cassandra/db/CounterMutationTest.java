@@ -43,7 +43,9 @@ public class CounterMutationTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
                                     SchemaLoader.counterCFMD(KEYSPACE1, CF1),
                                     SchemaLoader.counterCFMD(KEYSPACE1, CF2));
     }
@@ -118,6 +120,7 @@ public class CounterMutationTest
         cfsTwo.truncateBlocking();
 
         // Do the update (+1, -1), (+2, -2)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         Mutation.PartitionUpdateCollector batch = new Mutation.PartitionUpdateCollector(KEYSPACE1, Util.dk("key1"));
         batch.add(new RowUpdateBuilder(cfsOne.metadata(), 5, "key1")
             .clustering("cc")
@@ -150,6 +153,7 @@ public class CounterMutationTest
         CBuilder cb = CBuilder.create(cfsOne.metadata().comparator);
         cb.add("cc");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9811
         assertEquals(1L, cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c1cfs1, null).count);
         assertEquals(-1L, cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c2cfs1, null).count);
 
@@ -160,12 +164,14 @@ public class CounterMutationTest
     @Test
     public void testDeletes() throws WriteTimeoutException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6968
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF1);
         cfs.truncateBlocking();
         ColumnMetadata cOne = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
         ColumnMetadata cTwo = cfs.metadata().getColumn(ByteBufferUtil.bytes("val2"));
 
         // Do the initial update (+1, -1)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         new CounterMutation(
             new RowUpdateBuilder(cfs.metadata(), 5, "key1")
                 .clustering("cc")

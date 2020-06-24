@@ -795,6 +795,7 @@ public class OutboundConnection
                             out = new DataOutputBufferFixed(sending.buffer);
                         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15687
                         Tracing.instance.traceOutgoingMessage(next, messageSize, settings.connectTo);
                         Message.serializer.serialize(next, out, messagingVersion);
 
@@ -963,6 +964,7 @@ public class OutboundConnection
                 if (messageSize > DatabaseDescriptor.getInternodeMaxMessageSizeInBytes())
                     throw new Message.OversizedMessageException(messageSize);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15687
                 Tracing.instance.traceOutgoingMessage(send, messageSize, established.settings.connectTo);
                 Message.serializer.serialize(send, out, established.messagingVersion);
 
@@ -1084,6 +1086,7 @@ public class OutboundConnection
                 if (hasPending())
                 {
                     Promise<Result<MessagingSuccess>> result = new AsyncPromise<>(eventLoop);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
                     state = new Connecting(state.disconnected(), result, eventLoop.schedule(() -> attempt(result), max(100, retryRateMillis), MILLISECONDS));
                     retryRateMillis = min(1000, retryRateMillis * 2);
                 }
@@ -1185,6 +1188,7 @@ public class OutboundConnection
                  * port being selected if configured with enable_legacy_ssl_storage_port=true.
                  */
                 int knownMessagingVersion = messagingVersion();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15727
                 if (knownMessagingVersion != messagingVersion)
                 {
                     logger.trace("Endpoint version changed from {} to {} since connection initialized, updating.",
@@ -1577,6 +1581,7 @@ public class OutboundConnection
         Established established = state.established();
         Channel channel = established.channel;
         OutboundConnectionSettings settings = established.settings;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         return SocketFactory.channelId(settings.from, (InetSocketAddress) channel.localAddress(),
                                        settings.to, (InetSocketAddress) channel.remoteAddress(),
                                        type, channel.id().asShortText());
@@ -1740,6 +1745,7 @@ public class OutboundConnection
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15308
     void unsafeReleaseCapacity(long count, long amount)
     {
         releaseCapacity(count, amount);

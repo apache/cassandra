@@ -25,6 +25,7 @@ public class RackInferringSnitch extends AbstractNetworkTopologySnitch
 {
     public String getRack(InetAddressAndPort endpoint)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return Integer.toString(endpoint.address.getAddress()[2] & 0xFF, 10);
     }
 

@@ -84,7 +84,9 @@ public class RangeFetchMapCalculator
     private final Set<Range<Token>> trivialRanges;
 
     public RangeFetchMapCalculator(EndpointsByRange rangesWithSources,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14756
                                    Collection<RangeStreamer.SourceFilter> sourceFilters,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
                                    String keyspace)
     {
         this.rangesWithSources = rangesWithSources;
@@ -113,6 +115,7 @@ public class RangeFetchMapCalculator
 
     public Multimap<InetAddressAndPort, Range<Token>> getRangeFetchMap()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         Multimap<InetAddressAndPort, Range<Token>> fetchMap = HashMultimap.create();
         fetchMap.putAll(getRangeFetchMapForNonTrivialRanges());
         fetchMap.putAll(getRangeFetchMapForTrivialRanges(fetchMap));
@@ -208,6 +211,7 @@ public class RangeFetchMapCalculator
      */
     private Multimap<InetAddressAndPort, Range<Token>> getRangeFetchMapFromGraphResult(MutableCapacityGraph<Vertex, Integer> graph, MaximumFlowAlgorithmResult<Integer, CapacityEdge<Vertex, Integer>> result)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         final Multimap<InetAddressAndPort, Range<Token>> rangeFetchMapMap = HashMultimap.create();
         if(result == null)
             return rangeFetchMapMap;
@@ -315,6 +319,7 @@ public class RangeFetchMapCalculator
         //Connect all ranges with all source endpoints
         for (Range<Token> range : rangesWithSources.keySet())
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13664
             if (trivialRanges.contains(range))
             {
                 logger.debug("Not optimising trivial range {} for keyspace {}", range, keyspace);
@@ -332,6 +337,7 @@ public class RangeFetchMapCalculator
                 sourceFound = addEndpoints(capacityGraph, rangeVertex, false);
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13583
             if (!sourceFound)
                 throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace);
 
@@ -357,6 +363,7 @@ public class RangeFetchMapCalculator
             {
                 sourceFound = true;
                 // if we pass filters, it means that we don't filter away localhost and we can count it as a source:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14742
                 if (replica.isSelf())
                     continue; // but don't add localhost to the graph to avoid streaming locally
                 final Vertex endpointVertex = new EndpointVertex(replica.endpoint());

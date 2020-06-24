@@ -39,6 +39,7 @@ public class TestLocator
     public static void main(String[] args) throws Throwable
     {
         String outputFileName = defaultOutputFileName;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15506
         if (args.length >= 1)
         {
             outputFileName = args[0];
@@ -61,6 +62,7 @@ public class TestLocator
                     printWriter.println(String.format(testCommandFormat,
                                                       testClass.getName(),
                                                       method.getName()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15506
                     printWriter.println("if [ $? -ne 0 ]; then ret=1; fi");
                 }
             }

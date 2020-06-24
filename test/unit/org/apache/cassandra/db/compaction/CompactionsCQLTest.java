@@ -66,6 +66,7 @@ public class CompactionsCQLTest extends CQLTester
     @Before
     public void before()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         strategy = DatabaseDescriptor.getCorruptedTombstoneStrategy();
     }
 
@@ -91,6 +92,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionLCS() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1, 'fanout_size':5};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
@@ -106,6 +108,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'DateTieredCompactionStrategy', 'min_threshold':2};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12825
         execute("insert into %s (id) values ('1') using timestamp 1000"); // same timestamp = same window = minor compaction triggered
         flush();
         execute("insert into %s (id) values ('1') using timestamp 1000");
@@ -116,6 +119,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionTWCS() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9666
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'TimeWindowCompactionStrategy', 'min_threshold':2};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
@@ -147,6 +151,7 @@ public class CompactionsCQLTest extends CQLTester
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
 
         // Alter keyspace replication settings to force compaction strategy reload and check strategy is still enabled
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
         getCurrentColumnFamilyStore().getCompactionStrategyManager().maybeReloadDiskBoundaries();
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
@@ -206,9 +211,11 @@ public class CompactionsCQLTest extends CQLTester
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "DateTieredCompactionStrategy");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9965
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
         // Invalidate disk boundaries to ensure that boundary invalidation will not cause the old strategy to be reloaded
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         getCurrentColumnFamilyStore().invalidateDiskBoundaries();
         // altering something non-compaction related
         execute("ALTER TABLE %s WITH gc_grace_seconds = 1000");
@@ -231,6 +238,7 @@ public class CompactionsCQLTest extends CQLTester
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "DateTieredCompactionStrategy");
         localOptions.put("enabled", "false");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9965
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         localOptions.clear();
@@ -264,12 +272,15 @@ public class CompactionsCQLTest extends CQLTester
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class","SizeTieredCompactionStrategy");
         localOptions.put("sstable_size_in_mb","1234"); // not for STCS
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9965
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9965
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
     }
 
     @Test
     public void testPerCFSNeverPurgeTombstonesCell() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14214
         testPerCFSNeverPurgeTombstonesHelper(true);
     }
 
@@ -284,6 +295,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         // set the corruptedTombstoneStrategy to exception since these tests require it - if someone changed the default
         // in test/conf/cassandra.yaml they would start failing
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         prepare();
         // write a range tombstone with negative local deletion time (LDTs are not set by user and should not be negative):
@@ -380,6 +392,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt range tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         final int maxSizePreKB = DatabaseDescriptor.getColumnIndexSizeInKB();
         DatabaseDescriptor.setColumnIndexSize(1024);
         prepareWide();
@@ -389,6 +402,7 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().forceBlockingFlush();
         readAndValidate(true);
         readAndValidate(false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15470
         DatabaseDescriptor.setColumnIndexSize(maxSizePreKB);
     }
 
@@ -396,6 +410,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testLCSThresholdParams() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14388
         createTable("create table %s (id int, id2 int, t blob, primary key (id, id2)) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':'1', 'max_threshold':'60'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -415,6 +430,7 @@ public class CompactionsCQLTest extends CQLTester
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
         // we should be compacting all 50 sstables:
         assertEquals(50, act.transaction.originals().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         act.execute(ActiveCompactionsTracker.NOOP);
     }
 
@@ -452,6 +468,7 @@ public class CompactionsCQLTest extends CQLTester
         assertEquals(0, ((LeveledCompactionTask)act).getLevel());
         assertTrue(act.transaction.originals().stream().allMatch(s -> s.getSSTableLevel() == 0));
         txn.abort(); // unmark the l1 sstable compacting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
         act.execute(ActiveCompactionsTracker.NOOP);
     }
 
@@ -563,6 +580,7 @@ public class CompactionsCQLTest extends CQLTester
 
     private void assertSuspectAndReset(Collection<SSTableReader> sstables)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14467
         assertFalse(sstables.isEmpty());
         for (SSTableReader sstable : sstables)
         {
@@ -602,6 +620,7 @@ public class CompactionsCQLTest extends CQLTester
     public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
     {
         boolean found = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         for (List<AbstractCompactionStrategy> strategies : manager.getStrategies())
         {
             if (!strategies.stream().allMatch((strategy) -> strategy.getClass().equals(expected)))
@@ -613,6 +632,7 @@ public class CompactionsCQLTest extends CQLTester
 
     private void waitForMinor(String keyspace, String cf, long maxWaitTime, boolean shouldFind) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11080
         long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < maxWaitTime)
         {

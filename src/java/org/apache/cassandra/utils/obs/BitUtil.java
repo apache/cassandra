@@ -30,6 +30,8 @@ final class BitUtil
    * http://www.hackersdelight.org/HDcode/newCode/pop_arrayHS.cc
    *
   int pop(unsigned x) {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1555
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
      x = x - ((x >> 1) & 0x55555555);
      x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
      x = (x + (x >> 4)) & 0x0F0F0F0F;

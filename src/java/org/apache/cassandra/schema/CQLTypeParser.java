@@ -50,11 +50,13 @@ public final class CQLTypeParser
         if (udt != null)
             return udt;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10365
         return parseRaw(unparsed).prepareInternal(keyspace, userTypes).getType();
     }
 
     static CQL3Type.Raw parseRaw(String type)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10650
         return CQLFragmentParser.parseAny(CqlParser::comparatorType, type, "CQL type");
     }
 }

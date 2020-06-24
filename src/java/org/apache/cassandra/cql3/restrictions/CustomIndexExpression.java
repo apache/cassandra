@@ -50,6 +50,7 @@ public class CustomIndexExpression
     {
         filter.addCustomIndexExpression(table,
                                         table.indexes
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                                              .get(targetIndex.getName())
                                              .orElseThrow(() -> IndexRestrictions.indexNotFound(targetIndex, table)),
                                         value.bindAndGet(options));

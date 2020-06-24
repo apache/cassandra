@@ -12,6 +12,7 @@ public interface LoggingSupport
      * Hook used to execute logging implementation specific customization at Cassandra startup time.
      */
     default void onStartup() {}
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13396
 
     /**
      * Hook used to execute logging implementation specific customization at Cassandra shutdown time.

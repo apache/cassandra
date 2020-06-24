@@ -42,6 +42,7 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
 
     public static void closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
         for (ISSTableScanner scanner: scanners)
         {
             try

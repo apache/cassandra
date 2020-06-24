@@ -35,6 +35,7 @@ public class EchoVerbHandler implements IVerbHandler<NoPayload>
 
     public void doVerb(Message<NoPayload> message)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         logger.trace("Sending ECHO_RSP to {}", message.from());
         MessagingService.instance().send(message.emptyResponse(), message.from());
     }

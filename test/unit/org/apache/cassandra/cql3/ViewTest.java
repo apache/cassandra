@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class ViewTest extends CQLTester
 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();
 
@@ -64,6 +65,7 @@ public class ViewTest extends CQLTester
     @Before
     public void begin()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         views.clear();
     }
 
@@ -85,6 +87,8 @@ public class ViewTest extends CQLTester
     private void updateView(String query, Object... params) throws Throwable
     {
         executeNet(protocolVersion, query, params);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5044
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15277
         while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
                 && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {
@@ -95,6 +99,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         assertInvalidMessage(String.format("Materialized view '%s.view_does_not_exist' doesn't exist", KEYSPACE), "DROP MATERIALIZED VIEW " + KEYSPACE + ".view_does_not_exist");
         assertInvalidMessage("Materialized view 'keyspace_does_not_exist.view_does_not_exist' doesn't exist", "DROP MATERIALIZED VIEW keyspace_does_not_exist.view_does_not_exist");
 
@@ -105,6 +110,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testExistingRangeTombstoneWithFlush() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13787
         testExistingRangeTombstone(true);
     }
 
@@ -163,6 +169,7 @@ public class ViewTest extends CQLTester
         updateView("INSERT INTO %s (k1, c1, val) VALUES (1, 2, 200)");
         updateView("INSERT INTO %s (k1, c1, val) VALUES (1, 3, 300)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
         Assert.assertEquals(2, execute("select * from %s").size());
         Assert.assertEquals(2, execute("select * from view1").size());
 
@@ -176,11 +183,13 @@ public class ViewTest extends CQLTester
     public void createMvWithUnrestrictedPKParts() throws Throwable
     {
         createTable("CREATE TABLE %s (k1 int, c1 int , val int, PRIMARY KEY (k1, c1))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11031
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
         createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT val, k1, c1 FROM %%s WHERE k1 IS NOT NULL AND c1 IS NOT NULL AND val IS NOT NULL PRIMARY KEY (val, k1, c1)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
     }
 
@@ -188,12 +197,16 @@ public class ViewTest extends CQLTester
     public void testClusteringKeyTombstone() throws Throwable
     {
         createTable("CREATE TABLE %s (k1 int, c1 int , val int, PRIMARY KEY (k1, c1))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
         createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT k1, c1, val FROM %%s WHERE k1 IS NOT NULL AND c1 IS NOT NULL AND val IS NOT NULL PRIMARY KEY (val, k1, c1)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         updateView("INSERT INTO %s (k1, c1, val) VALUES (1, 2, 200)");
         updateView("INSERT INTO %s (k1, c1, val) VALUES (1, 3, 300)");
 
@@ -209,12 +222,14 @@ public class ViewTest extends CQLTester
     @Test
     public void testPrimaryKeyIsNotNull() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10147
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "asciival ascii, " +
                     "bigintval bigint, " +
                     "PRIMARY KEY((k, asciival)))");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10362
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
@@ -255,6 +270,7 @@ public class ViewTest extends CQLTester
         }
 
         // Must still include both even when the partition key is composite
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         try
         {
             createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE bigintval IS NOT NULL AND asciival IS NOT NULL PRIMARY KEY (bigintval, k, asciival)");
@@ -281,6 +297,7 @@ public class ViewTest extends CQLTester
         try
         {
             createView("mv_static", "CREATE MATERIALIZED VIEW %%s AS SELECT * FROM %s WHERE sval IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (sval,k,c)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11602
             Assert.fail("Use of static column in a MV primary key should fail");
         }
         catch (InvalidQueryException e)
@@ -309,6 +326,7 @@ public class ViewTest extends CQLTester
 
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,c,sval,val)VALUES(?,?,?,?)", 0, i % 2, "bar" + i, "baz");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Assert.assertEquals(2, execute("select * from %s").size());
 
@@ -336,6 +354,7 @@ public class ViewTest extends CQLTester
 
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,c,val)VALUES(?,?,?)", 0, i % 2, "baz");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
 
@@ -346,6 +365,7 @@ public class ViewTest extends CQLTester
         assertRows(execute("SELECT c from mv_tstest where k = 0 and val = ?", "baz"), row(0), row(1));
 
         //Make sure an old TS does nothing
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         updateView("UPDATE %s USING TIMESTAMP 100 SET val = ? where k = ? AND c = ?", "bar", 0, 0);
         assertRows(execute("SELECT val from %s where k = 0 and c = 0"), row("baz"));
         assertRows(execute("SELECT c from mv_tstest where k = 0 and val = ?", "baz"), row(0), row(1));
@@ -413,6 +433,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testDurationsTable() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11873
         createTable("CREATE TABLE %s (" +
                     "k int PRIMARY KEY, " +
                     "result duration)");
@@ -427,6 +448,7 @@ public class ViewTest extends CQLTester
         }
         catch (InvalidQueryException e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             Assert.assertEquals("duration type is not supported for PRIMARY KEY column 'result'", e.getMessage());
         }
     }
@@ -551,6 +573,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testBuilderWidePartition() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10164
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "c int, " +
@@ -593,6 +616,7 @@ public class ViewTest extends CQLTester
 
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,asciival,bigintval,textval1,textval2)VALUES(?,?,?,?,?)", 0, "foo", (long) i % 2, "bar" + i, "baz");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Assert.assertEquals(50, execute("select * from %s where k = 0 and asciival = 'foo' and bigintval = 0").size());
         Assert.assertEquals(50, execute("select * from %s where k = 0 and asciival = 'foo' and bigintval = 1").size());
@@ -604,6 +628,7 @@ public class ViewTest extends CQLTester
 
         while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test2"))
             Thread.sleep(10);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
 
         Assert.assertEquals(100, execute("select * from mv_test2").size());
 
@@ -617,6 +642,7 @@ public class ViewTest extends CQLTester
 
         //Write a RT and verify the data is removed from index
         updateView("DELETE FROM %s WHERE k = ? AND asciival = ? and bigintval = ?", 0, "foo", 0L);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Assert.assertEquals(50, execute("select asciival from mv_test3 where textval2 = ? and k = ?", "baz", 0).size());
     }
@@ -650,6 +676,7 @@ public class ViewTest extends CQLTester
 
         //Write a RT and verify the data is removed from index
         updateView("DELETE FROM %s WHERE k = ? AND asciival = ? and bigintval = ?", 0, "foo", 0L);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Assert.assertEquals(1, execute("select * from %s").size());
         Assert.assertEquals(1, execute("select * from mv").size());
@@ -658,6 +685,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testRangeTombstone3() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6237
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "asciival ascii, " +
@@ -673,6 +701,8 @@ public class ViewTest extends CQLTester
 
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,asciival,bigintval,textval1)VALUES(?,?,?,?)", 0, "foo", (long) i % 2, "bar" + i);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Assert.assertEquals(1, execute("select * from %s where k = 0 and asciival = 'foo' and bigintval = 0").size());
         Assert.assertEquals(1, execute("select * from %s where k = 0 and asciival = 'foo' and bigintval = 1").size());
@@ -683,6 +713,7 @@ public class ViewTest extends CQLTester
 
         //Write a RT and verify the data is removed from index
         updateView("DELETE FROM %s WHERE k = ? AND asciival = ? and bigintval >= ?", 0, "foo", 0L);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         Assert.assertEquals(0, execute("select * from %s").size());
         Assert.assertEquals(0, execute("select * from mv").size());
@@ -769,6 +800,7 @@ public class ViewTest extends CQLTester
             {
                 String query = "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE " + def.name + " IS NOT NULL AND k IS NOT NULL "
                                + (def.name.toString().equals("asciival") ? "" : "AND asciival IS NOT NULL ") + "PRIMARY KEY ((" + def.name + ", k), nonexistentcolumn)";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
                 createView("mv4_" + def.name, query);
                 Assert.fail("Should fail with unknown base column");
             }
@@ -777,6 +809,7 @@ public class ViewTest extends CQLTester
             }
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         updateView("INSERT INTO %s (k, asciival, bigintval) VALUES (?, ?, fromJson(?))", 0, "ascii text", "123123123123");
         updateView("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\"ascii text\"");
         assertRows(execute("SELECT bigintval FROM %s WHERE k = ? and asciival = ?", 0, "ascii text"), row(123123123123L));
@@ -789,6 +822,7 @@ public class ViewTest extends CQLTester
 
 
         //UPDATE BASE
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         updateView("INSERT INTO %s (k, asciival, bigintval) VALUES (?, ?, fromJson(?))", 0, "ascii text", "1");
         assertRows(execute("SELECT bigintval FROM %s WHERE k = ? and asciival = ?", 0, "ascii text"), row(1L));
 
@@ -802,6 +836,7 @@ public class ViewTest extends CQLTester
 
         //test truncate also truncates all MV
         updateView("TRUNCATE %s");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
 
         assertRows(execute("SELECT bigintval FROM %s WHERE k = ? and asciival = ?", 0, "ascii text"));
         assertRows(execute("SELECT k, bigintval from mv1_asciival WHERE asciival = ?", "ascii text"));
@@ -823,6 +858,7 @@ public class ViewTest extends CQLTester
 
         createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         updateView("INSERT INTO %s (k, intval, listval) VALUES (?, ?, fromJson(?))", 0, 0, "[1, 2, 3]");
         assertRows(execute("SELECT k, listval FROM %s WHERE k = ?", 0), row(0, list(1, 2, 3)));
         assertRows(execute("SELECT k, listval from mv WHERE intval = ?", 0), row(0, list(1, 2, 3)));
@@ -879,6 +915,7 @@ public class ViewTest extends CQLTester
 
         createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         updateView("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, 0);
         assertRows(execute("SELECT k, intval FROM %s WHERE k = ?", 0), row(0, 0));
         assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 0), row(0, 0));
@@ -944,6 +981,7 @@ public class ViewTest extends CQLTester
         createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE c IS NOT NULL AND a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (c, a, b)");
 
         updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) USING TTL 3", 1, 1, 1, 1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11475
 
         Thread.sleep(TimeUnit.SECONDS.toMillis(1));
         updateView("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 2);
@@ -997,6 +1035,7 @@ public class ViewTest extends CQLTester
     @Test
     public void conflictingTimestampTest() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10197
         createTable("CREATE TABLE %s (" +
                     "a int," +
                     "b int," +
@@ -1009,6 +1048,7 @@ public class ViewTest extends CQLTester
 
         for (int i = 0; i < 50; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
             updateView("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP 1", 1, 1, i);
         }
 
@@ -1022,6 +1062,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testClusteringOrder() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9921
         createTable("CREATE TABLE %s (" +
                     "a int," +
                     "b int," +
@@ -1032,11 +1073,13 @@ public class ViewTest extends CQLTester
 
         executeNet(protocolVersion, "USE " + keyspace());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c) WITH CLUSTERING ORDER BY (b DESC, c ASC)");
         createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, c, b) WITH CLUSTERING ORDER BY (c ASC, b ASC)");
         createView("mv3", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
         createView("mv4", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, c, b) WITH CLUSTERING ORDER BY (c DESC, b ASC)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10362
         updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 1, 1);
         updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 2, 2, 2);
 
@@ -1064,6 +1107,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testMultipleDeletes() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10362
         createTable("CREATE TABLE %s (" +
                     "a int," +
                     "b int," +
@@ -1072,6 +1116,7 @@ public class ViewTest extends CQLTester
         executeNet(protocolVersion, "USE " + keyspace());
 
         createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b, a)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 1);
         updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 2);
@@ -1123,6 +1168,7 @@ public class ViewTest extends CQLTester
 
         // Cannot use SELECT *, as those are always handled by the includeAll shortcut in View.updateAffectsView
         createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT a, b FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b, a)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 1);
 
@@ -1136,6 +1182,7 @@ public class ViewTest extends CQLTester
         createTable("CREATE TABLE %s (" +
                     "a int," +
                     "b int," +
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10796
                     "c int," +
                     "d int," +
                     "PRIMARY KEY (a, b))");
@@ -1170,6 +1217,7 @@ public class ViewTest extends CQLTester
         createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND d IS NOT NULL PRIMARY KEY (d, a, b)");
 
         updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 0);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10796
         ResultSet mvRows = executeNet(protocolVersion, "SELECT a, d, b, c FROM mv1");
         assertRowsNet(protocolVersion, mvRows, row(0, 0, 0, 0));
 
@@ -1185,6 +1233,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testCollectionInView() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11069
         createTable("CREATE TABLE %s (" +
                     "a int," +
                     "b int," +
@@ -1193,6 +1242,7 @@ public class ViewTest extends CQLTester
 
         executeNet(protocolVersion, "USE " + keyspace());
         createView("mvmap", "CREATE MATERIALIZED VIEW %s AS SELECT a, b FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b, a)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
 
         updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 0, 0);
         ResultSet mvRows = executeNet(protocolVersion, "SELECT a, b FROM mvmap WHERE b = ?", 0);
@@ -1210,6 +1260,7 @@ public class ViewTest extends CQLTester
     @Test
     public void testMultipleNonPrimaryKeysInView() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12044
         createTable("CREATE TABLE %s (" +
                     "a int," +
                     "b int," +
@@ -1242,6 +1293,7 @@ public class ViewTest extends CQLTester
     public void testNullInClusteringColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (id1 int, id2 int, v1 text, v2 text, PRIMARY KEY (id1, id2))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12247
 
         executeNet(protocolVersion, "USE " + keyspace());
 
@@ -1271,6 +1323,7 @@ public class ViewTest extends CQLTester
     public void testReservedKeywordsInMV() throws Throwable
     {
         createTable("CREATE TABLE %s (\"token\" int PRIMARY KEY, \"keyspace\" int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11803
 
         executeNet(protocolVersion, "USE " + keyspace());
 
@@ -1289,6 +1342,7 @@ public class ViewTest extends CQLTester
 
     public void testCreateMvWithTTL() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12868
         createTable("CREATE TABLE %s (" +
                     "k int PRIMARY KEY, " +
                     "c int, " +
@@ -1331,6 +1385,8 @@ public class ViewTest extends CQLTester
 
     private void testViewBuilderResume(int concurrentViewBuilders) throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13405
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13405
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "c int, " +
@@ -1340,6 +1396,7 @@ public class ViewTest extends CQLTester
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         CompactionManager.instance.setConcurrentViewBuilders(concurrentViewBuilders);
         CompactionManager.instance.setCoreCompactorThreads(1);
         CompactionManager.instance.setMaximumCompactorThreads(1);
@@ -1366,6 +1423,7 @@ public class ViewTest extends CQLTester
 
         cfs.forceBlockingFlush();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         String viewName1 = "mv_test_" + concurrentViewBuilders;
         createView(viewName1, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
 
@@ -1402,6 +1460,7 @@ public class ViewTest extends CQLTester
     public void testClientWarningOnCreate() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14866
 
         ClientWarn.instance.captureWarnings();
         String viewName = keyspace() + ".warning_view";

@@ -51,12 +51,14 @@ public class BufferedDataOutputStreamTest
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15780
         preventIllegalAccessWarnings();
     }
 
     @Test(expected = BufferOverflowException.class)
     public void testDataOutputBufferFixedByes() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
         try (DataOutputBufferFixed dob = new DataOutputBufferFixed())
         {
             try
@@ -89,6 +91,7 @@ public class BufferedDataOutputStreamTest
         }
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
     WritableByteChannel adapter = new WritableByteChannel()
     {
 
@@ -192,6 +195,7 @@ public class BufferedDataOutputStreamTest
     private ByteArrayOutputStream canonical;
     private DataOutputStreamPlus dosp;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9500
     void setUp() throws Exception
     {
 
@@ -225,6 +229,7 @@ public class BufferedDataOutputStreamTest
         while (generated.size() < 1024 * 1024 * 8)
         {
             action = r.nextInt(21);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
 
             //System.out.println("Action " + action + " iteration " + iteration);
             iteration++;
@@ -335,6 +340,7 @@ public class BufferedDataOutputStreamTest
                 StringBuilder sb = new StringBuilder();
                 int length = r.nextInt(500);
                 //Some times do big strings
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
                 if (r.nextDouble() > .95)
                     length += 4000;
                 sb.append(simple + twoByte + threeByte + fourByte);
@@ -349,6 +355,7 @@ public class BufferedDataOutputStreamTest
             }
             case 15:
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
                 StringBuilder sb = new StringBuilder();
                 int length = r.nextInt(500);
                 sb.append("the very model of a modern major general familiar with all things animal vegetable and mineral");
@@ -374,6 +381,7 @@ public class BufferedDataOutputStreamTest
                 dosp.write(buf.duplicate());
                 break;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             case 17:
             {
                 ByteBuffer buf = ByteBuffer.allocateDirect(r.nextInt(1024 * 8 + 1));
@@ -388,6 +396,7 @@ public class BufferedDataOutputStreamTest
                 dosp.write(buf.duplicate());
                 break;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8670
             case 18:
             {
                 try (Memory buf = Memory.allocate(r.nextInt(1024 * 8 - 1) + 1);)
@@ -401,6 +410,7 @@ public class BufferedDataOutputStreamTest
                 }
                 break;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             case 19:
             {
                 long val = r.nextLong();
@@ -499,6 +509,7 @@ public class BufferedDataOutputStreamTest
     @Test
     public void testWriteUTF() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10203
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutput dataOut = new DataOutputStream(baos);
 
@@ -540,6 +551,7 @@ public class BufferedDataOutputStreamTest
      */
     public static long[] enrich(long vals[])
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
         long retval[] = Arrays.copyOf(vals, vals.length + 64);
         for (int ii = 0; ii < 64; ii++)
             retval[vals.length + ii] = 1L << ii;

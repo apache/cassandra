@@ -35,6 +35,7 @@ public class MonotonicClockTest
             now = Math.max(now, System.currentTimeMillis());
             if (ii % 10000 == 0)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 ((MonotonicClock.SampledClock) approxTime).refreshNow();
                 Thread.sleep(1);
             }
@@ -46,6 +47,7 @@ public class MonotonicClockTest
             assertTrue("convertedNow = " + convertedNow + " lastConverted = " + lastConverted + " in iteration " + ii,
                        convertedNow >= (lastConverted - maxDiff));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12343
             maxDiff = FBUtilities.isWindows ? 25 : 2;
             assertTrue("now = " + now + " convertedNow = " + convertedNow + " in iteration " + ii,
                        (maxDiff - 2) <= convertedNow);

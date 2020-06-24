@@ -72,6 +72,7 @@ public class FBUtilities
 {
     static
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15780
         preventIllegalAccessWarnings();
     }
 
@@ -99,6 +100,8 @@ public class FBUtilities
 
     public static int getAvailableProcessors()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13622
         String availableProcessors = System.getProperty("cassandra.available_processors");
         if (!Strings.isNullOrEmpty(availableProcessors))
             return Integer.parseInt(availableProcessors);
@@ -110,6 +113,7 @@ public class FBUtilities
 
     public static MessageDigest newMessageDigest(String algorithm)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
         try
         {
             return MessageDigest.getInstance(algorithm);
@@ -146,6 +150,7 @@ public class FBUtilities
      */
     public static InetAddressAndPort getLocalAddressAndPort()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         if (localInetAddressAndPort == null)
         {
             if(DatabaseDescriptor.getRawConfig() == null)
@@ -201,6 +206,8 @@ public class FBUtilities
      */
     public static void setBroadcastInetAddress(InetAddress addr)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8457
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14937
         broadcastInetAddress = addr;
         broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(broadcastInetAddress);
     }
@@ -278,6 +285,7 @@ public class FBUtilities
      */
     public static Pair<BigInteger,Boolean> midpoint(BigInteger left, BigInteger right, int sigbits)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
         BigInteger midpoint;
         boolean remainder;
         if (left.compareTo(right) < 0)
@@ -299,16 +307,19 @@ public class FBUtilities
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6781
         return FastByteOperations.compareUnsigned(bytes1, offset1, len1, bytes2, offset2, len2);
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5426
         return compareUnsigned(bytes1, bytes2, 0, 0, bytes1.length, bytes2.length);
     }
 
     public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-342
         if (range.left.compareTo(range.right) >= 0)
         {
             // range wraps.  have to be careful that we sort in the same order as the range to find the right midpoint.
@@ -317,12 +328,14 @@ public class FBUtilities
             {
                 public int compare(DecoratedKey o1, DecoratedKey o2)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                     if ((right.compareTo(o1.getToken()) < 0 && right.compareTo(o2.getToken()) < 0)
                         || (right.compareTo(o1.getToken()) > 0 && right.compareTo(o2.getToken()) > 0))
                     {
                         // both tokens are on the same side of the wrap point
                         return o1.compareTo(o2);
                     }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3658
                     return o2.compareTo(o1);
                 }
             };
@@ -337,16 +350,20 @@ public class FBUtilities
 
     public static String resourceToFile(String filename) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3690
         ClassLoader loader = FBUtilities.class.getClassLoader();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1105
         URL scpurl = loader.getResource(filename);
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7335
         return new File(scpurl.getFile()).getAbsolutePath();
     }
 
     public static File cassandraTriggerDir()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5826
         File triggerDir = null;
         if (System.getProperty("cassandra.triggers_dir") != null)
         {
@@ -368,6 +385,7 @@ public class FBUtilities
 
     public static void setPreviousReleaseVersionString(String previousReleaseVersionString)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         FBUtilities.previousReleaseVersionString = previousReleaseVersionString;
     }
 
@@ -378,10 +396,12 @@ public class FBUtilities
 
     public static String getReleaseVersionString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14928
                 return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
             }
             Properties props = new Properties();
@@ -390,6 +410,7 @@ public class FBUtilities
         }
         catch (Exception e)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
             return "debug version";
@@ -398,6 +419,7 @@ public class FBUtilities
 
     public static String getReleaseVersionMajor()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14928
         String releaseVersion = FBUtilities.getReleaseVersionString();
         if (FBUtilities.UNKNOWN_RELEASE_VERSION.equals(releaseVersion))
         {
@@ -410,16 +432,20 @@ public class FBUtilities
     {
         // we use microsecond resolution for compatibility with other client libraries, even though
         // we can't actually get microsecond precision.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1154
         return System.currentTimeMillis() * 1000;
     }
 
     public static int nowInSeconds()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         return (int) (System.currentTimeMillis() / 1000);
     }
 
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14922
         return waitOnFutures(futures, -1, null);
     }
 
@@ -436,6 +462,8 @@ public class FBUtilities
         long endNanos = 0;
         if (timeout > 0)
             endNanos = System.nanoTime() + units.toNanos(timeout);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10274
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10274
         List<T> results = new ArrayList<>();
         Throwable fail = null;
         for (Future<? extends T> f : futures)
@@ -463,6 +491,7 @@ public class FBUtilities
 
     public static <T> T waitOnFuture(Future<T> future)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-685
         try
         {
             return future.get();
@@ -479,6 +508,7 @@ public class FBUtilities
 
     public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14210
         return waitOnFirstFuture(futures, 100);
     }
     /**
@@ -504,6 +534,7 @@ public class FBUtilities
                     }
                     catch (ExecutionException e)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-519
                         throw new RuntimeException(e);
                     }
                     return f;
@@ -518,6 +549,7 @@ public class FBUtilities
      */
     public static Future<List> allOf(Collection<Future> futures)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
         if (futures.isEmpty())
             return CompletableFuture.completedFuture(null);
 
@@ -595,6 +627,8 @@ public class FBUtilities
      */
     public static IPartitioner newPartitioner(Descriptor desc) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12002
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12002
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
@@ -618,6 +652,7 @@ public class FBUtilities
             assert comparator.isPresent() : "Expected a comparator for local partitioner";
             return new LocalPartitioner(comparator.get());
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         return FBUtilities.instanceOrConstruct(partitionerClassName, "partitioner");
     }
 
@@ -637,6 +672,7 @@ public class FBUtilities
 
     public static IRoleManager newRoleManager(String className) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7653
         if (!className.contains("."))
             className = "org.apache.cassandra.auth." + className;
         return FBUtilities.construct(className, "role manager");
@@ -644,6 +680,7 @@ public class FBUtilities
 
     public static INetworkAuthorizer newNetworkAuthorizer(String className)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13985
         if (className == null)
         {
             return new AllowAllNetworkAuthorizer();
@@ -660,6 +697,7 @@ public class FBUtilities
         if (!className.contains("."))
             className = "org.apache.cassandra.audit." + className;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15748
         try
         {
             Class<?> auditLoggerClass = Class.forName(className);
@@ -713,6 +751,7 @@ public class FBUtilities
      */
     public static <T> T instanceOrConstruct(String classname, String readable) throws ConfigurationException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8244
         Class<T> cls = FBUtilities.classForName(classname, readable);
         try
         {
@@ -742,8 +781,10 @@ public class FBUtilities
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5045
             return cls.newInstance();
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8709
         catch (IllegalAccessException e)
         {
             throw new ConfigurationException(String.format("Default constructor for %s class '%s' is inaccessible.", readable, classname));
@@ -752,6 +793,7 @@ public class FBUtilities
         {
             throw new ConfigurationException(String.format("Cannot use abstract class '%s' as %s.", classname, readable));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5045
         catch (Exception e)
         {
             // Catch-all because Class.newInstance() "propagates any exception thrown by the nullary constructor, including a checked exception".
@@ -763,6 +805,7 @@ public class FBUtilities
 
     public static <T> NavigableSet<T> singleton(T column, Comparator<? super T> comparator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
         NavigableSet<T> s = new TreeSet<T>(comparator);
         s.add(column);
         return s;
@@ -783,8 +826,10 @@ public class FBUtilities
     @Nonnull
     public static String toString(@Nullable Map<?, ?> map)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9758
         if (map == null)
             return "";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         Joiner.MapJoiner joiner = Joiner.on(", ").withKeyValueSeparator(":");
         return joiner.join(map);
     }
@@ -797,6 +842,8 @@ public class FBUtilities
      */
     public static Field getProtectedField(Class klass, String fieldName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1470
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         try
         {
             Field field = klass.getDeclaredField(fieldName);
@@ -811,11 +858,13 @@ public class FBUtilities
 
     public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2062
         return new WrappedCloseableIterator<T>(iterator);
     }
 
     public static Map<String, String> fromJsonMap(String json)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3792
         try
         {
             return jsonMapper.readValue(json, Map.class);
@@ -852,6 +901,7 @@ public class FBUtilities
 
     public static String prettyPrintMemory(long size)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11352
         return prettyPrintMemory(size, false);
     }
 
@@ -866,6 +916,7 @@ public class FBUtilities
 
     public static String prettyPrintMemoryPerSecond(long rate)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9692
         if (rate >= 1 << 30)
             return String.format("%.3fGiB/s", rate / (double) (1 << 30));
         if (rate >= 1 << 20)
@@ -890,6 +941,7 @@ public class FBUtilities
      */
     public static void exec(ProcessBuilder pb) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3690
         Process p = pb.start();
         try
         {
@@ -920,6 +972,7 @@ public class FBUtilities
 
     public static void updateChecksumInt(Checksum checksum, int v)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5199
         checksum.update((v >>> 24) & 0xFF);
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
@@ -936,6 +989,7 @@ public class FBUtilities
         int position = buffer.position();
         int limit = buffer.limit();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6230
         buffer.position(offset).limit(offset + length);
         checksum.update(buffer);
 
@@ -983,10 +1037,12 @@ public class FBUtilities
     {
         int size = (int) serializer.serializedSize(object, version);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
         try (DataOutputBuffer buffer = new DataOutputBufferFixed(size))
         {
             serializer.serialize(object, buffer, version);
             assert buffer.getLength() == size && buffer.getData().length == size
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3794
                 : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
                         buffer.getData().length, buffer.getLength(), size, object);
             return buffer.getData();
@@ -1000,6 +1056,7 @@ public class FBUtilities
 
     public static long copy(InputStream from, OutputStream to, long limit) throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5521
         byte[] buffer = new byte[64]; // 64 byte buffer
         long copied = 0;
         int toCopy = buffer.length;
@@ -1020,6 +1077,7 @@ public class FBUtilities
 
     public static File getToolsOutputDirectory()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5823
         File historyDir = new File(System.getProperty("user.home"), ".cassandra");
         FileUtils.createDirectory(historyDir);
         return historyDir;
@@ -1027,9 +1085,12 @@ public class FBUtilities
 
     public static void closeAll(Collection<? extends AutoCloseable> l) throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15045
         Exception toThrow = null;
         for (AutoCloseable c : l)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-767
             try
             {
                 c.close();
@@ -1076,6 +1137,7 @@ public class FBUtilities
 
     public static long align(long val, int boundary)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10661
         return (val + boundary) & ~(boundary - 1);
     }
 
@@ -1083,6 +1145,7 @@ public class FBUtilities
     public static void reset()
     {
         localInetAddress = null;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         localInetAddressAndPort = null;
         broadcastInetAddress = null;
         broadcastInetAddressAndPort = null;
@@ -1100,6 +1163,7 @@ public class FBUtilities
         //        WARNING: Please consider reporting this to the maintainers of io.netty.util.internal.ReflectionUtil
         //        WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
         //        WARNING: All illegal access operations will be denied in a future release
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         try
         {
             Class<?> c = Class.forName("jdk.internal.module.IllegalAccessLogger");

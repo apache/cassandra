@@ -59,6 +59,7 @@ public interface Rebufferer extends ReaderFileProxy
         void release();
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11580
     BufferHolder EMPTY = new BufferHolder()
     {
         final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);

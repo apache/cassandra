@@ -96,6 +96,7 @@ public class StreamSummary implements Serializable
         public long serializedSize(StreamSummary summary, int version)
         {
             long size = summary.tableId.serializedSize();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
             size += TypeSizes.sizeof(summary.files);
             size += TypeSizes.sizeof(summary.totalSize);
             return size;

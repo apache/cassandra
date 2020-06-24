@@ -110,6 +110,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
 
     private static int findFirstComplexIdx(Object[] tree)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14638
         if (BTree.isEmpty(tree))
             return 0;
 
@@ -127,6 +128,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public boolean isEmpty()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.isEmpty(columns);
     }
 
@@ -147,6 +149,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public int complexColumnCount()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.size(columns) - complexIdx;
     }
 
@@ -157,6 +160,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public int size()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.size(columns);
     }
 
@@ -177,6 +181,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public boolean hasComplex()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return complexIdx < BTree.size(columns);
     }
 
@@ -190,6 +195,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public ColumnMetadata getSimple(int i)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.findByIndex(columns, i);
     }
 
@@ -203,6 +209,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public ColumnMetadata getComplex(int i)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.findByIndex(columns, complexIdx + i);
     }
 
@@ -243,6 +250,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public boolean contains(ColumnMetadata c)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.findIndex(columns, Comparator.naturalOrder(), c) >= 0;
     }
 
@@ -265,6 +273,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
 
         Object[] tree = BTree.<ColumnMetadata>merge(this.columns, other.columns, Comparator.naturalOrder(),
                                                     UpdateFunction.noOp());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         if (tree == this.columns)
             return this;
         if (tree == other.columns)
@@ -282,6 +291,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public boolean containsAll(Collection<?> other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
         if (other == this)
             return true;
         if (other.size() > this.size())
@@ -301,6 +311,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public Iterator<ColumnMetadata> simpleColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.iterator(columns, 0, complexIdx - 1, BTree.Dir.ASC);
     }
 
@@ -311,6 +322,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public Iterator<ColumnMetadata> complexColumns()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         return BTree.iterator(columns, complexIdx, BTree.size(columns) - 1, BTree.Dir.ASC);
     }
 
@@ -336,6 +348,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         // In wildcard selection, we want to return all columns in alphabetical order,
         // irregarding of whether they are complex or not
         return Iterators.<ColumnMetadata>
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
                          mergeSorted(ImmutableList.of(simpleColumns(), complexColumns()),
                                      (s, c) ->
                                      {
@@ -376,6 +389,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     public void digest(Digest digest)
     {
         for (ColumnMetadata c : this)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15461
             digest.update(c.name.bytes);
     }
 
@@ -385,12 +399,14 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
      */
     public void apply(Consumer<ColumnMetadata> function)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15389
         BTree.apply(columns, function);
     }
 
     @Override
     public boolean equals(Object other)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
         if (other == this)
             return true;
         if (!(other instanceof Columns))
@@ -423,6 +439,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     {
         public void serialize(Columns columns, DataOutputPlus out) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10351
             out.writeUnsignedVInt(columns.size());
             for (ColumnMetadata column : columns)
                 ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
@@ -452,6 +469,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumn(name);
                     if (column == null)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                 }
                 builder.add(column);
@@ -479,6 +497,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
              */
             int columnCount = columns.size();
             int supersetCount = superset.size();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9894
             if (columnCount == supersetCount)
             {
                 out.writeUnsignedVInt(0);
@@ -518,6 +537,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             {
                 return superset;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
             else if (superset.size() >= 64)
             {
                 return deserializeLargeSubset(in, superset, (int) encoded);
@@ -530,12 +550,14 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                 {
                     if ((encoded & 1) == 0)
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9471
                         builder.add(column);
                         if (column.isSimple())
                             ++firstComplexIdx;
                     }
                     encoded >>>= 1;
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14591
                 if (encoded != 0)
                     throw new IOException("Invalid Columns subset bytes; too many bits set:" + Long.toBinaryString(encoded));
                 return new Columns(builder.build(), firstComplexIdx);
@@ -554,6 +576,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             {
                 if (iter.next(column) == null)
                     throw new IllegalStateException(columns + " is not a subset of " + superset);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10045
 
                 int currentIndex = iter.indexOfCurrent();
                 int count = currentIndex - expectIndex;

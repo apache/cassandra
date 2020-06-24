@@ -65,6 +65,7 @@ final class HintsDispatchTrigger implements Runnable
                .filter(store -> !isScheduled(store))
                .filter(HintsStore::isLive)
                .filter(store -> store.isWriting() || store.hasFiles())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14109
                .filter(store -> Schema.instance.isSameVersion(Gossiper.instance.getSchemaVersion(store.address())))
                .forEach(this::schedule);
     }

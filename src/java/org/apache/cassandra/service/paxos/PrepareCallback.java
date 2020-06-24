@@ -55,6 +55,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         super(targets, consistency, queryStartNanoTime);
         // need to inject the right key in the empty commit so comparing with empty commits in the response works as expected
         mostRecentCommit = Commit.emptyCommit(key, metadata);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6012
         mostRecentInProgressCommit = Commit.emptyCommit(key, metadata);
         mostRecentInProgressCommitWithUpdate = Commit.emptyCommit(key, metadata);
     }
@@ -63,10 +64,12 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     {
         PrepareResponse response = message.payload;
         logger.trace("Prepare response {} from {}", response, message.from());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         // In case of clock skew, another node could be proposing with ballot that are quite a bit
         // older than our own. In that case, we record the more recent commit we've received to make
         // sure we re-prepare on an older ballot.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6012
         if (response.inProgressCommit.isAfter(mostRecentInProgressCommit))
             mostRecentInProgressCommit = response.inProgressCommit;
 
@@ -78,12 +81,14 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
             return;
         }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         commitsByReplica.put(message.from(), response.mostRecentCommit);
         if (response.mostRecentCommit.isAfter(mostRecentCommit))
             mostRecentCommit = response.mostRecentCommit;
 
         // If some response has an update, then we should replay the update with the highest ballot. So find
         // the the highest commit that actually have an update
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6012
         if (response.inProgressCommit.isAfter(mostRecentInProgressCommitWithUpdate) && !response.inProgressCommit.update.isEmpty())
             mostRecentInProgressCommitWithUpdate = response.inProgressCommit;
 
@@ -105,6 +110,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         if (UUIDGen.unixTimestampInSec(mostRecentCommit.ballot) + paxosTtlSec < nowInSec)
             return Collections.emptySet();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         return Iterables.filter(commitsByReplica.keySet(), new Predicate<InetAddressAndPort>()
         {
             public boolean apply(InetAddressAndPort inetAddress)

@@ -75,6 +75,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     public static void setupClass() throws Exception
     {
         SchemaLoader.prepareServer();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         coordinator = InetAddressAndPort.getByName("10.0.0.1");
         MT = DatabaseDescriptor.getPartitioner().getMinimumToken();
     }
@@ -109,6 +110,7 @@ public class CompactionManagerGetSSTablesForValidationTest
                                                                  Sets.newHashSet(range),
                                                                  incremental,
                                                                  incremental ? System.currentTimeMillis() : ActiveRepairService.UNREPAIRED_SSTABLE,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
                                                                  true,
                                                                  PreviewKind.NONE);
         desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), ks, tbl, Collections.singleton(range));
@@ -139,7 +141,9 @@ public class CompactionManagerGetSSTablesForValidationTest
         modifySSTables();
 
         // get sstables for repair
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         Validator validator = new Validator(desc, coordinator, FBUtilities.nowInSeconds(), true, PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         Set<SSTableReader> sstables = Sets.newHashSet(getSSTablesToValidate(cfs, validator.desc.ranges, validator.desc.parentSessionId, validator.isIncremental));
         Assert.assertNotNull(sstables);
         Assert.assertEquals(1, sstables.size());
@@ -154,7 +158,9 @@ public class CompactionManagerGetSSTablesForValidationTest
         modifySSTables();
 
         // get sstables for repair
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         Validator validator = new Validator(desc, coordinator, FBUtilities.nowInSeconds(), false, PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         Set<SSTableReader> sstables = Sets.newHashSet(getSSTablesToValidate(cfs, validator.desc.ranges, validator.desc.parentSessionId, validator.isIncremental));
         Assert.assertNotNull(sstables);
         Assert.assertEquals(2, sstables.size());
@@ -170,7 +176,9 @@ public class CompactionManagerGetSSTablesForValidationTest
         modifySSTables();
 
         // get sstables for repair
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13257
         Validator validator = new Validator(desc, coordinator, FBUtilities.nowInSeconds(), false, PreviewKind.NONE);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14116
         Set<SSTableReader> sstables = Sets.newHashSet(getSSTablesToValidate(cfs, validator.desc.ranges, validator.desc.parentSessionId, validator.isIncremental));
         Assert.assertNotNull(sstables);
         Assert.assertEquals(3, sstables.size());

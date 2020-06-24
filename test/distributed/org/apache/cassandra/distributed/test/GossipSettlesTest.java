@@ -33,6 +33,7 @@ public class GossipSettlesTest extends TestBaseImpl
     public void testGossipSettles() throws Throwable
     {
         /* Use withSubnet(1) to prove seed provider is set correctly - without the fix to pass a seed provider, this test fails */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15539
         try (ICluster cluster = builder().withNodes(3)
                                          .withConfig(config -> config.with(GOSSIP).with(NETWORK))
                                          .withSubnet(1)

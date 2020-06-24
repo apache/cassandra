@@ -51,6 +51,7 @@ public class StopWordFactory
             "pl","pt","ro","ru","sv"));
 
     private static final LoadingCache<String, Set<String>> STOP_WORDS_CACHE = Caffeine.newBuilder()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
             .executor(MoreExecutors.directExecutor())
             .build(StopWordFactory::getStopWordsFromResource);
 
@@ -64,6 +65,7 @@ public class StopWordFactory
         {
             return (!SUPPORTED_LANGUAGES.contains(rootLang)) ? null : STOP_WORDS_CACHE.get(rootLang);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10855
         catch (CompletionException e)
         {
             logger.error("Failed to populate Stop Words Cache for language [{}]", locale.getLanguage(), e);

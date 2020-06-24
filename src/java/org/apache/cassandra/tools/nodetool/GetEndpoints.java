@@ -42,8 +42,10 @@ public class GetEndpoints extends NodeToolCmd
         String table = args.get(1);
         String key = args.get(2);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14392
         if (printPort)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
             for (String endpoint : probe.getEndpointsWithPort(ks, table, key))
             {
                 System.out.println(endpoint);

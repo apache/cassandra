@@ -106,6 +106,7 @@ public class StartupClusterConnectivityCheckerTest
     @After
     public void tearDown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         MessagingService.instance().outboundSink.clear();
     }
 
@@ -140,6 +141,7 @@ public class StartupClusterConnectivityCheckerTest
         Set<InetAddressAndPort> available = new HashSet<>();
         copyCount(peersAMinusLocal, available, NUM_PER_DC - 3);
         checkAvailable(localQuorumConnectivityChecker, available, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         // local peer plus 4 peers from same dc should pass (5/6)
         available.clear();
@@ -156,6 +158,7 @@ public class StartupClusterConnectivityCheckerTest
         copyCount(peersB, available, NUM_PER_DC - 2);
         copyCount(peersC, available, NUM_PER_DC - 1);
         checkAvailable(globalQuorumConnectivityChecker, available, false);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         // All three datacenters should be able to have a single node down
         available.clear();
@@ -233,6 +236,7 @@ public class StartupClusterConnectivityCheckerTest
 
             if (processConnectAck)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 Message msgIn = Message.builder(Verb.REQUEST_RSP, message.payload)
                                        .from(to)
                                        .build();

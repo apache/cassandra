@@ -39,6 +39,7 @@ public class AuthenticateMessage extends Message.Response
         public void encode(AuthenticateMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             // Safe to skip. `msg.authenticator` is a FQCN string. All characters are ASCII encoded.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15410
             CBUtil.writeAsciiString(msg.authenticator, dest);
         }
 

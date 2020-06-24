@@ -38,12 +38,14 @@ public class JVMStabilityInspectorTest
     @BeforeClass
     public static void initDD()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
     public void testKill() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7927
         KillerForTests killerForTests = new KillerForTests();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
 
@@ -65,6 +67,7 @@ public class JVMStabilityInspectorTest
             JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
             assertTrue(killerForTests.wasKilled());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10228
             killerForTests.reset();
             JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
             assertFalse(killerForTests.wasKilled());
@@ -97,6 +100,7 @@ public class JVMStabilityInspectorTest
     @Test
     public void fileHandleTest()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7579
         KillerForTests killerForTests = new KillerForTests();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
 

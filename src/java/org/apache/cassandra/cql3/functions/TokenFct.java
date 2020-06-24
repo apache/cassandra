@@ -49,6 +49,7 @@ public class TokenFct extends NativeScalarFunction
     public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
     {
         CBuilder builder = CBuilder.create(metadata.partitionKeyAsClusteringComparator());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5910
         for (int i = 0; i < parameters.size(); i++)
         {
             ByteBuffer bb = parameters.get(i);

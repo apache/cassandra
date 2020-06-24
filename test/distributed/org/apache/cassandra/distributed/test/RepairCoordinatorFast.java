@@ -56,6 +56,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     @Test
     public void simple() {
         String table = tableName("simple");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, PRIMARY KEY (key))", KEYSPACE, table));
             CLUSTER.coordinator(1).execute(format("INSERT INTO %s.%s (key) VALUES (?)", KEYSPACE, table), ConsistencyLevel.ANY, "some text");
@@ -167,6 +168,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         // repair to fail but it didn't, this would be fine and this test should be updated to reflect the new
         // semantic
         String table = tableName("intersectingrange");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
         assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
 
@@ -369,6 +371,8 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
                 long repairExceptions = getRepairExceptions(CLUSTER, 1);
                 NodeToolResult result = repair(1, KEYSPACE, table);
                 result.asserts()
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15650
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15684
                       .failure();
                       // Right now coordination doesn't propgate the first exception, so we only know "there exists a issue".
                       // With notifications on nodetool will see the error then complete, so the cmd state (what nodetool

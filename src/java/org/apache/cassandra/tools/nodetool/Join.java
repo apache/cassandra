@@ -33,6 +33,7 @@ public class Join extends NodeToolCmd
     {
         checkState(!probe.isJoined(), "This node has already joined the ring.");
         checkState(!probe.isBootstrapMode(), "Cannot join the ring until bootstrap completes");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14525
 
         try
         {

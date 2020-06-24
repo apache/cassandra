@@ -40,6 +40,7 @@ public abstract class Sampler<T>
 
     @VisibleForTesting
     MonotonicClock clock = MonotonicClock.approxTime;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
     @VisibleForTesting
     static final ThreadPoolExecutor samplerExecutor = new JMXEnabledThreadPoolExecutor(1, 1,
@@ -52,6 +53,7 @@ public abstract class Sampler<T>
     {
         samplerExecutor.setRejectedExecutionHandler((runnable, executor) ->
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             MessagingService.instance().metrics.recordSelfDroppedMessage(Verb._SAMPLE);
         });
     }

@@ -70,6 +70,7 @@ public final class IndexMetadata
                           Map<String, String> options,
                           Kind kind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         this.id = UUID.nameUUIDFromBytes(name.getBytes());
         this.name = name;
         this.options = options == null ? ImmutableMap.of() : ImmutableMap.copyOf(options);
@@ -100,6 +101,7 @@ public final class IndexMetadata
 
     public static String generateDefaultIndexName(String table, ColumnIdentifier column)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
         return PATTERN_NON_WORD_CHAR.matcher(table + "_" + column.toString() + "_idx").replaceAll("");
     }
 
@@ -113,11 +115,13 @@ public final class IndexMetadata
         if (!isNameValid(name))
             throw new ConfigurationException("Illegal index name " + name);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         if (kind == null)
             throw new ConfigurationException("Index kind is null for index " + name);
 
         if (kind == Kind.CUSTOM)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9459
             if (options == null || !options.containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))
                 throw new ConfigurationException(String.format("Required option missing for index %s : %s",
                                                                name, IndexTarget.CUSTOM_INDEX_OPTION_NAME));
@@ -139,6 +143,7 @@ public final class IndexMetadata
                 return;
 
             Map<?, ?> unknownOptions;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10924
             try
             {
                 unknownOptions = (Map) indexerClass.getMethod("validateOptions", Map.class, TableMetadata.class).invoke(null, filteredOptions, table);
@@ -174,6 +179,7 @@ public final class IndexMetadata
 
     public boolean isCustom()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
         return kind == Kind.CUSTOM;
     }
 
@@ -210,6 +216,7 @@ public final class IndexMetadata
 
         IndexMetadata other = (IndexMetadata) obj;
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
         return Objects.equal(id, other.id) && Objects.equal(name, other.name) && equalsWithoutName(other);
     }
 
@@ -219,6 +226,7 @@ public final class IndexMetadata
         return new ToStringBuilder(this)
                .append("id", id.toString())
                .append("name", name)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10216
                .append("kind", kind)
                .append("options", options)
                .build();
@@ -233,6 +241,7 @@ public final class IndexMetadata
     {
         public void serialize(IndexMetadata metadata, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10215
             UUIDSerializer.serializer.serialize(metadata.id, out, version);
         }
 

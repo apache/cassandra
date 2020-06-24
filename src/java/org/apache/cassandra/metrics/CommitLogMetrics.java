@@ -44,6 +44,7 @@ public class CommitLogMetrics
 
     public CommitLogMetrics()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6809
         waitingOnSegmentAllocation = Metrics.timer(factory.createMetricName("WaitingOnSegmentAllocation"));
         waitingOnCommit = Metrics.timer(factory.createMetricName("WaitingOnCommit"));
     }
@@ -68,6 +69,7 @@ public class CommitLogMetrics
         {
             public Long getValue()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8844
                 return segmentManager.onDiskSize();
             }
         });

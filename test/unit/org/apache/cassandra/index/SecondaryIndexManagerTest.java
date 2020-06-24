@@ -92,6 +92,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         // drop the index and verify that it has been removed from the built indexes table
         dropIndex("DROP INDEX %s." + indexName);
         assertNotMarkedAsBuilt(indexName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
 
         // create the index again and verify that it's added to the built indexes table
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
@@ -125,6 +126,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         // create an index which blocks on creation
         TestingIndex.blockCreate();
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         String defaultIndexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c) USING '%s'", TestingIndex.class.getName()));
         String readOnlyIndexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(b) USING '%s'", ReadOnlyOnFailureIndex.class.getName()));
         String writeOnlyIndexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(b) USING '%s'", WriteOnlyOnFailureIndex.class.getName()));
@@ -193,6 +195,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         TestingIndex.shouldBlockBuild = false;
 
         // verify rebuilding the index before the previous index build task has finished fails
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         assertFalse(tryRebuild(defaultIndexName, false));
         assertNotMarkedAsBuilt(defaultIndexName);
 
@@ -225,6 +228,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // add sstables in another thread, but make it block:
         TestingIndex.blockBuild();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         Thread asyncBuild = new Thread(() -> {
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
             try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
@@ -247,6 +251,8 @@ public class SecondaryIndexManagerTest extends CQLTester
         // verify rebuilding the index before the previous index build task has finished fails
         assertFalse(tryRebuild(indexName, false));
         assertNotMarkedAsBuilt(indexName);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
 
         // check that the index is marked as built when the build finishes
         TestingIndex.unblockBuild();
@@ -294,6 +300,8 @@ public class SecondaryIndexManagerTest extends CQLTester
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
             cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
             assertNotMarkedAsBuilt(indexName);
         }
 
@@ -319,6 +327,8 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // rebuild the index in another thread, but make it block:
         TestingIndex.blockBuild();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         Thread asyncBuild = new Thread(() -> {
             try
             {
@@ -358,6 +368,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         asyncBuild.join();
 
         // verify the index is *not* built due to the failing sstable build:
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
         assertNotMarkedAsBuilt(indexName);
         assertFalse(error.get());
     }
@@ -381,6 +392,8 @@ public class SecondaryIndexManagerTest extends CQLTester
         {
             assertTrue(ex.getMessage().contains("configured to fail"));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
         assertNotMarkedAsBuilt(indexName);
     }
 
@@ -389,6 +402,7 @@ public class SecondaryIndexManagerTest extends CQLTester
     {
         TestingIndex.blockCreate();
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         String defaultIndexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c) USING '%s'", TestingIndex.class.getName()));
         String readOnlyIndexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c) USING '%s'", ReadOnlyOnFailureIndex.class.getName()));
         String writeOnlyIndexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c) USING '%s'", WriteOnlyOnFailureIndex.class.getName()));
@@ -445,6 +459,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         {
             assertTrue(ex.getMessage().contains("configured to fail"));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         assertFalse(isQueryable(defaultIndexName));
         assertFalse(isQueryable(readOnlyIndexName));
         assertFalse(isQueryable(writeOnlyIndexName));
@@ -614,6 +629,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
     private static void assertMarkedAsBuilt(String indexName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13965
         List<String> indexes = SystemKeyspace.getBuiltIndexes(KEYSPACE, Collections.singleton(indexName));
         assertEquals(1, indexes.size());
         assertEquals(indexName, indexes.get(0));
@@ -649,6 +665,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
     private boolean isQueryable(String indexName)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
         SecondaryIndexManager manager = getCurrentColumnFamilyStore().indexManager;
         Index index = manager.getIndexByName(indexName);
         return manager.isIndexQueryable(index);
@@ -819,6 +836,7 @@ public class SecondaryIndexManagerTest extends CQLTester
     {
         public ReadOnlyOnFailureIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13606
             super(baseCfs, indexDef);
         }
 

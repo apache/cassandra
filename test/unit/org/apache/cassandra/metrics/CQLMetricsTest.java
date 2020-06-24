@@ -74,6 +74,7 @@ public class CQLMetricsTest extends SchemaLoader
         clearMetrics();
         PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         assertEquals(0, QueryProcessor.metrics.preparedStatementsExecuted.getCount());
         assertEquals(0, QueryProcessor.metrics.regularStatementsExecuted.getCount());
 
@@ -90,6 +91,7 @@ public class CQLMetricsTest extends SchemaLoader
         clearMetrics();
         PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
         assertEquals(0, QueryProcessor.metrics.preparedStatementsExecuted.getCount());
         assertEquals(0, QueryProcessor.metrics.regularStatementsExecuted.getCount());
 
@@ -107,6 +109,7 @@ public class CQLMetricsTest extends SchemaLoader
         PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
         assertEquals(Double.NaN, QueryProcessor.metrics.preparedStatementsRatio.getValue());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5657
 
         for (int i = 0; i < 10; i++)
             session.execute(metricsStatement.bind(i, "val" + i));

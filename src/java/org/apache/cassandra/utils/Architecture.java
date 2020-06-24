@@ -34,6 +34,7 @@ public final class Architecture
     "amd64",
     "x86_64",
     "s390x",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13615
     "aarch64",
     "ppc64le"
     ));

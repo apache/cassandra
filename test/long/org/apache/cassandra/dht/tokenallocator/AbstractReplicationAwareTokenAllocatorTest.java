@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Token;
  * we need to separate classes to avoid timeous in case flaky tests need to be repeated, see CASSANDRA-12784.
  */
 @Ignore
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12777
 abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocatorTestBase
 {
     static class SimpleReplicationStrategy implements TestReplicationStrategy
@@ -432,6 +433,7 @@ abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocator
         {
             for (int perUnitCount = 1; perUnitCount <= maxVNodeCount; perUnitCount *= 4)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12647
                 testNewCluster(perUnitCount, fixedTokenCount, new SimpleReplicationStrategy(rf), partitioner);
                 testNewCluster(perUnitCount, varyingTokenCount, new SimpleReplicationStrategy(rf), partitioner);
                 if (rf == 1) continue;  // Replication strategy doesn't matter for RF = 1.
@@ -458,6 +460,7 @@ abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocator
         ReplicationAwareTokenAllocator<Unit> t = new ReplicationAwareTokenAllocator<>(tokenMap, rs, partitioner);
         grow(t, targetClusterSize * 2 / 5, tc, perUnitCount, false);
         grow(t, targetClusterSize, tc, perUnitCount, true);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12647
         loseAndReplace(t, targetClusterSize / 5, tc, perUnitCount, partitioner);
         System.out.println();
     }

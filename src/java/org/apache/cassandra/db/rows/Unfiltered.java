@@ -66,6 +66,7 @@ public interface Unfiltered extends Clusterable
     public String toString(TableMetadata metadata, boolean fullDetails);
     public String toString(TableMetadata metadata, boolean includeClusterKeys, boolean fullDetails);
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9705
     default boolean isRow()
     {
         return kind() == Kind.ROW;

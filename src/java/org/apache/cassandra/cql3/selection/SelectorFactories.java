@@ -104,6 +104,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
 
     public void addFunctionsTo(List<Function> functions)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11593
         factories.forEach(p -> p.addFunctionsTo(functions));
     }
 
@@ -126,6 +127,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public int indexOfSimpleSelectorFactory(int columnIndex)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         for (int i = 0, m = factories.size(); i < m; i++)
         {
             if (factories.get(i).isSimpleSelectorFactoryFor(columnIndex))
@@ -186,6 +188,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     {
         List<Selector> selectors = new ArrayList<>(factories.size());
         for (Selector.Factory factory : factories)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10783
             selectors.add(factory.newInstance(options));
         return selectors;
     }
@@ -203,10 +206,12 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public List<String> getColumnNames()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
         return Lists.transform(factories, new com.google.common.base.Function<Selector.Factory, String>()
         {
             public String apply(Selector.Factory factory)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8229
                 return factory.getColumnName();
             }
         });
@@ -219,10 +224,12 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public List<AbstractType<?>> getReturnTypes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7557
         return Lists.transform(factories, new com.google.common.base.Function<Selector.Factory, AbstractType<?>>()
         {
             public AbstractType<?> apply(Selector.Factory factory)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
                 return factory.getReturnType();
             }
         });
@@ -230,6 +237,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
 
     boolean areAllFetchedColumnsKnown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         for (Factory factory : factories)
         {
             if (!factory.areAllFetchedColumnsKnown())

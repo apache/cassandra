@@ -68,6 +68,7 @@ public class Descriptor
     @VisibleForTesting
     public Descriptor(File directory, String ksname, String cfname, int generation)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         this(SSTableFormat.Type.current().info.getLatestVersion(), directory, ksname, cfname, generation, SSTableFormat.Type.current());
     }
 
@@ -76,6 +77,7 @@ public class Descriptor
      */
     public Descriptor(File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         this(formatType.info.getLatestVersion(), directory, ksname, cfname, generation, formatType);
     }
 
@@ -83,6 +85,7 @@ public class Descriptor
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10587
         try
         {
             this.directory = directory.getCanonicalFile();
@@ -101,6 +104,7 @@ public class Descriptor
 
     public Descriptor withGeneration(int newGeneration)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         return new Descriptor(version, directory, ksname, cfname, newGeneration, formatType);
     }
 
@@ -116,6 +120,7 @@ public class Descriptor
 
     public String filenameFor(Component component)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10237
         return baseFilename() + separator + component.name();
     }
 
@@ -123,14 +128,17 @@ public class Descriptor
     {
         StringBuilder buff = new StringBuilder();
         buff.append(directory).append(File.separatorChar);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6326
         appendFileName(buff);
         return buff.toString();
     }
 
     private void appendFileName(StringBuilder buff)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5511
         buff.append(version).append(separator);
         buff.append(generation);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         buff.append(separator).append(formatType.name);
     }
 
@@ -144,6 +152,7 @@ public class Descriptor
 
     public SSTableFormat getFormat()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7443
         return formatType.info;
     }
 
@@ -153,6 +162,7 @@ public class Descriptor
         File[] tmpFiles = directory.listFiles((dir, name) ->
                                               name.endsWith(Descriptor.TMP_EXT));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
         List<File> ret = new ArrayList<>(tmpFiles.length);
         for (File tmpFile : tmpFiles)
             ret.add(tmpFile);
@@ -162,6 +172,7 @@ public class Descriptor
 
     public static boolean isValidFile(File file)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
         String filename = file.getName();
         return filename.endsWith(".db") && !LEGACY_TMP_REGEX.matcher(filename).matches();
     }
@@ -317,12 +328,15 @@ public class Descriptor
      */
     public boolean isCompatible()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-3708
         return version.isCompatible();
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
         return baseFilename();
     }
 
@@ -334,6 +348,8 @@ public class Descriptor
         if (!(o instanceof Descriptor))
             return false;
         Descriptor that = (Descriptor)o;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6356
         return that.directory.equals(this.directory)
                        && that.generation == this.generation
                        && that.ksname.equals(this.ksname)

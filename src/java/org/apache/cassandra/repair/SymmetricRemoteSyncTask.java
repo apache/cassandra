@@ -50,9 +50,11 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
 
     public SymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         super(desc, r1, r2, differences, previewKind);
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15163
     void sendRequest(SyncRequest request, InetAddressAndPort to)
     {
         MessagingService.instance().send(Message.out(SYNC_REQ, request), to);
@@ -62,7 +64,9 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
     protected void startSync()
     {
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
         SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind);
         Preconditions.checkArgument(nodePair.coordinator.equals(request.src));
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
@@ -79,14 +83,17 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
         }
         else
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14693
             setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13531
         finished();
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14717
         return "SymmetricRemoteSyncTask{" +
                "rangesToSync=" + rangesToSync +
                ", nodePair=" + nodePair +

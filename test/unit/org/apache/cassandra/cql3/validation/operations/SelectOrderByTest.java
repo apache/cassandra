@@ -269,6 +269,7 @@ public class SelectOrderByTest extends CQLTester
             assertRows(execute("SELECT col1 FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1"),
                        row(1), row(2), row(3));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
             assertRows(execute("SELECT col1 FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1 LIMIT 2"),
                        row(1), row(2));
 
@@ -282,6 +283,7 @@ public class SelectOrderByTest extends CQLTester
                        row("key1", 1), row("key3", 2), row("key2", 3));
         });
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10363
         createTable("CREATE TABLE %s (pk1 int, pk2 int, c int, v text, PRIMARY KEY ((pk1, pk2), c) )");
         execute("INSERT INTO %s (pk1, pk2, c, v) VALUES (?, ?, ?, ?)", 1, 1, 2, "A");
         execute("INSERT INTO %s (pk1, pk2, c, v) VALUES (?, ?, ?, ?)", 1, 2, 1, "B");
@@ -304,6 +306,7 @@ public class SelectOrderByTest extends CQLTester
                        row("A"),
                        row("D"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
             assertRows(execute("SELECT v FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c LIMIT 2; ", 1, 1, 2),
                        row("B"),
                        row("A"));
@@ -346,6 +349,7 @@ public class SelectOrderByTest extends CQLTester
                        row("D"),
                        row("A"));
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10729
             assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2 LIMIT 2; ", 1, 1, 2),
                        row("B"),
                        row("D"));
@@ -378,6 +382,7 @@ public class SelectOrderByTest extends CQLTester
     public void testOrderByForInClauseWithCollectionElementSelection() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, c frozen<set<int>>, v int, PRIMARY KEY (pk, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
 
         execute("INSERT INTO %s (pk, c, v) VALUES (0, {1, 2}, 0)");
         execute("INSERT INTO %s (pk, c, v) VALUES (0, {1, 2, 3}, 1)");
@@ -395,6 +400,7 @@ public class SelectOrderByTest extends CQLTester
     public void testOrderByForInClauseWithNullValue() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, s int static, d int, PRIMARY KEY (a, b, c))");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10955
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 1, 1)");
         execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 2, 1)");
@@ -598,6 +604,7 @@ public class SelectOrderByTest extends CQLTester
     @Test
     public void testInOrderByWithTwoPartitionKeyColumns() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9970
         for (String option : asList("", "WITH CLUSTERING ORDER BY (col_3 DESC)"))
         {
             createTable("CREATE TABLE %s (col_1 int, col_2 int, col_3 int, PRIMARY KEY ((col_1, col_2), col_3)) " + option);

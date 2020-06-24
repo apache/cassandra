@@ -105,6 +105,7 @@ public class SplitterTest
 
     private static void randomSplitTestNoVNodes(IPartitioner partitioner)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
         Splitter splitter = getSplitter(partitioner);
         Random r = new Random();
         for (int i = 0; i < 10000; i++)
@@ -144,6 +145,7 @@ public class SplitterTest
             start = end;
         }
         // when we dont need to keep around full ranges, the difference is small between the partitions
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12917
         BigDecimal delta = splitIndividualRanges ? BigDecimal.valueOf(0.001) : BigDecimal.valueOf(0.25);
         boolean allBalanced = true;
         for (BigInteger b : splits)
@@ -196,6 +198,7 @@ public class SplitterTest
         List<Splitter.WeightedRange> localRanges = new ArrayList<>(localTokens);
         for (int i = 0; i < randomTokens.size() - 1; i++)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12245
             assert randomTokens.get(i).compareTo(randomTokens.get(i + 1)) < 0;
             localRanges.add(new Splitter.WeightedRange(1.0, new Range<>(randomTokens.get(i), randomTokens.get(i + 1))));
             i++;

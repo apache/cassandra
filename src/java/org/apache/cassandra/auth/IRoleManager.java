@@ -66,6 +66,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
     void createRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException;
 
@@ -79,6 +80,7 @@ public interface IRoleManager
      * @throws RequestExecutionException
      */
     void dropRole(AuthenticatedUser performer, RoleResource role) throws RequestValidationException, RequestExecutionException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
 
     /**
      * Called during execution of ALTER ROLE statement.
@@ -92,6 +94,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8850
     void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException;
 
@@ -106,6 +109,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     void grantRole(AuthenticatedUser performer, RoleResource role, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException;
 
@@ -120,6 +124,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
     void revokeRole(AuthenticatedUser performer, RoleResource role, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException;
 
@@ -161,6 +166,7 @@ public interface IRoleManager
      * @throws RequestExecutionException
      */
     Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8650
 
     /**
      * Return true if there exists a Role with the given name that also has
@@ -196,6 +202,7 @@ public interface IRoleManager
      * @return Key/Value pairs representing the custom options for the Role
      */
     Map<String, String> getCustomOptions(RoleResource role);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8761
 
     /**
      * Return true is a Role with the given name exists in the system.

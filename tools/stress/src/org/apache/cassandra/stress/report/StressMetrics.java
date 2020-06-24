@@ -114,6 +114,7 @@ public class StressMetrics implements MeasurementSink
                 t.printStackTrace();
             }
             System.err.println("Failed to connect over JMX; not collecting these stats");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
             gcStatsCollector = () -> totalGcStats;
         }
         this.gcStatsCollector = gcStatsCollector;
@@ -351,6 +352,7 @@ public class StressMetrics implements MeasurementSink
     }
 
     private static void printRow(String prefix, String type, TimingInterval interval, TimingInterval total,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12237
                                  JmxCollector.GcStats gcStats, Uncertainty opRateUncertainty, ResultLogger output)
     {
         output.println(prefix + String.format(ROWFORMAT,

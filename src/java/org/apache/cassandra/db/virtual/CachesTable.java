@@ -71,6 +71,7 @@ final class CachesTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14626
         if (null != ChunkCache.instance)
             addRow(result, "chunks", ChunkCache.instance.metrics);
         addRow(result, "counters", CacheService.instance.counterCache.getMetrics());

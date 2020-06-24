@@ -69,6 +69,7 @@ public class Import extends NodeToolCmd
     private boolean quick = false;
 
     @Option(title = "extended_verify",
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14417
             name = {"-e", "--extended-verify"},
             description = "Run an extended verify, verifying all values in the new sstables")
     private boolean extendedVerify = false;
@@ -77,6 +78,7 @@ public class Import extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         checkArgument(args.size() >= 3, "import requires keyspace, table name and directories");
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14442
 
         if (quick)
         {

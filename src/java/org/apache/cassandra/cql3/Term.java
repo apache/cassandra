@@ -73,6 +73,7 @@ public interface Term
     /**
      * Whether that term is terminal (this is a shortcut for {@code this instanceof Term.Terminal}).
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
     default public boolean isTerminal()
     {
         return false; // overriden below by Terminal
@@ -122,12 +123,14 @@ public interface Term
         @Override
         public String toString()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9664
             return getText();
         }
 
         @Override
         public int hashCode()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13426
             return getText().hashCode();
         }
 
@@ -170,12 +173,15 @@ public interface Term
         // with a bind marker
         public boolean containsBindMarker()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5795
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7813
             return false;
         }
 
         @Override
         public boolean isTerminal()
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             return true;
         }
 
@@ -211,6 +217,7 @@ public interface Term
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
             Terminal t = bind(options);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7970
             return t == null ? null : t.get(options.getProtocolVersion());
         }
     }

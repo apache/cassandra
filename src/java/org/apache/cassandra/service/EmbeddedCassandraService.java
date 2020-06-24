@@ -35,6 +35,8 @@ import java.io.IOException;
 
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-1951
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-0
 
  * </pre>
  */
@@ -45,6 +47,7 @@ public class EmbeddedCassandraService
 
     public void start() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
         cassandraDaemon = CassandraDaemon.instance;
         cassandraDaemon.applyConfig();
         cassandraDaemon.init(null);
@@ -53,6 +56,7 @@ public class EmbeddedCassandraService
 
     public void stop()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13391
         cassandraDaemon.stop();
     }
 }

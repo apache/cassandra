@@ -55,6 +55,7 @@ public class SSTableExpiredBlockers
         }
 
         Util.initDatabaseDescriptor();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10412
 
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
@@ -64,6 +65,7 @@ public class SSTableExpiredBlockers
 
         Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnfamily);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8671
         Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
         Set<SSTableReader> sstables = new HashSet<>();
         for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())
@@ -77,6 +79,7 @@ public class SSTableExpiredBlockers
                 }
                 catch (Throwable t)
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10240
                     out.println("Couldn't open sstable: " + sstable.getKey().filenameFor(Component.DATA)+" ("+t.getMessage()+")");
                 }
             }

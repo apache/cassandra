@@ -137,6 +137,7 @@ public interface Transactional extends AutoCloseable
             }
             state = State.ABORTED;
             // we cleanup first so that, e.g., file handles can be released prior to deletion
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8568
             accumulate = doPreCleanup(accumulate);
             accumulate = doAbort(accumulate);
             accumulate = doPostCleanup(accumulate);
@@ -166,6 +167,7 @@ public interface Transactional extends AutoCloseable
                 throw new IllegalStateException("Cannot prepare to commit unless IN_PROGRESS; state is " + state);
 
             doPrepare();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10286
             maybeFail(doPreCleanup(null));
             state = State.READY_TO_COMMIT;
         }

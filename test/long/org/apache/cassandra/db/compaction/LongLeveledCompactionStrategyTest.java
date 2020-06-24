@@ -59,10 +59,13 @@ public class LongLeveledCompactionStrategyTest
         leveledOptions.put("sstable_size_in_mb", "1");
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9677
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11657
                                                 .compaction(CompactionParams.lcs(leveledOptions)),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL2)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
                                                 .compaction(CompactionParams.lcs(leveledOptions)));
     }
 
@@ -80,6 +83,7 @@ public class LongLeveledCompactionStrategyTest
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
         populateSSTables(store);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14720
 
         // Execute LCS in parallel
         ExecutorService executor = new ThreadPoolExecutor(4, 4,
@@ -97,6 +101,7 @@ public class LongLeveledCompactionStrategyTest
                 {
                     public void run()
                     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14935
                         nextTask.execute(ActiveCompactionsTracker.NOOP);
                     }
                 });
@@ -119,6 +124,7 @@ public class LongLeveledCompactionStrategyTest
         {
             List<SSTableReader> sstables = manifest.getLevel(level);
             // score check
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
             assert (double) SSTableReader.getTotalBytes(sstables) / manifest.maxBytesForLevel(level, 1 * 1024 * 1024) < 1.00;
             // overlap check for levels greater than 0
             for (SSTableReader sstable : sstables)
@@ -128,6 +134,7 @@ public class LongLeveledCompactionStrategyTest
 
                 if (level > 0)
                 {// overlap check for levels greater than 0
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11571
                     Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable.first.getToken(), sstable.last.getToken(), sstables);
                     assert overlaps.size() == 1 && overlaps.contains(sstable);
                 }
@@ -139,13 +146,16 @@ public class LongLeveledCompactionStrategyTest
     public void testLeveledScanner() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11657
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL2);
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
         populateSSTables(store);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14720
 
         LeveledCompactionStrategyTest.waitForLeveling(store);
         store.disableAutoCompaction();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6696
         CompactionStrategyManager mgr = store.getCompactionStrategyManager();
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) mgr.getStrategies().get(1).get(0);
 
@@ -208,8 +218,10 @@ public class LongLeveledCompactionStrategyTest
     @Test
     public void testRepairStatusChanges() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14720
         String ksname = KEYSPACE1;
         String cfname = "StandardLeveled";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5613
         Keyspace keyspace = Keyspace.open(ksname);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(cfname);
         store.disableAutoCompaction();

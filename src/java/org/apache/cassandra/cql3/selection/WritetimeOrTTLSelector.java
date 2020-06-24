@@ -58,6 +58,7 @@ final class WritetimeOrTTLSelector extends Selector
 
             public Selector newInstance(QueryOptions options)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 return new WritetimeOrTTLSelector(def, idx, isWritetime);
             }
 
@@ -73,6 +74,7 @@ final class WritetimeOrTTLSelector extends Selector
 
             public boolean areAllFetchedColumnsKnown()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
                 return true;
             }
 
@@ -90,6 +92,7 @@ final class WritetimeOrTTLSelector extends Selector
 
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
         if (isSet)
             return;
 
@@ -114,18 +117,21 @@ final class WritetimeOrTTLSelector extends Selector
 
     public void reset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
         isSet = false;
         current = null;
     }
 
     public AbstractType<?> getType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8229
         return isWritetime ? LongType.instance : Int32Type.instance;
     }
 
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return column.name.toString();
     }
 

@@ -63,6 +63,7 @@ public class ColumnMetadataVersionComparatorTest
     @Test
     public void testWithSimpleTypes()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         checkComparisonResults(Int32Type.instance, BytesType.instance);
         checkComparisonResults(EmptyType.instance, BytesType.instance);
     }
@@ -150,6 +151,7 @@ public class ColumnMetadataVersionComparatorTest
     @Test
     public void testInvalidComparison()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         assertInvalidComparison("Found 2 incompatible versions of column c in ks.t: one of type org.apache.cassandra.db.marshal.Int32Type and one of type org.apache.cassandra.db.marshal.UTF8Type (but both types are incompatible)",
                                 Int32Type.instance,
                                 UTF8Type.instance);
@@ -180,6 +182,7 @@ public class ColumnMetadataVersionComparatorTest
         catch (IllegalArgumentException e)
         {
             System.out.println(e.getMessage());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
             assertEquals(expectedMessage, e.getMessage());
         }
     }
@@ -194,6 +197,7 @@ public class ColumnMetadataVersionComparatorTest
 
     private static int compare(AbstractType<?> left, AbstractType<?> right)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15035
         ColumnMetadata v1 = ColumnMetadata.regularColumn("ks", "t", "c", left);
         ColumnMetadata v2 = ColumnMetadata.regularColumn("ks", "t", "c", right);
         return ColumnMetadataVersionComparator.INSTANCE.compare(v1, v2);

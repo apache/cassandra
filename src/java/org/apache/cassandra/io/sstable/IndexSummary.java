@@ -82,9 +82,11 @@ public class IndexSummary extends WrappedSharedCloseable
     public IndexSummary(IPartitioner partitioner, Memory offsets, int offsetCount, Memory entries, long entriesLength,
                         int sizeAtFullSampling, int minIndexInterval, int samplingLevel)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         super(new Memory[] { offsets, entries });
         assert offsets.getInt(0) == 0;
         this.partitioner = partitioner;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         this.minIndexInterval = minIndexInterval;
         this.offsetCount = offsetCount;
         this.entriesLength = entriesLength;
@@ -92,6 +94,7 @@ public class IndexSummary extends WrappedSharedCloseable
         this.offsets = offsets;
         this.entries = entries;
         this.samplingLevel = samplingLevel;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8993
         assert samplingLevel > 0;
     }
 
@@ -100,6 +103,7 @@ public class IndexSummary extends WrappedSharedCloseable
         super(copy);
         this.partitioner = copy.partitioner;
         this.minIndexInterval = copy.minIndexInterval;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         this.offsetCount = copy.offsetCount;
         this.entriesLength = copy.entriesLength;
         this.sizeAtFullSampling = copy.sizeAtFullSampling;
@@ -113,6 +117,7 @@ public class IndexSummary extends WrappedSharedCloseable
     public int binarySearch(PartitionPosition key)
     {
         // We will be comparing non-native Keys, so use a buffer with appropriate byte order
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9062
         ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer().order(ByteOrder.BIG_ENDIAN);
         int low = 0, mid = offsetCount, high = mid - 1, result = -1;
         while (low <= high)
@@ -145,20 +150,24 @@ public class IndexSummary extends WrappedSharedCloseable
     public int getPositionInSummary(int index)
     {
         // The first section of bytes holds a four-byte position for each entry in the summary, so just multiply by 4.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         return offsets.getInt(index << 2);
     }
 
     public byte[] getKey(int index)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5519
         long start = getPositionInSummary(index);
         int keySize = (int) (calculateEnd(index) - start - 8L);
         byte[] key = new byte[keySize];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         entries.getBytes(start, key, 0, keySize);
         return key;
     }
 
     private void fillTemporaryKey(int index, ByteBuffer buffer)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8793
         long start = getPositionInSummary(index);
         int keySize = (int) (calculateEnd(index) - start - 8L);
         entries.setByteBuffer(buffer, start, keySize);
@@ -166,6 +175,7 @@ public class IndexSummary extends WrappedSharedCloseable
 
     public void addTo(Ref.IdentityCollection identities)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9423
         super.addTo(identities);
         identities.add(offsets);
         identities.add(entries);
@@ -188,6 +198,7 @@ public class IndexSummary extends WrappedSharedCloseable
 
     public int getMinIndexInterval()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         return minIndexInterval;
     }
 
@@ -206,6 +217,7 @@ public class IndexSummary extends WrappedSharedCloseable
 
     public int size()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
         return offsetCount;
     }
 
@@ -227,6 +239,7 @@ public class IndexSummary extends WrappedSharedCloseable
      * Returns the amount of off-heap memory used for the entries portion of this summary.
      * @return size in bytes
      */
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
     long getEntriesLength()
     {
         return entriesLength;
@@ -258,11 +271,13 @@ public class IndexSummary extends WrappedSharedCloseable
      */
     public int getEffectiveIndexIntervalAfterIndex(int index)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
         return Downsampling.getEffectiveIndexIntervalAfterIndex(index, samplingLevel, minIndexInterval);
     }
 
     public IndexSummary sharedCopy()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8707
         return new IndexSummary(this);
     }
 
@@ -271,8 +286,10 @@ public class IndexSummary extends WrappedSharedCloseable
         public void serialize(IndexSummary t, DataOutputPlus out) throws IOException
         {
             out.writeInt(t.minIndexInterval);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
             out.writeInt(t.offsetCount);
             out.writeLong(t.getOffHeapSize());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
             out.writeInt(t.samplingLevel);
             out.writeInt(t.sizeAtFullSampling);
             // our on-disk representation treats the offsets and the summary data as one contiguous structure,
@@ -297,6 +314,7 @@ public class IndexSummary extends WrappedSharedCloseable
         public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
         {
             int minIndexInterval = in.readInt();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
             if (minIndexInterval != expectedMinIndexInterval)
             {
                 throw new IOException(String.format("Cannot read index summary because min_index_interval changed from %d to %d.",
@@ -309,14 +327,17 @@ public class IndexSummary extends WrappedSharedCloseable
             int fullSamplingSummarySize = in.readInt();
 
             int effectiveIndexInterval = (int) Math.ceil((BASE_SAMPLING_LEVEL / (double) samplingLevel) * minIndexInterval);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6379
             if (effectiveIndexInterval > maxIndexInterval)
             {
                 throw new IOException(String.format("Rebuilding index summary because the effective index interval (%d) is higher than" +
                                                     " the current max index interval (%d)", effectiveIndexInterval, maxIndexInterval));
             }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8757
             Memory offsets = Memory.allocate(offsetCount * 4);
             Memory entries = Memory.allocate(offheapSize - offsets.size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9431
             try
             {
                 FBUtilities.copy(in, new MemoryOutputStream(offsets), offsets.size());
@@ -345,10 +366,12 @@ public class IndexSummary extends WrappedSharedCloseable
          */
         public Pair<DecoratedKey, DecoratedKey> deserializeFirstLastKey(DataInputStream in, IPartitioner partitioner) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7159
             in.skipBytes(4); // minIndexInterval
             int offsetCount = in.readInt();
             long offheapSize = in.readLong();
             in.skipBytes(8); // samplingLevel, fullSamplingSummarySize
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12716
 
             in.skip(offsetCount * 4);
             in.skip(offheapSize - offsetCount * 4);

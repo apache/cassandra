@@ -29,6 +29,7 @@ public class RepairResult
 
     public RepairResult(RepairJobDesc desc, List<SyncStat> stats)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6455
         this.desc = desc;
         this.stats = stats;
     }

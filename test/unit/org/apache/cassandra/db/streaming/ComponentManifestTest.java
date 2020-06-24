@@ -45,6 +45,7 @@ public class ComponentManifestTest
     @Test(expected = EOFException.class)
     public void testSerialization_FailsOnBadBytes() throws IOException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         ByteBuffer buf = ByteBuffer.allocate(512);
         ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
 

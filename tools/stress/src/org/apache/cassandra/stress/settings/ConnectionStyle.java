@@ -21,6 +21,7 @@ package org.apache.cassandra.stress.settings;
 public enum ConnectionStyle
 {
     CQL,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11115
     CQL_PREPARED
 }
 

@@ -34,6 +34,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     public PartitionRangeQueryPager(PartitionRangeReadQuery query, PagingState state, ProtocolVersion protocolVersion)
     {
         super(query, protocolVersion);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         if (state != null)
         {
@@ -44,7 +45,9 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     }
 
     public PartitionRangeQueryPager(PartitionRangeReadQuery query,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12838
                                     ProtocolVersion protocolVersion,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10707
                                     DecoratedKey lastReturnedKey,
                                     PagingState.RowMark lastReturnedRow,
                                     int remaining,
@@ -58,6 +61,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
 
     public PartitionRangeQueryPager withUpdatedLimit(DataLimits newLimits)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         return new PartitionRangeQueryPager(query.withUpdatedLimit(newLimits),
                                             protocolVersion,
                                             lastReturnedKey,
@@ -77,6 +81,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     protected PartitionRangeReadQuery nextPageReadQuery(int pageSize)
     {
         DataLimits limits;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         DataRange fullRange = query.dataRange();
         DataRange pageRange;
         if (lastReturnedKey == null)
@@ -85,6 +90,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
             limits = query.limits().forPaging(pageSize);
         }
         // if the last key was the one of the end of the range we know that we are done
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14242
         else if (lastReturnedKey.equals(fullRange.keyRange().right) && remainingInPartition() == 0 && lastReturnedRow == null)
         {
             return null;
@@ -96,6 +102,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
             AbstractBounds<PartitionPosition> bounds = makeKeyBounds(lastReturnedKey, includeLastKey);
             if (includeLastKey)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                 pageRange = fullRange.forPaging(bounds, query.metadata().comparator, lastReturnedRow.clustering(query.metadata()), false);
                 limits = query.limits().forPaging(pageSize, lastReturnedKey.getKey(), remainingInPartition());
             }
@@ -115,6 +122,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
         {
             lastReturnedKey = key;
             if (last.clustering() != Clustering.STATIC_CLUSTERING)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
                 lastReturnedRow = PagingState.RowMark.create(query.metadata(), last, protocolVersion);
         }
     }
@@ -122,11 +130,13 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
     {
         // Note that lastReturnedKey can be null, but key cannot.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9775
         return key.equals(lastReturnedKey);
     }
 
     private AbstractBounds<PartitionPosition> makeKeyBounds(PartitionPosition lastReturnedKey, boolean includeLastKey)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
         AbstractBounds<PartitionPosition> bounds = query.dataRange().keyRange();
         if (bounds instanceof Range || bounds instanceof Bounds)
         {

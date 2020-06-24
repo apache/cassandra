@@ -42,6 +42,7 @@ public class QueryState
 
     public QueryState(ClientState clientState, long timestamp, int nowInSeconds)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14618
         this(clientState);
         this.timestamp = timestamp;
         this.nowInSeconds = nowInSeconds;
@@ -52,6 +53,8 @@ public class QueryState
      */
     public static QueryState forInternalCalls()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6070
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         return new QueryState(ClientState.forInternalCalls());
     }
 
@@ -67,7 +70,10 @@ public class QueryState
      */
     public long getTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14677
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
         if (timestamp == Long.MIN_VALUE)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15666
             timestamp = ClientState.getTimestamp();
         return timestamp;
     }
@@ -95,6 +101,7 @@ public class QueryState
      */
     public long generatedTimestamp()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14675
         return timestamp;
     }
 

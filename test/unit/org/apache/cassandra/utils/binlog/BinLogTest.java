@@ -51,6 +51,7 @@ public class BinLogTest
 {
     public static Path tempDir() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9608
         File f = FileUtils.createTempFile("foo", "bar");
         f.delete();
         f.mkdir();
@@ -67,6 +68,7 @@ public class BinLogTest
     public void setUp() throws Exception
     {
         path = tempDir();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         binLog = new BinLog.Builder().path(path)
                                      .rollCycle(RollCycles.TEST_SECONDLY.toString())
                                      .maxQueueWeight(10)
@@ -91,6 +93,7 @@ public class BinLogTest
     @Test(expected = NullPointerException.class)
     public void testConstructorNullPath() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         new BinLog.Builder().path(null).build(false);
     }
 
@@ -120,6 +123,7 @@ public class BinLogTest
     public void testBinLogStartStop() throws Exception
     {
         AtomicInteger releaseCount = new AtomicInteger();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15797
         CountDownLatch ready = new CountDownLatch(2);
         Supplier<BinLog.ReleaseableWriteMarshallable> recordSupplier =
         () -> new BinLog.ReleaseableWriteMarshallable()
@@ -141,6 +145,7 @@ public class BinLogTest
 
             public void writeMarshallablePayload(WireOut wire)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15797
                 ready.countDown();
             }
         };
@@ -161,6 +166,7 @@ public class BinLogTest
         t.start();
         t.join(60 * 1000);
         assertEquals("BinLog should not take more than 1 minute to stop", t.getState(), Thread.State.TERMINATED);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15797
 
         Util.spinAssertEquals(2, releaseCount::get, 60);
         Util.spinAssertEquals(Thread.State.TERMINATED, binLog.binLogThread::getState, 60);
@@ -324,6 +330,9 @@ public class BinLogTest
 
                 protected long version()
                 {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                     return 0;
                 }
 
@@ -376,6 +385,7 @@ public class BinLogTest
     public void testCleanupOnOversize() throws Exception
     {
         tearDown();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14772
         binLog = new BinLog.Builder().path(path).rollCycle(RollCycles.TEST_SECONDLY.toString()).maxQueueWeight(1).maxLogSize(10000).blocking(false).build(false);
         for (int ii = 0; ii < 5; ii++)
         {
@@ -404,6 +414,7 @@ public class BinLogTest
     @Test
     public void testPutAfterStop() throws Exception
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15797
         final BinLog.ReleaseableWriteMarshallable unexpected = record(testString);
         binLog.stop();
         binLog.put(unexpected);
@@ -455,6 +466,9 @@ public class BinLogTest
 
             protected long version()
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15076
                 return 0;
             }
 

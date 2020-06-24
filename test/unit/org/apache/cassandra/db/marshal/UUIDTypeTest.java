@@ -47,6 +47,7 @@ public class UUIDTypeTest
     public void testRandomCompare()
     {
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID t1 = UUIDGen.getTimeUUID();
         UUID t2 = UUIDGen.getTimeUUID();
 
@@ -171,6 +172,7 @@ public class UUIDTypeTest
     @Test
     public void testTimeEquality()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID a = UUIDGen.getTimeUUID();
         UUID b = new UUID(a.getMostSignificantBits(),
                 a.getLeastSignificantBits());
@@ -181,6 +183,7 @@ public class UUIDTypeTest
     @Test
     public void testTimeSmaller()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID a = UUIDGen.getTimeUUID();
         UUID b = UUIDGen.getTimeUUID();
         UUID c = UUIDGen.getTimeUUID();
@@ -193,6 +196,7 @@ public class UUIDTypeTest
     @Test
     public void testTimeBigger()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-5002
         UUID a = UUIDGen.getTimeUUID();
         UUID b = UUIDGen.getTimeUUID();
         UUID c = UUIDGen.getTimeUUID();
@@ -205,6 +209,7 @@ public class UUIDTypeTest
     @Test
     public void testPermutations()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8730
         compareAll(random(1000, (byte) 0x00, (byte) 0x10, (byte) 0x20));
         for (ByteBuffer[] permutations : permutations(10,  (byte) 0x00, (byte) 0x10, (byte) 0x20))
             compareAll(permutations);

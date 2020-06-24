@@ -82,6 +82,7 @@ public class SessionSummary
     {
         public void serialize(SessionSummary summary, DataOutputPlus out, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             inetAddressAndPortSerializer.serialize(summary.coordinator, out, version);
             inetAddressAndPortSerializer.serialize(summary.peer, out, version);
 
@@ -100,6 +101,7 @@ public class SessionSummary
 
         public SessionSummary deserialize(DataInputPlus in, int version) throws IOException
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort peer = inetAddressAndPortSerializer.deserialize(in, version);
 
@@ -123,6 +125,7 @@ public class SessionSummary
         public long serializedSize(SessionSummary summary, int version)
         {
             long size = 0;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             size += inetAddressAndPortSerializer.serializedSize(summary.coordinator, version);
             size += inetAddressAndPortSerializer.serializedSize(summary.peer, version);
 

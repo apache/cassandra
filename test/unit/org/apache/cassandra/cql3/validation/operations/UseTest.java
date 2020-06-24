@@ -26,6 +26,7 @@ public class UseTest extends CQLTester
     @Test
     public void testUseStatementWithBindVariable() throws Throwable
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8365
         assertInvalidSyntaxMessage("Bind variables cannot be used for keyspace names", "USE ?");
     }
 }

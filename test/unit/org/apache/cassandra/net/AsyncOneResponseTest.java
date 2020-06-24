@@ -32,6 +32,7 @@ public class AsyncOneResponseTest
     {
         AsyncOneResponse<Object> response = new AsyncOneResponse<>();
         Thread.sleep(2000);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Assert.assertFalse(response.await(1, TimeUnit.SECONDS));
     }
 

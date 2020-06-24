@@ -74,6 +74,7 @@ public class LongBufferPoolTest
     {
         static class DebugChunk
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             volatile long lastRecycled;
             static DebugChunk get(BufferPool.Chunk chunk)
             {
@@ -147,6 +148,7 @@ public class LongBufferPoolTest
 
     private static final class TestEnvironment
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14790
         final int threadCount;
         final long duration;
         final int poolSize;
@@ -171,6 +173,7 @@ public class LongBufferPoolTest
             makingProgress = new AtomicBoolean[threadCount];
             burnFreed = new AtomicBoolean(false);
             freedAllMemory = new AtomicBoolean[threadCount];
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             executorService = Executors.newFixedThreadPool(threadCount + 2, new NamedThreadFactory("test"));
             threadResultFuture = new ArrayList<>(threadCount);
 
@@ -247,6 +250,7 @@ public class LongBufferPoolTest
         long prevPoolSize = BufferPool.MEMORY_USAGE_THRESHOLD;
         logger.info("Overriding configured BufferPool.MEMORY_USAGE_THRESHOLD={} and enabling BufferPool.DEBUG", poolSize);
         BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
         Debug debug = new Debug();
         BufferPool.debug(debug);
 
@@ -269,6 +273,7 @@ public class LongBufferPoolTest
                 for (AtomicBoolean freedMemory : testEnv.freedAllMemory)
                     allFreed = allFreed && freedMemory.getAndSet(false);
                 if (allFreed)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     debug.check();
                 else
                     logger.info("All threads did not free all memory in this time slot - skipping buffer recycle check");
@@ -286,10 +291,12 @@ public class LongBufferPoolTest
         }
 
         assertEquals(0, testEnv.executorService.shutdownNow().size());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14790
 
         logger.info("Reverting BufferPool.MEMORY_USAGE_THRESHOLD={}", prevPoolSize);
         BufferPool.MEMORY_USAGE_THRESHOLD = prevPoolSize;
         BufferPool.debug(null);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
 
         testEnv.assertCheckedThreadsSucceeded();
 
@@ -301,6 +308,7 @@ public class LongBufferPoolTest
     {
         return testEnv.executorService.submit(new TestUntil(testEnv.until)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             final int targetSize = threadIdx == 0 ? BufferPool.NORMAL_CHUNK_SIZE : testEnv.targetSizeQuanta * threadIdx;
             final SPSCQueue<BufferCheck> shareFrom = testEnv.sharedRecycle[threadIdx];
             final DynamicList<BufferCheck> checks = new DynamicList<>((int) Math.max(1, targetSize / (1 << 10)));
@@ -347,6 +355,7 @@ public class LongBufferPoolTest
                     checks.remove(check.listnode);
                     check.validate();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                     size = BufferPool.roundUp(check.buffer.capacity());
                     if (size > BufferPool.NORMAL_CHUNK_SIZE)
                         size = 0;
@@ -372,6 +381,7 @@ public class LongBufferPoolTest
 
                 // allocate a new buffer
                 size = (int) Math.max(1, AVG_BUFFER_SIZE + (STDEV_BUFFER_SIZE * rand.nextGaussian()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 if (size <= BufferPool.NORMAL_CHUNK_SIZE)
                 {
                     totalSize += BufferPool.roundUp(size);
@@ -387,6 +397,7 @@ public class LongBufferPoolTest
                     while (totalSize < testEnv.poolSize)
                     {
                         size = (int) Math.max(1, AVG_BUFFER_SIZE + (STDEV_BUFFER_SIZE * rand.nextGaussian()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                         if (size <= BufferPool.NORMAL_CHUNK_SIZE)
                         {
                             allocate(size);
@@ -425,6 +436,7 @@ public class LongBufferPoolTest
 
             BufferCheck allocate(int size)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15358
                 ByteBuffer buffer = BufferPool.get(size, BufferType.OFF_HEAP);
                 assertNotNull(buffer);
                 BufferCheck check = new BufferCheck(buffer, rand.nextLong());
@@ -481,6 +493,7 @@ public class LongBufferPoolTest
             final ThreadLocalRandom rand = ThreadLocalRandom.current();
             void testOne() throws Exception
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 if (count * BufferPool.NORMAL_CHUNK_SIZE >= testEnv.poolSize / 10)
                 {
                     if (burn.exhausted)
@@ -494,6 +507,7 @@ public class LongBufferPoolTest
                     return;
                 }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                 ByteBuffer buffer = rand.nextInt(4) < 1 ? BufferPool.tryGet(BufferPool.NORMAL_CHUNK_SIZE)
                                                         : BufferPool.tryGet(BufferPool.TINY_ALLOCATION_LIMIT);
                 if (buffer == null)
@@ -562,14 +576,17 @@ public class LongBufferPoolTest
             {
                 logger.error("Got exception {}, current chunk {}",
                              ex.getMessage(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                              BufferPool.unsafeCurrentChunk());
                 ex.printStackTrace();
                 return false;
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14790
             catch (Throwable tr) // for java.lang.OutOfMemoryError
             {
                 logger.error("Got throwable {}, current chunk {}",
                              tr.getMessage(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
                              BufferPool.unsafeCurrentChunk());
                 tr.printStackTrace();
                 return false;
@@ -584,6 +601,7 @@ public class LongBufferPoolTest
 
     public static void main(String[] args)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14790
         try
         {
             LongBufferPoolTest.setup();
@@ -594,6 +612,7 @@ public class LongBufferPoolTest
         catch (Throwable tr)
         {
             System.out.println(String.format("Test failed - %s", tr.getMessage()));
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15066
             tr.printStackTrace();
             System.exit(1); // Force exit so that non-daemon threads like REQUEST-SCHEDULER do not hang the process on failure
         }
@@ -640,6 +659,7 @@ public class LongBufferPoolTest
 
     private static int sum1toN(int n)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14790
         return (n * (n + 1)) / 2;
     }
 }

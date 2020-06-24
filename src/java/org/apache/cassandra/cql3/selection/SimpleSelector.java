@@ -41,6 +41,7 @@ public final class SimpleSelector extends Selector
 
         private SimpleSelectorFactory(int idx, ColumnMetadata def)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
             this.idx = idx;
             this.column = def;
         }
@@ -115,6 +116,7 @@ public final class SimpleSelector extends Selector
     @Override
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
         if (!isSet)
         {
             isSet = true;
@@ -131,6 +133,7 @@ public final class SimpleSelector extends Selector
     @Override
     public void reset()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9767
         isSet = false;
         current = null;
     }
@@ -138,6 +141,7 @@ public final class SimpleSelector extends Selector
     @Override
     public AbstractType<?> getType()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7396
         return column.type;
     }
 

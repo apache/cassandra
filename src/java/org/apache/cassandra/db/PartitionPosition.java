@@ -45,6 +45,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
     {
         public static PartitionPosition get(ByteBuffer key, IPartitioner p)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
             return key == null || key.remaining() == 0 ? p.getMinimumToken().minKeyBound() : p.decorateKey(key);
         }
     }
@@ -72,6 +73,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
             Kind kind = pos.kind();
             out.writeByte(kind.ordinal());
             if (kind == Kind.ROW_KEY)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6694
                 ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).getKey(), out);
             else
                 Token.serializer.serialize(pos.getToken(), out, version);
@@ -83,6 +85,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
             if (kind == Kind.ROW_KEY)
             {
                 ByteBuffer k = ByteBufferUtil.readWithShortLength(in);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8143
                 return p.decorateKey(k);
             }
             else
@@ -99,6 +102,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
             if (kind == Kind.ROW_KEY)
             {
                 int keySize = ((DecoratedKey)pos).getKey().remaining();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9499
                 size += TypeSizes.sizeof((short) keySize) + keySize;
             }
             else

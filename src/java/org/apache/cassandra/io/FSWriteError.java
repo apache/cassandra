@@ -34,6 +34,7 @@ public class FSWriteError extends FSError
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-2118
         return "FSWriteError in " + path;
     }
 }

@@ -75,6 +75,7 @@ public class CQL3CasRequest implements CASRequest
         this.updatesStaticRow = updatesStaticRow;
     }
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
     void addRowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
     {
         updates.add(new RowUpdate(clustering, stmt, options, timestamp, nowInSeconds));
@@ -99,6 +100,7 @@ public class CQL3CasRequest implements CASRequest
     {
         assert condition instanceof ExistCondition || condition instanceof NotExistCondition;
         RowCondition previous = getConditionsForRow(clustering);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12867
         if (previous != null)
         {
             if (previous.getClass().equals(condition.getClass()))
@@ -140,6 +142,7 @@ public class CQL3CasRequest implements CASRequest
         {
             throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6855
         ((ColumnsConditions)condition).addConditions(conds, options);
     }
 
@@ -191,6 +194,7 @@ public class CQL3CasRequest implements CASRequest
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
             return SinglePartitionReadQuery.create(metadata,
                                                    nowInSec,
                                                    columnFilter,
@@ -235,6 +239,7 @@ public class CQL3CasRequest implements CASRequest
 
     public PartitionUpdate makeUpdates(FilteredPartition current) throws InvalidRequestException
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13867
         PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata, key, updatedColumns(), conditions.size());
         for (RowUpdate upd : updates)
             upd.applyUpdates(current, updateBuilder);
@@ -243,6 +248,7 @@ public class CQL3CasRequest implements CASRequest
 
         PartitionUpdate partitionUpdate = updateBuilder.build();
         IndexRegistry.obtain(metadata).validate(partitionUpdate);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7622
 
         return partitionUpdate;
     }
@@ -267,6 +273,7 @@ public class CQL3CasRequest implements CASRequest
             this.stmt = stmt;
             this.options = options;
             this.timestamp = timestamp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
             this.nowInSeconds = nowInSeconds;
         }
 
@@ -299,6 +306,7 @@ public class CQL3CasRequest implements CASRequest
             this.stmt = stmt;
             this.options = options;
             this.timestamp = timestamp;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14671
             this.nowInSeconds = nowInSeconds;
         }
 
@@ -362,6 +370,7 @@ public class CQL3CasRequest implements CASRequest
 
         private ColumnsConditions(Clustering clustering)
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-8099
             super(clustering);
         }
 
@@ -377,6 +386,8 @@ public class CQL3CasRequest implements CASRequest
         public boolean appliesTo(FilteredPartition current) throws InvalidRequestException
         {
             Row row = current.getRow(clustering);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6914
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7155
             for (ColumnCondition.Bound condition : conditions.values())
             {
                 if (!condition.appliesTo(row))
@@ -389,6 +400,7 @@ public class CQL3CasRequest implements CASRequest
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13653
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

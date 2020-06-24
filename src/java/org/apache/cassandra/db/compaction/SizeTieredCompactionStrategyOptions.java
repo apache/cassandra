@@ -98,6 +98,7 @@ public final class SizeTieredCompactionStrategyOptions
     @Override
     public String toString()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15409
         return String.format("Min sstable size: %d, bucket low: %f, bucket high: %f", minSSTableSize, bucketLow, bucketHigh);
     }
 

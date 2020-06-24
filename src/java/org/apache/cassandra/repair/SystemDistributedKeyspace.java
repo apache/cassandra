@@ -92,6 +92,7 @@ public final class SystemDistributedKeyspace
 
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                 "Repair history",
                 "CREATE TABLE %s ("
                      + "keyspace_name text,"
@@ -101,6 +102,7 @@ public final class SystemDistributedKeyspace
                      + "range_begin text,"
                      + "range_end text,"
                      + "coordinator inet,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15385
                      + "coordinator_port int,"
                      + "participants set<inet>,"
                      + "participants_v2 set<text>,"
@@ -109,6 +111,7 @@ public final class SystemDistributedKeyspace
                      + "status text,"
                      + "started_at timestamp,"
                      + "finished_at timestamp,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12701
                      + "PRIMARY KEY ((keyspace_name, columnfamily_name), id))")
         .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
         .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
@@ -128,7 +131,10 @@ public final class SystemDistributedKeyspace
                      + "exception_stacktrace text,"
                      + "requested_ranges set<text>,"
                      + "successful_ranges set<text>,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11244
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15385
                      + "options map<text, text>,"
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12701
                      + "PRIMARY KEY (parent_id))")
         .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
         .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
@@ -144,6 +150,7 @@ public final class SystemDistributedKeyspace
                      + "host_id uuid,"
                      + "status text,"
                      + "PRIMARY KEY ((keyspace_name, view_name), host_id))").build();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12701
 
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
@@ -159,10 +166,12 @@ public final class SystemDistributedKeyspace
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11244
         Collection<Range<Token>> ranges = options.getRanges();
         String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at,          options)"+
                                  " VALUES (%s,        '%s',          { '%s' },           { '%s' },          toTimestamp(now()), { %s })";
         String fmtQry = format(query,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
                                       SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                       PARENT_REPAIR_HISTORY,
                                       parent_id.toString(),
@@ -199,12 +208,14 @@ public final class SystemDistributedKeyspace
         PrintWriter pw = new PrintWriter(sw);
         t.printStackTrace(pw);
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, parent_id.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
         String message = t.getMessage();
         processSilent(fmtQuery, message != null ? message : "", sw.toString());
     }
 
     public static void successfulParentRepair(UUID parent_id, Collection<Range<Token>> successfulRanges)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         String query = "UPDATE %s.%s SET finished_at = toTimestamp(now()), successful_ranges = {'%s'} WHERE parent_id=%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, Joiner.on("','").join(successfulRanges), parent_id.toString());
         processSilent(fmtQuery);
@@ -216,6 +227,7 @@ public final class SystemDistributedKeyspace
         //due to schema differences
         boolean includeNewColumns = !Gossiper.instance.haveMajorVersion3Nodes();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();
         Set<String> participants_v2 = Sets.newHashSet();
@@ -229,6 +241,7 @@ public final class SystemDistributedKeyspace
         String query =
                 "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, coordinator_port, participants, participants_v2, status, started_at) " +
                         "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',        %d,               { '%s' },     { '%s' },        '%s',   toTimestamp(now()))";
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14897
         String queryWithoutNewColumns =
                 "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, participants, status, started_at) " +
                         "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',               { '%s' },        '%s',   toTimestamp(now()))";
@@ -247,6 +260,7 @@ public final class SystemDistributedKeyspace
                                     parent_id.toString(),
                                     range.left.toString(),
                                     range.right.toString(),
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-7544
                                     coordinator.getHostAddress(false),
                                     coordinator.port,
                                     Joiner.on("', '").join(participants),
@@ -266,6 +280,7 @@ public final class SystemDistributedKeyspace
                                     Joiner.on("', '").join(participants),
                                     RepairState.STARTED.toString());
                 }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9534
                 processSilent(fmtQry);
             }
         }
@@ -279,17 +294,20 @@ public final class SystemDistributedKeyspace
 
     public static void successfulRepairJob(UUID id, String keyspaceName, String cfname)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
                                         RepairState.SUCCESS.toString(),
                                         keyspaceName,
                                         cfname,
                                         id.toString());
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9534
         processSilent(fmtQuery);
     }
 
     public static void failedRepairJob(UUID id, String keyspaceName, String cfname, Throwable t)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9229
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
@@ -304,6 +322,7 @@ public final class SystemDistributedKeyspace
 
     public static void startViewBuild(String keyspace, String view, UUID hostId)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         String query = "INSERT INTO %s.%s (keyspace_name, view_name, host_id, status) VALUES (?, ?, ?, ?)";
         QueryProcessor.process(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS),
                                ConsistencyLevel.ONE,
@@ -360,9 +379,11 @@ public final class SystemDistributedKeyspace
     {
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13760
             List<ByteBuffer> valueList = new ArrayList<>(values.length);
             for (String v : values)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
                 valueList.add(bytes(v));
             }
             QueryProcessor.process(fmtQry, ConsistencyLevel.ONE, valueList);
@@ -375,7 +396,9 @@ public final class SystemDistributedKeyspace
 
     public static void forceBlockingFlush(String table)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12199
         if (!DatabaseDescriptor.isUnsafeSystem())
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9054
             FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(table).forceFlush());
     }
 
@@ -386,6 +409,7 @@ public final class SystemDistributedKeyspace
 
     private enum BuildStatus
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9967
         UNKNOWN, STARTED, SUCCESS
     }
 }

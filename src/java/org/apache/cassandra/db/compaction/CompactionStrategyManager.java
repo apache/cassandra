@@ -147,6 +147,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     public CompactionStrategyManager(ColumnFamilyStore cfs, Supplier<DiskBoundaries> boundariesSupplier,
                                      boolean partitionSSTablesByTokenRange)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         AbstractStrategyHolder.DestinationRouter router = new AbstractStrategyHolder.DestinationRouter()
         {
             public int getIndexForSSTable(SSTableReader sstable)
@@ -168,6 +169,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         cfs.getTracker().subscribe(this);
         logger.trace("{} subscribed to the data tracker.", this);
         this.cfs = cfs;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
         this.compactionLogger = new CompactionLogger(cfs, this);
         this.boundariesSupplier = boundariesSupplier;
         this.partitionSSTablesByTokenRange = partitionSSTablesByTokenRange;
@@ -183,6 +185,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
@@ -231,6 +234,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     @VisibleForTesting
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14197
     AbstractCompactionTask findUpgradeSSTableTask()
     {
         if (!isEnabled() || !DatabaseDescriptor.automaticSSTableUpgrade())
@@ -263,6 +267,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean isActive()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11922
         return isActive;
     }
 
@@ -286,6 +291,7 @@ public class CompactionStrategyManager implements INotificationConsumer
       */
     public void pause()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11922
         writeLock.lock();
         try
         {
@@ -303,11 +309,13 @@ public class CompactionStrategyManager implements INotificationConsumer
         writeLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9699
             for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
             {
                 if (sstable.openReason != SSTableReader.OpenReason.EARLY)
                     compactionStrategyFor(sstable).addSSTable(sstable);
             }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             holders.forEach(AbstractStrategyHolder::startup);
             shouldDefragment = repaired.first().shouldDefragment();
             supportsEarlyOpen = repaired.first().supportsEarlyOpen();
@@ -331,11 +339,13 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public AbstractCompactionStrategy getCompactionStrategyFor(SSTableReader sstable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         maybeReloadDiskBoundaries();
         return compactionStrategyFor(sstable);
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
     AbstractCompactionStrategy compactionStrategyFor(SSTableReader sstable)
     {
         // should not call maybeReloadDiskBoundaries because it may be called from within lock
@@ -383,6 +393,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private int compactionStrategyIndexForDirectory(Descriptor descriptor)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         readLock.lock();
         try
         {
@@ -433,11 +444,14 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public void shutdown()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         writeLock.lock();
         try
         {
             isActive = false;
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             holders.forEach(AbstractStrategyHolder::shutdown);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10805
             compactionLogger.disable();
         }
         finally
@@ -449,6 +463,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     public void maybeReload(TableMetadata metadata)
     {
         // compare the old schema configuration to the new one, ignore any locally set changes.
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         if (metadata.params.compaction.equals(schemaCompactionParams))
             return;
 
@@ -492,6 +507,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             reload(params);
             return true;
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         finally
         {
             writeLock.unlock();
@@ -509,6 +525,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         boolean enabledWithJMX = enabled && !shouldBeEnabled();
         boolean disabledWithJMX = !enabled && shouldBeEnabled();
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         if (currentBoundaries != null)
         {
             if (!newCompactionParams.equals(schemaCompactionParams))
@@ -532,6 +549,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private Iterable<AbstractCompactionStrategy> getAllStrategies()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         return Iterables.concat(Iterables.transform(holders, AbstractStrategyHolder::allStrategies));
     }
 
@@ -558,6 +576,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public int getLevelFanoutSize()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13930
         return fanout;
     }
 
@@ -567,6 +586,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             if (repaired.first() instanceof LeveledCompactionStrategy)
             {
                 int[] res = new int[LeveledManifest.MAX_LEVEL_COUNT];
@@ -578,6 +598,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                 return res;
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         finally
         {
             readLock.unlock();
@@ -602,6 +623,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean shouldDefragment()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13930
         return shouldDefragment;
     }
 
@@ -609,6 +631,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     {
         // If reloaded, SSTables will be placed in their correct locations
         // so there is no need to process notification
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         if (maybeReloadDiskBoundaries())
             return;
 
@@ -616,6 +639,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         try
         {
             for (SSTableReader sstable : added)
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
                 compactionStrategyFor(sstable).addSSTable(sstable);
         }
         finally
@@ -626,6 +650,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private int getHolderIndex(SSTableReader sstable)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         for (int i = 0; i < holders.size(); i++)
         {
             if (holders.get(i).managesSSTable(sstable))
@@ -704,6 +729,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             List<GroupedSSTableContainer> addedGroups = groupSSTables(added);
             List<GroupedSSTableContainer> removedGroups = groupSSTables(removed);
             for (int i=0; i<holders.size(); i++)
@@ -713,6 +739,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
             readLock.unlock();
         }
     }
@@ -727,6 +754,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             List<GroupedSSTableContainer> groups = groupSSTables(sstables);
             for (int i = 0; i < holders.size(); i++)
             {
@@ -745,17 +773,20 @@ public class CompactionStrategyManager implements INotificationConsumer
 
                 // adding sstables into another strategy may change its level,
                 // thus it won't be removed from original LCS. We have to remove sstables first
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14720
                 dstHolder.addSSTables(group);
             }
         }
         finally
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
             readLock.unlock();
         }
     }
 
     private void handleMetadataChangedNotification(SSTableReader sstable, StatsMetadata oldMetadata)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         AbstractCompactionStrategy acs = getCompactionStrategyFor(sstable);
         acs.metadataChanged(oldMetadata, sstable);
     }
@@ -769,6 +800,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14082
             compactionStrategyFor(deleted).removeSSTable(deleted);
         }
         finally
@@ -796,6 +828,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             handleDeletingNotification(((SSTableDeletingNotification) notification).deleting);
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-12526
         else if (notification instanceof SSTableMetadataChanged)
         {
             SSTableMetadataChanged lcNotification = (SSTableMetadataChanged) notification;
@@ -847,6 +880,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         try
         {
             List<GroupedSSTableContainer> sstableGroups = groupSSTables(sstables);
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
 
             for (int i = 0; i < holders.size(); i++)
             {
@@ -855,6 +889,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                 scanners.addAll(holder.getScanners(group, ranges));
             }
         }
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13751
         catch (PendingRepairManager.IllegalSSTableArgumentException e)
         {
             ISSTableScanner.closeAllAndPropagate(scanners, new ConcurrentModificationException(e));
@@ -892,6 +927,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             return unrepaired.groupForAnticompaction(sstablesToGroup);
         }
         finally
@@ -905,6 +941,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             return unrepaired.first().getMaxSSTableBytes();
         }
         finally
@@ -915,6 +952,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
@@ -939,6 +977,8 @@ public class CompactionStrategyManager implements INotificationConsumer
             boolean repaired = firstSSTable.isRepaired();
             int firstIndex = compactionStrategyIndexFor(firstSSTable);
             boolean isPending = firstSSTable.isPendingRepair();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13217
             UUID pendingRepair = firstSSTable.getSSTableMetadata().pendingRepair;
             for (SSTableReader sstable : input)
             {
@@ -963,10 +1003,12 @@ public class CompactionStrategyManager implements INotificationConsumer
         // to make the repaired/unrepaired strategies mark their own sstables as compacting. Once the
         // sstables are marked the compactions are re-enabled
         return cfs.runWithCompactionsDisabled(() -> {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
             List<AbstractCompactionTask> tasks = new ArrayList<>();
             readLock.lock();
             try
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
                 for (AbstractStrategyHolder holder : holders)
                 {
                     tasks.addAll(holder.getMaximalTasks(gcBefore, splitOutput));
@@ -996,6 +1038,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             List<GroupedSSTableContainer> groupedSSTables = groupSSTables(sstables);
             for (int i = 0; i < holders.size(); i++)
             {
@@ -1011,11 +1054,13 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public int getEstimatedRemainingTasks()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         maybeReloadDiskBoundaries();
         int tasks = 0;
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             for (AbstractCompactionStrategy strategy : getAllStrategies())
                 tasks += strategy.getEstimatedRemainingTasks();
         }
@@ -1028,15 +1073,18 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean shouldBeEnabled()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9712
         return params.isEnabled();
     }
 
     public String getName()
     {
         maybeReloadDiskBoundaries();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             return unrepaired.first().getName();
         }
         finally
@@ -1048,9 +1096,11 @@ public class CompactionStrategyManager implements INotificationConsumer
     public List<List<AbstractCompactionStrategy>> getStrategies()
     {
         maybeReloadDiskBoundaries();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-10099
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             return Arrays.asList(Lists.newArrayList(repaired.allStrategies()),
                                  Lists.newArrayList(unrepaired.allStrategies()),
                                  Lists.newArrayList(pendingRepairs.allStrategies()));
@@ -1082,6 +1132,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private int getNumTokenPartitions()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         return partitionSSTablesByTokenRange ? currentBoundaries.directories.size() : 1;
     }
 
@@ -1100,12 +1151,14 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean onlyPurgeRepairedTombstones()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-6434
         return Boolean.parseBoolean(params.options().get(AbstractCompactionStrategy.ONLY_PURGE_REPAIRED_TOMBSTONES));
     }
 
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,
                                                        long keyCount,
                                                        long repairedAt,
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
                                                        UUID pendingRepair,
                                                        boolean isTransient,
                                                        MetadataCollector collector,
@@ -1136,17 +1189,20 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean isRepaired(AbstractCompactionStrategy strategy)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
         return repaired.getStrategyIndex(strategy) >= 0;
     }
 
     public List<String> getStrategyFolders(AbstractCompactionStrategy strategy)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-11550
         readLock.lock();
         try
         {
             Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
             if (partitionSSTablesByTokenRange)
             {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
                 for (AbstractStrategyHolder holder : holders)
                 {
                     int idx = holder.getStrategyIndex(strategy);
@@ -1173,12 +1229,20 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     @VisibleForTesting
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-9143
     List<PendingRepairManager> getPendingRepairManagers()
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13948
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-14621
             return Lists.newArrayList(pendingRepairs.getManagers());
         }
         finally
@@ -1194,7 +1258,9 @@ public class CompactionStrategyManager implements INotificationConsumer
     public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, UUID pendingRepair, boolean isTransient) throws IOException
     {
         Set<SSTableReader> changed = new HashSet<>();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13786
 
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-13422
         writeLock.lock();
         try
         {
@@ -1202,6 +1268,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingRepair, isTransient);
                 sstable.reloadSSTableMetadata();
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15612
                 verifyMetadata(sstable, repairedAt, pendingRepair, isTransient);
                 changed.add(sstable);
             }
@@ -1223,6 +1290,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private static void verifyMetadata(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient)
     {
+//IC see: https://issues.apache.org/jira/browse/CASSANDRA-15612
         if (!Objects.equals(pendingRepair, sstable.getPendingRepair()))
             throw new IllegalStateException(String.format("Failed setting pending repair to %s on %s (pending repair is %s)", pendingRepair, sstable, sstable.getPendingRepair()));
         if (repairedAt != sstable.getRepairedAt())
