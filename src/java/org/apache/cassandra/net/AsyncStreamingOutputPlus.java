@@ -170,36 +170,50 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
      */
     public long writeFileToChannel(FileChannel file, StreamRateLimiter limiter) throws IOException
     {
-        // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
-        // the data is never brought in process and is gated by the wire anyway
         if (channel.pipeline().get(SslHandler.class) != null)
-            return writeFileToChannel(file, limiter, 1 << 20, 1 << 20, 2 << 20);
+            // each batch is loaded into ByteBuffer, 64kb is more BufferPool friendly.
+            return writeFileToChannel(file, limiter, 1 << 16);
         else
+            // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
+            // the data is never brought in process and is gated by the wire anyway
             return writeFileToChannelZeroCopy(file, limiter, 1 << 20, 1 << 20, 2 << 20);
     }
 
-    public long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    public long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize) throws IOException
     {
         final long length = fc.size();
         long bytesTransferred = 0;
-        while (bytesTransferred < length)
+
+        try
         {
-            int toWrite = (int) min(batchSize, length - bytesTransferred);
-            final long position = bytesTransferred;
+            while (bytesTransferred < length)
+            {
+                int toWrite = (int) min(batchSize, length - bytesTransferred);
+                final long position = bytesTransferred;
 
-            writeToChannel(bufferSupplier -> {
-                ByteBuffer outBuffer = bufferSupplier.get(toWrite);
-                long read = fc.read(outBuffer, position);
-                if (read != toWrite)
-                    throw new IOException(String.format("could not read required number of bytes from " +
-                                                        "file to be streamed: read %d bytes, wanted %d bytes",
-                                                        read, toWrite));
-                outBuffer.flip();
-            }, limiter);
+                writeToChannel(bufferSupplier -> {
+                    ByteBuffer outBuffer = bufferSupplier.get(toWrite);
+                    long read = fc.read(outBuffer, position);
+                    if (read != toWrite)
+                        throw new IOException(String.format("could not read required number of bytes from " +
+                                                            "file to be streamed: read %d bytes, wanted %d bytes",
+                                                            read, toWrite));
+                    outBuffer.flip();
 
-            if (logger.isTraceEnabled())
-                logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
-            bytesTransferred += toWrite;
+                    // close file channel when it's the last batch
+                    if (position + toWrite == length)
+                        fc.close();
+                }, limiter);
+
+                if (logger.isTraceEnabled())
+                    logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
+                bytesTransferred += toWrite;
+            }
+        }
+        catch (Throwable t)
+        {
+            fc.close();
+            throw t;
         }
 
         return bytesTransferred;
