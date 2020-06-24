@@ -18,8 +18,14 @@
 
 package org.apache.cassandra.net;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.util.Random;
+
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
@@ -29,6 +35,8 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class AsyncStreamingOutputPlusTest
 {
@@ -108,7 +116,57 @@ public class AsyncStreamingOutputPlusTest
             assertEquals(1, read.getLong(0));
             assertEquals(2, read.getLong(8));
         }
-
     }
 
+    @Test
+    public void testWriteFileToChannelZeroCopy() throws IOException
+    {
+        testWriteFileToChannel(true);
+    }
+
+    @Test
+    public void testWriteFileToChannelSSL() throws IOException
+    {
+        testWriteFileToChannel(false);
+    }
+
+    private void testWriteFileToChannel(boolean zeroCopy) throws IOException
+    {
+        File file = populateTempData("zero_copy_" + zeroCopy);
+        int length = (int) file.length();
+
+        EmbeddedChannel channel = new TestChannel(4);
+        StreamManager.StreamRateLimiter limiter = new StreamManager.StreamRateLimiter(FBUtilities.getBroadcastAddressAndPort());
+
+        try (RandomAccessFile raf = new RandomAccessFile(file.getPath(), "r");
+             FileChannel fileChannel = raf.getChannel();
+             AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
+        {
+            assertTrue(fileChannel.isOpen());
+
+            if (zeroCopy)
+                out.writeFileToChannelZeroCopy(fileChannel, limiter, length, length, length * 2);
+            else
+                out.writeFileToChannel(fileChannel, limiter, length);
+
+            assertEquals(length, out.flushed());
+            assertEquals(length, out.flushedToNetwork());
+            assertEquals(length, out.position());
+
+            assertFalse(fileChannel.isOpen());
+        }
+    }
+
+    private File populateTempData(String name) throws IOException
+    {
+        File file = Files.createTempFile(name, ".txt").toFile();
+        file.deleteOnExit();
+
+        Random r = new Random();
+        byte [] content = new byte[16];
+        r.nextBytes(content);
+        Files.write(file.toPath(), content);
+
+        return file;
+    }
 }
