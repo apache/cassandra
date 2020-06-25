@@ -214,7 +214,7 @@ public class Client extends SimpleClient
             // Hack to test large messages (need to create the table first)
             final int FRAME_SIZE_THRESHOLD = 1024 * 128; // kb
             StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < (FRAME_SIZE_THRESHOLD * 2) - 1024 ; i++)
+            for (int i = 0; i < (FRAME_SIZE_THRESHOLD * 2) + 1024 ; i++)
                 builder.append('a');
             String s = builder.toString();
             String query = String.format("INSERT INTO test_ks.large_test(k, c, v) VALUES (0, 0, '%s')", s);

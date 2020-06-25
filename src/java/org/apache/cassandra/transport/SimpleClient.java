@@ -75,6 +75,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SimpleClient implements Closeable
 {
@@ -194,7 +195,9 @@ public class SimpleClient implements Closeable
 
         this.version = version;
         this.encryptionOptions = encryptionOptions;
-        this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
+        this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
+                                        Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
+                                                 FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
     }
 
     public SimpleClient(String host, int port)
@@ -527,51 +530,53 @@ public class SimpleClient implements Closeable
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
         {
             Frame outbound = (Frame)msg;
-            if (Frame.Header.LENGTH + outbound.header.bodySizeInBytes >= largeMessageThreshold)
+            if (CQLMessageHandler.frameSize(outbound.header) >= largeMessageThreshold)
             {
-                // Large message
-                FrameEncoder.Payload largePayload = allocator.allocate(false, largeMessageThreshold- 1);
-                ByteBuffer buf = largePayload.buffer;
-                buf.limit(largeMessageThreshold - 1);
-                outbound.encodeHeaderInto(buf);
-
-                int capacityRemaining = buf.limit() - buf.position();
+                FrameEncoder.Payload payload;
+                ByteBuffer buf;
                 ByteBuf body = outbound.body;
-                buf.put(body.slice(body.readerIndex(), capacityRemaining).nioBuffer());
-                largePayload.finish();
-                ctx.writeAndFlush(largePayload, promise);
-                body.readerIndex(capacityRemaining);
-                int idx = body.readerIndex();
-
-                while (body.readableBytes() >= largeMessageThreshold)
+                boolean firstFrame = true;
+                // Highly unlikely that the frame body of a large message would be empty, but the check is cheap
+                while (body.readableBytes() > 0 || firstFrame)
                 {
-                    largePayload = allocator.allocate(false, largeMessageThreshold - 1 );
-                    buf = largePayload.buffer;
-                    buf.limit(largeMessageThreshold - 1);
-                    int remaining = Math.min(buf.remaining(), body.readableBytes()) ;
-                    buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
-                    body.readerIndex(idx + remaining);
-                    idx = body.readerIndex();
-                    largePayload.finish();
-                    ctx.writeAndFlush(largePayload);
-                }
+                    int payloadSize = Math.min(body.readableBytes(), largeMessageThreshold);
+                    payload = allocator.allocate(false, payloadSize);
+                    if (logger.isTraceEnabled())
+                    {
+                        logger.trace("Allocated initial buffer of {} for 1 large item",
+                                     FBUtilities.prettyPrintMemory(payload.buffer.capacity()));
+                    }
 
-                if (body.readableBytes() > 0)
-                {
-                    largePayload = allocator.allocate(false, body.readableBytes());
-                    buf = largePayload.buffer;
-                    buf.limit(buf.position() + body.readableBytes());
-                    buf.put(body.slice(body.readerIndex(), body.readableBytes()).nioBuffer());
-                    largePayload.finish();
-                    ctx.writeAndFlush(largePayload);
+                    buf = payload.buffer;
+                    // BufferPool may give us a buffer larger than we asked for.
+                    // FrameEncoder may object if buffer.remaining is >= MAX_SIZE.
+                    if (payloadSize >= largeMessageThreshold)
+                        buf.limit(largeMessageThreshold);
+
+                    if (firstFrame)
+                    {
+                        outbound.encodeHeaderInto(buf);
+                        firstFrame = false;
+                    }
+
+                    int remaining = Math.min(buf.remaining(), body.readableBytes());
+                    if (remaining > 0)
+                        buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
+
+                    body.readerIndex(body.readerIndex() + remaining);
+                    payload.finish();
+                    ctx.writeAndFlush(payload,
+                                      body.readableBytes() == 0 ? promise : ctx.voidPromise());
+                    payload.release();
                 }
             }
             else
             {
-                FrameEncoder.Payload sending = allocator.allocate(true, (int)(Frame.Header.LENGTH + outbound.header.bodySizeInBytes));
-                ((Frame) msg).encodeInto(sending.buffer);
+                FrameEncoder.Payload sending = allocator.allocate(true, CQLMessageHandler.frameSize(outbound.header));
+                outbound.encodeInto(sending.buffer);
                 sending.finish();
                 ctx.writeAndFlush(sending, promise);
+                sending.release();
             }
         }
     }
