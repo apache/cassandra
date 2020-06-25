@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.Random;
@@ -143,7 +142,7 @@ public class AsyncStreamingOutputPlusTest
              FileChannel fileChannel = raf.getChannel();
              AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
         {
-            assertFalse(isClosed(fileChannel));
+            assertTrue(fileChannel.isOpen());
 
             if (zeroCopy)
                 out.writeFileToChannelZeroCopy(fileChannel, limiter, length, length, length * 2);
@@ -154,7 +153,7 @@ public class AsyncStreamingOutputPlusTest
             assertEquals(length, out.flushedToNetwork());
             assertEquals(length, out.position());
 
-            assertTrue(isClosed(fileChannel));
+            assertFalse(fileChannel.isOpen());
         }
     }
 
@@ -169,18 +168,5 @@ public class AsyncStreamingOutputPlusTest
         Files.write(file.toPath(), content);
 
         return file;
-    }
-
-    private static boolean isClosed(FileChannel channel)
-    {
-        try
-        {
-            channel.position();
-            return false;
-        }
-        catch (Throwable e)
-        {
-            return (e instanceof ClosedChannelException);
-        }
     }
 }
