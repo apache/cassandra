@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,9 +42,6 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import io.netty.handler.codec.MessageToMessageEncoder;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -336,8 +331,8 @@ public class SimpleClient implements Closeable
     }
 
     // Stateless handlers
-    private static final Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
-    private static final Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
+    private static final PreV5Handlers.ProtocolDecoder messageDecoder = PreV5Handlers.ProtocolDecoder.instance;
+    private static final PreV5Handlers.ProtocolEncoder messageEncoder = PreV5Handlers.ProtocolEncoder.instance;
 
     private static class ConnectionTracker implements Connection.Tracker
     {
@@ -392,9 +387,6 @@ public class SimpleClient implements Closeable
 
         private void configureModernPipeline(ChannelHandlerContext ctx, Frame frame)
         {
-            Message.ProtocolEncoder messageEncoder = Message.ProtocolEncoder.instance;
-            Message.ProtocolDecoder messageDecoder = Message.ProtocolDecoder.instance;
-            Message response = messageDecoder.decodeMessage(ctx.channel(), frame);
             logger.info("Configuring modern pipeline");
             ChannelPipeline pipeline = ctx.pipeline();
             pipeline.remove("frameDecoder");
@@ -410,40 +402,43 @@ public class SimpleClient implements Closeable
             ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
 
             Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
+            Message.Decoder<Message.Response> messageDecoder = Message.responseDecoder();
             FrameDecoder messageFrameDecoder = frameDecoder(ctx, allocator);
             FrameEncoder messageFrameEncoder = frameEncoder(ctx);
             FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
 
-            CQLMessageHandler.MessageConsumer messageConsumer = (c, message , converter) -> {
-                responseHandler.handleResponse(c, (Message.Response)message);
+            CQLMessageHandler.MessageConsumer<Message.Response> messageConsumer = (c, message , converter) -> {
+                responseHandler.handleResponse(c, message);
             };
 
             CQLMessageHandler.ErrorHandler errorHandler = (error) -> {
                 throw new RuntimeException("Unexpected error", error);
             };
 
-            CQLMessageHandler processor = new CQLMessageHandler(ctx.channel(),
-                                                                messageFrameDecoder,
-                                                                cqlFrameDecoder,
-                                                                messageDecoder,
-                                                                messageEncoder,
-                                                                messageConsumer,
-                                                                payloadAllocator,
-                                                                queueCapacity,
-                                                                endpointReserve,
-                                                                globalReserve,
-                                                                AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
-                                                                AbstractMessageHandler.WaitQueue.global(globalReserve),
-                                                                handler -> {},
-                                                                errorHandler,
-                                                                ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload());
+            CQLMessageHandler<Message.Response> processor =
+                new CQLMessageHandler<>(ctx.channel(),
+                                        messageFrameDecoder,
+                                        cqlFrameDecoder,
+                                        messageDecoder,
+                                        messageConsumer,
+                                        payloadAllocator,
+                                        queueCapacity,
+                                        endpointReserve,
+                                        globalReserve,
+                                        AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
+                                        AbstractMessageHandler.WaitQueue.global(globalReserve),
+                                        handler -> {},
+                                        errorHandler,
+                                        ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload());
 
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
             pipeline.addLast("messageFrameEncoder", messageFrameEncoder);
             pipeline.addLast("processor", processor);
             pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator(), largeMessageThreshold));
-            pipeline.addLast("cqlMessageEncoder", Message.ProtocolEncoder.instance);
+            pipeline.addLast("cqlMessageEncoder", PreV5Handlers.ProtocolEncoder.instance);
             pipeline.remove(this);
+
+            Message.Response response = messageDecoder.decode(ctx.channel(), frame);
             messageConsumer.accept(channel, response, (ch, req, resp) -> null);
         }
 

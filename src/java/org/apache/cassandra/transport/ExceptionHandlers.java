@@ -28,9 +28,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
@@ -41,43 +38,10 @@ public class ExceptionHandlers
 {
     private static final Logger logger = LoggerFactory.getLogger(ExceptionHandlers.class);
 
-    public static ChannelInboundHandlerAdapter preV5Handler()
-    {
-        return PRE_V5_INSTANCE;
-    }
-
     public static ChannelInboundHandlerAdapter postV5Handler(FrameEncoder.PayloadAllocator allocator,
                                                              ProtocolVersion version)
     {
         return new PostV5ExceptionHandler(allocator, version);
-    }
-
-    private static final PreV5ExceptionHandler PRE_V5_INSTANCE = new PreV5ExceptionHandler();
-    @ChannelHandler.Sharable
-    private static final class PreV5ExceptionHandler extends ChannelInboundHandlerAdapter
-    {
-        @Override
-        public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
-        {
-            // Provide error message to client in case channel is still open
-            UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
-            ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
-            if (ctx.channel().isOpen())
-            {
-                ChannelFuture future = ctx.writeAndFlush(errorMessage);
-                // On protocol exception, close the channel as soon as the message have been sent
-                if (cause instanceof ProtocolException)
-                {
-                    future.addListener(new ChannelFutureListener()
-                    {
-                        public void operationComplete(ChannelFuture future)
-                        {
-                            ctx.close();
-                        }
-                    });
-                }
-            }
-        }
     }
 
     private static final class PostV5ExceptionHandler extends ChannelInboundHandlerAdapter
@@ -99,7 +63,7 @@ public class ExceptionHandlers
             if (ctx.channel().isOpen())
             {
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
-                Frame frame = Message.ProtocolEncoder.instance.encodeMessage(errorMessage, version);
+                Frame frame = errorMessage.encode(version);
                 FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.frameSize(frame.header));
                 frame.encodeInto(payload.buffer);
                 frame.release();

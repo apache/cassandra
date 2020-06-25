@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
-public class CQLMessageHandler extends AbstractMessageHandler
+public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
@@ -54,18 +54,17 @@ public class CQLMessageHandler extends AbstractMessageHandler
     public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
 
     private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
-    private final Message.ProtocolDecoder messageDecoder;
-    private final Message.ProtocolEncoder messageEncoder;
+    private final Message.Decoder<M> messageDecoder;
     private final FrameEncoder.PayloadAllocator payloadAllocator;
-    private final MessageConsumer dispatcher;
+    private final MessageConsumer<M> dispatcher;
     private final ErrorHandler errorHandler;
     private final boolean throwOnOverload;
 
     long channelPayloadBytesInFlight;
 
-    interface MessageConsumer
+    interface MessageConsumer<M extends Message>
     {
-        void accept(Channel channel, Message message, Dispatcher.FlushItemConverter toFlushItem);
+        void accept(Channel channel, M message, Dispatcher.FlushItemConverter toFlushItem);
     }
 
     interface ErrorHandler
@@ -76,9 +75,8 @@ public class CQLMessageHandler extends AbstractMessageHandler
     CQLMessageHandler(Channel channel,
                       FrameDecoder decoder,
                       Frame.Decoder cqlFrameDecoder,
-                      Message.ProtocolDecoder messageDecoder,
-                      Message.ProtocolEncoder messageEncoder,
-                      MessageConsumer dispatcher,
+                      Message.Decoder<M> messageDecoder,
+                      MessageConsumer<M> dispatcher,
                       FrameEncoder.PayloadAllocator payloadAllocator,
                       int queueCapacity,
                       Limit endpointReserve,
@@ -100,14 +98,13 @@ public class CQLMessageHandler extends AbstractMessageHandler
               onClosed);
         this.cqlFrameDecoder    = cqlFrameDecoder;
         this.messageDecoder     = messageDecoder;
-        this.messageEncoder     = messageEncoder;
         this.payloadAllocator   = payloadAllocator;
         this.dispatcher         = dispatcher;
         this.errorHandler       = errorHandler;
         this.throwOnOverload    = throwOnOverload;
     }
 
-    protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve) throws IOException
+    protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve)
     {
         Frame frame = toCqlFrame(bytes);
         if (frame == null)
@@ -201,7 +198,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
 
     private void processCqlFrame(Frame frame)
     {
-        Message message = messageDecoder.decodeMessage(channel, frame);
+        M message = messageDecoder.decode(channel, frame);
         // TODO throw ProtocolException if not a Message.Request
         dispatcher.accept(channel, message, this::toFlushItem);
     }
@@ -214,7 +211,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
         // The Dispatcher will call this to obtain the FlushItem to enqueue with its Flusher once
         // a dispatched request has been processed.
         return new Framed(channel,
-                          messageEncoder.encodeMessage(response, request.getSourceFrame().header.version),
+                          response.encode(request.getSourceFrame().header.version),
                           request.getSourceFrame(),
                           payloadAllocator,
                           this::releaseAfterFlush);
