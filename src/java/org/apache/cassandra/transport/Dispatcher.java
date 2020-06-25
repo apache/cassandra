@@ -128,7 +128,7 @@ public class Dispatcher
                 flusher = alt;
         }
 
-        flusher.queued.add(item);
+        flusher.enqueue(item);
         flusher.start();
     }
 

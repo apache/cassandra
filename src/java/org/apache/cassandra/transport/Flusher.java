@@ -109,12 +109,12 @@ abstract class Flusher implements Runnable
         return new ImmediateFlusher(loop);
     }
 
-    final EventLoop eventLoop;
-    final ConcurrentLinkedQueue<FlushItem<?>> queued = new ConcurrentLinkedQueue<>();
-    final AtomicBoolean scheduled = new AtomicBoolean(false);
-    final HashSet<Channel> channels = new HashSet<>();
-    final List<FlushItem<?>> flushed = new ArrayList<>();
-    final Map<Channel, FrameSet> payloads = new HashMap<>();
+    protected final EventLoop eventLoop;
+    private final ConcurrentLinkedQueue<FlushItem<?>> queued = new ConcurrentLinkedQueue<>();
+    protected final AtomicBoolean scheduled = new AtomicBoolean(false);
+    protected final List<FlushItem<?>> flushed = new ArrayList<>();
+    private final HashSet<Channel> channels = new HashSet<>();
+    private final Map<Channel, FrameSet> payloads = new HashMap<>();
 
     void start()
     {
@@ -124,18 +124,33 @@ abstract class Flusher implements Runnable
         }
     }
 
-    public Flusher(EventLoop eventLoop)
+    private Flusher(EventLoop eventLoop)
     {
         this.eventLoop = eventLoop;
     }
 
-    protected void processUnframedResponse(FlushItem.Unframed flush)
+    void enqueue(FlushItem<?> item)
+    {
+       queued.add(item);
+    }
+
+    FlushItem<?> poll()
+    {
+        return queued.poll();
+    }
+
+    boolean isEmpty()
+    {
+        return queued.isEmpty();
+    }
+
+    private void processUnframedResponse(FlushItem.Unframed flush)
     {
         flush.channel.write(flush.response, flush.channel.voidPromise());
         channels.add(flush.channel);
     }
 
-    protected void processFramedResponse(FlushItem.Framed flush)
+    private void processFramedResponse(FlushItem.Framed flush)
     {
         Frame outbound = flush.response;
         if (frameSize(outbound.header) >= FrameEncoder.Payload.MAX_SIZE)
@@ -149,7 +164,7 @@ abstract class Flusher implements Runnable
         }
     }
 
-    protected void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
+    private void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
     {
         FrameEncoder.Payload payload;
         ByteBuffer buf;
@@ -295,7 +310,7 @@ abstract class Flusher implements Runnable
 
             boolean doneWork = false;
             FlushItem<?> flush;
-            while (null != (flush = queued.poll()))
+            while (null != (flush = poll()))
             {
                 processItem(flush);
                 doneWork = true;
@@ -319,7 +334,7 @@ abstract class Flusher implements Runnable
                 if (++runsWithNoWork > 5)
                 {
                     scheduled.set(false);
-                    if (queued.isEmpty() || !scheduled.compareAndSet(false, true))
+                    if (isEmpty() || !scheduled.compareAndSet(false, true))
                         return;
                 }
             }
@@ -341,7 +356,7 @@ abstract class Flusher implements Runnable
             FlushItem<?> flush;
             scheduled.set(false);
 
-            while (null != (flush = queued.poll()))
+            while (null != (flush = poll()))
             {
                 processItem(flush);
                 doneWork = true;
