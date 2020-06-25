@@ -105,10 +105,11 @@ public class ExceptionHandlers
                 frame.release();
                 payload.finish();
                 ChannelPromise promise = ctx.newPromise();
-                // On protocol exception, close the channel as soon as the message have been sent
+                // On protocol exception, close the channel as soon as the message has been sent
                 if (cause instanceof ProtocolException)
                     promise.addListener(future -> ctx.close());
                 ctx.writeAndFlush(payload, promise);
+                payload.release();
             }
         }
     }

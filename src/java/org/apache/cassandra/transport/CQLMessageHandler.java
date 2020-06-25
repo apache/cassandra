@@ -224,7 +224,7 @@ public class CQLMessageHandler extends AbstractMessageHandler
     {
         releaseCapacity(Ints.checkedCast(flushItem.sourceFrame.header.bodySizeInBytes));
         channelPayloadBytesInFlight -= flushItem.sourceFrame.header.bodySizeInBytes;
-        flushItem.sourceFrame.body.release();
+        flushItem.sourceFrame.release();
     }
 
     /*

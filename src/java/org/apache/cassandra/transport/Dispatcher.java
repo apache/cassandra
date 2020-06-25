@@ -103,8 +103,9 @@ public class Dispatcher
         {
             JVMStabilityInspector.inspectThrowable(t);
             ExceptionHandlers.UnexpectedChannelExceptionHandler handler = new ExceptionHandlers.UnexpectedChannelExceptionHandler(channel, true);
-            Message error = ErrorMessage.fromException(t, handler).setStreamId(request.getStreamId());
-            flush(forFlusher.toFlushItem(channel, request, (Message.Response)error));
+            ErrorMessage error = ErrorMessage.fromException(t, handler);
+            error.setStreamId(request.getStreamId());
+            flush(forFlusher.toFlushItem(channel, request, error));
             return;
         }
         finally
