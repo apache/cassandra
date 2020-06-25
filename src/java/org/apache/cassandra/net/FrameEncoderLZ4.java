@@ -48,7 +48,7 @@ class FrameEncoderLZ4 extends FrameEncoder
     }
 
     private static final int HEADER_LENGTH = 8;
-    static final int HEADER_AND_TRAILER_LENGTH = 12;
+    public static final int HEADER_AND_TRAILER_LENGTH = 12;
 
     private static void writeHeader(ByteBuffer frame, boolean isSelfContained, long compressedLength, long uncompressedLength)
     {
