@@ -199,10 +199,6 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
                                                             "file to be streamed: read %d bytes, wanted %d bytes",
                                                             read, toWrite));
                     outBuffer.flip();
-
-                    // close file channel when it's the last batch
-                    if (position + toWrite == length)
-                        fc.close();
                 }, limiter);
 
                 if (logger.isTraceEnabled())
@@ -210,10 +206,10 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
                 bytesTransferred += toWrite;
             }
         }
-        catch (Throwable t)
+        finally
         {
+            // we don't need to wait until byte buffer is flushed by netty
             fc.close();
-            throw t;
         }
 
         return bytesTransferred;
