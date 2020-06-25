@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.FileRegion;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.io.compress.BufferType;
@@ -161,12 +162,14 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
     }
 
     /**
+     * Writes all data in file channel to stream: <br>
+     * * For zero-copy-streaming, 1MiB at a time, with at most 2MiB in flight at once. <br>
+     * * For streaming with SSL, 64kb at a time, with at most 32+64kb (default low water mark + batch size) in flight. <br>
      * <p>
-     * Writes all data in file channel to stream, 1MiB at a time, with at most 2MiB in flight at once.
-     * This method takes ownership of the provided {@code FileChannel}.
+     * This method takes ownership of the provided {@link FileChannel}.
      * <p>
      * WARNING: this method blocks only for permission to write to the netty channel; it exits before
-     * the write is flushed to the network.
+     * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
      */
     public long writeFileToChannel(FileChannel file, StreamRateLimiter limiter) throws IOException
     {
