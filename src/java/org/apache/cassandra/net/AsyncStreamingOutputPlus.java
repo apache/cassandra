@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -182,7 +183,8 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
             return writeFileToChannelZeroCopy(file, limiter, 1 << 20, 1 << 20, 2 << 20);
     }
 
-    public long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize) throws IOException
+    @VisibleForTesting
+    long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize) throws IOException
     {
         final long length = fc.size();
         long bytesTransferred = 0;
@@ -218,7 +220,8 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
         return bytesTransferred;
     }
 
-    public long writeFileToChannelZeroCopy(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    @VisibleForTesting
+    long writeFileToChannelZeroCopy(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
         final long length = file.size();
         long bytesTransferred = 0;
