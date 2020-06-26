@@ -1,4 +1,5 @@
 4.0-alpha5
+ * Fix Ec2Snitch handling of legacy mode for dc names matching both formats, eg "us-west-2" (CASSANDRA-15878)
  * Add support for server side DESCRIBE statements (CASSANDRA-14825)
  * Fail startup if -Xmn is set when the G1 garbage collector is used (CASSANDRA-15839)
  * generateSplits method replaced the generateRandomTokens for ReplicationAwareTokenAllocator. (CASSANDRA-15877)
