@@ -60,19 +60,19 @@ public class Config
     public volatile Duration permissions_validity = new Duration("2s");
     public volatile int permissions_cache_max_entries = 1000;
     @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, scheduledRemoveBy = "6.0")
-    public volatile Duration permissions_update_interval = new Duration("null");
+    public volatile Duration permissions_update_interval = new Duration("0ms");
     public volatile boolean permissions_cache_active_update = false;
     @Replaces(oldName = "roles_validity_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
     public volatile Duration roles_validity = new Duration("2s");
     public volatile int roles_cache_max_entries = 1000;
     @Replaces(oldName = "roles_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, scheduledRemoveBy = "6.0")
-    public volatile Duration roles_update_interval= new Duration("null");
+    public volatile Duration roles_update_interval= new Duration("0ms");
     public volatile boolean roles_cache_active_update = false;
     @Replaces(oldName = "credentials_validity_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
     public volatile Duration credentials_validity = new Duration("2s");
     public volatile int credentials_cache_max_entries = 1000;
     @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converter.MillisDurationConverterCustom.class, scheduledRemoveBy = "6.0")
-    public volatile Duration credentials_update_interval= new Duration("null");
+    public volatile Duration credentials_update_interval= new Duration("0ms");
     public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
@@ -305,10 +305,11 @@ public class Config
     public CommitLogSync commitlog_sync;
 
     @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converter.MillisDurationInDoubleConverter.class, scheduledRemoveBy = "6.0")
-    public Duration commitlog_sync_group_window = new Duration("null");
+    public Duration commitlog_sync_group_window = new Duration("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converter.MillisDurationConverter.class, scheduledRemoveBy = "6.0")
-    public Duration commitlog_sync_period = new Duration("null");
+    public Duration commitlog_sync_period = new Duration("0ms");
     @Replaces(oldName = "commitlog_segment_size_in_mb", converter = Converter.MegabytesDataStorageConverter.class, scheduledRemoveBy = "6.0")
+
     public DataStorage commitlog_segment_size = new DataStorage("32mb");
 
     public ParameterizedClass commitlog_compression;

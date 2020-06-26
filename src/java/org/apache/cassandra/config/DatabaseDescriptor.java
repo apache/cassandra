@@ -32,20 +32,8 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.io.util.File;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
-import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
-import org.apache.cassandra.auth.AuthConfig;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.IAuthorizer;
-import org.apache.cassandra.auth.IInternodeAuthenticator;
-import org.apache.cassandra.auth.INetworkAuthorizer;
-import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.DataStorage.DataStorageUnit;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -55,28 +43,25 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.DiskOptimizationStrategy;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.PathUtils;
-import org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy;
-import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.EndpointSnitchInfo;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.ArrayUtils;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
+
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 
@@ -377,7 +362,7 @@ public class DatabaseDescriptor
 
         if (conf.commitlog_sync == CommitLogSync.batch)
         {
-            if (!conf.commitlog_sync_period.toString().equals("0ms"))
+            if (conf.commitlog_sync_period.toMilliseconds() != 0)
             {
                 throw new ConfigurationException("Batch sync specified, but commitlog_sync_period found.", false);
             }
@@ -385,11 +370,11 @@ public class DatabaseDescriptor
         }
         else if (conf.commitlog_sync == CommitLogSync.group)
         {
-            if (conf.commitlog_sync_group_window.toString().equals("0ms"))
+            if (conf.commitlog_sync_group_window.toMilliseconds() == 0)
             {
                 throw new ConfigurationException("Missing value for commitlog_sync_group_window.", false);
             }
-            if (!conf.commitlog_sync_period.toString().equals("0ms"))
+            if (conf.commitlog_sync_period.toMilliseconds() != 0)
             {
                 throw new ConfigurationException("Group sync specified, but commitlog_sync_period found. Only specify commitlog_sync_group_window when using group sync", false);
             }
@@ -1232,7 +1217,7 @@ public class DatabaseDescriptor
 
     public static int getPermissionsUpdateInterval()
     {
-        return conf.permissions_update_interval.toString().equals("0ms")
+        return conf.permissions_update_interval.toMilliseconds() == 0
              ? conf.permissions_validity.toMillisecondsAsInt()
              : conf.permissions_update_interval.toMillisecondsAsInt();
     }
@@ -1274,7 +1259,7 @@ public class DatabaseDescriptor
 
     public static int getRolesUpdateInterval()
     {
-        return conf.roles_update_interval.toString().equals("0ms")
+        return conf.roles_update_interval.toMilliseconds() == 0
              ? conf.roles_validity.toMillisecondsAsInt()
              : conf.roles_update_interval.toMillisecondsAsInt();
     }
@@ -1316,7 +1301,7 @@ public class DatabaseDescriptor
 
     public static int getCredentialsUpdateInterval()
     {
-        return conf.credentials_update_interval.toString().equals("0ms")
+        return conf.credentials_update_interval.toMilliseconds() == 0
                ? conf.credentials_validity.toMillisecondsAsInt()
                : conf.credentials_update_interval.toMillisecondsAsInt();
     }
