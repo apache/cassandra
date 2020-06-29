@@ -661,6 +661,26 @@ auto_snapshot: true
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
 
+# Filtering and secondary index queries at read consistency levels above ONE/LOCAL_ONE use a
+# mechanism called replica filtering protection to ensure that results from stale replicas do
+# not violate consistency. (See CASSANDRA-8272 and CASSANDRA-15907 for more details.) This 
+# mechanism materializes replica results by partition on-heap at the coordinator. The more possibly
+# stale results returned by the replicas, the more rows materialized during the query.
+replica_filtering_protection:
+    # These thresholds exist to limit the damage severely out-of-date replicas can cause during these
+    # queries. They limit the number of rows from all replicas individual index and filtering queries
+    # can materialize on-heap to return correct results at the desired read consistency level.
+    #
+    # "cached_replica_rows_warn_threshold" is the per-query threshold at which a warning will be logged.
+    # "cached_replica_rows_fail_threshold" is the per-query threshold at which the query will fail.
+    #
+    # These thresholds may also be adjusted at runtime using the StorageService mbean.
+    # 
+    # If the failure threshold is breached, it is likely that either the current page/fetch size
+    # is too large or one or more replicas is severely out-of-sync and in need of repair.
+    cached_rows_warn_threshold: 2000
+    cached_rows_fail_threshold: 32000
+
 # Granularity of the collation index of rows within a partition.
 # Increase if your rows are large, or if you have a very large
 # number of rows per partition.  The competing goals are these:

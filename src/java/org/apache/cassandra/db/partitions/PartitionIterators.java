@@ -18,10 +18,8 @@
 package org.apache.cassandra.db.partitions;
 
 import java.util.*;
-import java.security.MessageDigest;
 
 import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -98,6 +96,21 @@ public abstract class PartitionIterators
     }
 
     /**
+     * Consumes all rows in the next partition of the provided partition iterator.
+     */
+    public static void consumeNext(PartitionIterator iterator)
+    {
+        if (iterator.hasNext())
+        {
+            try (RowIterator partition = iterator.next())
+            {
+                while (partition.hasNext())
+                    partition.next();
+            }
+        }
+    }
+
+    /**
      * Wraps the provided iterator so it logs the returned rows for debugging purposes.
      * <p>
      * Note that this is only meant for debugging as this can log a very large amount of
@@ -114,6 +127,38 @@ public abstract class PartitionIterators
             }
         }
         return Transformation.apply(iterator, new Logger());
+    }
+
+    /**
+     * Wraps the provided iterator to run a specified action on close. Note that the action will be
+     * run even if closure of the provided iterator throws an exception.
+     */
+    public static PartitionIterator doOnClose(PartitionIterator delegate, Runnable action)
+    {
+        return new PartitionIterator()
+        {
+            public void close()
+            {
+                try
+                {
+                    delegate.close();
+                }
+                finally
+                {
+                    action.run();
+                }
+            }
+
+            public boolean hasNext()
+            {
+                return delegate.hasNext();
+            }
+
+            public RowIterator next()
+            {
+                return delegate.next();
+            }
+        };
     }
 
     private static class SingletonPartitionIterator extends AbstractIterator<RowIterator> implements PartitionIterator
