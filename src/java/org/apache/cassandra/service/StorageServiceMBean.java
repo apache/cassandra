@@ -604,6 +604,18 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the threshold for abandoning queries with many tombstones */
     public void setTombstoneFailureThreshold(int tombstoneDebugThreshold);
 
+    /** Returns the number of rows cached at the coordinator before filtering/index queries log a warning. */
+    public int getCachedReplicaRowsWarnThreshold();
+
+    /** Sets the number of rows cached at the coordinator before filtering/index queries log a warning. */
+    public void setCachedReplicaRowsWarnThreshold(int threshold);
+
+    /** Returns the number of rows cached at the coordinator before filtering/index queries fail outright. */
+    public int getCachedReplicaRowsFailThreshold();
+
+    /** Sets the number of rows cached at the coordinator before filtering/index queries fail outright. */
+    public void setCachedReplicaRowsFailThreshold(int threshold);
+
     /** Returns the threshold for rejecting queries due to a large batch size */
     public int getBatchSizeFailureThreshold();
     /** Sets the threshold for rejecting queries due to a large batch size */

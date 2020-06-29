@@ -398,7 +398,7 @@
           </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.3" />
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.4" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
