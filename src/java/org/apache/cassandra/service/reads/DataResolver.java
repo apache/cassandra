@@ -25,6 +25,7 @@ import java.util.function.UnaryOperator;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -221,7 +222,9 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
                                                                              queryStartNanoTime,
-                                                                             firstPhaseContext.replicas);
+                                                                             firstPhaseContext.replicas,
+                                                                             DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
+                                                                             DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),
                                                                  i -> shortReadProtectedResponse(i, firstPhaseContext),

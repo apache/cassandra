@@ -328,7 +328,7 @@ public class TableMetrics
 
     public final Meter readRepairRequests;
     public final Meter shortReadProtectionRequests;
-    public final Meter replicaSideFilteringProtectionRequests;
+    public final Meter replicaFilteringProtectionRequests;
 
     public final EnumMap<SamplerType, Sampler<?>> samplers;
     /**
@@ -942,7 +942,7 @@ public class TableMetrics
 
         readRepairRequests = createTableMeter("ReadRepairRequests");
         shortReadProtectionRequests = createTableMeter("ShortReadProtectionRequests");
-        replicaSideFilteringProtectionRequests = createTableMeter("ReplicaSideFilteringProtectionRequests");
+        replicaFilteringProtectionRequests = createTableMeter("ReplicaFilteringProtectionRequests");
 
         confirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesConfirmed", cfs.keyspace.metric.confirmedRepairedInconsistencies);
         unconfirmedRepairedInconsistencies = createTableMeter("RepairedDataInconsistenciesUnconfirmed", cfs.keyspace.metric.unconfirmedRepairedInconsistencies);
