@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -37,6 +38,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -838,9 +840,18 @@ public final class StatementRestrictions
                    "Select on indexed columns and with IN clause for the PRIMARY KEY are not supported");
         // When the user only select static columns, the intent is that we don't query the whole partition but just
         // the static parts. But 1) we don't have an easy way to do that with 2i and 2) since we don't support index on
-        // static columns
-        // so far, 2i means that you've restricted a non static column, so the query is somewhat non-sensical.
-        checkFalse(selectsOnlyStaticColumns, "Queries using 2ndary indexes don't support selecting only static columns");
+        // static columns so far, 2i means that you've restricted a non static column, so the query is somewhat
+        // non-sensical.
+        // Note: an exception is if the index is a KEYS one. Which can happen if the user had a KEYS index on
+        // a compact table, and subsequently DROP COMPACT STORAGE on that table. After which, the KEYS index will still
+        // work, but queries will effectively be only on now-static columns and we should let this work.
+        checkFalse(selectsOnlyStaticColumns && !hasKeysIndex(cfm),
+                   "Queries using 2ndary indexes don't support selecting only static columns");
+    }
+
+    private boolean hasKeysIndex(CFMetaData cfm)
+    {
+        return Iterables.any(cfm.getIndexes(), i -> i.kind == IndexMetadata.Kind.KEYS);
     }
 
     /**
