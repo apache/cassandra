@@ -52,7 +52,7 @@ public class DataResolver extends ResponseResolver
         Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
 
     @VisibleForTesting
-    final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
+    final List<AsyncOneResponse<?>> repairResults = Collections.synchronizedList(new ArrayList<>());
     private final long queryStartNanoTime;
     private final boolean enforceStrictLiveness;
 
@@ -185,7 +185,15 @@ public class DataResolver extends ResponseResolver
         // We need separate contexts, as each context has his own counter
         ResolveContext firstPhaseContext = new ResolveContext(count);
         ResolveContext secondPhaseContext = new ResolveContext(count);
-        ReplicaFilteringProtection rfp = new ReplicaFilteringProtection(keyspace, command, consistency, queryStartNanoTime, firstPhaseContext.sources);
+
+        ReplicaFilteringProtection rfp = new ReplicaFilteringProtection(keyspace,
+                                                                        command,
+                                                                        consistency,
+                                                                        queryStartNanoTime,
+                                                                        firstPhaseContext.sources,
+                                                                        DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
+                                                                        DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
+
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),
                                                                  i -> shortReadProtectedResponse(i, firstPhaseContext),
@@ -782,7 +790,7 @@ public class DataResolver extends ResponseResolver
             return cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
         }
 
-        private class ShortReadRowsProtection extends Transformation implements MoreRows<UnfilteredRowIterator>
+        private class ShortReadRowsProtection extends Transformation<UnfilteredRowIterator> implements MoreRows<UnfilteredRowIterator>
         {
             private final CFMetaData metadata;
             private final DecoratedKey partitionKey;

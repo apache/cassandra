@@ -203,7 +203,7 @@ public class TableMetrics
 
     public final Meter readRepairRequests;
     public final Meter shortReadProtectionRequests;
-    public final Meter replicaSideFilteringProtectionRequests;
+    public final Meter replicaFilteringProtectionRequests;
 
     public final Map<Sampler, TopKSampler<ByteBuffer>> samplers;
     /**
@@ -701,7 +701,7 @@ public class TableMetrics
 
         readRepairRequests = createTableMeter("ReadRepairRequests");
         shortReadProtectionRequests = createTableMeter("ShortReadProtectionRequests");
-        replicaSideFilteringProtectionRequests = createTableMeter("ReplicaSideFilteringProtectionRequests");
+        replicaFilteringProtectionRequests = createTableMeter("ReplicaFilteringProtectionRequests");
     }
 
     public void updateSSTableIterated(int count)

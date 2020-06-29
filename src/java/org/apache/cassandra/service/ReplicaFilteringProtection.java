@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -59,6 +60,7 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.TooManyCachedRowsException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.MessagingService;
@@ -80,12 +82,20 @@ class ReplicaFilteringProtection
 {
     private static final Logger logger = LoggerFactory.getLogger(ReplicaFilteringProtection.class);
 
+    private static final Function<UnfilteredRowIterator, EncodingStats> NULL_TO_NO_STATS =
+        rowIterator -> rowIterator == null ? EncodingStats.NO_STATS : rowIterator.stats();
+
     private final Keyspace keyspace;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
     private final long queryStartNanoTime;
     private final InetAddress[] sources;
     private final TableMetrics tableMetrics;
+
+    private final int cachedRowsWarnThreshold;
+    private final int cachedRowsFailThreshold;
+
+    private int rowsCached = 0;
 
     /**
      * Per-source primary keys of the rows that might be outdated so they need to be fetched.
@@ -102,7 +112,9 @@ class ReplicaFilteringProtection
                                ReadCommand command,
                                ConsistencyLevel consistency,
                                long queryStartNanoTime,
-                               InetAddress[] sources)
+                               InetAddress[] sources,
+                               int cachedRowsWarnThreshold,
+                               int cachedRowsFailThreshold)
     {
         this.keyspace = keyspace;
         this.command = command;
@@ -119,6 +131,9 @@ class ReplicaFilteringProtection
         }
 
         tableMetrics = ColumnFamilyStore.metricsFor(command.metadata().cfId);
+
+        this.cachedRowsWarnThreshold = cachedRowsWarnThreshold;
+        this.cachedRowsFailThreshold = cachedRowsFailThreshold;
     }
 
     private BTreeSet.Builder<Clustering> getOrCreateToFetch(int source, DecoratedKey partitionKey)
@@ -135,34 +150,33 @@ class ReplicaFilteringProtection
      */
     UnfilteredPartitionIterator queryProtectedPartitions(int source)
     {
-        UnfilteredPartitionIterator original = makeIterator(originalPartitions.get(source));
-        SortedMap<DecoratedKey, BTreeSet.Builder<Clustering>> toFetch = rowsToFetch.get(source);
+        UnfilteredPartitionIterator original = makeIterator(originalPartitions.set(source, null));
+        SortedMap<DecoratedKey, BTreeSet.Builder<Clustering>> toFetch = rowsToFetch.set(source, null);
 
         if (toFetch.isEmpty())
             return original;
 
-        // TODO: this would be more efficient if we had multi-key queries internally
+        // TODO: This would be more efficient if we had multi-key queries internally (see CASSANDRA-15910)
         List<UnfilteredPartitionIterator> fetched = toFetch.keySet()
                                                            .stream()
-                                                           .map(k -> querySourceOnKey(source, k))
+                                                           .map(k -> querySourceOnKey(source, k, toFetch.get(k)))
                                                            .collect(Collectors.toList());
 
         return UnfilteredPartitionIterators.merge(Arrays.asList(original, UnfilteredPartitionIterators.concat(fetched)),
                                                   command.nowInSec(), null);
     }
 
-    private UnfilteredPartitionIterator querySourceOnKey(int i, DecoratedKey key)
+    private UnfilteredPartitionIterator querySourceOnKey(int i, DecoratedKey key, BTreeSet.Builder<Clustering> builder)
     {
-        BTreeSet.Builder<Clustering> builder = rowsToFetch.get(i).get(key);
         assert builder != null; // We're calling this on the result of rowsToFetch.get(i).keySet()
 
         InetAddress source = sources[i];
         NavigableSet<Clustering> clusterings = builder.build();
-        tableMetrics.replicaSideFilteringProtectionRequests.mark();
+        tableMetrics.replicaFilteringProtectionRequests.mark();
         if (logger.isTraceEnabled())
-            logger.trace("Requesting rows {} in partition {} from {} for replica-side filtering protection",
+            logger.trace("Requesting rows {} in partition {} from {} for replica filtering protection",
                          clusterings, key, source);
-        Tracing.trace("Requesting {} rows in partition {} from {} for replica-side filtering protection",
+        Tracing.trace("Requesting {} rows in partition {} from {} for replica filtering protection",
                       clusterings.size(), key, source);
 
         // build the read command taking into account that we could be requesting only in the static row
@@ -225,7 +239,7 @@ class ReplicaFilteringProtection
             PartitionBuilder[] builders = new PartitionBuilder[sources.length];
 
             for (int i = 0; i < sources.length; i++)
-                builders[i] = new PartitionBuilder(partitionKey, columns(versions), stats(versions));
+                builders[i] = new PartitionBuilder(partitionKey, columns(versions), EncodingStats.merge(versions, NULL_TO_NO_STATS));
 
             return new UnfilteredRowIterators.MergeListener()
             {
@@ -242,7 +256,25 @@ class ReplicaFilteringProtection
                 {
                     // cache the row versions to be able to regenerate the original row iterator
                     for (int i = 0; i < versions.length; i++)
+                    {
                         builders[i].addRow(versions[i]);
+                        rowsCached++;
+
+                        if (rowsCached == cachedRowsFailThreshold + 1)
+                        {
+                            throw new TooManyCachedRowsException(cachedRowsFailThreshold, command);
+                        }
+                        else if (rowsCached == cachedRowsWarnThreshold + 1)
+                        {
+                            String message =
+                                String.format("Replica filtering protection has cached over %d rows during query %s. " +
+                                              "(See 'cached_replica_rows_warn_threshold' in cassandra.yaml.)",
+                                              cachedRowsWarnThreshold, command.toCQLString());
+
+                            ClientWarn.instance.warn(message);
+                            logger.warn(message);
+                        }
+                    }
 
                     if (merged.isEmpty())
                         return merged;
@@ -306,19 +338,6 @@ class ReplicaFilteringProtection
             regulars = regulars.mergeTo(cols.regulars);
         }
         return new PartitionColumns(statics, regulars);
-    }
-
-    private static EncodingStats stats(List<UnfilteredRowIterator> iterators)
-    {
-        EncodingStats stats = EncodingStats.NO_STATS;
-        for (UnfilteredRowIterator iter : iterators)
-        {
-            if (iter == null)
-                continue;
-
-            stats = stats.mergeWith(iter.stats());
-        }
-        return stats;
     }
 
     private UnfilteredPartitionIterator makeIterator(List<PartitionBuilder> builders)

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Function;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -105,6 +106,29 @@ public class EncodingStats
                    : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
 
         return new EncodingStats(minTimestamp, minDelTime, minTTL);
+    }
+
+    /**
+     * Merge one or more EncodingStats, that are lazily materialized from some list of arbitrary type by the provided function
+     */
+    public static <V, F extends Function<V, EncodingStats>> EncodingStats merge(List<V> values, F function)
+    {
+        if (values.size() == 1)
+            return function.apply(values.get(0));
+
+        Collector collector = new Collector();
+        for (int i = 0, iSize = values.size(); i < iSize; i++)
+        {
+            V v = values.get(i);
+            EncodingStats stats = function.apply(v);
+            if (stats.minTimestamp != TIMESTAMP_EPOCH)
+                collector.updateTimestamp(stats.minTimestamp);
+            if (stats.minLocalDeletionTime != DELETION_TIME_EPOCH)
+                collector.updateLocalDeletionTime(stats.minLocalDeletionTime);
+            if (stats.minTTL != TTL_EPOCH)
+                collector.updateTTL(stats.minTTL);
+        }
+        return collector.get();
     }
 
     @Override
