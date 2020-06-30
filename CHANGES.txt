@@ -50,6 +50,7 @@
  * Replace array iterators with get by index (CASSANDRA-15394)
  * Minimize BTree iterator allocations (CASSANDRA-15389)
 Merged from 3.11:
+ * Fix cqlsh output when fetching all rows in batch mode (CASSANDRA-15905)
  * Upgrade Jackson to 2.9.10 (CASSANDRA-15867)
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
