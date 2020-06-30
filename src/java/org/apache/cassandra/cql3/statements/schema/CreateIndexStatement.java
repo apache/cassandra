@@ -175,7 +175,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire("Cannot create secondary index on the only partition key column %s", column);
 
         if (column.type.isFrozenCollection() && target.type != Type.FULL)
-            throw ire("Cannot create %s() index on frozen column %s. Frozen collections only support full() indexes", target.type, column);
+            throw ire("Cannot create %s() index on frozen column %s. Frozen collections are immutable and must be fully " +
+                      "indexed by using the 'full(%s)' modifier", target.type, column, column);
 
         if (!column.type.isFrozenCollection() && target.type == Type.FULL)
             throw ire("full() indexes can only be created on frozen collections");
