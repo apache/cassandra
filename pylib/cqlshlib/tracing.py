@@ -52,7 +52,7 @@ def print_trace(shell, trace):
     shell.writeresult('Tracing session: ', color=MAGENTA, newline=False)
     shell.writeresult(trace.trace_id)
     shell.writeresult('')
-    shell.print_formatted_result(formatted_names, formatted_values)
+    shell.print_formatted_result(formatted_names, formatted_values, with_header=True, tty=shell.tty)
     shell.writeresult('')
 
 
