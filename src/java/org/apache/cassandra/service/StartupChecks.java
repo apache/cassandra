@@ -150,7 +150,7 @@ public class StartupChecks
         }
         catch (AssertionError e)
         {
-            logger.warn("lz4-java was unable to load native librarires; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
+            logger.warn("lz4-java was unable to load native libraries; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
         }
     };
 
