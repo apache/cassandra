@@ -186,39 +186,39 @@ public class CustomIndexTest extends CQLTester
                     " PRIMARY KEY(k,c))");
 
         assertInvalidMessage("Cannot create keys() index on frozen column fmap. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, keys(fmap)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create entries() index on frozen column fmap. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, entries(fmap)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create values() index on frozen column fmap. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, fmap) USING'%s'", StubIndex.class.getName()));
 
         assertInvalidMessage("Cannot create keys() index on frozen column flist. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, keys(flist)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create entries() index on frozen column flist. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, entries(flist)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create values() index on frozen column flist. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, flist) USING'%s'", StubIndex.class.getName()));
 
         assertInvalidMessage("Cannot create keys() index on frozen column fset. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, keys(fset)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create entries() index on frozen column fset. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, entries(fset)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create values() index on frozen column fset. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections only support indexes on the entire data structure",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, fset) USING'%s'", StubIndex.class.getName()));
 
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, full(fmap)) USING'%s'", StubIndex.class.getName()));

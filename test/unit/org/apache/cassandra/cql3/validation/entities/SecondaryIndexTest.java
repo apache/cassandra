@@ -1483,8 +1483,8 @@ public class SecondaryIndexTest extends CQLTester
         Object udt2 = userType("a", 2);
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1, udt2));
-        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (keys(v))");
-        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (values(v))");
+        assertInvalidMessage("Frozen collections only support indexes on the entire data structure", "CREATE INDEX idx ON %s (keys(v))");
+        assertInvalidMessage("Frozen collections only support indexes on the entire data structure", "CREATE INDEX idx ON %s (values(v))");
         String indexName = createIndex("CREATE INDEX ON %s (full(v))");
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
