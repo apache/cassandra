@@ -1090,7 +1090,7 @@ class Shell(cmd.Cmd):
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(result, self.parse_for_update_meta(statement.query_string))
+            self.print_static_result(result, self.parse_for_update_meta(statement.query_string), with_header=True, tty=self.tty)
         self.flush_output()
         return True, future
 
@@ -1098,22 +1098,30 @@ class Shell(cmd.Cmd):
         self.decoding_errors = []
 
         self.writeresult("")
-        if result.has_more_pages and self.tty:
+
+        def print_all(result, table_meta, tty):
+            # Return the number of rows in total
             num_rows = 0
+            isFirst = True
             while True:
-                if result.current_rows:
+                # Always print for the first page even it is empty
+                if result.current_rows or isFirst:
                     num_rows += len(result.current_rows)
-                    self.print_static_result(result, table_meta)
+                    with_header = isFirst or tty
+                    self.print_static_result(result, table_meta, with_header, tty)
                 if result.has_more_pages:
-                    if self.shunted_query_out is None:
+                    if self.shunted_query_out is None and tty:
                         # Only pause when not capturing.
                         input("---MORE---")
                     result.fetch_next_page()
                 else:
+                    if not tty:
+                        self.writeresult("")
                     break
-        else:
-            num_rows = len(result.current_rows)
-            self.print_static_result(result, table_meta)
+                isFirst = False
+            return num_rows
+
+        num_rows = print_all(result, table_meta, self.tty)
         self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
@@ -1123,7 +1131,7 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, result, table_meta):
+    def print_static_result(self, result, table_meta, with_header, tty):
         if not result.column_names and not table_meta:
             return
 
@@ -1131,7 +1139,7 @@ class Shell(cmd.Cmd):
         formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
         if not result.current_rows:
             # print header only
-            self.print_formatted_result(formatted_names, None)
+            self.print_formatted_result(formatted_names, None, with_header=True, tty=tty)
             return
 
         cql_types = []
@@ -1145,9 +1153,9 @@ class Shell(cmd.Cmd):
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
         else:
-            self.print_formatted_result(formatted_names, formatted_values)
+            self.print_formatted_result(formatted_names, formatted_values, with_header, tty)
 
-    def print_formatted_result(self, formatted_names, formatted_values):
+    def print_formatted_result(self, formatted_names, formatted_values, with_header, tty):
         # determine column widths
         widths = [n.displaywidth for n in formatted_names]
         if formatted_values is not None:
@@ -1156,9 +1164,10 @@ class Shell(cmd.Cmd):
                     widths[num] = max(widths[num], col.displaywidth)
 
         # print header
-        header = ' | '.join(hdr.ljust(w, color=self.color) for (hdr, w) in zip(formatted_names, widths))
-        self.writeresult(' ' + header.rstrip())
-        self.writeresult('-%s-' % '-+-'.join('-' * w for w in widths))
+        if with_header:
+            header = ' | '.join(hdr.ljust(w, color=self.color) for (hdr, w) in zip(formatted_names, widths))
+            self.writeresult(' ' + header.rstrip())
+            self.writeresult('-%s-' % '-+-'.join('-' * w for w in widths))
 
         # stop if there are no rows
         if formatted_values is None:
@@ -1170,7 +1179,8 @@ class Shell(cmd.Cmd):
             line = ' | '.join(col.rjust(w, color=self.color) for (col, w) in zip(row, widths))
             self.writeresult(' ' + line)
 
-        self.writeresult("")
+        if tty:
+            self.writeresult("")
 
     def print_formatted_result_vertically(self, formatted_names, formatted_values):
         max_col_width = max([n.displaywidth for n in formatted_names])
