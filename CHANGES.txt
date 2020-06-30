@@ -1,4 +1,5 @@
 3.11.7
+ * Fix cqlsh output when fetching all rows in batch mode (CASSANDRA-15905)
  * Upgrade Jackson to 2.9.10 (CASSANDRA-15867)
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
  * Allow sstableloader to use SSL on the native port (CASSANDRA-14904)
