@@ -33,7 +33,7 @@ public final class DataStorage
     /**
      * The Regexp used to parse the storage provided as String.
      */
-    private static final Pattern STORAGE_UNITS_PATTERN = Pattern.compile("^(\\d+)([a-zA-Z]{1,2})$");
+    private static final Pattern STORAGE_UNITS_PATTERN = Pattern.compile("^(\\d+)(kb|KB|mb|MB|gb|GB|b|B)$");
 
     private final long quantity;
 

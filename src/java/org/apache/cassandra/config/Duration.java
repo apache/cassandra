@@ -34,8 +34,8 @@ public final class Duration
     /**
      * The Regexp used to parse the duration provided as String.
      */
-    private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)([a-zA-Z]{1,2}|µs|µS)$"));
-    private static final Pattern DOUBLE_TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+\\.\\d+)([a-zA-Z]{1,2}|µs|µS)$"));
+    private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|D|h|H|s|S|ms|MS|mS|Ms|us|US|uS|Us|µs|µS|ns|NS|nS|Nsm|M|m)"));
+    private static final Pattern DOUBLE_TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+\\.\\d+)(d|D|h|H|s|S|ms|MS|mS|Ms|us|US|uS|Us|µs|µS|ns|NS|nS|Nsm|M|m)$"));
     
     private final long quantity;
 

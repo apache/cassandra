@@ -33,7 +33,7 @@ public final class BitRate
     /**
      * The Regexp used to parse the rate provided as String.
      */
-    private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)([a-zA-z]{1,4})$");
+    private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(bps|mbps|kbps|Kbps|Mbps)$");
 
     private final long quantity;
 
