@@ -215,7 +215,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return value;
     }
 
-    static class CustomConstructor extends CustomClassLoaderConstructor
+    @VisibleForTesting
+    public static class CustomConstructor extends CustomClassLoaderConstructor
     {
         CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
@@ -257,7 +258,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * Utility class to check that there are no extra properties and that properties that are not null by default
      * are not set to null.
      */
-    private static class PropertiesChecker extends PropertyUtils
+    @VisibleForTesting
+    public static class PropertiesChecker extends PropertyUtils
     {
         private final Set<String> missingProperties = new HashSet<>();
 
@@ -318,6 +320,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 if(replacement.deprecated)
                 {
                     logger.warn("{} parameter has been deprecated. It has a new name; For more information, please refer to NEWS.txt", name);
+                }
+
+                if(replacement.deprecated)
+                {
+                    logger.warn("{} parameter has been deprecated. It has a new name and value format; For more information, please refer to NEWS.txt", name);
                 }
             }
             else
@@ -387,7 +394,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * @param klass to get replacements for
      * @return map of old names and replacements needed.
      */
-    private static Map<Class<?>, Map<String, Replacement>> getReplacements(Class<?> klass)
+    private static Map<Class<? extends Object>, Map<String, Replacement>> getReplacements(Class<? extends Object> klass)
     {
         List<Replacement> replacements = getReplacementsRecursive(klass);
         Map<Class<?>, Map<String, Replacement>> objectOldNames = new HashMap<>();
@@ -477,6 +484,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         });
 
         boolean deprecated = r.deprecated();
+        if (r.deprecated())
+            deprecated = true;
+        else
+            deprecated = false;
 
         Class<?> oldType = converter.getInputType();
         if (oldType == null)
@@ -523,6 +534,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             this.newName = Objects.requireNonNull(newName);
             this.converter = Objects.requireNonNull(converter);
             // by default deprecated is false
+
             this.deprecated = deprecated;
         }
     }
