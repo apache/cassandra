@@ -130,16 +130,24 @@ public class FBUtilities
     public static InetAddress getJustLocalAddress()
     {
         if (localInetAddress == null)
-            try
+        {
+            if (DatabaseDescriptor.getListenAddress() == null)
             {
-                localInetAddress = DatabaseDescriptor.getListenAddress() == null
-                                    ? InetAddress.getLocalHost()
-                                    : DatabaseDescriptor.getListenAddress();
+                try
+                {
+                    localInetAddress = InetAddress.getLocalHost();
+                }
+                catch(UnknownHostException e)
+                {
+                    logger.info("InetAddress.getLocalHost() could not resolve, please check your node's config. Falling back to {}",
+                                InetAddress.getLoopbackAddress());
+                    // CASSANDRA-15901 fallback for misconfigured nodes
+                    localInetAddress = InetAddress.getLoopbackAddress();
+                }
             }
-            catch (UnknownHostException e)
-            {
-                throw new RuntimeException(e);
-            }
+            else
+                localInetAddress = DatabaseDescriptor.getListenAddress();
+        }
         return localInetAddress;
     }
 
