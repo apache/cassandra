@@ -47,6 +47,7 @@ import javax.rmi.ssl.SslRMIClientSocketFactory;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 import javax.security.auth.Subject;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -63,7 +64,8 @@ public class JMXServerUtils
      * inaccessable.
      */
     @SuppressWarnings("resource")
-    public static JMXConnectorServer createJMXServer(int port, boolean local)
+    @VisibleForTesting
+    public static JMXConnectorServer createJMXServer(int port, String hostname, boolean local)
     throws IOException
     {
         Map<String, Object> env = new HashMap<>();
@@ -120,7 +122,7 @@ public class JMXServerUtils
                                                          (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
                                                          (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
                                                          env);
-        JMXServiceURL serviceURL = new JMXServiceURL("rmi", null, rmiPort);
+        JMXServiceURL serviceURL = new JMXServiceURL("rmi", hostname, rmiPort);
         RMIConnectorServer jmxServer = new RMIConnectorServer(serviceURL, env, server, ManagementFactory.getPlatformMBeanServer());
 
         // If a custom authz proxy was created, attach it to the server now.
@@ -131,6 +133,12 @@ public class JMXServerUtils
         ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
         logJmxServiceUrl(serverAddress, port);
         return jmxServer;
+    }
+
+    @SuppressWarnings("resource")
+    public static JMXConnectorServer createJMXServer(int port, boolean local) throws IOException
+    {
+        return createJMXServer(port, null, local);
     }
 
     private static Map<String, Object> configureJmxAuthentication()
