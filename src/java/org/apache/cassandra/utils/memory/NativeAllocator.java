@@ -24,7 +24,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.NativeDecoratedKey;
 import org.apache.cassandra.db.rows.Row;
@@ -188,11 +187,6 @@ public class NativeAllocator extends MemtableAllocator
         private AtomicInteger nextFreeOffset = new AtomicInteger(0);
 
         /**
-         * Total number of allocations satisfied from this buffer
-         */
-        private AtomicInteger allocCount = new AtomicInteger();
-
-        /**
          * Create an uninitialized region. Note that memory is not allocated yet, so
          * this is cheap.
          *
@@ -207,34 +201,24 @@ public class NativeAllocator extends MemtableAllocator
         /**
          * Try to allocate <code>size</code> bytes from the region.
          *
-         * @return the successful allocation, or null to indicate not-enough-space
+         * @return the successful allocation, or -1 to indicate not-enough-space
          */
         long allocate(int size)
         {
-            while (true)
-            {
-                int oldOffset = nextFreeOffset.get();
+            int newOffset = nextFreeOffset.getAndAdd(size);
 
-                if (oldOffset + size > capacity) // capacity == remaining
-                    return -1;
+            if (newOffset + size > capacity)
+                // this region is full
+                return -1;
 
-                // Try to atomically claim this region
-                if (nextFreeOffset.compareAndSet(oldOffset, oldOffset + size))
-                {
-                    // we got the alloc
-                    allocCount.incrementAndGet();
-                    return peer + oldOffset;
-                }
-                // we raced and lost alloc, try again
-            }
+            return peer + newOffset;
         }
 
         @Override
         public String toString()
         {
             return "Region@" + System.identityHashCode(this) +
-                    " allocs=" + allocCount.get() + "waste=" +
-                    (capacity - nextFreeOffset.get());
+                    "waste=" + Math.max(0, capacity - nextFreeOffset.get());
         }
     }
 

@@ -172,11 +172,6 @@ public class SlabAllocator extends MemtableBufferAllocator
         private AtomicInteger nextFreeOffset = new AtomicInteger(0);
 
         /**
-         * Total number of allocations satisfied from this buffer
-         */
-        private AtomicInteger allocCount = new AtomicInteger();
-
-        /**
          * Create an uninitialized region. Note that memory is not allocated yet, so
          * this is cheap.
          *
@@ -194,30 +189,20 @@ public class SlabAllocator extends MemtableBufferAllocator
          */
         public ByteBuffer allocate(int size)
         {
-            while (true)
-            {
-                int oldOffset = nextFreeOffset.get();
+            int newOffset = nextFreeOffset.getAndAdd(size);
 
-                if (oldOffset + size > data.capacity()) // capacity == remaining
-                    return null;
+            if (newOffset + size > data.capacity())
+                // this region is full
+                return null;
 
-                // Try to atomically claim this region
-                if (nextFreeOffset.compareAndSet(oldOffset, oldOffset + size))
-                {
-                    // we got the alloc
-                    allocCount.incrementAndGet();
-                    return (ByteBuffer) data.duplicate().position(oldOffset).limit(oldOffset + size);
-                }
-                // we raced and lost alloc, try again
-            }
+            return (ByteBuffer) data.duplicate().position((newOffset)).limit(newOffset + size);
         }
 
         @Override
         public String toString()
         {
             return "Region@" + System.identityHashCode(this) +
-                   " allocs=" + allocCount.get() + "waste=" +
-                   (data.capacity() - nextFreeOffset.get());
+                   "waste=" + Math.max(0, data.capacity() - nextFreeOffset.get());
         }
     }
 }
