@@ -830,9 +830,10 @@ concurrent_materialized_view_builders: 1
 # system. The faster you insert data, the faster you need to compact in
 # order to keep the sstable count down, but in general, setting this to
 # 16 to 32 times the rate you are inserting data is more than sufficient.
-# Setting this to 0 disables throttling. Note that this account for all types
-# of compaction, including validation compaction.
-compaction_throughput_mb_per_sec: 16
+# Setting this to 0 disables throttling. Note that this accounts for all types
+# of compaction, including validation compaction (building Merkle trees
+# for repairs).
+compaction_throughput_mb_per_sec: 64
 
 # When compacting, the replacement sstable(s) can be opened before they
 # are completely written, and used in place of the prior sstables for
