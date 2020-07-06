@@ -631,7 +631,7 @@ ssl_storage_port: 7001
 # will always do the Right Thing _if_ the node is properly configured
 # (hostname, name resolution, etc), and the Right Thing is to use the
 # address associated with the hostname (it might not be). If unresolvable
-# it will get InetAddress.getLoopbackAddress()
+# it will fall back to InetAddress.getLoopbackAddress(), which is wrong for production systems.
 #
 # Setting listen_address to 0.0.0.0 is always wrong.
 #
