@@ -399,6 +399,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             // make it easier to combine things when iterating over successive slices.
             Slice.Bound s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
             Slice.Bound e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
+            if (Slice.isEmpty(comparator, s, e))
+                return Collections.emptyIterator();
             return Iterators.<RangeTombstone>singletonIterator(rangeTombstoneWithNewBounds(start, s, e));
         }
 
@@ -445,6 +447,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             // make it easier to combine things when iterator over successive slices.
             Slice.Bound s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
             Slice.Bound e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
+            if (Slice.isEmpty(comparator, s, e))
+                return Collections.emptyIterator();
             return Iterators.<RangeTombstone>singletonIterator(rangeTombstoneWithNewBounds(start, s, e));
         }
 
