@@ -27,6 +27,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class EncryptionOptions
 {
+    public static final EncryptionOptions DISABLED = new EncryptionOptions().withEnabled(false);
+
     public final String keystore;
     public final String keystore_password;
     public final String truststore;

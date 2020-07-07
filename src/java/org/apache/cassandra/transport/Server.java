@@ -103,7 +103,7 @@ public class Server implements CassandraDaemon.Server
     public final InetSocketAddress socket;
     public boolean useSSL = false;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
-
+    private final PipelineConfigurator pipelineConfigurator;
     private EventLoopGroup workerGroup;
 
     private Server (Builder builder)
@@ -121,6 +121,18 @@ public class Server implements CassandraDaemon.Server
             else
                 workerGroup = new NioEventLoopGroup();
         }
+
+        EncryptionOptions encryptionOptions = this.useSSL
+                                              ? DatabaseDescriptor.getNativeProtocolEncryptionOptions()
+                                              : EncryptionOptions.DISABLED;
+
+        pipelineConfigurator = builder.pipelineConfigurator != null
+                               ? builder.pipelineConfigurator
+                               : new PipelineConfigurator(useEpoll,
+                                                          DatabaseDescriptor.getRpcKeepAlive(),
+                                                          DatabaseDescriptor.useNativeTransportLegacyFlusher(),
+                                                          encryptionOptions);
+
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
@@ -143,42 +155,7 @@ public class Server implements CassandraDaemon.Server
             return;
 
         // Configure the server.
-        ServerBootstrap bootstrap = new ServerBootstrap()
-                                    .channel(useEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
-                                    .childOption(ChannelOption.TCP_NODELAY, true)
-                                    .childOption(ChannelOption.SO_LINGER, 0)
-                                    .childOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
-                                    .childOption(ChannelOption.ALLOCATOR, CBUtil.allocator)
-                                    .childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 32 * 1024)
-                                    .childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 8 * 1024);
-        if (workerGroup != null)
-            bootstrap = bootstrap.group(workerGroup);
-
-        if (this.useSSL)
-        {
-            final EncryptionOptions clientEnc = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
-
-            if (clientEnc.optional)
-            {
-                logger.info("Enabling optionally encrypted CQL connections between client and server");
-                bootstrap.childHandler(new OptionalSecureInitializer(this, clientEnc));
-            }
-            else
-            {
-                logger.info("Enabling encrypted CQL connections between client and server");
-                bootstrap.childHandler(new SecureInitializer(this, clientEnc));
-            }
-        }
-        else
-        {
-            bootstrap.childHandler(new Initializer(this));
-        }
-
-        // Bind and start to accept incoming connections.
-        logger.info("Using Netty Version: {}", Version.identify().entrySet());
-        logger.info("Starting listening for CQL clients on {} ({})...", socket, this.useSSL ? "encrypted" : "unencrypted");
-
-        ChannelFuture bindFuture = bootstrap.bind(socket);
+        ChannelFuture bindFuture = pipelineConfigurator.initializeChannel(workerGroup, socket, connectionFactory);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
             throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()),
                                             bindFuture.cause());
@@ -236,6 +213,7 @@ public class Server implements CassandraDaemon.Server
         private InetAddress hostAddr;
         private int port = -1;
         private InetSocketAddress socket;
+        private PipelineConfigurator pipelineConfigurator;
 
         public Builder withSSL(boolean useSSL)
         {
@@ -260,6 +238,12 @@ public class Server implements CassandraDaemon.Server
         {
             this.port = port;
             this.socket = null;
+            return this;
+        }
+
+        public Builder withPipelineConfigurator(PipelineConfigurator configurator)
+        {
+            this.pipelineConfigurator = configurator;
             return this;
         }
 
@@ -418,332 +402,6 @@ public class Server implements CassandraDaemon.Server
         {
             if (-1 == refCount.updateAndGet(i -> i == 1 ? -1 : i - 1))
                 requestPayloadInFlightPerEndpoint.remove(endpoint, this);
-        }
-    }
-
-    private static class Initializer extends ChannelInitializer<Channel>
-    {
-        // Stateless handlers
-        private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
-
-        private final Server server;
-
-        public Initializer(Server server)
-        {
-            this.server = server;
-        }
-
-        protected void initChannel(Channel channel) throws Exception
-        {
-            ChannelPipeline pipeline = channel.pipeline();
-
-            // Add the ConnectionLimitHandler to the pipeline if configured to do so.
-            if (DatabaseDescriptor.getNativeTransportMaxConcurrentConnections() > 0
-                    || DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp() > 0)
-            {
-                // Add as first to the pipeline so the limit is enforced as first action.
-                pipeline.addFirst("connectionLimitHandler", connectionLimitHandler);
-            }
-
-            long idleTimeout = DatabaseDescriptor.nativeTransportIdleTimeout();
-            if (idleTimeout > 0)
-            {
-                pipeline.addLast("idleStateHandler", new IdleStateHandler(false, 0, 0, idleTimeout, TimeUnit.MILLISECONDS)
-                {
-                    @Override
-                    protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt)
-                    {
-                        logger.info("Closing client connection {} after timeout of {}ms", channel.remoteAddress(), idleTimeout);
-                        ctx.close();
-                    }
-                });
-            }
-
-//            pipeline.addLast("debug", new LoggingHandler(LogLevel.INFO));
-
-            pipeline.addLast("frameEncoder", Frame.Encoder.instance);
-            pipeline.addLast("initial", new InitialHandler(new Frame.Decoder(), server.connectionFactory));
-            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
-            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
-            // eventExecutorGroup may not enforce strict ordering for channel events.
-            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
-            // correctly handled before the handler itself is removed.
-            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
-            pipeline.addLast("exceptionHandler", PreV5Handlers.ExceptionHandler.instance);
-        }
-    }
-
-    protected abstract static class AbstractSecureIntializer extends Initializer
-    {
-        private final EncryptionOptions encryptionOptions;
-
-        protected AbstractSecureIntializer(Server server, EncryptionOptions encryptionOptions)
-        {
-            super(server);
-            this.encryptionOptions = encryptionOptions;
-        }
-
-        protected final SslHandler createSslHandler(ByteBufAllocator allocator) throws IOException
-        {
-            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth, SSLFactory.SocketType.SERVER);
-            return sslContext.newHandler(allocator);
-        }
-    }
-
-    private static class OptionalSecureInitializer extends AbstractSecureIntializer
-    {
-        public OptionalSecureInitializer(Server server, EncryptionOptions encryptionOptions)
-        {
-            super(server, encryptionOptions);
-        }
-
-        protected void initChannel(final Channel channel) throws Exception
-        {
-            super.initChannel(channel);
-            channel.pipeline().addFirst("sslDetectionHandler", new ByteToMessageDecoder()
-            {
-                @Override
-                protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
-                {
-                    if (byteBuf.readableBytes() < 5)
-                    {
-                        // To detect if SSL must be used we need to have at least 5 bytes, so return here and try again
-                        // once more bytes a ready.
-                        return;
-                    }
-                    if (SslHandler.isEncrypted(byteBuf))
-                    {
-                        // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
-                        // encryption.
-                        SslHandler sslHandler = createSslHandler(channel.alloc());
-                        channelHandlerContext.pipeline().replace(this, "ssl", sslHandler);
-                    }
-                    else
-                    {
-                        // Connection use no TLS/SSL encryption, just remove the detection handler and continue without
-                        // SslHandler in the pipeline.
-                        channelHandlerContext.pipeline().remove(this);
-                    }
-                }
-            });
-        }
-    }
-
-    private static class SecureInitializer extends AbstractSecureIntializer
-    {
-        public SecureInitializer(Server server, EncryptionOptions encryptionOptions)
-        {
-            super(server, encryptionOptions);
-        }
-
-        protected void initChannel(Channel channel) throws Exception
-        {
-            SslHandler sslHandler = createSslHandler(channel.alloc());
-            super.initChannel(channel);
-            channel.pipeline().addFirst("ssl", sslHandler);
-        }
-    }
-
-    static class InitialHandler extends ByteToMessageDecoder
-    {
-        final Frame.Decoder decoder;
-        final Connection.Factory factory;
-
-        InitialHandler(Frame.Decoder decoder, Connection.Factory factory)
-        {
-            this.decoder = decoder;
-            this.factory = factory;
-        }
-        protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> list) throws Exception
-        {
-            Frame inbound = decoder.decodeFrame(buffer);
-            if (inbound == null)
-                return;
-
-            try
-            {
-                Frame outbound;
-                switch (inbound.header.type)
-                {
-                    case OPTIONS:
-                        logger.debug("OPTIONS received {}", inbound.header.version);
-                        List<String> cqlVersions = new ArrayList<>();
-                        cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
-
-                        List<String> compressions = new ArrayList<>();
-                        if (FrameCompressor.SnappyCompressor.instance != null)
-                            compressions.add("snappy");
-                        // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
-                        compressions.add("lz4");
-
-                        Map<String, List<String>> supportedOptions = new HashMap<>();
-                        supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
-                        supportedOptions.put(StartupMessage.COMPRESSION, compressions);
-                        supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
-                        SupportedMessage supported = new SupportedMessage(supportedOptions);
-                        outbound = supported.encode(inbound.header.version);
-                        ctx.writeAndFlush(outbound);
-                        break;
-
-                    case STARTUP:
-                        Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
-                        Connection connection = attrConn.get();
-                        if (connection == null)
-                        {
-                            connection = factory.newConnection(ctx.channel(), inbound.header.version);
-                            attrConn.set(connection);
-                        }
-                        assert connection instanceof ServerConnection;
-
-                        StartupMessage startup = (StartupMessage) Message.Decoder.decodeMessage(ctx.channel(), inbound);
-                        InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
-                        final Server.EndpointPayloadTracker payloadTracker = EndpointPayloadTracker.get(remoteAddress);
-
-                        ChannelPromise promise;
-                        if (inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                        {
-                            // in this case we need to defer configuring the pipeline until after the response
-                            // has been sent, as the frame encoding specified in v5 should not be applied to
-                            // the STARTUP response.
-                            payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(inbound.header.bodySizeInBytes);
-                            promise = AsyncChannelPromise.withListener(ctx, future -> {
-                                if (future.isSuccess())
-                                {
-                                    logger.debug("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
-                                    configureModernPipeline(ctx, decoder, inbound.header.version, startup.options, payloadTracker);
-                                    payloadTracker.endpointAndGlobalPayloadsInFlight.release(inbound.header.bodySizeInBytes);
-                                }
-                                else
-                                {
-                                    Throwable cause = future.cause();
-                                    if (null == cause)
-                                        cause = new ServerError("Unexpected error establishing connection");
-                                    logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
-                                    ErrorMessage error = ErrorMessage.fromException(cause);
-                                    Frame errorFrame = error.encode(inbound.header.version);
-                                    ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
-                                    ctx.writeAndFlush(errorFrame, closeChannel);
-                                    if (ctx.channel().isOpen())
-                                        ctx.channel().close();
-                                }
-                            });
-                        }
-                        else
-                        {
-                            // no need to configure the pipeline asynchronously in this case
-                            configureLegacyPipeline(ctx.channel(), decoder, payloadTracker);
-                            promise = new VoidChannelPromise(ctx.channel(), false);
-                        }
-
-                        final Message.Response response = Dispatcher.processRequest((ServerConnection) connection, startup);
-                        outbound = response.encode(inbound.header.version);
-                        ctx.writeAndFlush(outbound, promise);
-                        logger.debug("Configured pipeline: {}", ctx.pipeline());
-                        break;
-
-                    default:
-                        ErrorMessage error =
-                        ErrorMessage.fromException(
-                        new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
-                                                            inbound.header.type)));
-                        outbound = error.encode(inbound.header.version);
-                        ctx.writeAndFlush(outbound);
-                }
-            }
-            finally
-            {
-                inbound.release();
-            }
-        }
-
-        void configureModernPipeline(final ChannelHandlerContext ctx,
-                                     final Frame.Decoder frameDecoder,
-                                     final ProtocolVersion version,
-                                     final Map<String, String> options,
-                                     final Server.EndpointPayloadTracker tracker)
-        {
-            BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
-            ctx.channel().config().setOption(ChannelOption.ALLOCATOR, allocator);
-
-            String compression = options.get(StartupMessage.COMPRESSION);
-            FrameDecoder messageFrameDecoder = frameDecoder(compression, allocator);
-            FrameEncoder messageFrameEncoder = frameEncoder(compression);
-            FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
-            ChannelInboundHandlerAdapter exceptionHandler = ExceptionHandlers.postV5Handler(payloadAllocator, version);
-
-            Dispatcher dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
-
-            ChannelPipeline pipeline = ctx.channel().pipeline();
-            pipeline.remove("frameEncoder");
-            pipeline.addBefore("initial", "messageFrameDecoder", messageFrameDecoder);
-            pipeline.addBefore("initial", "messageFrameEncoder", messageFrameEncoder);
-
-            Message.Decoder<Message.Request> messageDecoder = Message.requestDecoder();
-            CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer = dispatcher::dispatch;
-
-            // Any non-fatal errors caught in CQLMessageHandler propagate back to the client
-            // via the pipeline. Firing the exceptionCaught event on an inbound handler context
-            // (in this case, the initial context) will cause it to propagate to to the
-            // exceptionHandler provided none of the the intermediate handlers drop it
-            // in their exceptionCaught implementation
-            final ChannelHandlerContext firstContext = pipeline.firstContext();
-            CQLMessageHandler.ErrorHandler errorHandler = firstContext::fireExceptionCaught;
-
-            int queueCapacity = DatabaseDescriptor.getNativeTransportReceiveQueueCapacityInBytes();
-            ResourceLimits.Limit endpointReserve = tracker.endpointAndGlobalPayloadsInFlight.endpoint();
-            ResourceLimits.Limit globalReserve = tracker.endpointAndGlobalPayloadsInFlight.global();
-            boolean throwOnOverload = "1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD));
-            CQLMessageHandler<Message.Request> processor =
-                new CQLMessageHandler<>(ctx.channel(),
-                                        messageFrameDecoder,
-                                        frameDecoder,
-                                        messageDecoder,
-                                        messageConsumer,
-                                        payloadAllocator,
-                                        queueCapacity,
-                                        endpointReserve,
-                                        globalReserve,
-                                        AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
-                                        AbstractMessageHandler.WaitQueue.global(globalReserve),
-                                        handler -> {},
-                                        errorHandler,
-                                        throwOnOverload);
-            pipeline.addBefore("initial", "cqlProcessor", processor);
-            pipeline.replace("exceptionHandler", "exceptionHandler", exceptionHandler);
-            pipeline.remove(this);
-        }
-
-        private FrameDecoder frameDecoder(String compression, BufferPoolAllocator allocator)
-        {
-            if (null == compression)
-                return FrameDecoderCrc.create(allocator);
-            if (compression.equalsIgnoreCase("LZ4"))
-                return FrameDecoderLZ4.fast(allocator);
-            throw new ProtocolException("Unsupported compression type: " + compression);
-        }
-
-        private FrameEncoder frameEncoder(String compression)
-        {
-            if (Strings.isNullOrEmpty(compression))
-                return FrameEncoderCrc.instance;
-            if (compression.equalsIgnoreCase("LZ4"))
-                return FrameEncoderLZ4.fastInstance;
-            throw new ProtocolException("Unsupported compression type: " + compression);
-        }
-
-        void configureLegacyPipeline(final Channel channel,
-                                     final Frame.Decoder frameDecoder,
-                                     final Server.EndpointPayloadTracker tracker)
-        {
-            ChannelPipeline pipeline = channel.pipeline();
-            pipeline.addBefore("frameEncoder", "frameDecoder", frameDecoder);
-            pipeline.addBefore("initial", "frameDecompressor", Frame.Decompressor.instance);
-            pipeline.addBefore("initial", "frameCompressor", Frame.Compressor.instance);
-            pipeline.addBefore("initial", "messageDecoder", PreV5Handlers.ProtocolDecoder.instance);
-            pipeline.addBefore("initial", "messageEncoder", PreV5Handlers.ProtocolEncoder.instance);
-            Dispatcher dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
-            pipeline.addBefore("initial", "executor", new PreV5Handlers.LegacyDispatchHandler(dispatcher, tracker));
-            pipeline.remove(this);
         }
     }
 

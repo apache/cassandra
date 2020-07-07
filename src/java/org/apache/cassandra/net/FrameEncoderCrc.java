@@ -31,8 +31,7 @@ import static org.apache.cassandra.net.Crc.*;
  * Please see {@link FrameDecoderCrc} for description of the framing produced by this encoder.
  */
 @ChannelHandler.Sharable
-public
-class FrameEncoderCrc extends FrameEncoder
+public class FrameEncoderCrc extends FrameEncoder
 {
     static final int HEADER_LENGTH = 6;
     private static final int TRAILER_LENGTH = 4;

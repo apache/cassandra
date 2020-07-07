@@ -199,7 +199,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     private void processCqlFrame(Frame frame)
     {
         M message = messageDecoder.decode(channel, frame);
-        // TODO throw ProtocolException if not a Message.Request
         dispatcher.accept(channel, message, this::toFlushItem);
     }
 
