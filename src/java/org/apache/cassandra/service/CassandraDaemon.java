@@ -404,7 +404,14 @@ public class CassandraDaemon
                     store.reload(); //reload CFs in case there was a change of disk boundaries
                     if (store.getCompactionStrategyManager().shouldBeEnabled())
                     {
-                        store.enableAutoCompaction();
+                        if (DatabaseDescriptor.getAutocompactionOnStartupEnabled())
+                        {
+                            store.enableAutoCompaction();
+                        }
+                        else
+                        {
+                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.keyspace.getName(), store.name);
+                        }
                     }
                 }
             }
