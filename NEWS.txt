@@ -257,6 +257,14 @@ Upgrading
     - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
       If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
       the node will not start. See CASSANDRA-14477 for details.
+    - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
+      value has been changed from 256 to 16 for reasons described in
+      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+      'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
+      Please note when upgrading that if the 'num_tokens' value is different than what you have
+      configured, the upgraded node will refuse to start. Also note that if a new node joining
+      the cluster has a different value for 'num_tokens' than the rest of the datacenter,
+      the new node will be responsible for a different amount of data than the rest of the datacenter.
 
 Deprecation
 -----------
