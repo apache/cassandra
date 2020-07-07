@@ -22,6 +22,7 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -162,7 +164,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
         private final int generation;
@@ -252,7 +253,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             if (!isShutdown && delegate != null)
                 return delegate().liveMemberCount();
 
-            throw new IllegalStateException("Cannot get live member count on shutdown instance");
+            throw new IllegalStateException("Cannot get live member count on shutdown instance: " + config.num());
         }
 
         public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
@@ -387,13 +388,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public I bootstrap(IInstanceConfig config)
     {
-        if (!config.has(Feature.GOSSIP) || !config.has(Feature.NETWORK))
-            throw new IllegalStateException("New nodes can only be bootstrapped when gossip and networking is enabled.");
-
         I instance = newInstanceWrapperInternal(0, initialVersion, config);
-
         instances.add(instance);
-
         I prev = instanceMap.put(config.broadcastAddress(), instance);
 
         if (null != prev)
@@ -446,6 +442,41 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     {
         return instances.stream().filter(i -> i.config().localDatacenter().equals(dcName) &&
                                               i.config().localRack().equals(rackName));
+    }
+
+    public void run(Consumer<? super I> action,  Predicate<I> filter)
+    {
+        run(Collections.singletonList(action), filter);
+    }
+
+    public void run(Collection<Consumer<? super I>> actions, Predicate<I> filter)
+    {
+        stream().forEach(instance -> {
+            for (Consumer<? super I> action : actions)
+            {
+                if (filter.test(instance))
+                    action.accept(instance);
+            }
+
+        });
+    }
+
+    public void run(Consumer<? super I> action, int instanceId, int... moreInstanceIds)
+    {
+        run(Collections.singletonList(action), instanceId, moreInstanceIds);
+    }
+
+    public void run(List<Consumer<? super I>> actions, int instanceId, int... moreInstanceIds)
+    {
+        int[] instanceIds = new int[moreInstanceIds.length + 1];
+        instanceIds[0] = instanceId;
+        System.arraycopy(moreInstanceIds, 0, instanceIds, 1, moreInstanceIds.length);
+
+        for (int idx : instanceIds)
+        {
+            for (Consumer<? super I> action : actions)
+                action.accept(this.get(idx));
+        }
     }
 
     public void forEach(IIsolatedExecutor.SerializableRunnable runnable)

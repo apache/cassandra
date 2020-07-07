@@ -150,7 +150,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
         catch (IllegalAccessException | InvocationTargetException e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error while transfering object to " + classLoader, e);
         }
     }
 
