@@ -3154,4 +3154,9 @@ public class DatabaseDescriptor
     {
         conf.range_tombstone_list_growth_factor = resizeFactor;
     }
+
+    public static boolean getAutocompactionOnStartupEnabled()
+    {
+        return conf.autocompaction_on_startup_enabled;
+    }
 }
