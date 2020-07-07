@@ -40,7 +40,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     private static final Map<InetAddressAndPort, InetSocketAddress> cache = new ConcurrentHashMap<>();
     private static final Map<InetSocketAddress, InetAddressAndPort> cacheInverse = new ConcurrentHashMap<>();
 
-    static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
+    public static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
     {
         InetAddressAndPort m = cacheInverse.get(addressAndPort);
         if (m == null)
@@ -51,7 +51,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         return m;
     }
 
-    static InetSocketAddress fromCassandraInetAddressAndPort(InetAddressAndPort addressAndPort)
+    public static InetSocketAddress fromCassandraInetAddressAndPort(InetAddressAndPort addressAndPort)
     {
         InetSocketAddress m = cache.get(addressAndPort);
         if (m == null)

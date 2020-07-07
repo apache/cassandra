@@ -152,7 +152,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
      * otherwise, if allocationKeyspace is specified use the token allocation algorithm to generate suitable tokens
      * else choose num_tokens tokens at random
      */
-    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, int schemaWaitDelay) throws ConfigurationException
+    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, long schemaWaitDelay) throws ConfigurationException
     {
         String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
         Integer allocationLocalRf = DatabaseDescriptor.getAllocateTokensForLocalRf();
@@ -205,7 +205,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                             InetAddressAndPort address,
                                             String allocationKeyspace,
                                             int numTokens,
-                                            int schemaWaitDelay)
+                                            long schemaWaitDelay)
     {
         StorageService.instance.waitForSchema(schemaWaitDelay);
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
@@ -226,7 +226,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                             InetAddressAndPort address,
                                             int rf,
                                             int numTokens,
-                                            int schemaWaitDelay)
+                                            long schemaWaitDelay)
     {
         StorageService.instance.waitForSchema(schemaWaitDelay);
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
