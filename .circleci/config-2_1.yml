@@ -436,7 +436,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql'"
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
 
   j11_dtests-with-vnodes:
     <<: *j11_par_executor
@@ -451,7 +451,7 @@ jobs:
         run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql'"
     - run_dtests:
         file_tag: j11_with_vnodes
-        pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+        pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
 
   j8_dtests-no-vnodes:
     <<: *j8_par_executor
@@ -511,7 +511,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python2.7'
 
   j8_cqlsh-dtests-py3-with-vnodes:
@@ -526,7 +526,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
   j8_cqlsh-dtests-py38-with-vnodes:
@@ -543,7 +543,7 @@ jobs:
           python_version: '3.8'
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
@@ -607,7 +607,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
       - run_dtests:
           file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python2.7'
 
   j11_cqlsh-dtests-py3-with-vnodes:
@@ -622,7 +622,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
       - run_dtests:
           file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
   j11_cqlsh-dtests-py38-with-vnodes:
@@ -639,7 +639,7 @@ jobs:
           python_version: '3.8'
       - run_dtests:
           file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
