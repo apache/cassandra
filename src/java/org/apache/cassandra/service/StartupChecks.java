@@ -148,7 +148,7 @@ public class StartupChecks
         {
             LZ4Factory.nativeInstance(); // make sure native loads
         }
-        catch (AssertionError e)
+        catch (AssertionError | LinkageError e)
         {
             logger.warn("lz4-java was unable to load native libraries; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
         }
