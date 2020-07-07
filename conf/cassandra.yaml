@@ -20,7 +20,10 @@ cluster_name: 'Test Cluster'
 # Specifying initial_token will override this setting on the node's initial start,
 # on subsequent starts, this setting will apply even if initial token is set.
 #
-num_tokens: 256
+# See https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens for
+# best practice information about num_tokens.
+#
+num_tokens: 16
 
 # Triggers automatic allocation of num_tokens tokens for this node. The allocation
 # algorithm attempts to choose tokens in a way that optimizes replicated load over
@@ -37,7 +40,7 @@ num_tokens: 256
 
 # Replica factor is explicitly set, regardless of keyspace or datacenter.
 # This is the replica factor within the datacenter, like NTS.
-# allocate_tokens_for_local_replication_factor: 3
+allocate_tokens_for_local_replication_factor: 3
 
 # initial_token allows you to specify tokens manually.  While you can use it with
 # vnodes (num_tokens > 1, above) -- in which case you should provide a 

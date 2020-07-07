@@ -78,7 +78,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -470,7 +488,7 @@ jobs:
-           pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
  
    j11_dtests-with-vnodes:
 -    <<: *j11_par_executor
@@ -87,7 +87,7 @@
      - attach_workspace:
          at: /home/cassandra
 @@ -485,7 +503,7 @@ jobs:
-         pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+         pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
  
    j8_dtests-no-vnodes:
 -    <<: *j8_par_executor
