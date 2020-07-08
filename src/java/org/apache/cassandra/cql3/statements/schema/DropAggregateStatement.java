@@ -91,7 +91,7 @@ public final class DropAggregateStatement extends AlterSchemaStatement
         }
 
         arguments.stream()
-                 .filter(CQL3Type.Raw::isFrozen)
+                 .filter(raw -> !raw.isTuple() && raw.isFrozen())
                  .findFirst()
                  .ifPresent(t -> { throw ire("Argument '%s' cannot be frozen; remove frozen<> modifier from '%s'", t, t); });
 
