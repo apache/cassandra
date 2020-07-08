@@ -247,7 +247,7 @@ optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
 
 # BEGIN history/config definition
-HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
+HISTORY_DIR = os.getenv('CQL_HISTORY',os.path.expanduser(os.path.join('~', '.cassandra')))
 
 if hasattr(options, 'cqlshrc'):
     CONFIG_FILE = options.cqlshrc
