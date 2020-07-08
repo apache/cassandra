@@ -84,7 +84,7 @@ public abstract class AbstractCommitLogSegmentManager
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
     private final WaitQueue managerThreadWaitQueue = new WaitQueue();
-    private final ExecutorService syncExecutor = Executors.newFixedThreadPool(5, new NamedThreadFactory("COMMIT-LOG-SYNC-EXECUTOR"));
+    private ExecutorService syncExecutor;
 
     private static final SimpleCachedBufferPool bufferPool =
         new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(), DatabaseDescriptor.getCommitLogSegmentSize());
@@ -147,6 +147,7 @@ public abstract class AbstractCommitLogSegmentManager
         };
 
         shutdown = false;
+        syncExecutor = Executors.newFixedThreadPool(5, new NamedThreadFactory("COMMIT-LOG-SYNC-EXECUTOR"));
         managerThread = NamedThreadFactory.createThread(runnable, "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
 
@@ -486,6 +487,7 @@ public abstract class AbstractCommitLogSegmentManager
             segment.close();
 
         syncExecutor.shutdown();
+        syncExecutor = null;
         bufferPool.shutdown();
     }
 
