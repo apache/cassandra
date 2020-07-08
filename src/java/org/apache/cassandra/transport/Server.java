@@ -589,11 +589,13 @@ public class Server implements CassandraDaemon.Server
 
         public void onLeaveCluster(InetAddress endpoint)
         {
+            endpointsPendingJoinedNotification.remove(endpoint);
             onTopologyChange(endpoint, Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onMove(InetAddress endpoint)
         {
+            endpointsPendingJoinedNotification.remove(endpoint);
             onTopologyChange(endpoint, Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
@@ -607,6 +609,7 @@ public class Server implements CassandraDaemon.Server
 
         public void onDown(InetAddress endpoint)
         {
+            endpointsPendingJoinedNotification.remove(endpoint);
             onStatusChange(endpoint, Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
