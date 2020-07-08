@@ -251,14 +251,14 @@ Upgrading
       four digits need to be prefixed with a plus or minus sign.
     - cqlsh now returns a non-zero code in case of errors. This is a backward incompatible change so it may
       break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
-    - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
-      value has been changed from 256 to 16 for reasons described in
-      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+    - To give a better out of the box experience, the default 'num_tokens' value has been changed from 256
+      to 16 for reasons described in https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
       'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
       Please note when upgrading that if the 'num_tokens' value is different than what you have
       configured, the upgraded node will refuse to start. Also note that if a new node joining
       the cluster has a different value for 'num_tokens' than the rest of the datacenter,
       the new node will be responsible for a different amount of data than the rest of the datacenter.
+      See CASSANDRA-13701 for details.
 
 
 Deprecation
