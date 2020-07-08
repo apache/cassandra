@@ -120,7 +120,7 @@ echo $JVM_OPTS | grep -q Xms
 DEFINED_XMS=$?
 echo $JVM_OPTS | grep -q UseConcMarkSweepGC
 USING_CMS=$?
-echo $JVM_OPTS | grep -q UseG1GC
+echo $JVM_OPTS | grep -q +UseG1GC
 USING_G1=$?
 
 # Override these to set the amount of memory to allocate to the JVM at
