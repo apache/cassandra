@@ -31,6 +31,10 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.transform;
+
 public abstract class AlterTypeStatement extends SchemaAlteringStatement
 {
     protected final UTName name;
@@ -270,11 +274,30 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             if (addType.referencesUserType(toUpdate.getNameAsString()))
                 throw new InvalidRequestException(String.format("Cannot add new field %s of type %s to type %s as this would create a circular reference", fieldName, type, name));
 
+            Collection<CFMetaData> tablesWithTypeInPartitionKey = findTablesReferencingTypeInPartitionKey(ksm, name.getStringTypeName());
+            if (!tablesWithTypeInPartitionKey.isEmpty())
+            {
+                String message =
+                    String.format("Cannot add new field %s of type %s to user type %s.%s as the type is being used in partition key by the following tables: %s",
+                                  fieldName, type, ksm.name, toUpdate.getNameAsString(),
+                                  String.join(", ", transform(tablesWithTypeInPartitionKey, table -> table.ksName + '.' + table.cfName)));
+                throw new InvalidRequestException(message);
+            }
+
             List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.size() + 1);
             newTypes.addAll(toUpdate.fieldTypes());
             newTypes.add(addType);
 
             return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
+        }
+
+        private static Collection<CFMetaData> findTablesReferencingTypeInPartitionKey(KeyspaceMetadata keyspace, String userTypeName)
+        {
+            Collection<CFMetaData> tables = new ArrayList<>();
+            filter(keyspace.tablesAndViews(),
+                   table -> any(table.partitionKeyColumns(), column -> column.type.referencesUserType(userTypeName)))
+                  .forEach(tables::add);
+            return tables;
         }
     }
 
