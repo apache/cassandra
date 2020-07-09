@@ -59,6 +59,7 @@ Merged from 3.11:
  * Upgrade Jackson to 2.9.10 (CASSANDRA-15867)
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
+ * Avoid emitting empty range tombstones from RangeTombstoneList (CASSANDRA-15924)
  * Avoid thread starvation, and improve compare-and-swap performance, in the slab allocators (CASSANDRA-15922)
  * Add token to tombstone warning and error messages (CASSANDRA-15890)
  * Fixed range read concurrency factor computation and capped as 10 times tpc cores (CASSANDRA-15752)
