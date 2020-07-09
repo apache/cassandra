@@ -1,0 +1,46 @@
+NAME
+        nodetool stop - Stop compaction
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] stop
+                [(-id <compactionId> | --compaction-id <compactionId>)] [--] <compaction
+                type>
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -id <compactionId>, --compaction-id <compactionId>
+            Use -id to stop a compaction by the specified id. Ids can be found
+            in the transaction log files whose name starts with compaction_,
+            located in the table transactions folder.
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <compaction type>
+            Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB,
+            UPGRADE_SSTABLES, INDEX_BUILD, TOMBSTONE_COMPACTION, ANTICOMPACTION,
+            VERIFY, VIEW_BUILD, INDEX_SUMMARY, RELOCATE, GARBAGE_COLLECT
+
+

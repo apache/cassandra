@@ -1,0 +1,37 @@
+NAME
+        nodetool bootstrap - Monitor/manage node's bootstrap process
+
+SYNOPSIS
+        nodetool bootstrap
+        nodetool
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-h <host> | --host <host>)] [(-u <username> | --username <username>)]
+                [(-pp | --print-port)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)] bootstrap resume
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        resume
+            Resume bootstrap streaming
+
+

@@ -1,0 +1,2 @@
+alter_keyspace_statement::= ALTER KEYSPACE keyspace_name
+	WITH options

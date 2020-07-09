@@ -1,0 +1,7 @@
+== disableautocompaction
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/disableautocompaction.txt[]
+----

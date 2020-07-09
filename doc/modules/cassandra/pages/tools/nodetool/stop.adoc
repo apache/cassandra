@@ -1,0 +1,7 @@
+== stop
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/stop.txt[]
+----

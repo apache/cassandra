@@ -1,0 +1,7 @@
+== getconcurrentcompactors
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/getconcurrentcompactors.txt[]
+----

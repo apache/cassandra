@@ -1,0 +1,7 @@
+== setcompactionthroughput
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/setcompactionthroughput.txt[]
+----

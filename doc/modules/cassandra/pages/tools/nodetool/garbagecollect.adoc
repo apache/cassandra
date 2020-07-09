@@ -1,0 +1,7 @@
+== garbagecollect
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/garbagecollect.txt[]
+----

@@ -1,0 +1,7 @@
+== setcachekeystosave
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/setcachekeystosave.txt[]
+----

@@ -1,0 +1,7 @@
+== describering
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/describering.txt[]
+----

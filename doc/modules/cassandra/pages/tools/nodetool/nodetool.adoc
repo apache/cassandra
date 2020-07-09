@@ -1,0 +1,247 @@
+== Nodetool
+
+== Usage
+
+usage: nodetool [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+        [(-h <host> | --host <host>)] [(-u <username> | --username <username>)]
+        [(-pp | --print-port)] [(-p <port> | --port <port>)]
+        [(-pw <password> | --password <password>)] <command> [<args>]
+
+The most commonly used nodetool commands are:
+
+xref:tools/nodetool/assassinate.adoc[assassinate] -                   Forcefully remove a dead node without re-replicating any data.  Use as a last resort if you cannot removenode
+
+xref:tools/nodetool/bootstrap.adoc[bootstrap] -                     Monitor/manage node's bootstrap process
+
+xref:tools/nodetool/cleanup.adoc[cleanup] -                       Triggers the immediate cleanup of keys no longer belonging to a node. By default, clean all keyspaces
+
+xref:tools/nodetool/clearsnapshot.adoc[clearsnapshot] -                 Remove the snapshot with the given name from the given keyspaces. If no snapshotName is specified we will remove all snapshots
+
+xref:tools/nodetool/clientstats.adoc[clientstats] -                   Print information about connected clients
+
+xref:tools/nodetool/compact.adoc[compact] -                       Force a (major) compaction on one or more tables or user-defined compaction on given SSTables
+
+xref:tools/nodetool/compactionhistory.adoc[compactionhistory] -             Print history of compaction
+
+xref:tools/nodetool/compactionstats.adoc[compactionstats] -               Print statistics on compactions
+
+xref:tools/nodetool/decommission.adoc[decommission] -                  Decommission the *node I am connecting to*
+
+xref:tools/nodetool/describecluster.adoc[describecluster] -               Print the name, snitch, partitioner and schema version of a cluster
+
+xref:tools/nodetool/describering.adoc[describering] -                  Shows the token ranges info of a given keyspace
+
+xref:tools/nodetool/disableauditlog.adoc[disableauditlog] -               Disable the audit log
+
+xref:tools/nodetool/disableautocompaction.adoc[disableautocompaction] -         Disable autocompaction for the given keyspace and table
+
+xref:tools/nodetool/disablebackup.adoc[disablebackup] -                 Disable incremental backup
+
+xref:tools/nodetool/disablebinary.adoc[disablebinary] -                 Disable native transport (binary protocol)
+
+xref:tools/nodetool/disablefullquerylog.adoc[disablefullquerylog] -           Disable the full query log
+
+xref:tools/nodetool/disablegossip.adoc[disablegossip] -                 Disable gossip (effectively marking the node down)
+
+xref:tools/nodetool/disablehandoff.adoc[disablehandoff] -                Disable storing hinted handoffs
+
+xref:tools/nodetool/disablehintsfordc.adoc[disablehintsfordc] -             Disable hints for a data center
+
+xref:tools/nodetool/disableoldprotocolversions.adoc[disableoldprotocolversions] -    Disable old protocol versions
+
+xref:tools/nodetool/drain.adoc[drain] -                         Drain the node (stop accepting writes and flush all tables)
+
+xref:tools/nodetool/enableauditlog.adoc[enableauditlog] -                Enable the audit log
+
+xref:tools/nodetool/enableautocompaction.adoc[enableautocompaction] -          Enable autocompaction for the given keyspace and table
+
+xref:tools/nodetool/enablebackup.adoc[enablebackup] -                  Enable incremental backup
+
+xref:tools/nodetool/enablebinary.adoc[enablebinary] -                  Reenable native transport (binary protocol)
+
+xref:tools/nodetool/enablefullquerylog.adoc[enablefullquerylog] -            Enable full query logging, defaults for the options are configured in cassandra.yaml
+
+xref:tools/nodetool/enablegossip.adoc[enablegossip] -                  Reenable gossip
+
+xref:tools/nodetool/enablehandoff.adoc[enablehandoff] -                 Reenable future hints storing on the current node
+
+xref:tools/nodetool/enablehintsfordc.adoc[enablehintsfordc] -              Enable hints for a data center that was previsouly disabled
+
+xref:tools/nodetool/enableoldprotocolversions.adoc[enableoldprotocolversions] -     Enable old protocol versions
+
+xref:tools/nodetool/failuredetector.adoc[failuredetector] -               Shows the failure detector information for the cluster
+
+xref:tools/nodetool/flush.adoc[flush] -                         Flush one or more tables
+
+xref:tools/nodetool/garbagecollect.adoc[garbagecollect] -                Remove deleted data from one or more tables
+
+xref:tools/nodetool/gcstats.adoc[gcstats] -                       Print GC Statistics
+
+xref:tools/nodetool/getbatchlogreplaythrottle.adoc[getbatchlogreplaythrottle] -     Print batchlog replay throttle in KB/s. This is reduced proportionally to the number of nodes in the cluster.
+
+xref:tools/nodetool/getcompactionthreshold.adoc[getcompactionthreshold] -        Print min and max compaction thresholds for a given table
+
+xref:tools/nodetool/getcompactionthroughput.adoc[getcompactionthroughput] -       Print the MB/s throughput cap for compaction in the system
+
+xref:tools/nodetool/getconcurrency.adoc[getconcurrency] -                Get maximum concurrency for processing stages
+
+xref:tools/nodetool/getconcurrentcompactors.adoc[getconcurrentcompactors] -       Get the number of concurrent compactors in the system.
+
+xref:tools/nodetool/getconcurrentviewbuilders.adoc[getconcurrentviewbuilders] -     Get the number of concurrent view builders in the system
+
+xref:tools/nodetool/getendpoints.adoc[getendpoints] -                  Print the end points that owns the key
+
+xref:tools/nodetool/getinterdcstreamthroughput.adoc[getinterdcstreamthroughput] -    Print the Mb/s throughput cap for inter-datacenter streaming in the system
+
+xref:tools/nodetool/getlogginglevels.adoc[getlogginglevels] -              Get the runtime logging levels
+
+xref:tools/nodetool/getmaxhintwindow.adoc[getmaxhintwindow] -              Print the max hint window in ms
+
+xref:tools/nodetool/getseeds.adoc[getseeds] -                      Get the currently in use seed node IP list excluding the node IP
+
+xref:tools/nodetool/getsstables.adoc[getsstables] -                   Print the sstable filenames that own the key
+
+xref:tools/nodetool/getstreamthroughput.adoc[getstreamthroughput] -           Print the Mb/s throughput cap for streaming in the system
+
+xref:tools/nodetool/gettimeout.adoc[gettimeout] -                    Print the timeout of the given type in ms
+
+xref:tools/nodetool/gettraceprobability.adoc[gettraceprobability] -           Print the current trace probability value
+
+xref:tools/nodetool/gossipinfo.adoc[gossipinfo] -                    Shows the gossip information for the cluster
+
+xref:tools/nodetool/help.adoc[help] -                          Display help information
+
+xref:tools/nodetool/import.adoc[import] -                        Import new SSTables to the system
+
+xref:tools/nodetool/info.adoc[info] -                          Print node information (uptime, load, ...)
+
+xref:tools/nodetool/invalidatecountercache.adoc[invalidatecountercache] -        Invalidate the counter cache
+
+xref:tools/nodetool/invalidatekeycache.adoc[invalidatekeycache] -            Invalidate the key cache
+
+xref:tools/nodetool/invalidaterowcache.adoc[invalidaterowcache] -            Invalidate the row cache
+
+xref:tools/nodetool/join.adoc[join] -                          Join the ring
+
+xref:tools/nodetool/listsnapshots.adoc[listsnapshots] -                 Lists all the snapshots along with the size on disk and true size. True size is the total size of all SSTables which are not backed up to disk. Size on disk is total size of the snapshot on disk. Total TrueDiskSpaceUsed does not make any SSTable deduplication.
+
+xref:tools/nodetool/move.adoc[move] -                          Move node on the token ring to a new token
+
+xref:tools/nodetool/netstats.adoc[netstats] -                      Print network information on provided host (connecting node by default)
+
+xref:tools/nodetool/pausehandoff.adoc[pausehandoff] -                  Pause hints delivery process
+
+xref:tools/nodetool/profileload.adoc[profileload] -                   Low footprint profiling of activity for a period of time
+
+xref:tools/nodetool/proxyhistograms.adoc[proxyhistograms] -               Print statistic histograms for network operations
+
+xref:tools/nodetool/rangekeysample.adoc[rangekeysample] -                Shows the sampled keys held across all keyspaces
+
+xref:tools/nodetool/rebuild.adoc[rebuild] -                       Rebuild data by streaming from other nodes (similarly to bootstrap)
+
+xref:tools/nodetool/rebuild_index.adoc[rebuild_index] -                 A full rebuild of native secondary indexes for a given table
+
+xref:tools/nodetool/refresh.adoc[refresh] -                       Load newly placed SSTables to the system without restart
+
+xref:tools/nodetool/refreshsizeestimates.adoc[refreshsizeestimates] -          Refresh system.size_estimates
+
+xref:tools/nodetool/reloadlocalschema.adoc[reloadlocalschema] -             Reload local node schema from system tables
+
+xref:tools/nodetool/reloadseeds.adoc[reloadseeds] -                   Reload the seed node list from the seed node provider
+
+xref:tools/nodetool/reloadssl.adoc[reloadssl] -                     Signals Cassandra to reload SSL certificates
+
+xref:tools/nodetool/reloadtriggers.adoc[reloadtriggers] -                Reload trigger classes
+
+xref:tools/nodetool/relocatesstables.adoc[relocatesstables] -              Relocates sstables to the correct disk
+
+xref:tools/nodetool/removenode.adoc[removenode] -                    Show status of current node removal, force completion of pending removal or remove provided ID
+
+xref:tools/nodetool/repair.adoc[repair] -                        Repair one or more tables
+
+xref:tools/nodetool/repair_admin.adoc[repair_admin] -              
+xref:tools/nodetool/list.adoc[list] -  and fail incremental repair sessions
+
+xref:tools/nodetool/replaybatchlog.adoc[replaybatchlog] -                Kick off batchlog replay and wait for finish
+
+xref:tools/nodetool/resetfullquerylog.adoc[resetfullquerylog] -             Stop the full query log and clean files in the configured full query log directory from cassandra.yaml as well as JMX
+
+xref:tools/nodetool/resetlocalschema.adoc[resetlocalschema] -              Reset node's local schema and resync
+
+xref:tools/nodetool/resumehandoff.adoc[resumehandoff] -                 Resume hints delivery process
+
+xref:tools/nodetool/ring.adoc[ring] -                          Print information about the token ring
+
+xref:tools/nodetool/scrub.adoc[scrub] -                         Scrub (rebuild sstables for) one or more tables
+
+xref:tools/nodetool/setbatchlogreplaythrottle.adoc[setbatchlogreplaythrottle] -     Set batchlog replay throttle in KB per second, or 0 to disable throttling. This will be reduced proportionally to the number of nodes in the cluster.
+
+xref:tools/nodetool/setcachecapacity.adoc[setcachecapacity] -              Set global key, row, and counter cache capacities (in MB units)
+
+xref:tools/nodetool/setcachekeystosave.adoc[setcachekeystosave] -            Set number of keys saved by each cache for faster post-restart warmup. 0 to disable
+
+xref:tools/nodetool/setcompactionthreshold.adoc[setcompactionthreshold] -        Set min and max compaction thresholds for a given table
+
+xref:tools/nodetool/setcompactionthroughput.adoc[setcompactionthroughput] -       Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling
+
+xref:tools/nodetool/setconcurrency.adoc[setconcurrency] -                Set maximum concurrency for processing stage
+
+xref:tools/nodetool/setconcurrentcompactors.adoc[setconcurrentcompactors] -       Set number of concurrent compactors in the system.
+
+xref:tools/nodetool/setconcurrentviewbuilders.adoc[setconcurrentviewbuilders] -     Set the number of concurrent view builders in the system
+
+xref:tools/nodetool/sethintedhandoffthrottlekb.adoc[sethintedhandoffthrottlekb] -    Set hinted handoff throttle in kb per second, per delivery thread.
+
+xref:tools/nodetool/setinterdcstreamthroughput.adoc[setinterdcstreamthroughput] -    Set the Mb/s throughput cap for inter-datacenter streaming in the system, or 0 to disable throttling
+
+xref:tools/nodetool/setlogginglevel.adoc[setlogginglevel] -               Set the log level threshold for a given component or class. Will reset to the initial configuration if called with no parameters.
+
+xref:tools/nodetool/setmaxhintwindow.adoc[setmaxhintwindow] -              Set the specified max hint window in ms
+
+xref:tools/nodetool/setstreamthroughput.adoc[setstreamthroughput] -           Set the Mb/s throughput cap for streaming in the system, or 0 to disable throttling
+
+xref:tools/nodetool/settimeout.adoc[settimeout] -                    Set the specified timeout in ms, or 0 to disable timeout
+
+xref:tools/nodetool/settraceprobability.adoc[settraceprobability] -           Sets the probability for tracing any given request to value. 0 disables, 1 enables for all requests, 0 is the default
+
+xref:tools/nodetool/sjk.adoc[sjk] -                           Run commands of 'Swiss Java Knife'. Run 'nodetool sjk --help' for more information.
+
+xref:tools/nodetool/snapshot.adoc[snapshot] -                      Take a snapshot of specified keyspaces or a snapshot of the specified table
+
+xref:tools/nodetool/status.adoc[status] -                        Print cluster information (state, load, IDs, ...)
+
+xref:tools/nodetool/statusautocompaction.adoc[statusautocompaction] -      
+xref:tools/nodetool/status.adoc[status] -  of autocompaction of the given keyspace and table
+
+xref:tools/nodetool/statusbackup.adoc[statusbackup] -                  Status of incremental backup
+
+xref:tools/nodetool/statusbinary.adoc[statusbinary] -                  Status of native transport (binary protocol)
+
+xref:tools/nodetool/statusgossip.adoc[statusgossip] -                  Status of gossip
+
+xref:tools/nodetool/statushandoff.adoc[statushandoff] -                 Status of storing future hints on the current node
+
+xref:tools/nodetool/stop.adoc[stop] -                          Stop compaction
+
+xref:tools/nodetool/stopdaemon.adoc[stopdaemon] -                    Stop cassandra daemon
+
+xref:tools/nodetool/tablehistograms.adoc[tablehistograms] -               Print statistic histograms for a given table
+
+xref:tools/nodetool/tablestats.adoc[tablestats] -                    Print statistics on tables
+
+xref:tools/nodetool/toppartitions.adoc[toppartitions] -                 Sample and print the most active partitions
+
+xref:tools/nodetool/tpstats.adoc[tpstats] -                       Print usage statistics of thread pools
+
+xref:tools/nodetool/truncatehints.adoc[truncatehints] -                 Truncate all hints on the local node, or truncate hints for the endpoint(s) specified.
+
+xref:tools/nodetool/upgradesstables.adoc[upgradesstables] -               Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)
+
+xref:tools/nodetool/verify.adoc[verify] -                        Verify (check data checksum for) one or more tables
+
+xref:tools/nodetool/version.adoc[version] -                       Print cassandra version
+
+xref:tools/nodetool/viewbuildstatus.adoc[viewbuildstatus] -               Show progress of a materialized view build
+
+See 'nodetool help <command>' for more information on a specific command.
+

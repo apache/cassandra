@@ -1,0 +1,1 @@
+docker pull cassandra:latest

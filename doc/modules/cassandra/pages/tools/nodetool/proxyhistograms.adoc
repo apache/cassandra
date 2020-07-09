@@ -1,0 +1,7 @@
+== proxyhistograms
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/proxyhistograms.txt[]
+----

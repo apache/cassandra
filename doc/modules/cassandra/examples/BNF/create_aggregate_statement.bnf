@@ -1,0 +1,6 @@
+create_aggregate_statement ::= CREATE [ OR REPLACE ] AGGREGATE [ IF NOT EXISTS ]
+                                function_name '(' arguments_signature')'
+                                SFUNC function_name
+                                STYPE cql_type:
+                                [ FINALFUNC function_name]
+                                [ INITCOND term ]

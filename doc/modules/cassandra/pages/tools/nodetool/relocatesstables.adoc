@@ -1,0 +1,7 @@
+== relocatesstables
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/relocatesstables.txt[]
+----

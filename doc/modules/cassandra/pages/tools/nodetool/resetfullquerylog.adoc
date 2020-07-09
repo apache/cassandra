@@ -1,0 +1,7 @@
+== resetfullquerylog
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/resetfullquerylog.txt[]
+----

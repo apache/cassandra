@@ -1,0 +1,7 @@
+== snapshot
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/snapshot.txt[]
+----

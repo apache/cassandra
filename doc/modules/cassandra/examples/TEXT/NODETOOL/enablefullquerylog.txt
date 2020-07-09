@@ -1,0 +1,61 @@
+NAME
+        nodetool enablefullquerylog - Enable full query logging, defaults for
+        the options are configured in cassandra.yaml
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] enablefullquerylog
+                [--archive-command <archive_command>] [--blocking <blocking>]
+                [--max-archive-retries <archive_retries>]
+                [--max-log-size <max_log_size>] [--max-queue-weight <max_queue_weight>]
+                [--path <path>] [--roll-cycle <roll_cycle>]
+
+OPTIONS
+        --archive-command <archive_command>
+            Command that will handle archiving rolled full query log files.
+            Format is "/path/to/script.sh %path" where %path will be replaced
+            with the file to archive
+
+        --blocking <blocking>
+            If the queue is full whether to block producers or drop samples
+            [true|false].
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        --max-archive-retries <archive_retries>
+            Max number of archive retries.
+
+        --max-log-size <max_log_size>
+            How many bytes of log data to store before dropping segments. Might
+            not be respected if a log file hasn't rolled so it can be deleted.
+
+        --max-queue-weight <max_queue_weight>
+            Maximum number of bytes of query data to queue to disk before
+            blocking or dropping samples.
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        --path <path>
+            Path to store the full query log at. Will have it's contents
+            recursively deleted.
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        --roll-cycle <roll_cycle>
+            How often to roll the log file (MINUTELY, HOURLY, DAILY).
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+

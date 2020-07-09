@@ -1,0 +1,7 @@
+== setmaxhintwindow
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/setmaxhintwindow.txt[]
+----
