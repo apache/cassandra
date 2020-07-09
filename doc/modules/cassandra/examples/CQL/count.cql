@@ -1,0 +1,2 @@
+SELECT COUNT (*) FROM plays;
+SELECT COUNT (1) FROM plays;

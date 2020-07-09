@@ -1,0 +1,63 @@
+NAME
+        nodetool scrub - Scrub (rebuild sstables for) one or more tables
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] scrub
+                [(-j <jobs> | --jobs <jobs>)] [(-n | --no-validate)]
+                [(-ns | --no-snapshot)] [(-r | --reinsert-overflowed-ttl)]
+                [(-s | --skip-corrupted)] [--] [<keyspace> <tables>...]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -j <jobs>, --jobs <jobs>
+            Number of sstables to scrub simultanously, set to 0 to use all
+            available compaction threads
+
+        -n, --no-validate
+            Do not validate columns using column validator
+
+        -ns, --no-snapshot
+            Scrubbed CFs will be snapshotted first, if disableSnapshot is false.
+            (default false)
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -r, --reinsert-overflowed-ttl
+            Rewrites rows with overflowed expiration date affected by
+            CASSANDRA-14092 with the maximum supported expiration date of
+            2038-01-19T03:14:06+00:00. The rows are rewritten with the original
+            timestamp incremented by one millisecond to override/supersede any
+            potential tombstone that may have been generated during compaction
+            of the affected rows.
+
+        -s, --skip-corrupted
+            Skip corrupted partitions even when scrubbing counter tables.
+            (default false)
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        [<keyspace> <tables>...]
+            The keyspace followed by one or many tables
+
+

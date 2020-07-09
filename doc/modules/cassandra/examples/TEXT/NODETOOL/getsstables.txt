@@ -1,0 +1,41 @@
+NAME
+        nodetool getsstables - Print the sstable filenames that own the key
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] getsstables
+                [(-hf | --hex-format)] [--] <keyspace> <cfname> <key>
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -hf, --hex-format
+            Specify the key in hexadecimal string format
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <keyspace> <cfname> <key>
+            The keyspace, the column family, and the key
+
+

@@ -1,0 +1,11 @@
+= New Features in Apache Cassandra 4.0
+
+This section covers the new features in Apache Cassandra 4.0.
+
+* xref:new/java11.adoc[Java 11]
+* xref:new/virtualtables.adoc[Virtual tables]
+* xref:new/auditlogging.adoc[Audit logging]
+* xref:new/fqllogging.adoc[Full query logging]
+* xref:new/messaging.adoc[Messaging]
+* xref:new/streaming.adoc[Streaming]
+* xref:new/transientreplication.adoc[Transient replication]

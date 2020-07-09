@@ -1,0 +1,48 @@
+NAME
+        nodetool garbagecollect - Remove deleted data from one or more tables
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] garbagecollect
+                [(-g <granularity> | --granularity <granularity>)]
+                [(-j <jobs> | --jobs <jobs>)] [--] [<keyspace> <tables>...]
+
+OPTIONS
+        -g <granularity>, --granularity <granularity>
+            Granularity of garbage removal. ROW (default) removes deleted
+            partitions and rows, CELL also removes overwritten or deleted cells.
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -j <jobs>, --jobs <jobs>
+            Number of sstables to cleanup simultanously, set to 0 to use all
+            available compaction threads. Defaults to 1 so that collections of
+            newer tables can see the data is deleted and also remove tombstones.
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        [<keyspace> <tables>...]
+            The keyspace followed by one or many tables
+
+

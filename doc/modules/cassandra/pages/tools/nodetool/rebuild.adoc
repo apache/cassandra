@@ -1,0 +1,7 @@
+== rebuild
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/rebuild.txt[]
+----

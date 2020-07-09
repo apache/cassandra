@@ -1,0 +1,7 @@
+== toppartitions
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/toppartitions.txt[]
+----

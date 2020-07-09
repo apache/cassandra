@@ -1,0 +1,3 @@
+collection_type::= MAP '<' cql_type',' cql_type'>' 
+	| SET '<' cql_type '>' 
+	| LIST '<' cql_type'>'

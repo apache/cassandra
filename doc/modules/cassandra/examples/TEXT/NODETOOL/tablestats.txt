@@ -1,0 +1,73 @@
+NAME
+        nodetool tablestats - Print statistics on tables
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] tablestats
+                [(-F <format> | --format <format>)] [(-H | --human-readable)] [-i]
+                [(-s <sort_key> | --sort <sort_key>)] [(-t <top> | --top <top>)] [--]
+                [<keyspace.table>...]
+
+OPTIONS
+        -F <format>, --format <format>
+            Output format (json, yaml)
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -H, --human-readable
+            Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB
+
+        -i
+            Ignore the list of tables and display the remaining tables
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -s <sort_key>, --sort <sort_key>
+            Sort tables by specified sort key
+            (average_live_cells_per_slice_last_five_minutes,
+            average_tombstones_per_slice_last_five_minutes,
+            bloom_filter_false_positives, bloom_filter_false_ratio,
+            bloom_filter_off_heap_memory_used, bloom_filter_space_used,
+            compacted_partition_maximum_bytes, compacted_partition_mean_bytes,
+            compacted_partition_minimum_bytes,
+            compression_metadata_off_heap_memory_used, dropped_mutations,
+            full_name, index_summary_off_heap_memory_used, local_read_count,
+            local_read_latency_ms, local_write_latency_ms,
+            maximum_live_cells_per_slice_last_five_minutes,
+            maximum_tombstones_per_slice_last_five_minutes, memtable_cell_count,
+            memtable_data_size, memtable_off_heap_memory_used,
+            memtable_switch_count, number_of_partitions_estimate,
+            off_heap_memory_used_total, pending_flushes, percent_repaired,
+            read_latency, reads, space_used_by_snapshots_total, space_used_live,
+            space_used_total, sstable_compression_ratio, sstable_count,
+            table_name, write_latency, writes)
+
+        -t <top>, --top <top>
+            Show only the top K tables for the sort key (specify the number K of
+            tables to be shown
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        [<keyspace.table>...]
+            List of tables (or keyspace) names
+
+

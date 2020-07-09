@@ -23,7 +23,7 @@ Apache Cassandra documentation directory
 
 This directory contains the documentation maintained in-tree for Apache
 Cassandra. This directory contains the following documents:
-- The source of the official Cassandra documentation, in the `source/`
+- The source of the official Cassandra documentation, in the `source/modules`
   subdirectory. See below for more details on how to edit/build that
   documentation.
 - The specification(s) for the supported versions of native transport protocol.
@@ -36,20 +36,19 @@ Official documentation
 ----------------------
 
 The source for the official documentation for Apache Cassandra can be found in
-the `source` subdirectory. The documentation uses [sphinx](http://www.sphinx-doc.org/)
-and is thus written in [reStructuredText](http://docutils.sourceforge.net/rst.html).
+the `source` subdirectory. The documentation uses [antora](http://www.antora.org/)
+and is thus written in [asciidoc](http://asciidoc.org).
 
-To build the HTML documentation, you will need to first install sphinx and the
-[sphinx ReadTheDocs theme](https://pypi.org/project/sphinx_rtd_theme/).
-When using Python 3.6 on Windows, use `py -m pip install sphinx sphinx_rtd_theme`, on unix
-use:
+To build the HTML documentation, you will need to first install antora and the
+[Apache Cassandra theme](https://???). To add search, [lunr](https://lunrjs.com) must be installed.
+
 ```
-pip install sphinx sphinx_rtd_theme
+npm i -g @antora/cli @antora/site-generator-default
+npm install lunr
 ```
 
 The documentation can then be built from this directory by calling `make html`
-(or `make.bat html` on windows). Alternatively, the top-level `ant gen-doc`
-target can be used.  When using Python 3.6 on Windows, use `sphinx_build -b html source build`.
+Alternatively, the top-level `ant gen-doc` target can be used.  
 
 To build the documentation with Docker Compose, run:
 

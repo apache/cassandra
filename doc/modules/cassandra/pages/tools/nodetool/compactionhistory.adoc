@@ -1,0 +1,7 @@
+== compactionhistory
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/compactionhistory.txt[]
+----

@@ -1,0 +1,7 @@
+== sethintedhandoffthrottlekb
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/sethintedhandoffthrottlekb.txt[]
+----

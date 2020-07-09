@@ -1,0 +1,70 @@
+# Keyspace Name
+keyspace: stresscql
+
+# The CQL for creating a keyspace (optional if it already exists)
+# Would almost always be network topology unless running something locall
+keyspace_definition: |
+  CREATE KEYSPACE stresscql WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+
+# Table name
+table: blogposts
+
+# The CQL for creating a table you wish to stress (optional if it already exists)
+table_definition: |
+  CREATE TABLE blogposts (
+        domain text,
+        published_date timeuuid,
+        url text,
+        author text,
+        title text,
+        body text,
+        PRIMARY KEY(domain, published_date)
+  ) WITH CLUSTERING ORDER BY (published_date DESC) 
+    AND compaction = { 'class':'LeveledCompactionStrategy' } 
+    AND comment='A table to hold blog posts'
+
+### Column Distribution Specifications ###
+ 
+columnspec:
+  - name: domain
+    size: gaussian(5..100)       #domain names are relatively short
+    population: uniform(1..10M)  #10M possible domains to pick from
+
+  - name: published_date
+    cluster: fixed(1000)         #under each domain we will have max 1000 posts
+
+  - name: url
+    size: uniform(30..300)       
+
+  - name: title                  #titles shouldn't go beyond 200 chars
+    size: gaussian(10..200)
+
+  - name: author
+    size: uniform(5..20)         #author names should be short
+
+  - name: body
+    size: gaussian(100..5000)    #the body of the blog post can be long
+   
+### Batch Ratio Distribution Specifications ###
+
+insert:
+  partitions: fixed(1)            # Our partition key is the domain so only insert one per batch
+
+  select:    fixed(1)/1000        # We have 1000 posts per domain so 1/1000 will allow 1 post per batch
+
+  batchtype: UNLOGGED             # Unlogged batches
+
+
+#
+# A list of queries you wish to run against the schema
+#
+queries:
+   singlepost:
+      cql: select * from blogposts where domain = ? LIMIT 1
+      fields: samerow
+   regularupdate:
+      cql: update blogposts set author = ? where domain = ? and published_date = ?
+      fields: samerow
+   updatewithlwt:
+      cql: update blogposts set author = ? where domain = ? and published_date = ? IF body = ? AND url = ?
+      fields: samerow

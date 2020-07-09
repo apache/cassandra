@@ -1,0 +1,12 @@
+grant_permission_statement ::= GRANT permissions ON resource TO role_name
+permissions ::= ALL [ PERMISSIONS ] | permission [ PERMISSION ]
+permission ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE
+resource ::=    ALL KEYSPACES
+                | KEYSPACE keyspace_name
+                | [ TABLE ] table_name
+                | ALL ROLES
+                | ROLE role_name
+                | ALL FUNCTIONS [ IN KEYSPACE keyspace_name ]
+                | FUNCTION function_name '(' [ cql_type( ',' cql_type )* ] ')'
+                | ALL MBEANS
+                | ( MBEAN | MBEANS ) string

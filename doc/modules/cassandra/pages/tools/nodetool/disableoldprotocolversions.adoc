@@ -1,0 +1,7 @@
+== disableoldprotocolversions
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/disableoldprotocolversions.txt[]
+----
