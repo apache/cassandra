@@ -151,6 +151,11 @@ public class Descriptor
     public String relativeFilenameFor(Component component)
     {
         final StringBuilder buff = new StringBuilder();
+        if (Directories.isSecondaryIndexFolder(directory))
+        {
+            buff.append(directory.getName()).append(File.separator);
+        }
+
         appendFileName(buff);
         buff.append(separator).append(component.name());
         return buff.toString();
@@ -271,7 +276,7 @@ public class Descriptor
             File cfDirectory = parentDirectory;
             // check if this is secondary index
             String indexName = "";
-            if (cfDirectory.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
+            if (Directories.isSecondaryIndexFolder(cfDirectory))
             {
                 indexName = cfDirectory.getName();
                 cfDirectory = cfDirectory.getParentFile();

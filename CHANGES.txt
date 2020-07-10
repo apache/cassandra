@@ -1,21 +1,22 @@
-2.2.18
+2.2.17
  * Fix nomenclature of allow and deny lists (CASSANDRA-15862)
  * Remove generated files from source artifact (CASSANDRA-15849)
  * Remove duplicated tools binaries from tarballs (CASSANDRA-15768)
  * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)
  * Disable JMX rebinding (CASSANDRA-15653)
-Merged from 2.1:
-  * Fix parse error in cqlsh COPY FROM and formatting for map of blobs (CASSANDRA-15679)
-
-2.2.17
  * Fix Commit log replays when static column clustering keys are collections (CASSANDRA-14365)
  * Fix Red Hat init script on newer systemd versions (CASSANDRA-15273)
  * Allow EXTRA_CLASSPATH to work on tar/source installations (CASSANDRA-15567)
+Merged from 2.1:
+ * Fix writing of snapshot manifest when the table has table-backed secondary indexes (CASSANDRA-10968)
+ * Fix parse error in cqlsh COPY FROM and formatting for map of blobs (CASSANDRA-15679)
+
 
 2.2.16
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
  * In-JVM DTest: Support NodeTool in dtest
+
 
 2.2.15
  * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
