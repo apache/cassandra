@@ -121,6 +121,7 @@
     <property name="ohc.version" value="0.5.1"/>
     <property name="asm.version" value="7.1"/>
     <property name="allocation-instrumenter.version" value="3.1.0"/>
+    <property name="bytebuddy.version" value="1.10.10"/>
 
     <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
     <property name="chronicle-queue.version" value="4.16.3" />
@@ -551,7 +552,8 @@
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.2" />
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.3" />
+
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
@@ -576,6 +578,9 @@
           <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}"/>
+
+          <dependency groupId="net.bytebuddy" artifactId="byte-buddy" version="${bytebuddy.version}" />
+          <dependency groupId="net.bytebuddy" artifactId="byte-buddy-agent" version="${bytebuddy.version}" />
 
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21"/>
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21"/>
