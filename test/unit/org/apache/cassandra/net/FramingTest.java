@@ -419,7 +419,7 @@ public class FramingTest
         return new SequenceOfFrames(messages, cumulativeLength, frames);
     }
 
-    private static byte[] randomishBytes(Random random, int minLength, int maxLength)
+    public static byte[] randomishBytes(Random random, int minLength, int maxLength)
     {
         byte[] bytes = new byte[minLength + random.nextInt(maxLength - minLength)];
         int runLength = 1 + random.nextInt(255);

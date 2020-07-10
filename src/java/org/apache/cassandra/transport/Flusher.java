@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +48,8 @@ import static org.apache.cassandra.transport.CQLMessageHandler.frameSize;
 abstract class Flusher implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(Flusher.class);
-
-    private static final int MAX_FRAMED_PAYLOAD_SIZE =
+    @VisibleForTesting
+    public static final int MAX_FRAMED_PAYLOAD_SIZE =
         Math.min(BufferPool.NORMAL_CHUNK_SIZE,
                  FrameEncoder.Payload.MAX_SIZE - Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH, FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH));
 
