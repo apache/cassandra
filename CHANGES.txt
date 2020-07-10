@@ -27,10 +27,12 @@ Merged from 2.2:
  * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)
  * Disable JMX rebinding (CASSANDRA-15653)
 Merged from 2.1:
+ * Fix writing of snapshot manifest when the table has table-backed secondary indexes (CASSANDRA-10968)
  * Fix parse error in cqlsh COPY FROM and formatting for map of blobs (CASSANDRA-15679)
  * Fix Commit log replays when static column clustering keys are collections (CASSANDRA-14365)
  * Fix Red Hat init script on newer systemd versions (CASSANDRA-15273)
  * Allow EXTRA_CLASSPATH to work on tar/source installations (CASSANDRA-15567)
+
 
 3.0.20
  * Run in-jvm upgrade dtests in circleci (CASSANDRA-15506)
@@ -55,6 +57,7 @@ Merged from 2.2:
  * Fix SELECT JSON output for empty blobs (CASSANDRA-15435)
  * In-JVM DTest: Set correct internode message version for upgrade test (CASSANDRA-15371)
  * In-JVM DTest: Support NodeTool in dtest (CASSANDRA-15429)
+
 
 3.0.19
  * Add ability to cap max negotiable protocol version (CASSANDRA-15193)
