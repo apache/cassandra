@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -95,6 +96,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.column;
@@ -2355,5 +2359,40 @@ public class ColumnFamilyStoreTest
         assertNull(PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY);
 
         PerRowSecondaryIndexTest.TestIndex.reset();
+    }
+
+    @Test
+    public void testSnapshotWithoutFlushWithSecondaryIndexes() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEX1);
+        cfs.truncateBlocking();
+
+        List<Mutation> rms = new LinkedList<>();
+        Mutation rm;
+
+        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
+        rm.add(CF_INDEX1, cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
+        rm.add(CF_INDEX1, cellname("nobirthdate"), ByteBufferUtil.bytes(1L), 0);
+        rms.add(rm);
+        Util.writeColumnFamily(rms);
+
+        String snapshotName = "newSnapshot";
+        cfs.snapshotWithoutFlush(snapshotName);
+
+        File snapshotManifestFile = cfs.directories.getSnapshotManifestFile(snapshotName);
+        JSONParser parser = new JSONParser();
+        JSONObject manifest = (JSONObject) parser.parse(new FileReader(snapshotManifestFile));
+        JSONArray files = (JSONArray) manifest.get("files");
+
+        // Keyspace1-Indexed1 and the corresponding index
+        assert files.size() == 2;
+
+        // Snapshot of the secondary index is stored in the subfolder with the same file name
+        String baseTableFile = (String) files.get(0);
+        String indexTableFile = (String) files.get(1);
+        assert !baseTableFile.equals(indexTableFile);
+        assert Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile());
+        assert indexTableFile.endsWith(baseTableFile);
     }
 }
