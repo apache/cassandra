@@ -82,6 +82,8 @@ Merged from 2.2:
  * Remove generated files from source artifact (CASSANDRA-15849)
  * Remove duplicated tools binaries from tarballs (CASSANDRA-15768)
  * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)
+Merged from 2.1:
+ * Fix writing of snapshot manifest when the table has table-backed secondary indexes (CASSANDRA-10968)
 
 4.0-alpha4
  * Add client request size server metrics (CASSANDRA-15704)

@@ -137,6 +137,11 @@ public class Descriptor
     public String relativeFilenameFor(Component component)
     {
         final StringBuilder buff = new StringBuilder();
+        if (Directories.isSecondaryIndexFolder(directory))
+        {
+            buff.append(directory.getName()).append(File.separator);
+        }
+
         appendFileName(buff);
         buff.append(separator).append(component.name());
         return buff.toString();
@@ -276,7 +281,7 @@ public class Descriptor
 
         // Check if it's a 2ndary index directory (not that it doesn't exclude it to be also a backup or snapshot)
         String indexName = "";
-        if (tableDir.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
+        if (Directories.isSecondaryIndexFolder(tableDir))
         {
             indexName = tableDir.getName();
             tableDir = parentOf(name, tableDir);
