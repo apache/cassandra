@@ -44,7 +44,6 @@
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
-    <property name="javadoc.jars.dir" value="${build.dir}/javadocs"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
@@ -211,6 +210,11 @@
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
     </condition>
+    <condition property="jdk11-javadoc-exports" value="${jdk11-javac-exports} --frames" else="">
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
+    </condition>
 
     <condition property="build.java.11">
         <istrue value="${use.jdk11}"/>
@@ -261,10 +265,17 @@
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; 2009-2020 The Apache Software Foundation"
-        useexternalfile="yes" encoding="UTF-8"
-        maxmemory="256m">
+        useexternalfile="yes" encoding="UTF-8" failonerror="false"
+        maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
       </javadoc>
+      <fail message="javadoc failed">
+        <condition>
+            <not>
+                <available file="@{destdir}/index-all.html" />
+            </not>
+        </condition>
+      </fail>
     </sequential>
   </macrodef>
 
@@ -1137,24 +1148,11 @@
     <!--
         The javadoc-jar target makes cassandra-javadoc.jar output required for publishing to Maven central repository.
     -->
-    <target name="javadoc-jar" description="Assemble Cassandra JavaDoc JAR file">
-      <mkdir dir="${javadoc.jars.dir}"/>
-      <create-javadoc destdir="${javadoc.jars.dir}/main">
-        <filesets>
-          <fileset dir="${build.src.java}" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
-          <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/main"/>
-
+    <target name="javadoc-jar" depends="javadoc" description="Assemble Cassandra JavaDoc JAR file">
+      <jar jarfile="${build.dir}/${final.name}-javadoc.jar" basedir="${javadoc.dir}"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent
            being pulled into the distribution by accident -->
-      <delete quiet="true" dir="${javadoc.jars.dir}"/>
+      <delete quiet="true" dir="${javadoc.dir}"/>
     </target>
 
     <!--
@@ -1811,7 +1809,7 @@
     </java>
   </target>
 
-  <target name="javadoc" depends="init" description="Create javadoc" unless="no-javadoc">
+  <target name="javadoc" depends="build" description="Create javadoc" unless="no-javadoc">
     <create-javadoc destdir="${javadoc.dir}">
       <filesets>
         <fileset dir="${build.src.java}" defaultexcludes="yes">
