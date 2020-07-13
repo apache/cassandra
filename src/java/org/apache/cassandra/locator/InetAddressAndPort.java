@@ -24,6 +24,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
@@ -151,7 +152,30 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
     public static String toString(InetAddress address, int port)
     {
-        return HostAndPort.fromParts(address.getHostAddress(), port).toString();
+        String hostName = Objects.toString(address.getHostName(), "");
+        String hostAddress = address.getHostAddress();
+
+        String addressString = address.toString();
+        StringBuilder sb = new StringBuilder(hostName.length() + hostAddress.length() + 8);
+
+        boolean addressContainsColon = hostAddress.indexOf(':') >= 0;
+
+        sb.append(hostName);
+        if (addressContainsColon) // IPv6 addresses contain colons and need to disambiguate
+            sb.append("/[");
+        else
+            sb.append('/');
+
+        sb.append(hostAddress);
+
+        if (addressContainsColon)
+            sb.append("]:");
+        else
+            sb.append(":");
+
+        sb.append(port);
+
+        return sb.toString();
     }
 
     public static InetAddressAndPort getByName(String name) throws UnknownHostException
