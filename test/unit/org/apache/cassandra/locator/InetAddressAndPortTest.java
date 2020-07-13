@@ -121,10 +121,31 @@ public class InetAddressAndPortTest
     {
         String ipv4 = "127.0.0.1:42";
         String ipv6 = "[2001:db8:0:0:0:ff00:42:8329]:42";
-        assertEquals(ipv4, InetAddressAndPort.getByName(ipv4).toString());
-        assertEquals(ipv6, InetAddressAndPort.getByName(ipv6).toString());
+
+        String ipv4toString = "localhost/127.0.0.1:42";
+        String ipv6toString = "/[2001:db8:0:0:0:ff00:42:8329]:42";
+
+        assertEquals(ipv4toString, InetAddressAndPort.getByName(ipv4).toString());
+        assertEquals(ipv6toString, InetAddressAndPort.getByName(ipv6).toString());
     }
 
+    @Test
+    public void getHostAddressAndPortTest() throws Exception
+    {
+        String ipv4withoutPort = "127.0.0.1";
+        String ipv6withoutPort = "2001:db8:0:0:0:ff00:42:8329";
+        String ipv4 = ipv4withoutPort + ":42";
+        String ipv6 = "[" + ipv6withoutPort + "]:42";
+
+        assertEquals(ipv4, InetAddressAndPort.getByName(ipv4).getHostAddressAndPort());
+        assertEquals(ipv6, InetAddressAndPort.getByName(ipv6).getHostAddressAndPort());
+
+        assertEquals(ipv4, InetAddressAndPort.getByName(ipv4).getHostAddress(true));
+        assertEquals(ipv6, InetAddressAndPort.getByName(ipv6).getHostAddress(true));
+
+        assertEquals(ipv4withoutPort, InetAddressAndPort.getByName(ipv4).getHostAddress(false));
+        assertEquals(ipv6withoutPort, InetAddressAndPort.getByName(ipv6).getHostAddress(false));
+    }
 
     private void shouldThrow(ThrowingRunnable t, Class expectedClass)
     {

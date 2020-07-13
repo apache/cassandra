@@ -160,6 +160,9 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         String hostName = Objects.toString(address.getHostName(), "");
         String hostAddress = address.getHostAddress();
 
+        if (hostName.equals(hostAddress))
+            hostName = "";
+
         String addressString = address.toString();
         StringBuilder sb = new StringBuilder(hostName.length() + hostAddress.length() + 8);
 
