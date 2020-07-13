@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -280,9 +281,13 @@ public final class FileUtils
         {
             channel.truncate(size);
         }
+        catch (NoSuchFileException | FileNotFoundException nfe)
+        {
+            throw new RuntimeException(nfe);
+        }
         catch (IOException e)
         {
-            throw new RuntimeException(e);
+            throw new FSWriteError(e, path);
         }
     }
 
@@ -730,9 +735,13 @@ public final class FileUtils
                 SyncUtil.force(fc, false);
             }
         }
+        catch (ClosedChannelException cce)
+        {
+            throw new RuntimeException(cce);
+        }
         catch (IOException ex)
         {
-            throw new RuntimeException(ex);
+            throw new FSWriteError(ex, file);
         }
     }
 
