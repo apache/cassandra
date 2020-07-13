@@ -3121,7 +3121,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             map.put(entry.getKey().getHostAddress(withPort), FileUtils.stringifyFileSize(entry.getValue()));
         }
         // gossiper doesn't see its own updates, so we need to special-case the local node
-        map.put(withPort ? FBUtilities.getJustBroadcastAddress().getHostAddress() : FBUtilities.getBroadcastAddressAndPort().toString(), getLoadString());
+        map.put(withPort ? FBUtilities.getBroadcastAddressAndPort().toString() : FBUtilities.getJustBroadcastAddress().getHostAddress(), getLoadString());
         return map;
     }
 
