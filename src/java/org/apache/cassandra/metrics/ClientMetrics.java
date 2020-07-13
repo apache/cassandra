@@ -136,7 +136,7 @@ public final class ClientMetrics
 
         for (Server server : servers)
             for (ClientStat stat : server.recentClientStats())
-                stats.add(stat.asMap());
+                stats.add(new HashMap(stat.asMap()));
 
         stats.sort(Comparator.comparing(map -> map.get(ClientStat.PROTOCOL_VERSION)));
 
