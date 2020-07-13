@@ -19,7 +19,8 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -44,6 +45,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
@@ -59,6 +61,8 @@ public class CQLConnectionTest
     private static final Logger logger = LoggerFactory.getLogger(CQLConnectionTest.class);
 
     private Random random;
+    private InetAddress address;
+    private int port;
 
     @Before
     public void setup()
@@ -70,6 +74,19 @@ public class CQLConnectionTest
         long seed = new SecureRandom().nextLong();
         logger.info("seed: {}", seed);
         random = new Random(seed);
+        address = InetAddress.getLoopbackAddress();
+        try
+        {
+            try (ServerSocket serverSocket = new ServerSocket(0))
+            {
+                port = serverSocket.getLocalPort();
+            }
+            Thread.sleep(250);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -101,8 +118,8 @@ public class CQLConnectionTest
 
         AllocationObserver allocationObserver = new AllocationObserver();
         ServerConfigurator configurator = new ServerConfigurator(messageConsumer, allocationObserver);
-        Server server = new Server.Builder().withHost(FBUtilities.getJustLocalAddress())
-                                            .withPort(9142)
+        Server server = new Server.Builder().withHost(address)
+                                            .withPort(port)
                                             .withPipelineConfigurator(configurator)
                                             .build();
         Client client = new Client(new FrameEncoderCrc());
@@ -110,7 +127,7 @@ public class CQLConnectionTest
         try
         {
             server.start();
-            client.connect();
+            client.connect(address, port);
             assertTrue(configurator.waitUntilReady());
 
             for (int i = 0; i < messageCount; i++)
@@ -148,6 +165,11 @@ public class CQLConnectionTest
             assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
             assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);
         }
+        catch (Exception e)
+        {
+            logger.error("Unexpected error", e);
+            throw new RuntimeException(e);
+        }
         finally
         {
             client.stop();
@@ -165,7 +187,7 @@ public class CQLConnectionTest
         public ServerConfigurator(CQLMessageHandler.MessageConsumer<Message.Request> consumer,
                                   AllocationObserver observer)
         {
-            super(false, false, false, EncryptionOptions.DISABLED);
+            super(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED);
             this.consumer = consumer;
             this.allocationObserver = observer;
         }
@@ -267,7 +289,7 @@ public class CQLConnectionTest
             this.frameEncoder = frameEncoder;
         }
 
-        private void connect() throws IOException, InterruptedException
+        private void connect(InetAddress address, int port) throws IOException, InterruptedException
         {
             Bootstrap bootstrap = new Bootstrap()
                                     .group(new NioEventLoopGroup())
@@ -284,7 +306,7 @@ public class CQLConnectionTest
                 }
             });
 
-            ChannelFuture future = bootstrap.connect(new InetSocketAddress(FBUtilities.getJustLocalAddress().getHostAddress(), 9142));
+            ChannelFuture future = bootstrap.connect(address, port);
 
             // Wait until the connection attempt succeeds or fails.
             channel = future.awaitUninterruptibly().channel();
