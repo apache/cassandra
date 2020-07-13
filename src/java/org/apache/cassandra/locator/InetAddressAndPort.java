@@ -124,7 +124,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     {
         if (withPort)
         {
-            return toString();
+            return HostAndPort.fromParts(address.getHostAddress(), port).toString();
         }
         else
         {
