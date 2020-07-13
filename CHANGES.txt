@@ -1,4 +1,18 @@
 4.0-alpha5
+ * USING_G1 is incorrectly set in cassandra-env.sh if G1 is explicitly disabled with -UseG1GC (CASSANDRA-15931)
+ * Update compaction_throughput_mb_per_sec throttle default to 64 (CASSANDRA-14902)
+ * Add option to disable compaction at startup (CASSANDRA-15927)
+ * FBUtilities.getJustLocalAddress falls back to lo ip on misconfigured nodes (CASSANDRA-15901)
+ * Close channel and reduce buffer allocation during entire sstable streaming with SSL (CASSANDRA-15900)
+ * Prune expired messages less frequently in internode messaging (CASSANDRA-15700)
+ * Fix Ec2Snitch handling of legacy mode for dc names matching both formats, eg "us-west-2" (CASSANDRA-15878)
+ * Add support for server side DESCRIBE statements (CASSANDRA-14825)
+ * Fail startup if -Xmn is set when the G1 garbage collector is used (CASSANDRA-15839)
+ * generateSplits method replaced the generateRandomTokens for ReplicationAwareTokenAllocator. (CASSANDRA-15877)
+ * Several mbeans are not unregistered when dropping a keyspace and table (CASSANDRA-14888)
+ * Update defaults for server and client TLS settings (CASSANDRA-15262)
+ * Differentiate follower/initator in StreamMessageHeader (CASSANDRA-15665)
+ * Add a startup check to detect if LZ4 uses java rather than native implementation (CASSANDRA-15884)
  * Fix missing topology events when running multiple nodes on the same network interface (CASSANDRA-15677)
  * Create config.yml.MIDRES (CASSANDRA-15712)
  * Fix handling of fully purged static rows in repaired data tracking (CASSANDRA-15848)
@@ -41,9 +55,15 @@
  * Replace array iterators with get by index (CASSANDRA-15394)
  * Minimize BTree iterator allocations (CASSANDRA-15389)
 Merged from 3.11:
+ * Fix cqlsh output when fetching all rows in batch mode (CASSANDRA-15905)
  * Upgrade Jackson to 2.9.10 (CASSANDRA-15867)
  * Fix CQL formatting of read command restrictions for slow query log (CASSANDRA-15503)
 Merged from 3.0:
+ * Avoid hinted handoff per-host throttle being arounded to 0 in large cluster (CASSANDRA-15859)
+ * Avoid emitting empty range tombstones from RangeTombstoneList (CASSANDRA-15924)
+ * Avoid thread starvation, and improve compare-and-swap performance, in the slab allocators (CASSANDRA-15922)
+ * Add token to tombstone warning and error messages (CASSANDRA-15890)
+ * Fixed range read concurrency factor computation and capped as 10 times tpc cores (CASSANDRA-15752)
  * Catch exception on bootstrap resume and init native transport (CASSANDRA-15863)
  * Fix replica-side filtering returning stale data with CL > ONE (CASSANDRA-8272, CASSANDRA-8273)
  * Rely on snapshotted session infos on StreamResultFuture.maybeComplete to avoid race conditions (CASSANDRA-15667)
@@ -62,6 +82,8 @@ Merged from 2.2:
  * Remove generated files from source artifact (CASSANDRA-15849)
  * Remove duplicated tools binaries from tarballs (CASSANDRA-15768)
  * Duplicate results with DISTINCT queries in mixed mode (CASSANDRA-15501)
+Merged from 2.1:
+ * Fix writing of snapshot manifest when the table has table-backed secondary indexes (CASSANDRA-10968)
 
 4.0-alpha4
  * Add client request size server metrics (CASSANDRA-15704)

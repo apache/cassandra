@@ -28,8 +28,8 @@ public class TombstoneOverwhelmingException extends RuntimeException
 {
     public TombstoneOverwhelmingException(int numTombstones, String query, TableMetadata metadata, DecoratedKey lastPartitionKey, ClusteringPrefix lastClustering)
     {
-        super(String.format("Scanned over %d tombstones during query '%s' (last scanned row partion key was (%s)); query aborted",
-                            numTombstones, query, makePKString(metadata, lastPartitionKey.getKey(), lastClustering)));
+        super(String.format("Scanned over %d tombstones during query '%s' (last scanned row token was %s and partion key was (%s)); query aborted",
+                            numTombstones, query, lastPartitionKey.getToken(), makePKString(metadata, lastPartitionKey.getKey(), lastClustering)));
     }
 
     private static String makePKString(TableMetadata metadata, ByteBuffer partitionKey, ClusteringPrefix clustering)

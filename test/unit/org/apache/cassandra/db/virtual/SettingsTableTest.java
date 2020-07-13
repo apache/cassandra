@@ -137,9 +137,7 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        config.server_encryption_options = config.server_encryption_options.withEnabled(true);
         Assert.assertEquals(9, executeNet(all).all().size());
-        check(pre + "enabled", "true");
 
         check(pre + "algorithm", null);
         config.server_encryption_options = config.server_encryption_options.withAlgorithm("SUPERSSL");
@@ -153,9 +151,9 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv5");
         check(pre + "protocol", "TLSv5");
 
-        check(pre + "optional", "false");
-        config.server_encryption_options = config.server_encryption_options.withOptional(true);
         check(pre + "optional", "true");
+        config.server_encryption_options = config.server_encryption_options.withOptional(false);
+        check(pre + "optional", "false");
 
         check(pre + "client_auth", "false");
         config.server_encryption_options = config.server_encryption_options.withRequireClientAuth(true);
@@ -168,6 +166,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "internode_encryption", "none");
         config.server_encryption_options = config.server_encryption_options.withInternodeEncryption(InternodeEncryption.all);
         check(pre + "internode_encryption", "all");
+        check(pre + "enabled", "true");
 
         check(pre + "legacy_ssl_storage_port", "false");
         config.server_encryption_options = config.server_encryption_options.withLegacySslStoragePort(true);

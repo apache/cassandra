@@ -227,7 +227,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         }
     }
 
-    StreamSession getSession(InetAddressAndPort peer, int sessionIndex)
+    public StreamSession getSession(InetAddressAndPort peer, int sessionIndex)
     {
         return coordinator.getSessionById(peer, sessionIndex);
     }

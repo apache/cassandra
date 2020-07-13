@@ -601,8 +601,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                 if (warnTombstones)
                 {
                     String msg = String.format(
-                            "Read %d live rows and %d tombstone cells for query %1.512s (see tombstone_warn_threshold)",
-                            liveRows, tombstones, ReadCommand.this.toCQLString());
+                            "Read %d live rows and %d tombstone cells for query %1.512s; token %s (see tombstone_warn_threshold)",
+                            liveRows, tombstones, ReadCommand.this.toCQLString(), currentKey.getToken());
                     ClientWarn.instance.warn(msg);
                     if (tombstones < failureThreshold)
                     {

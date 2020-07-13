@@ -140,7 +140,7 @@ public class PipelineConfigurator
 
         // Bind and start to accept incoming connections.
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
-        logger.info("Starting listening for CQL clients on {} ({})...", socket, encryptionOptions.enabled ? "encrypted" : "unencrypted");
+        logger.info("Starting listening for CQL clients on {} ({})...", socket, encryptionOptions.isEnabled() ? "encrypted" : "unencrypted");
         return bootstrap.bind(socket);
     }
 
@@ -168,7 +168,7 @@ public class PipelineConfigurator
     protected EncryptionConfig encryptionConfig()
     {
         // if encryption is not enabled, no further steps are required after the initial setup
-        if (!encryptionOptions.enabled)
+        if (!encryptionOptions.isEnabled())
             return channel -> {};
 
         // If optional, install a handler which detects whether or not the client is sending

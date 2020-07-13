@@ -54,7 +54,7 @@ cassandra.yaml. See `the java document on FIPS <https://docs.oracle.com/javase/8
 for more details.
 
 For information on generating the keystore and truststore files used in SSL communications, see the
-`java documentation on creating keystores <http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
+`java documentation on creating keystores <https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
 
 SSL Certificate Hot Reloading
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

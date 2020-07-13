@@ -604,7 +604,7 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
-        String typeName = "type_" + seqNumber.getAndIncrement();
+        String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
         String fullQuery = String.format(query, KEYSPACE + "." + typeName);
         types.add(typeName);
         logger.info(fullQuery);
@@ -614,7 +614,7 @@ public abstract class CQLTester
 
     protected String createFunction(String keyspace, String argTypes, String query) throws Throwable
     {
-        String functionName = keyspace + ".function_" + seqNumber.getAndIncrement();
+        String functionName = String.format("%s.function_%02d", keyspace, seqNumber.getAndIncrement());
         createFunctionOverload(functionName, argTypes, query);
         return functionName;
     }
@@ -629,7 +629,7 @@ public abstract class CQLTester
 
     protected String createAggregate(String keyspace, String argTypes, String query) throws Throwable
     {
-        String aggregateName = keyspace + "." + "aggregate_" + seqNumber.getAndIncrement();
+        String aggregateName = String.format("%s.aggregate_%02d", keyspace, seqNumber.getAndIncrement());
         createAggregateOverload(aggregateName, argTypes, query);
         return aggregateName;
     }
@@ -667,7 +667,7 @@ public abstract class CQLTester
     
     protected String createKeyspaceName()
     {
-        String currentKeyspace = "keyspace_" + seqNumber.getAndIncrement();
+        String currentKeyspace = String.format("keyspace_%02d", seqNumber.getAndIncrement());
         keyspaces.add(currentKeyspace);
         return currentKeyspace;
     }
@@ -688,7 +688,7 @@ public abstract class CQLTester
 
     protected String createTableName()
     {
-        String currentTable = "table_" + seqNumber.getAndIncrement();
+        String currentTable = String.format("table_%02d", seqNumber.getAndIncrement());
         tables.add(currentTable);
         return currentTable;
     }
@@ -893,6 +893,11 @@ public abstract class CQLTester
         return sessionNet().execute(formatQuery(query), values);
     }
 
+    protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, Statement statement)
+    {
+        return sessionNet(protocolVersion).execute(statement);
+    }
+
     protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize) throws Throwable
     {
         return sessionNet(version).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
@@ -1074,16 +1079,18 @@ public abstract class CQLTester
                 ByteBuffer expectedByteValue = makeByteBuffer(expected == null ? null : expected[j], column.type);
                 ByteBuffer actualValue = actual.getBytes(column.name.toString());
 
+                if (expectedByteValue != null)
+                    expectedByteValue = expectedByteValue.duplicate();
                 if (!Objects.equal(expectedByteValue, actualValue))
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
-                    if (!Objects.equal(expected[j], actualValueDecoded))
+                    if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
                         Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
                                                   i,
                                                   j,
                                                   column.name,
                                                   column.type.asCQL3Type(),
-                                                  formatValue(expectedByteValue, column.type),
+                                                  formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
                                                   formatValue(actualValue, column.type)));
                 }
             }

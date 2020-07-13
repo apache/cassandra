@@ -26,6 +26,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -127,16 +130,29 @@ public class FBUtilities
     public static InetAddress getJustLocalAddress()
     {
         if (localInetAddress == null)
-            try
+        {
+            if (DatabaseDescriptor.getListenAddress() == null)
             {
-                localInetAddress = DatabaseDescriptor.getListenAddress() == null
-                                    ? InetAddress.getLocalHost()
-                                    : DatabaseDescriptor.getListenAddress();
+                try
+                {
+                    localInetAddress = InetAddress.getLocalHost();
+                    logger.info("InetAddress.getLocalHost() was used to resolve listen_address to {}, double check this is "
+                                + "correct. Please check your node's config and set the listen_address in cassandra.yaml accordingly if applicable.",
+                                localInetAddress);
+                }
+                catch(UnknownHostException e)
+                {
+                    logger.info("InetAddress.getLocalHost() could not resolve the address for the hostname ({}), please "
+                                + "check your node's config and set the listen_address in cassandra.yaml. Falling back to {}",
+                                e,
+                                InetAddress.getLoopbackAddress());
+                    // CASSANDRA-15901 fallback for misconfigured nodes
+                    localInetAddress = InetAddress.getLoopbackAddress();
+                }
             }
-            catch (UnknownHostException e)
-            {
-                throw new RuntimeException(e);
-            }
+            else
+                localInetAddress = DatabaseDescriptor.getListenAddress();
+        }
         return localInetAddress;
     }
 

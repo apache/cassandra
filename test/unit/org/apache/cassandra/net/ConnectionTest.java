@@ -179,7 +179,6 @@ public class ConnectionTest
 
     static final EncryptionOptions.ServerEncryptionOptions encryptionOptions =
             new EncryptionOptions.ServerEncryptionOptions()
-            .withEnabled(true)
             .withLegacySslStoragePort(true)
             .withOptional(true)
             .withInternodeEncryption(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.all)

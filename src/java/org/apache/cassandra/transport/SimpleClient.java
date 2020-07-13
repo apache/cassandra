@@ -239,7 +239,7 @@ public class SimpleClient implements Closeable
                     .option(ChannelOption.TCP_NODELAY, true);
 
         // Configure the pipeline factory.
-        if(encryptionOptions.enabled)
+        if(encryptionOptions.isEnabled())
         {
             bootstrap.handler(new SecureInitializer(largeMessageThreshold));
         }

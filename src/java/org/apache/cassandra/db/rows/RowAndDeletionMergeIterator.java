@@ -161,7 +161,8 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
         while (nextRange == null && ranges.hasNext())
         {
             nextRange = ranges.next();
-            if (removeShadowedData && partitionLevelDeletion().supersedes(nextRange.deletionTime()))
+            if ((removeShadowedData && partitionLevelDeletion().supersedes(nextRange.deletionTime()))
+                || nextRange.deletedSlice().isEmpty(metadata.comparator))
                 nextRange = null;
         }
     }

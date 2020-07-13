@@ -120,7 +120,7 @@ echo $JVM_OPTS | grep -q Xms
 DEFINED_XMS=$?
 echo $JVM_OPTS | grep -q UseConcMarkSweepGC
 USING_CMS=$?
-echo $JVM_OPTS | grep -q UseG1GC
+echo $JVM_OPTS | grep -q +UseG1GC
 USING_G1=$?
 
 # Override these to set the amount of memory to allocate to the JVM at
@@ -174,6 +174,13 @@ if [ $DEFINED_XMN -eq 0 ] && [ $DEFINED_XMX -ne 0 ]; then
     exit 1
 elif [ $DEFINED_XMN -ne 0 ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
+fi
+
+# We fail to start if -Xmn is used with G1 GC is being used
+# See comments for -Xmn in jvm-server.options
+if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
+    echo "It is not recommended to set -Xmn with the G1 garbage collector. See comments for -Xmn in jvm-server.options for details."
+    exit 1
 fi
 
 if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then

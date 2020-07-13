@@ -123,7 +123,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     {
         SaslNegotiator negotiator = authenticator.newSaslNegotiator(null);
         Authenticator clientAuthenticator = (new PlainTextAuthProvider(username, password))
-                                            .newAuthenticator((EndPoint)null, null);
+                                            .newAuthenticator((EndPoint) null, null);
 
         negotiator.evaluateResponse(clientAuthenticator.initialResponse());
         negotiator.getAuthenticatedUser();

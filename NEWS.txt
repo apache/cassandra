@@ -113,6 +113,7 @@ New features
     - Added Python 3 support so cqlsh and cqlshlib is now compatible with Python 2.7 and Python 3.6.
       Added --python option to cqlsh so users can specify the path to their chosen Python interpreter.
       See CASSANDRA-10190 for details.
+    - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
 
 Upgrading
 ---------
@@ -250,6 +251,8 @@ Upgrading
       four digits need to be prefixed with a plus or minus sign.
     - cqlsh now returns a non-zero code in case of errors. This is a backward incompatible change so it may
       break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
+    - Updated the default compaction_throughput_mb_per_sec to to 64. The original
+      default (16) was meant for spinning disk volumes.  See CASSANDRA-14902 for details.
 
 
 Deprecation

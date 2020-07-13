@@ -241,6 +241,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         logger.debug("Creating stream session to {} as {}", template, isFollower ? "follower" : "initiator");
     }
 
+    public boolean isFollower()
+    {
+        return isFollower;
+    }
+
     public UUID planId()
     {
         return streamResult == null ? null : streamResult.planId;
