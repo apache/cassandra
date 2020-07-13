@@ -22,10 +22,13 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.zip.CRC32;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -254,6 +257,11 @@ public class MetadataSerializer implements IMetadataSerializer
         {
             serialize(currentComponents, out, descriptor.version);
             out.flush();
+        }
+        catch (IOException e)
+        {
+            Throwables.throwIfInstanceOf(e, FileNotFoundException.class);
+            throw new FSWriteError(e, filePath);
         }
         // we cant move a file on top of another file in windows:
         if (FBUtilities.isWindows)
