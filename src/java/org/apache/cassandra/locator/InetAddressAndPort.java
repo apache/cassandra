@@ -120,6 +120,11 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return Integer.compare(port, o.port);
     }
 
+    public String getHostAddressAndPort()
+    {
+        return getHostAddress(true);
+    }
+
     public String getHostAddress(boolean withPort)
     {
         if (withPort)

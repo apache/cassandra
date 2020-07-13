@@ -652,7 +652,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             {
                 logger.error("[Stream #{}] Socket closed before session completion, peer {} is probably down.",
                              planId(),
-                             peer.address.getHostAddress(),
+                             peer.getHostAddress(true),
                              e);
 
                 return closeSession(State.FAILED);

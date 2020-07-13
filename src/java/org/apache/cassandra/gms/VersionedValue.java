@@ -143,7 +143,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue bootReplacingWithPort(InetAddressAndPort oldNode)
         {
-            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.toString()));
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddress(true)));
         }
 
         public VersionedValue bootstrapping(Collection<Token> tokens)
@@ -282,9 +282,9 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(private_ip);
         }
 
-        public VersionedValue internalAddressAndPort(InetAddressAndPort address)
+        public VersionedValue internalAddressAndPort(String private_ip_and_port)
         {
-            return new VersionedValue(address.toString());
+            return new VersionedValue(private_ip_and_port);
         }
 
         public VersionedValue severity(double value)
