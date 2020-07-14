@@ -268,7 +268,6 @@ public class PipelineConfigurator
                                         ProtocolVersion version,
                                         Map<String, String> options)
     {
-        logger.info("CONFIGURING {} PIPELINE", version);
         BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
         ctx.channel().config().setOption(ChannelOption.ALLOCATOR, allocator);
 
@@ -372,7 +371,6 @@ public class PipelineConfigurator
     public void configureLegacyPipeline(ChannelHandlerContext ctx,
                                         Server.EndpointPayloadTracker tracker)
     {
-        logger.info("CONFIGURING LEGACY PIPELINE");
         ChannelPipeline pipeline = ctx.channel().pipeline();
         pipeline.addBefore(CQL_FRAME_ENCODER, CQL_FRAME_DECODER, new Frame.Decoder());
         pipeline.addBefore(INITIAL_HANDLER, CQL_FRAME_DECOMPRESSOR, Frame.Decompressor.instance);
@@ -383,8 +381,6 @@ public class PipelineConfigurator
         pipeline.remove(INITIAL_HANDLER);
         onPipelineReady();
     }
-
-
 }
 
 

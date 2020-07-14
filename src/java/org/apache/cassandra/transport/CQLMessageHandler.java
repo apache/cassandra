@@ -126,11 +126,10 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                              globalReserve.using(),
                              frame.header);
 
-                RuntimeException wrapped =
-                    ErrorMessage.wrap(
-                        new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
-                                                frame.header.streamId);
-                errorHandler.accept(wrapped);
+                handleError(new OverloadedException("Server is in overloaded state. " +
+                                                    "Cannot accept more requests at this point"),
+                            frame.header);
+
                 // Don't stop processing incoming frames, rely on the client to apply
                 // backpressure when it receives OverloadedException
                 return true;
@@ -176,12 +175,12 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         new LargeMessage(frame.header, ShareableBytes.wrap(frame.body.nioBuffer())).onComplete();
     }
 
+    // todo - return error to client or throw
     private Frame toCqlFrame(ShareableBytes bytes)
     {
         ByteBuffer buf = bytes.get();
         final int begin = buf.position();
         ByteBuf buffer = Unpooled.wrappedBuffer(buf);
-
         try
         {
             Frame f = cqlFrameDecoder.decodeFrame(buffer);
@@ -198,8 +197,30 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     private void processCqlFrame(Frame frame)
     {
-        M message = messageDecoder.decode(channel, frame);
-        dispatcher.accept(channel, message, this::toFlushItem);
+        try
+        {
+            M message = messageDecoder.decode(channel, frame);
+            dispatcher.accept(channel, message, this::toFlushItem);
+        }
+        catch (Exception e)
+        {
+            handleErrorAndRelease(e, frame.header);
+        }
+    }
+
+    // For expected errors this ensures we pass a WrappedException,
+    // which contains a streamId, to the error handler. This makes
+    // sure that whereever possible, the streamId is propagated back
+    // to the client.
+    private void handleErrorAndRelease(Throwable t, Frame.Header header)
+    {
+        release(header);
+        handleError(t, header);
+    }
+
+    private void handleError(Throwable t, Frame.Header header)
+    {
+        errorHandler.accept(ErrorMessage.wrap(t, header.streamId));
     }
 
     // Acts as a Dispatcher.FlushItemConverter
@@ -213,14 +234,19 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                           response.encode(request.getSourceFrame().header.version),
                           request.getSourceFrame(),
                           payloadAllocator,
-                          this::releaseAfterFlush);
+                          this::release);
     }
 
-    private void releaseAfterFlush(Flusher.FlushItem<Frame> flushItem)
+    private void release(Flusher.FlushItem<Frame> flushItem)
     {
-        releaseCapacity(Ints.checkedCast(flushItem.sourceFrame.header.bodySizeInBytes));
-        channelPayloadBytesInFlight -= flushItem.sourceFrame.header.bodySizeInBytes;
+        release(flushItem.sourceFrame.header);
         flushItem.sourceFrame.release();
+    }
+
+    private void release(Frame.Header header)
+    {
+        releaseCapacity(Ints.checkedCast(header.bodySizeInBytes));
+        channelPayloadBytesInFlight -= header.bodySizeInBytes;
     }
 
     /*
@@ -384,11 +410,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         {
             if (overloaded)
             {
-                RuntimeException wrapped =
-                    ErrorMessage.wrap(
-                        new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
-                                                header.streamId);
-                errorHandler.accept(wrapped);
+                handleErrorAndRelease(new OverloadedException("Server is in overloaded state. " +
+                                                              "Cannot accept more requests at this point"),
+                                      header);
             }
             else if (!isCorrupt)
             {
@@ -398,7 +422,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 }
                 catch (Exception e)
                 {
-                    errorHandler.accept(e);
+                    handleErrorAndRelease(e, header);
                 }
             }
         }

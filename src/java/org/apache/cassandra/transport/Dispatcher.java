@@ -51,6 +51,7 @@ public class Dispatcher
      * The instances of these FlushItem subclasses are specialized to release resources in the
      * right way for the specific pipeline that produced them.
      */
+    // TODO parameterize with FlushItem subclass
     interface FlushItemConverter
     {
         FlushItem<?> toFlushItem(Channel channel, Message.Request request, Message.Response response);
