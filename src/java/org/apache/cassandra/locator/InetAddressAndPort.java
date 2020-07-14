@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
@@ -123,6 +124,13 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     public String getHostAddressAndPort()
     {
         return getHostAddress(true);
+    }
+
+
+    final Pattern jmxIncompatibleChars = Pattern.compile("[\\[\\]:]");
+    public String getHostAddressAndPortForJMX()
+    {
+        return jmxIncompatibleChars.matcher(getHostAddressAndPort()).replaceAll("_");
     }
 
     public String getHostAddress(boolean withPort)
