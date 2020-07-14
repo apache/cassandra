@@ -23,7 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import static org.apache.cassandra.tools.ToolsTester.sstableDirName;
+import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
 import static org.junit.Assert.*;
 
 // LoaderOptionsTester for custom configuration
