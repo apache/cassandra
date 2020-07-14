@@ -1,8 +1,8 @@
-cassandra (2.2.17) UNRELEASED; urgency=medium
+cassandra (2.2.17) unstable; urgency=medium
 
   * New release
 
- -- Michael Shuler <mshuler@apache.org>  Fri, 14 Feb 2020 18:39:56 -0600
+ -- Mick Semb Wever <mck@apache.org>  Tue, 14 Jul 2020 21:30:34 +0200
 
 cassandra (2.2.16) unstable; urgency=medium
 
