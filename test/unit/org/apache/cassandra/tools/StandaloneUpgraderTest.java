@@ -23,13 +23,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class StandaloneUpgraderTest extends ToolsTester
+public class StandaloneUpgraderTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testStandaloneUpgrader_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.StandaloneUpgrader");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneUpgrader").getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -41,7 +45,8 @@ public class StandaloneUpgraderTest extends ToolsTester
     @Test
     public void testStandaloneUpgrader_WithArgs()
     {
-        runTool(0, "org.apache.cassandra.tools.StandaloneUpgrader", "--debug", "system_schema", "tables");
+        runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneUpgrader", "--debug", "system_schema", "tables")
+              .waitAndAssertOnCleanExit();
         assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();
