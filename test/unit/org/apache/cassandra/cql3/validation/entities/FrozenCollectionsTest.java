@@ -557,7 +557,7 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (full(a))", "Cannot create secondary index on the only partition key column");
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(a))", "Cannot create secondary index on the only partition key column");
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(b))", "Cannot create keys() index on frozen column b. " +
-                                                                              "Frozen collections only support indexes on the entire data structure");
+                                                                              "Frozen collections are immutable and must be fully indexed");
 
         createTable("CREATE TABLE %s (a int, b frozen<list<int>>, c frozen<set<int>>, d frozen<map<int, text>>, PRIMARY KEY (a, b))");
 
