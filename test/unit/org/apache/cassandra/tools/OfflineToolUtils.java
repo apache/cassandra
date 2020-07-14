@@ -23,9 +23,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.security.Permission;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -35,20 +33,20 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
+
 import org.junit.BeforeClass;
 
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Base unit test class for standalone tools
+ * Helper class for running a tool and doing in-process checks
  */
-public abstract class ToolsTester
+public abstract class OfflineToolUtils
 {
     static
     {
@@ -193,69 +191,13 @@ public abstract class ToolsTester
             fail(clazz + " has not been loaded");
     }
 
-    public void runTool(int expectedExitCode, String clazz, String... args)
-    {
-        try
-        {
-            // install security manager to get informed about the exit-code
-            System.setSecurityManager(new SecurityManager()
-            {
-                public void checkExit(int status)
-                {
-                    throw new SystemExitException(status);
-                }
-
-                public void checkPermission(Permission perm)
-                {
-                }
-
-                public void checkPermission(Permission perm, Object context)
-                {
-                }
-            });
-
-            try
-            {
-                Class.forName(clazz).getDeclaredMethod("main", String[].class).invoke(null, (Object) args);
-            }
-            catch (InvocationTargetException e)
-            {
-                Throwable cause = e.getCause();
-                if (cause instanceof Error)
-                    throw (Error) cause;
-                if (cause instanceof RuntimeException)
-                    throw (RuntimeException) cause;
-                throw e;
-            }
-
-            assertEquals("Unexpected exit code", expectedExitCode, 0);
-        }
-        catch (SystemExitException e)
-        {
-            assertEquals("Unexpected exit code", expectedExitCode, e.status);
-        }
-        catch (InvocationTargetException e)
-        {
-            throw new RuntimeException(e.getTargetException());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-        finally
-        {
-            // uninstall security manager
-            System.setSecurityManager(null);
-        }
-    }
-
     @BeforeClass
     public static void setupTester()
     {
         System.setProperty("cassandra.partitioner", "org.apache.cassandra.dht.Murmur3Partitioner");
 
         // may start an async appender
-        LoggerFactory.getLogger(ToolsTester.class);
+        LoggerFactory.getLogger(OfflineToolUtils.class);
 
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
         initialThreads = Arrays.asList(threads.getThreadInfo(threads.getAllThreadIds()));

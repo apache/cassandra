@@ -49,7 +49,7 @@ import static org.junit.Assert.fail;
  * unexpected threads.
  *
  * {@link DatabaseDescriptor#toolInitialization()} is tested via unit tests extending
- * {@link org.apache.cassandra.tools.ToolsTester}.
+ * {@link org.apache.cassandra.tools.OfflineToolUtils}.
  */
 public class DatabaseDescriptorRefTest
 {

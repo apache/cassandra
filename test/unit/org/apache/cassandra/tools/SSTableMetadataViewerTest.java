@@ -23,13 +23,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class SSTableMetadataViewerTest extends ToolsTester
+public class SSTableMetadataViewerTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testSSTableOfflineRelevel_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.SSTableMetadataViewer");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableMetadataViewer").getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -41,7 +45,7 @@ public class SSTableMetadataViewerTest extends ToolsTester
     @Test
     public void testSSTableOfflineRelevel_WithArgs()
     {
-        runTool(0, "org.apache.cassandra.tools.SSTableMetadataViewer", "ks", "tab");
+        runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableMetadataViewer", "ks", "tab").waitAndAssertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();

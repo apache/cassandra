@@ -23,13 +23,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class SSTableExportTest extends ToolsTester
+public class SSTableExportTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testSSTableExport_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.SSTableExport");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableExport").getExitCode());
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -41,7 +45,8 @@ public class SSTableExportTest extends ToolsTester
     @Test
     public void testSSTableExport_WithArgs() throws Exception
     {
-        runTool(0, "org.apache.cassandra.tools.SSTableExport", findOneSSTable("legacy_sstables", "legacy_ma_simple"));
+        runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableExport",findOneSSTable("legacy_sstables", "legacy_ma_simple"))
+              .waitAndAssertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();

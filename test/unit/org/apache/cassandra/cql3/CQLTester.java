@@ -22,9 +22,12 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.rmi.server.RMISocketFactory;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -33,6 +36,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import javax.management.MBeanServerConnection;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
@@ -80,6 +89,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 
 import static junit.framework.Assert.assertNotNull;
@@ -103,6 +113,11 @@ public abstract class CQLTester
     public static final String RACK1 = "rack1";
 
     private static org.apache.cassandra.transport.Server server;
+    private static JMXConnectorServer jmxServer;
+    protected static String jmxHost;
+    protected static int jmxPort;
+    protected static MBeanServerConnection jmxConnection;
+
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
     protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
@@ -239,6 +254,43 @@ public abstract class CQLTester
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
         isServerPrepared = true;
+    }
+    
+    /**
+     * Starts the JMX server. It's safe to call this method multiple times.
+     */
+    public static void startJMXServer() throws Exception
+    {
+        if (jmxServer != null)
+            return;
+
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        jmxHost = loopback.getHostAddress();
+        try (ServerSocket sock = new ServerSocket())
+        {
+            sock.bind(new InetSocketAddress(loopback, 0));
+            jmxPort = sock.getLocalPort();
+        }
+
+        jmxServer = JMXServerUtils.createJMXServer(jmxPort, true);
+        jmxServer.start();
+    }
+    
+    public static void createMBeanServerConnection() throws Exception
+    {
+        assert jmxServer != null : "jmxServer not started";
+
+        Map<String, Object> env = new HashMap<>();
+        env.put("com.sun.jndi.rmi.factory.socket", RMISocketFactory.getDefaultSocketFactory());
+        JMXConnector jmxc = JMXConnectorFactory.connect(getJMXServiceURL(), env);
+        jmxConnection =  jmxc.getMBeanServerConnection();
+    }
+
+    public static JMXServiceURL getJMXServiceURL() throws MalformedURLException
+    {
+        assert jmxServer != null : "jmxServer not started";
+
+        return new JMXServiceURL(String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", jmxHost, jmxPort));
     }
 
     public static void cleanupAndLeaveDirs() throws IOException
@@ -399,7 +451,19 @@ public abstract class CQLTester
             }
         });
     }
-
+    
+    public static List<String> buildNodetoolArgs(List<String> args)
+    {
+        List<String> allArgs = new ArrayList<>();
+        allArgs.add("bin/nodetool");
+        allArgs.add("-p");
+        allArgs.add(Integer.toString(jmxPort));
+        allArgs.add("-h");
+        allArgs.add(jmxHost);
+        allArgs.addAll(args);
+        return allArgs;
+    }
+    
     // lazy initialization for all tests that require Java Driver
     protected static void requireNetwork() throws ConfigurationException
     {

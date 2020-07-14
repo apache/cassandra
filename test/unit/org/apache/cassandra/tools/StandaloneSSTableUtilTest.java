@@ -23,13 +23,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class StandaloneSSTableUtilTest extends ToolsTester
+public class StandaloneSSTableUtilTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testStandaloneSSTableUtil_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.StandaloneSSTableUtil");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneSSTableUtil").getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -41,7 +45,8 @@ public class StandaloneSSTableUtilTest extends ToolsTester
     @Test
     public void testStandaloneSSTableUtil_WithArgs()
     {
-        runTool(0, "org.apache.cassandra.tools.StandaloneSSTableUtil", "--debug", "-c", "system_schema", "tables");
+        runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneSSTableUtil", "--debug", "-c", "system_schema", "tables")
+              .waitAndAssertOnCleanExit();
         assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();

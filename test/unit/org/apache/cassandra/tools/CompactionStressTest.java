@@ -26,12 +26,14 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class CompactionStressTest extends ToolsTester
+public class CompactionStressTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testNoArgs()
     {
-        runTool(0, "org.apache.cassandra.stress.CompactionStress");
+        runner.invokeClassAsTool("org.apache.cassandra.stress.CompactionStress").waitAndAssertOnCleanExit();
     }
 
     @Test
@@ -41,20 +43,27 @@ public class CompactionStressTest extends ToolsTester
         File file = new File(classLoader.getResource("blogpost.yaml").getFile());
         String profileFile = file.getAbsolutePath();
 
-        runTool(0,
-                "org.apache.cassandra.stress.CompactionStress",
-                "write",
-                "-d", "build/test/cassandra",
-                "-g", "0",
-                "-p", profileFile,
-                "-t", "4");
+        runner.invokeClassAsTool("org.apache.cassandra.stress.CompactionStress",
+                                 "write",
+                                 "-d",
+                                 "build/test/cassandra",
+                                 "-g",
+                                 "0",
+                                 "-p",
+                                 profileFile,
+                                 "-t",
+                                 "4")
+              .waitAndAssertOnCleanExit();
 
-        runTool(0,
-                "org.apache.cassandra.stress.CompactionStress",
-                "compact",
-                "-d", "build/test/cassandra",
-                "-p", profileFile,
-                "-t", "4");
+        runner.invokeClassAsTool("org.apache.cassandra.stress.CompactionStress",
+                                 "compact",
+                                 "-d",
+                                 "build/test/cassandra",
+                                 "-p",
+                                 profileFile,
+                                 "-t",
+                                 "4")
+              .waitAndAssertOnCleanExit();
     }
 
 }
