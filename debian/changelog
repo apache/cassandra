@@ -1,3 +1,9 @@
+cassandra (4.0~beta1) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Tue, 14 Jul 2020 23:40:46 +0200
+
 cassandra (4.0~alpha4) unstable; urgency=medium
 
   * New release
