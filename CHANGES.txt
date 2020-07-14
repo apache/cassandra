@@ -1,4 +1,4 @@
-4.0-alpha5
+4.0-beta1
  * Improve messaging on indexing frozen collections (CASSANDRA-15908)
  * USING_G1 is incorrectly set in cassandra-env.sh if G1 is explicitly disabled with -UseG1GC (CASSANDRA-15931)
  * Update compaction_throughput_mb_per_sec throttle default to 64 (CASSANDRA-14902)
