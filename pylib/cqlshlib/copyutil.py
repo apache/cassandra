@@ -1927,9 +1927,9 @@ class ImportConversion(object):
             return ret
 
         # this should match all possible CQL datetime formats
-        p = re.compile("(\d{4})\-(\d{2})\-(\d{2})\s?(?:'T')?" +  # YYYY-MM-DD[( |'T')]
-                       "(?:(\d{2}):(\d{2})(?::(\d{2}))?)?" +  # [HH:MM[:SS]]
-                       "(?:([+\-])(\d{2}):?(\d{2}))?")  # [(+|-)HH[:]MM]]
+        p = re.compile(r"(\d{4})\-(\d{2})\-(\d{2})\s?(?:'T')?"  # YYYY-MM-DD[( |'T')]
+                       + r"(?:(\d{2}):(\d{2})(?::(\d{2}))?)?"  # [HH:MM[:SS]]
+                       + r"(?:([+\-])(\d{2}):?(\d{2}))?")  # [(+|-)HH[:]MM]]
 
         def convert_datetime(val, **_):
             try:
