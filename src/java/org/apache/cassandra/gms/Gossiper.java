@@ -1936,7 +1936,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 hosts = new ArrayList<>();
                 results.put(stringVersion, hosts);
             }
-            hosts.add(host.getHostAddress(true));
+            hosts.add(host.getHostAddressAndPort());
         }
 
         return results;

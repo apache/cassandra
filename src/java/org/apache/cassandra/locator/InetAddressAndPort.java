@@ -126,7 +126,6 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return getHostAddress(true);
     }
 
-
     final Pattern jmxIncompatibleChars = Pattern.compile("[\\[\\]:]");
     public String getHostAddressAndPortForJMX()
     {
