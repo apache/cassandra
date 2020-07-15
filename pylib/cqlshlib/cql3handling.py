@@ -143,7 +143,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <stringLiteral> ::= <quotedStringLiteral>
                   | <pgStringLiteral> ;
 <quotedStringLiteral> ::= /'([^']|'')*'/ ;
-<pgStringLiteral> ::= /\$\$(?:(?!\$\$)|[^$])*\$\$/;
+<pgStringLiteral> ::= /\$\$(?:(?!\$\$).)*\$\$/;
 <quotedName> ::=    /"([^"]|"")*"/ ;
 <float> ::=         /-?[0-9]+\.[0-9]+/ ;
 <uuid> ::=          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ ;
@@ -162,7 +162,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
             | "false"
             ;
 
-<unclosedPgString>::= /\$\$(?:(?!\$\$)|[^$])*/ ;
+<unclosedPgString>::= /\$\$(?:(?!\$\$).)*/ ;
 <unclosedString>  ::= /'([^']|'')*/ ;
 <unclosedName>    ::= /"([^"]|"")*/ ;
 <unclosedComment> ::= /[/][*].*$/ ;
@@ -460,8 +460,7 @@ def ks_prop_val_mapender_completer(ctxt, cass):
 
 
 def cf_prop_name_completer(ctxt, cass):
-    return [c[0] for c in (CqlRuleSet.columnfamily_layout_options +
-                           CqlRuleSet.columnfamily_layout_map_options)]
+    return [c[0] for c in (CqlRuleSet.columnfamily_layout_options + CqlRuleSet.columnfamily_layout_map_options)]
 
 
 def cf_prop_val_completer(ctxt, cass):
@@ -844,9 +843,9 @@ syntax_rules += r'''
 def regular_column_names(table_meta):
     if not table_meta or not table_meta.columns:
         return []
-    regular_columns = list(set(table_meta.columns.keys()) -
-                           set([key.name for key in table_meta.partition_key]) -
-                           set([key.name for key in table_meta.clustering_key]))
+    regular_columns = list(set(table_meta.columns.keys())
+                           - set([key.name for key in table_meta.partition_key])
+                           - set([key.name for key in table_meta.clustering_key]))
     return regular_columns
 
 
