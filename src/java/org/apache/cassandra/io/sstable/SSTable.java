@@ -306,13 +306,23 @@ public abstract class SSTable
      */
     protected static Set<Component> readTOC(Descriptor descriptor) throws IOException
     {
+        return readTOC(descriptor, true);
+    }
+
+    /**
+     * Reads the list of components from the TOC component.
+     * @param skipMissing, skip adding the component to the returned set if the corresponding file is missing.
+     * @return set of components found in the TOC
+     */
+    protected static Set<Component> readTOC(Descriptor descriptor, boolean skipMissing) throws IOException
+    {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
         List<String> componentNames = Files.readLines(tocFile, Charset.defaultCharset());
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
         for (String componentName : componentNames)
         {
             Component component = new Component(Component.Type.fromRepresentation(componentName), componentName);
-            if (!new File(descriptor.filenameFor(component)).exists())
+            if (skipMissing && !new File(descriptor.filenameFor(component)).exists())
                 logger.error("Missing component: {}", descriptor.filenameFor(component));
             else
                 components.add(component);
