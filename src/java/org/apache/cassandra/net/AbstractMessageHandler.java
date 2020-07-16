@@ -492,7 +492,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         globalReserve.allocate(excess);
     }
 
-    protected void releaseCapacity(int bytes)
+    public void releaseCapacity(int bytes)
     {
         long oldQueueSize = queueSizeUpdater.getAndAdd(this, -bytes);
         if (oldQueueSize > queueCapacity)

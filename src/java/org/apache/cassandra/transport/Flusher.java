@@ -161,7 +161,7 @@ abstract class Flusher implements Runnable
         }
     }
 
-    private void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
+    public static void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
     {
         FrameEncoder.Payload payload;
         ByteBuffer buf;
@@ -252,7 +252,7 @@ abstract class Flusher implements Runnable
         payload.release();
     }
 
-    private static class FrameSet extends ArrayList<Frame>
+    public static class FrameSet extends ArrayList<Frame>
     {
         private final Channel channel;
         private final FrameEncoder.PayloadAllocator allocator;
@@ -289,7 +289,7 @@ abstract class Flusher implements Runnable
             return payload;
         }
 
-        private void finish()
+        public void finish()
         {
             int writtenBytes = 0;
             int framesToWrite = this.size();

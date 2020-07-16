@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.transport;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
@@ -29,6 +34,8 @@ import io.netty.channel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
@@ -119,6 +126,19 @@ public abstract class Message
                                                           opcode,
                                                           t));
             return t;
+        }
+
+        @VisibleForTesting
+        Codec<?> unsafeSetCodec(Codec<?> codec) throws NoSuchFieldException, IllegalAccessException
+        {
+            Codec<?> original = this.codec;
+            Field field = Type.class.getDeclaredField("codec");
+            field.setAccessible(true);
+            Field modifiers = Field.class.getDeclaredField("modifiers");
+            modifiers.setAccessible(true);
+            modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+            field.set(this, codec);
+            return original;
         }
     }
 

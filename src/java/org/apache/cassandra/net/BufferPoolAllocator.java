@@ -101,6 +101,7 @@ public abstract class BufferPoolAllocator extends AbstractByteBufAllocator
         {
             if (wrapped != null)
                 BufferPool.put(wrapped);
+            wrapped = null;
         }
 
         public ByteBuffer adopt()

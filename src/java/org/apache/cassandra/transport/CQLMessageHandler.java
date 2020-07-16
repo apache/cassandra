@@ -139,23 +139,20 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 return true;
             }
         }
-        else
+        else if (!acquireCapacityAndQueueOnFailure(frame.header, endpointReserve, globalReserve))
         {
-            if (!acquireCapacityAndQueueOnFailure(frame.header, endpointReserve, globalReserve))
-            {
-                // force overallocation so we can process this one message, then return false
-                // so that we stop processing further frames from the decoder
-                forceOverAllocation(endpointReserve, globalReserve, frameSize);
-                ClientMetrics.instance.pauseConnection();
-                channelPayloadBytesInFlight += frameSize;
+            // force overallocation so we can process this one message, then return false
+            // so that we stop processing further frames from the decoder
+            forceOverAllocation(endpointReserve, globalReserve, frameSize);
+            ClientMetrics.instance.pauseConnection();
+            channelPayloadBytesInFlight += frameSize;
 
-                // we're over allocated here, but process the message
-                // anyway because we didn't throw any exception
-                receivedCount++;
-                receivedBytes += frameSize;
-                processFrame(frameSize, frame);
-                return false;
-            }
+            // we're over allocated here, but process the message
+            // anyway because we didn't throw any exception
+            receivedCount++;
+            receivedBytes += frameSize;
+            processFrame(frameSize, frame);
+            return false;
         }
 
         channelPayloadBytesInFlight += frameSize;
@@ -203,7 +200,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
     }
 
-    private void processCqlFrame(Frame frame)
+    protected void processCqlFrame(Frame frame)
     {
         try
         {
@@ -454,9 +451,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         {
             if (overloaded)
             {
-                handleError(new OverloadedException("Server is in overloaded state. " +
-                                                              "Cannot accept more requests at this point"),
-                            header);
+                handleErrorAndRelease(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
+                                      header);
             }
             else if (!isCorrupt)
             {

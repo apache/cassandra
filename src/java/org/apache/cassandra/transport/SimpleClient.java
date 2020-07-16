@@ -28,12 +28,13 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -42,9 +43,11 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -70,7 +73,8 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
-import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.transport.CQLMessageHandler.frameSize;
 
 public class SimpleClient implements Closeable
 {
@@ -96,14 +100,6 @@ public class SimpleClient implements Closeable
     protected ChannelFuture lastWriteFuture;
 
     protected String compression;
-
-    private final Connection.Factory connectionFactory = new Connection.Factory()
-    {
-        public Connection newConnection(Channel channel, ProtocolVersion version)
-        {
-            return connection;
-        }
-    };
 
     public static class Builder
     {
@@ -217,7 +213,7 @@ public class SimpleClient implements Closeable
 
         if (useCompression)
         {
-            options.put(StartupMessage.COMPRESSION, "snappy");
+            options.put(StartupMessage.COMPRESSION, "snappy"); // todo: lz4, too!
             connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
         }
         execute(new StartupMessage(options));
@@ -234,7 +230,7 @@ public class SimpleClient implements Closeable
     {
         // Configure the client.
         bootstrap = new Bootstrap()
-                    .group(new NioEventLoopGroup())
+                    .group(new NioEventLoopGroup(new NamedThreadFactory("SimpleClient-nioEventLoopGroup")))
                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
                     .option(ChannelOption.TCP_NODELAY, true);
 
@@ -286,16 +282,17 @@ public class SimpleClient implements Closeable
 
     public void close()
     {
-        // Wait until all messages are flushed before closing the channel.
-        if (lastWriteFuture != null)
-            lastWriteFuture.awaitUninterruptibly();
-
-        // Close the connection.  Make sure the close operation ends because
-        // all I/O operations are asynchronous in Netty.
-        channel.close().awaitUninterruptibly();
-
-        // Shut down all thread pools to exit.
-        bootstrap.group().shutdownGracefully();
+        // TODO:
+//        // Wait until all messages are flushed before closing the channel.
+//        if (lastWriteFuture != null)
+//            lastWriteFuture.awaitUninterruptibly();
+//
+//        // Close the connection.  Make sure the close operation ends because
+//        // all I/O operations are asynchronous in Netty.
+//        channel.close().awaitUninterruptibly();
+//
+//        // Shut down all thread pools to exit.
+//        bootstrap.group().shutdownGracefully();
     }
 
     public Message.Response execute(Message.Request request)
@@ -303,11 +300,56 @@ public class SimpleClient implements Closeable
         try
         {
             request.attach(connection);
-            lastWriteFuture = channel.writeAndFlush(request);
-            Message.Response msg = responseHandler.responses.take();
+            lastWriteFuture = channel.writeAndFlush(Collections.singletonList(request));
+            Message.Response msg = responseHandler.responses.poll(10, TimeUnit.SECONDS);
+
+            if (msg == null)
+                throw new RuntimeException("timeout");
             if (msg instanceof ErrorMessage)
                 throw new RuntimeException((Throwable)((ErrorMessage)msg).error);
             return msg;
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Map<Message.Request, Message.Response> execute(List<Message.Request> requests)
+    {
+        try
+        {
+            Map<Message.Request, Message.Response> rrMap = new HashMap<>();
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            {
+                for (int i = 0; i < requests.size(); i++)
+                {
+                    Message.Request message = requests.get(i);
+                    message.setStreamId(i);
+                    message.attach(connection);
+                }
+                lastWriteFuture = channel.writeAndFlush(requests);
+
+                long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(10);
+                for (int i = 0; i < requests.size(); i++)
+                {
+                    Message.Response msg = responseHandler.responses.poll(deadline - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+                    if (msg == null)
+                        throw new RuntimeException("timeout");
+                    if (msg instanceof ErrorMessage)
+                        throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
+                    rrMap.put(requests.get(msg.getStreamId()), msg);
+                }
+            }
+            else
+            {
+                // V4 doesn't support batching
+                for (Message.Request request : requests)
+                    rrMap.put(request, execute(request));
+            }
+
+            return rrMap;
         }
         catch (InterruptedException e)
         {
@@ -330,18 +372,9 @@ public class SimpleClient implements Closeable
         }
     }
 
-    // Stateless handlers
-    private static final PreV5Handlers.ProtocolDecoder messageDecoder = PreV5Handlers.ProtocolDecoder.instance;
-    private static final PreV5Handlers.ProtocolEncoder messageEncoder = PreV5Handlers.ProtocolEncoder.instance;
-
     private static class ConnectionTracker implements Connection.Tracker
     {
         public void addConnection(Channel ch, Connection connection) {}
-
-        public boolean isRegistered(Event.Type type, Channel ch)
-        {
-            return false;
-        }
     }
 
     private static class InitialHandler extends MessageToMessageDecoder<Frame>
@@ -407,7 +440,7 @@ public class SimpleClient implements Closeable
             FrameEncoder messageFrameEncoder = frameEncoder(ctx);
             FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
 
-            CQLMessageHandler.MessageConsumer<Message.Response> messageConsumer = (c, message , converter) -> {
+            CQLMessageHandler.MessageConsumer<Message.Response> responseConsumer = (c, message, converter) -> {
                 responseHandler.handleResponse(c, message);
             };
 
@@ -416,11 +449,11 @@ public class SimpleClient implements Closeable
             };
 
             CQLMessageHandler<Message.Response> processor =
-                new CQLMessageHandler<>(ctx.channel(),
+                new CQLMessageHandler<Message.Response>(ctx.channel(),
                                         messageFrameDecoder,
                                         cqlFrameDecoder,
                                         messageDecoder,
-                                        messageConsumer,
+                                        responseConsumer,
                                         payloadAllocator,
                                         queueCapacity,
                                         endpointReserve,
@@ -429,17 +462,51 @@ public class SimpleClient implements Closeable
                                         AbstractMessageHandler.WaitQueue.global(globalReserve),
                                         handler -> {},
                                         errorHandler,
-                                        ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload());
+                                        ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())
+                {
+                    protected void processCqlFrame(Frame frame)
+                    {
+                        super.processCqlFrame(frame);
+                        releaseCapacity(Ints.checkedCast(frame.header.bodySizeInBytes));
+                    }
+                };
 
             pipeline.addLast("messageFrameDecoder", messageFrameDecoder);
             pipeline.addLast("messageFrameEncoder", messageFrameEncoder);
             pipeline.addLast("processor", processor);
-            pipeline.addLast("payloadEncoder", new PayloadEncoder(messageFrameEncoder.allocator(), largeMessageThreshold));
-            pipeline.addLast("cqlMessageEncoder", PreV5Handlers.ProtocolEncoder.instance);
+            pipeline.addLast("cqlMessageEncoder", new ChannelOutboundHandlerAdapter() {
+
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
+                {
+                    try
+                    {
+                        Connection connection = ctx.channel().attr(Connection.attributeKey).get();
+                        // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
+                        ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
+
+                        Flusher.FrameSet frameSet = new Flusher.FrameSet(ctx.channel(), messageFrameEncoder.allocator(), 5);
+
+                        for (Message message : (List<Message>) msg)
+                        {
+                            Frame frame = message.encode(version);
+                            if (frameSize(frame.header) >= largeMessageThreshold)
+                                Flusher.flushLargeMessage(ctx.channel(), frame, messageFrameEncoder.allocator());
+                            else
+                                frameSet.add(frame);
+                        }
+
+                        frameSet.finish();
+                    }
+                    catch (Throwable t)
+                    {
+                        logger.error(" ", t);
+                    }
+                }
+            });
             pipeline.remove(this);
 
             Message.Response response = messageDecoder.decode(ctx.channel(), frame);
-            messageConsumer.accept(channel, response, (ch, req, resp) -> null);
+            responseConsumer.accept(channel, response, (ch, req, resp) -> null);
         }
 
         private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)
@@ -472,6 +539,22 @@ public class SimpleClient implements Closeable
         }
     }
 
+    @ChannelHandler.Sharable
+     static class MessageBatchEncoder extends MessageToMessageEncoder<List<Message>>
+    {
+        public static final MessageBatchEncoder instance = new MessageBatchEncoder();
+        private MessageBatchEncoder(){}
+
+        public void encode(ChannelHandlerContext ctx, List<Message> messages, List<Object> results)
+        {
+            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
+            // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
+            ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
+            assert messages.size() == 1;
+            results.add(messages.get(0).encode(version));
+        }
+    }
+
     private class Initializer extends ChannelInitializer<Channel>
     {
         private int largeMessageThreshold;
@@ -490,8 +573,8 @@ public class SimpleClient implements Closeable
             pipeline.addLast("frameDecoder", new Frame.Decoder());
             pipeline.addLast("frameEncoder", Frame.Encoder.instance);
             pipeline.addLast("initial", new InitialHandler(version, responseHandler, largeMessageThreshold));
-            pipeline.addLast("messageDecoder", messageDecoder);
-            pipeline.addLast("messageEncoder", messageEncoder);
+            pipeline.addLast("messageDecoder", PreV5Handlers.ProtocolDecoder.instance);
+            pipeline.addLast("messageEncoder", MessageBatchEncoder.instance);
             pipeline.addLast("responseHandler",  responseHandler);
         }
     }
@@ -512,70 +595,6 @@ public class SimpleClient implements Closeable
         }
     }
 
-    private static class PayloadEncoder extends ChannelOutboundHandlerAdapter
-    {
-        private final FrameEncoder.PayloadAllocator allocator;
-        private final int largeMessageThreshold;
-        PayloadEncoder(FrameEncoder.PayloadAllocator allocator, int largeMessageThreshold)
-        {
-            this.allocator = allocator;
-            this.largeMessageThreshold = largeMessageThreshold;
-        }
-
-        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
-        {
-            Frame outbound = (Frame)msg;
-            if (CQLMessageHandler.frameSize(outbound.header) >= largeMessageThreshold)
-            {
-                FrameEncoder.Payload payload;
-                ByteBuffer buf;
-                ByteBuf body = outbound.body;
-                boolean firstFrame = true;
-                // Highly unlikely that the frame body of a large message would be empty, but the check is cheap
-                while (body.readableBytes() > 0 || firstFrame)
-                {
-                    int payloadSize = Math.min(body.readableBytes(), largeMessageThreshold);
-                    payload = allocator.allocate(false, payloadSize);
-                    if (logger.isTraceEnabled())
-                    {
-                        logger.trace("Allocated initial buffer of {} for 1 large item",
-                                     FBUtilities.prettyPrintMemory(payload.buffer.capacity()));
-                    }
-
-                    buf = payload.buffer;
-                    // BufferPool may give us a buffer larger than we asked for.
-                    // FrameEncoder may object if buffer.remaining is >= MAX_SIZE.
-                    if (payloadSize >= largeMessageThreshold)
-                        buf.limit(largeMessageThreshold);
-
-                    if (firstFrame)
-                    {
-                        outbound.encodeHeaderInto(buf);
-                        firstFrame = false;
-                    }
-
-                    int remaining = Math.min(buf.remaining(), body.readableBytes());
-                    if (remaining > 0)
-                        buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
-
-                    body.readerIndex(body.readerIndex() + remaining);
-                    payload.finish();
-                    ctx.writeAndFlush(payload,
-                                      body.readableBytes() == 0 ? promise : ctx.voidPromise());
-                    payload.release();
-                }
-            }
-            else
-            {
-                FrameEncoder.Payload sending = allocator.allocate(true, CQLMessageHandler.frameSize(outbound.header));
-                outbound.encodeInto(sending.buffer);
-                sending.finish();
-                ctx.writeAndFlush(sending, promise);
-                sending.release();
-            }
-        }
-    }
-
     @ChannelHandler.Sharable
     private static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
@@ -592,8 +611,13 @@ public class SimpleClient implements Closeable
         {
             try
             {
+                Frame cloned = r.getSourceFrame().clone();
+                r.getSourceFrame().release();
+                r.setSourceFrame(cloned);
+
                 if (r instanceof EventMessage)
                 {
+
                     if (eventHandler != null)
                         eventHandler.onEvent(((EventMessage) r).event);
                 }

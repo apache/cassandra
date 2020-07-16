@@ -26,6 +26,7 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -34,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Frame
 {
@@ -68,6 +70,12 @@ public class Frame
     public boolean release()
     {
         return body.release();
+    }
+
+    @VisibleForTesting
+    public Frame clone()
+    {
+        return new Frame(header, Unpooled.wrappedBuffer(ByteBufferUtil.clone(body.nioBuffer())));
     }
 
     public static Frame create(Message.Type type, int streamId, ProtocolVersion version, EnumSet<Header.Flag> flags, ByteBuf body)
