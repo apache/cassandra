@@ -95,6 +95,9 @@ public abstract class PartitionIterators
         }
     }
 
+    /**
+     * Consumes all rows in the next partition of the provided partition iterator.
+     */
     public static void consumeNext(PartitionIterator iterator)
     {
         if (iterator.hasNext())
@@ -124,6 +127,38 @@ public abstract class PartitionIterators
             }
         }
         return Transformation.apply(iterator, new Logger());
+    }
+
+    /**
+     * Wraps the provided iterator to run a specified action on close. Note that the action will be
+     * run even if closure of the provided iterator throws an exception.
+     */
+    public static PartitionIterator doOnClose(PartitionIterator delegate, Runnable action)
+    {
+        return new PartitionIterator()
+        {
+            public void close()
+            {
+                try
+                {
+                    delegate.close();
+                }
+                finally
+                {
+                    action.run();
+                }
+            }
+
+            public boolean hasNext()
+            {
+                return delegate.hasNext();
+            }
+
+            public RowIterator next()
+            {
+                return delegate.next();
+            }
+        };
     }
 
     private static class SingletonPartitionIterator extends AbstractIterator<RowIterator> implements PartitionIterator

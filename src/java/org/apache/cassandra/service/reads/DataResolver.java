@@ -33,6 +33,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
@@ -171,6 +172,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         return context.needShortReadProtection()
                ? ShortReadProtection.extend(context.replicas.get(i),
+                                            () -> responses.clearUnsafe(i),
                                             originalResponse,
                                             command,
                                             context.mergedResultCounter,
@@ -202,7 +204,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         // of that row) involves 3 main elements:
         //   1) We combine short-read protection and a merge listener that identifies potentially "out-of-date"
         //      rows to create an iterator that is guaranteed to produce enough valid row results to satisfy the query 
-        //      limit if enough actually exist. A row is considered out-of-date if its merged form is non-empty and we 
+        //      limit if enough actually exist. A row is considered out-of-date if its merged from is non-empty and we 
         //      receive not response from at least one replica. In this case, it is possible that filtering at the
         //      "silent" replica has produced a more up-to-date result.
         //   2) This iterator is passed to the standard resolution process with read-repair, but is first wrapped in a 
@@ -224,16 +226,19 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                                              firstPhaseContext.replicas,
                                                                              DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
                                                                              DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
-        try (PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
-                                                                      rfp.mergeController(),
-                                                                      i -> shortReadProtectedResponse(i, firstPhaseContext),
-                                                                      UnaryOperator.identity()))
-        {
-            return resolveWithReadRepair(secondPhaseContext,
-                                         i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
-                                         results -> command.rowFilter().filter(results, command.metadata(), command.nowInSec()),
-                                         repairedDataTracker);
-        }
+        
+        PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
+                                                                 rfp.mergeController(),
+                                                                 i -> shortReadProtectedResponse(i, firstPhaseContext),
+                                                                 UnaryOperator.identity());
+        
+        PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
+                                                                      i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
+                                                                      results -> command.rowFilter().filter(results, command.metadata(), command.nowInSec()),
+                                                                      repairedDataTracker);
+
+        // Ensure that the RFP instance has a chance to record metrics when the iterator closes.
+        return PartitionIterators.doOnClose(completedPartitions, firstPhasePartitions::close);
     }
 
     @SuppressWarnings("resource")
@@ -262,8 +267,9 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          */
 
         UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(results, mergeListener);
-        FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
-            PartitionIterator counted = Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
+        Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
+        FilteredPartitions filtered = FilteredPartitions.filter(merged, filter);
+        PartitionIterator counted = Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
         return Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }
 

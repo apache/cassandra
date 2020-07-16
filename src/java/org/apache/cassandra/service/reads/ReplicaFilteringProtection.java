@@ -102,8 +102,12 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
 
     private final int cachedRowsWarnThreshold;
     private final int cachedRowsFailThreshold;
+    
+    /** Tracks whether or not we've already hit the warning threshold while evaluating a partition. */
+    private boolean hitWarningThreshold = false;
 
-    private int rowsCached = 0;
+    private int currentRowsCached = 0; // tracks the current number of cached rows
+    private int maxRowsCached = 0; // tracks the high watermark for the number of cached rows
 
     /**
      * Per-source list of the pending partitions seen by the merge listener, to be merged with the extra fetched rows.
@@ -125,7 +129,7 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
         this.sources = sources;
         this.originalPartitions = new ArrayList<>(sources.size());
 
-        for (Replica ignored : sources)
+        for (int i = 0; i < sources.size(); i++)
         {
             originalPartitions.add(new ArrayDeque<>());
         }
@@ -134,48 +138,6 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
 
         this.cachedRowsWarnThreshold = cachedRowsWarnThreshold;
         this.cachedRowsFailThreshold = cachedRowsFailThreshold;
-    }
-
-    private UnfilteredPartitionIterator querySourceOnKey(int i, DecoratedKey key, BTreeSet.Builder<Clustering> builder)
-    {
-        assert builder != null; // We're calling this on the result of rowsToFetch.get(i).keySet()
-
-        Replica source = sources.get(i);
-        NavigableSet<Clustering> clusterings = builder.build();
-        tableMetrics.replicaFilteringProtectionRequests.mark();
-        if (logger.isTraceEnabled())
-            logger.trace("Requesting rows {} in partition {} from {} for replica filtering protection",
-                         clusterings, key, source);
-        Tracing.trace("Requesting {} rows in partition {} from {} for replica filtering protection",
-                      clusterings.size(), key, source);
-
-        // build the read command taking into account that we could be requesting only in the static row
-        DataLimits limits = clusterings.isEmpty() ? DataLimits.cqlLimits(1) : DataLimits.NONE;
-        ClusteringIndexFilter filter = new ClusteringIndexNamesFilter(clusterings, command.isReversed());
-        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(command.metadata(),
-                                                                           command.nowInSec(),
-                                                                           command.columnFilter(),
-                                                                           RowFilter.NONE,
-                                                                           limits,
-                                                                           key,
-                                                                           filter);
-
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(keyspace, key.getToken(), source);
-        ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        try
-        {
-            return executeReadCommand(cmd, source, sharedReplicaPlan);
-        }
-        catch (ReadTimeoutException e)
-        {
-            int blockFor = consistency.blockFor(keyspace);
-            throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
-        }
-        catch (UnavailableException e)
-        {
-            int blockFor = consistency.blockFor(keyspace);
-            throw UnavailableException.create(consistency, blockFor, blockFor - 1);
-        }
     }
 
     private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, Replica source, ReplicaPlan.Shared<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan)
@@ -216,90 +178,103 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
      */
     UnfilteredPartitionIterators.MergeListener mergeController()
     {
-        return (partitionKey, versions) -> {
-
-            List<PartitionBuilder> builders = new ArrayList<>(sources.size());
-
-            for (int i = 0; i < sources.size(); i++)
-                builders.add(i, new PartitionBuilder(command, partitionKey, columns(versions), EncodingStats.merge(versions, NULL_TO_NO_STATS)));
-
-            return new UnfilteredRowIterators.MergeListener()
+        return new UnfilteredPartitionIterators.MergeListener()
+        {
+            @Override
+            public void close()
             {
-                @Override
-                public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
-                {
-                    // cache the deletion time versions to be able to regenerate the original row iterator
-                    for (int i = 0; i < versions.length; i++)
-                        builders.get(i).setDeletionTime(versions[i]);
-                }
+                // If we hit the failure threshold before consuming a single partition, record the current rows cached.
+                tableMetrics.rfpRowsCachedPerQuery.update(Math.max(currentRowsCached, maxRowsCached));
+            }
 
-                @Override
-                public Row onMergedRows(Row merged, Row[] versions)
+            @Override
+            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+            {
+                List<PartitionBuilder> builders = new ArrayList<>(sources.size());
+                RegularAndStaticColumns columns = columns(versions);
+                EncodingStats stats = EncodingStats.merge(versions, NULL_TO_NO_STATS);
+                
+                for (int i = 0; i < sources.size(); i++)
+                    builders.add(i, new PartitionBuilder(partitionKey, sources.get(i), columns, stats));
+
+                return new UnfilteredRowIterators.MergeListener()
                 {
-                    // cache the row versions to be able to regenerate the original row iterator
-                    for (int i = 0; i < versions.length; i++)
+                    @Override
+                    public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
                     {
-                        builders.get(i).addRow(versions[i]);
-                        rowsCached++;
-                        checkCachedRowThresholds();
+                        // cache the deletion time versions to be able to regenerate the original row iterator
+                        for (int i = 0; i < versions.length; i++)
+                            builders.get(i).setDeletionTime(versions[i]);
                     }
 
-                    if (merged.isEmpty())
-                        return merged;
-
-                    boolean isPotentiallyOutdated = false;
-                    boolean isStatic = merged.isStatic();
-                    for (int i = 0; i < versions.length; i++)
+                    @Override
+                    public Row onMergedRows(Row merged, Row[] versions)
                     {
-                        Row version = versions[i];
-                        if (version == null || (isStatic && version.isEmpty()))
+                        // cache the row versions to be able to regenerate the original row iterator
+                        for (int i = 0; i < versions.length; i++)
+                            builders.get(i).addRow(versions[i]);
+
+                        if (merged.isEmpty())
+                            return merged;
+
+                        boolean isPotentiallyOutdated = false;
+                        boolean isStatic = merged.isStatic();
+                        for (int i = 0; i < versions.length; i++)
                         {
-                            isPotentiallyOutdated = true;
-                            builders.get(i).addToFetch(merged);
+                            Row version = versions[i];
+                            if (version == null || (isStatic && version.isEmpty()))
+                            {
+                                isPotentiallyOutdated = true;
+                                builders.get(i).addToFetch(merged);
+                            }
                         }
+
+                        // If the row is potentially outdated (because some replica didn't send anything and so it _may_ be
+                        // an outdated result that is only present because other replica have filtered the up-to-date result
+                        // out), then we skip the row. In other words, the results of the initial merging of results by this
+                        // protection assume the worst case scenario where every row that might be outdated actually is.
+                        // This ensures that during this first phase (collecting additional row to fetch) we are guaranteed
+                        // to look at enough data to ultimately fulfill the query limit.
+                        return isPotentiallyOutdated ? null : merged;
                     }
 
-                    // If the row is potentially outdated (because some replica didn't send anything and so it _may_ be
-                    // an outdated result that is only present because other replica have filtered the up-to-date result
-                    // out), then we skip the row. In other words, the results of the initial merging of results by this
-                    // protection assume the worst case scenario where every row that might be outdated actually is.
-                    // This ensures that during this first phase (collecting additional row to fetch) we are guaranteed
-                    // to look at enough data to ultimately fulfill the query limit.
-                    return isPotentiallyOutdated ? null : merged;
-                }
+                    @Override
+                    public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
+                    {
+                        // cache the marker versions to be able to regenerate the original row iterator
+                        for (int i = 0; i < versions.length; i++)
+                            builders.get(i).addRangeTombstoneMarker(versions[i]);
+                    }
 
-                @Override
-                public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
-                {
-                    // cache the marker versions to be able to regenerate the original row iterator
-                    for (int i = 0; i < versions.length; i++)
-                        builders.get(i).addRangeTombstoneMarker(versions[i]);
-                }
-
-                @Override
-                public void close()
-                {
-                    for (int i = 0; i < sources.size(); i++)
-                        originalPartitions.get(i).add(builders.get(i));
-                }
-            };
+                    @Override
+                    public void close()
+                    {
+                        for (int i = 0; i < sources.size(); i++)
+                            originalPartitions.get(i).add(builders.get(i));
+                    }
+                };
+            }
         };
     }
 
-    private void checkCachedRowThresholds()
+    private void incrementCachedRows()
     {
-        if (rowsCached == cachedRowsFailThreshold + 1)
+        currentRowsCached++;
+        
+        if (currentRowsCached == cachedRowsFailThreshold + 1)
         {
             String message = String.format("Replica filtering protection has cached over %d rows during query %s. " +
                                            "(See 'cached_replica_rows_fail_threshold' in cassandra.yaml.)",
                                            cachedRowsFailThreshold, command.toCQLString());
 
-            oneMinuteLogger.error(message);
+            logger.error(message);
             Tracing.trace(message);
             throw new OverloadedException(message);
         }
-        else if (rowsCached == cachedRowsWarnThreshold + 1)
+        else if (currentRowsCached == cachedRowsWarnThreshold + 1 && !hitWarningThreshold)
         {
+            hitWarningThreshold = true;
+            
             String message = String.format("Replica filtering protection has cached over %d rows during query %s. " +
                                            "(See 'cached_replica_rows_warn_threshold' in cassandra.yaml.)",
                                            cachedRowsWarnThreshold, command.toCQLString());
@@ -312,7 +287,8 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
 
     private void releaseCachedRows(int count)
     {
-        rowsCached -= count;
+        maxRowsCached = Math.max(maxRowsCached, currentRowsCached);
+        currentRowsCached -= count;
     }
 
     private static RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
@@ -352,10 +328,7 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
             }
 
             @Override
-            public void close()
-            {
-                // nothing to do here
-            }
+            public void close() { }
 
             @Override
             public boolean hasNext()
@@ -376,15 +349,15 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
             {
                 PartitionBuilder builder = partitions.poll();
                 assert builder != null;
-                return builder.protectedPartition(source);
+                return builder.protectedPartition();
             }
         };
     }
 
     private class PartitionBuilder
     {
-        private final ReadCommand command;
-        private final DecoratedKey partitionKey;
+        private final DecoratedKey key;
+        private final Replica source;
         private final RegularAndStaticColumns columns;
         private final EncodingStats stats;
 
@@ -394,13 +367,10 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
         private BTreeSet.Builder<Clustering> toFetch;
         private int partitionRowsCached;
 
-        private PartitionBuilder(ReadCommand command,
-                                 DecoratedKey partitionKey,
-                                 RegularAndStaticColumns columns,
-                                 EncodingStats stats)
+        private PartitionBuilder(DecoratedKey key, Replica source, RegularAndStaticColumns columns, EncodingStats stats)
         {
-            this.command = command;
-            this.partitionKey = partitionKey;
+            this.key = key;
+            this.source = source;
             this.columns = columns;
             this.stats = stats;
         }
@@ -413,6 +383,8 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
         private void addRow(Row row)
         {
             partitionRowsCached++;
+
+            incrementCachedRows();
 
             // Note that even null rows are counted against the row caching limit. The assumption is that
             // a subsequent protection query will later fetch the row onto the heap anyway.
@@ -481,7 +453,7 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
                 @Override
                 public DecoratedKey partitionKey()
                 {
-                    return partitionKey;
+                    return key;
                 }
 
                 @Override
@@ -510,23 +482,69 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
             };
         }
 
-        private UnfilteredRowIterator protectedPartition(int source)
+        private UnfilteredRowIterator protectedPartition()
         {
             UnfilteredRowIterator original = originalPartition();
 
             if (toFetch != null)
             {
-                UnfilteredPartitionIterator fetchedPartition = querySourceOnKey(source, partitionKey, toFetch);
-                if (fetchedPartition.hasNext())
+                try (UnfilteredPartitionIterator partitions = fetchFromSource())
                 {
-                    try (UnfilteredRowIterator fetchedRows = fetchedPartition.next())
+                    if (partitions.hasNext())
                     {
-                        return UnfilteredRowIterators.merge(Arrays.asList(original, fetchedRows));
+                        try (UnfilteredRowIterator fetchedRows = partitions.next())
+                        {
+                            return UnfilteredRowIterators.merge(Arrays.asList(original, fetchedRows));
+                        }
                     }
                 }
             }
 
             return original;
+        }
+
+        private UnfilteredPartitionIterator fetchFromSource()
+        {
+            assert toFetch != null;
+
+            NavigableSet<Clustering> clusterings = toFetch.build();
+            tableMetrics.replicaFilteringProtectionRequests.mark();
+            
+            if (logger.isTraceEnabled())
+                logger.trace("Requesting rows {} in partition {} from {} for replica filtering protection",
+                             clusterings, key, source);
+            
+            Tracing.trace("Requesting {} rows in partition {} from {} for replica filtering protection",
+                          clusterings.size(), key, source);
+
+            // build the read command taking into account that we could be requesting only in the static row
+            DataLimits limits = clusterings.isEmpty() ? DataLimits.cqlLimits(1) : DataLimits.NONE;
+            ClusteringIndexFilter filter = new ClusteringIndexNamesFilter(clusterings, command.isReversed());
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(command.metadata(),
+                                                                               command.nowInSec(),
+                                                                               command.columnFilter(),
+                                                                               RowFilter.NONE,
+                                                                               limits,
+                                                                               key,
+                                                                               filter);
+
+            ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(keyspace, key.getToken(), source);
+            ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+            
+            try
+            {
+                return executeReadCommand(cmd, source, sharedReplicaPlan);
+            }
+            catch (ReadTimeoutException e)
+            {
+                int blockFor = consistency.blockFor(keyspace);
+                throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
+            }
+            catch (UnavailableException e)
+            {
+                int blockFor = consistency.blockFor(keyspace);
+                throw UnavailableException.create(consistency, blockFor, blockFor - 1);
+            }
         }
     }
 }

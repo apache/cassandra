@@ -5387,6 +5387,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneWarnThreshold(threshold);
+        logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
     public int getTombstoneFailureThreshold()
@@ -5397,6 +5398,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneFailureThreshold(threshold);
+        logger.info("updated tombstone_failure_threshold to {}", threshold);
     }
 
     public int getCachedReplicaRowsWarnThreshold()
@@ -5407,6 +5409,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setCachedReplicaRowsWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setCachedReplicaRowsWarnThreshold(threshold);
+        logger.info("updated replica_filtering_protection.cached_rows_warn_threshold to {}", threshold);
     }
 
     public int getCachedReplicaRowsFailThreshold()
@@ -5417,6 +5420,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setCachedReplicaRowsFailThreshold(int threshold)
     {
         DatabaseDescriptor.setCachedReplicaRowsFailThreshold(threshold);
+        logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
     }
 
     public int getColumnIndexCacheSize()
@@ -5438,7 +5442,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setBatchSizeFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
-        logger.info("Updated batch_size_fail_threshold_in_kb to {}", threshold);
+        logger.info("updated batch_size_fail_threshold_in_kb to {}", threshold);
     }
 
     public int getBatchSizeWarnThreshold()
@@ -5490,7 +5494,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
-        logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
+        logger.info("updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
     }
 
     @Override
