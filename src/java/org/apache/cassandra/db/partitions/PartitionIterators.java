@@ -20,7 +20,6 @@ package org.apache.cassandra.db.partitions;
 import java.util.*;
 
 import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -87,6 +86,18 @@ public abstract class PartitionIterators
     public static void consume(PartitionIterator iterator)
     {
         while (iterator.hasNext())
+        {
+            try (RowIterator partition = iterator.next())
+            {
+                while (partition.hasNext())
+                    partition.next();
+            }
+        }
+    }
+
+    public static void consumeNext(PartitionIterator iterator)
+    {
+        if (iterator.hasNext())
         {
             try (RowIterator partition = iterator.next())
             {
