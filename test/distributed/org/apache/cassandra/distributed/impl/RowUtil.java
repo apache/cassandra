@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.impl;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -41,7 +42,11 @@ public class RowUtil
             ResultMessage.Rows rows = (ResultMessage.Rows) res;
             String[] names = getColumnNames(rows.result.metadata.names);
             Object[][] results = RowUtil.toObjects(rows);
-            return new SimpleQueryResult(names, results);
+            
+            // Warnings may be null here, due to ClientWarn#getWarnings() handing of empty warning lists.
+            List<String> warnings = res.getWarnings();
+
+            return new SimpleQueryResult(names, results, warnings == null ? Collections.emptyList() : warnings);
         }
         else
         {

@@ -95,6 +95,18 @@ public abstract class PartitionIterators
         }
     }
 
+    public static void consumeNext(PartitionIterator iterator)
+    {
+        if (iterator.hasNext())
+        {
+            try (RowIterator partition = iterator.next())
+            {
+                while (partition.hasNext())
+                    partition.next();
+            }
+        }
+    }
+
     /**
      * Wraps the provided iterator so it logs the returned rows for debugging purposes.
      * <p>

@@ -19,31 +19,16 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.impl.RowUtil;
-import org.apache.cassandra.exceptions.TooManyCachedRowsException;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFAULT_FAIL_THRESHOLD;
 import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFAULT_WARN_THRESHOLD;
@@ -53,7 +38,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Exercises the functionality of {@link org.apache.cassandra.service.ReplicaFilteringProtection}, the
+ * Exercises the functionality of {@link org.apache.cassandra.service.reads.ReplicaFilteringProtection}, the
  * mechanism that ensures distributed index and filtering queries at read consistency levels > ONE/LOCAL_ONE
  * avoid stale replica results.
  */
@@ -88,9 +73,9 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     public void testMissedUpdatesBelowCachingWarnThreshold()
     {
         String tableName = "missed_updates_no_warning";
-        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text) WITH read_repair = 'NONE'"));
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
-        // The warning threshold provided is exactly the total number of rows returned
+        // The warning threshold provided is one more than the total number of rows returned
         // to the coordinator from all replicas and therefore should not be triggered.
         testMissedUpdates(tableName, REPLICAS * ROWS, Integer.MAX_VALUE, false);
     }
@@ -99,7 +84,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     public void testMissedUpdatesAboveCachingWarnThreshold()
     {
         String tableName = "missed_updates_cache_warn";
-        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text) WITH read_repair = 'NONE'"));
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
         // The warning threshold provided is one less than the total number of rows returned
         // to the coordinator from all replicas and therefore should be triggered but not fail the query.
@@ -110,7 +95,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     public void testMissedUpdatesAroundCachingFailThreshold()
     {
         String tableName = "missed_updates_cache_fail";
-        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text) WITH read_repair = 'NONE'"));
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
         // The failure threshold provided is exactly the total number of rows returned
         // to the coordinator from all replicas and therefore should just warn.
@@ -124,7 +109,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         }
         catch (RuntimeException e)
         {
-            assertEquals(e.getClass().getName(), TooManyCachedRowsException.class.getName());
+            assertEquals(e.getClass().getName(), OverloadedException.class.getName());
         }
     }
 
@@ -151,47 +136,35 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
             cluster.get(1).executeInternal("UPDATE " + fullTableName + " SET v = 'new' WHERE k = ?", i);
         }
 
-        // TODO: These should be able to use ICoordinator#executeWithResult() once CASSANDRA-15920 is resolved.
-        Object[] oldResponse = cluster.get(1).callOnInstance(() -> executeInternal(query, "old", ROWS));
-        Object[][] oldRows = (Object[][]) oldResponse[0];
-        assertRows(oldRows);
-        @SuppressWarnings("unchecked") List<String> oldWarnings = (List<String>) oldResponse[1];
+        // The replica that missed the results creates a mismatch at every row, and we threfore cache a version
+        // of that row for all replicas.
+        SimpleQueryResult oldResult = cluster.coordinator(1).executeWithResult(query, ALL, "old", ROWS);
+        assertRows(oldResult.toObjectArrays());
+        List<String> oldWarnings = oldResult.warnings();
         assertEquals(shouldWarn, oldWarnings.stream().anyMatch(w -> w.contains("cached_replica_rows_warn_threshold")));
         assertEquals(shouldWarn ? 1 : 0, oldWarnings.size());
 
-        Object[] newResponse = cluster.get(1).callOnInstance(() -> executeInternal(query, "new", ROWS));
-        Object[][] newRows = (Object[][]) newResponse[0];
+        // The previous query peforms a blocking read-repair, which removes replica divergence. This
+        // will only warn, therefore, if the warning threshold is actually below the number of replicas.
+        // (i.e. The row cache counter is decremented/reset as each partition is consumed.)
+        SimpleQueryResult newResult = cluster.coordinator(1).executeWithResult(query, ALL, "new", ROWS);
+        Object[][] newRows = newResult.toObjectArrays();
         assertRows(newRows, row(1, "new"), row(0, "new"), row(2, "new"));
-        @SuppressWarnings("unchecked") List<String> newWarnings = (List<String>) newResponse[1];
-        assertEquals(shouldWarn, newWarnings.stream().anyMatch(w -> w.contains("cached_replica_rows_warn_threshold")));
-        assertEquals(shouldWarn ? 1 : 0, newWarnings.size());
-    }
+        List<String> newWarnings = newResult.warnings();
+        assertEquals(warnThreshold < REPLICAS, newWarnings.stream().anyMatch(w -> w.contains("cached_replica_rows_warn_threshold")));
 
-    // TODO: This should no longer be necessary once CASSANDRA-15920 is resolved.
-    private static Object[] executeInternal(String query, Object... boundValues)
-    {
-        ClientState clientState = ClientState.forExternalCalls(new InetSocketAddress(FBUtilities.getJustLocalAddress(), 9042));
-        ClientWarn.instance.captureWarnings();
+        // Update all rows on only one replica, leaving the entire dataset of the remaining replica out-of-date:
+        for (int i = 0; i < ROWS; i++)
+        {
+            cluster.get(1).executeInternal("UPDATE " + fullTableName + " SET v = 'future' WHERE k = ?", i);
+        }
 
-        CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
-        List<ByteBuffer> boundBBValues = new ArrayList<>();
-
-        for (Object boundValue : boundValues)
-            boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
-
-        prepared.validate(QueryState.forInternalCalls().getClientState());
-        ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                             QueryOptions.create(ConsistencyLevel.ALL,
-                                                                 boundBBValues,
-                                                                 false,
-                                                                 Integer.MAX_VALUE,
-                                                                 null,
-                                                                 null,
-                                                                 ProtocolVersion.V4,
-                                                                 null),
-                                             System.nanoTime());
-
-        List<String> warnings = ClientWarn.instance.getWarnings();
-        return new Object[] { RowUtil.toQueryResult(res).toObjectArrays(), warnings == null ? Collections.emptyList() : warnings };
+        // Another mismatch is introduced, and we once again cache a version of each row during resolution.
+        SimpleQueryResult futureResult = cluster.coordinator(1).executeWithResult(query, ALL, "future", ROWS);
+        Object[][] futureRows = futureResult.toObjectArrays();
+        assertRows(futureRows, row(1, "future"), row(0, "future"), row(2, "future"));
+        List<String> futureWarnings = futureResult.warnings();
+        assertEquals(shouldWarn, futureWarnings.stream().anyMatch(w -> w.contains("cached_replica_rows_warn_threshold")));
+        assertEquals(shouldWarn ? 1 : 0, futureWarnings.size());
     }
 }
