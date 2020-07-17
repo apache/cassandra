@@ -32,6 +32,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 
 /**
@@ -93,6 +94,11 @@ public final class JVMStabilityInspector
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
             isUnstable = true;
+
+        if (t instanceof CorruptSSTableException)
+            FileUtils.handleCorruptSSTable((CorruptSSTableException) t);
+        else if (t instanceof FSError)
+            FileUtils.handleFSError((FSError) t);
 
         // Check for file handle exhaustion
         if (t instanceof FileNotFoundException || t instanceof SocketException)
