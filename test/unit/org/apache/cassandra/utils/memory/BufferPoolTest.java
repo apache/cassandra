@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -46,7 +46,7 @@ public class BufferPoolTest
     @Before
     public void setUp()
     {
-        BufferPool.MEMORY_USAGE_THRESHOLD = 8 * 1024L * 1024L;
+        BufferPool.setMemoryUsageThreshold(8 * 1024L * 1024L);
     }
 
     @After
@@ -65,7 +65,7 @@ public class BufferPoolTest
     }
 
     @Test
-    public void testGetPut() throws InterruptedException
+    public void testGetPut()
     {
         final int size = RandomAccessReader.DEFAULT_BUFFER_SIZE;
 
@@ -149,14 +149,14 @@ public class BufferPoolTest
     @Test
     public void testMaxMemoryExceeded_SameAsChunkSize()
     {
-        BufferPool.MEMORY_USAGE_THRESHOLD = BufferPool.GlobalPool.MACRO_CHUNK_SIZE;
+        BufferPool.setMemoryUsageThreshold(BufferPool.GlobalPool.MACRO_CHUNK_SIZE);
         requestDoubleMaxMemory();
     }
 
     @Test
     public void testMaxMemoryExceeded_SmallerThanChunkSize()
     {
-        BufferPool.MEMORY_USAGE_THRESHOLD = BufferPool.GlobalPool.MACRO_CHUNK_SIZE / 2;
+        BufferPool.setMemoryUsageThreshold(BufferPool.GlobalPool.MACRO_CHUNK_SIZE / 2);
         requestDoubleMaxMemory();
     }
 
@@ -168,7 +168,7 @@ public class BufferPoolTest
 
     private void requestDoubleMaxMemory()
     {
-        requestUpToSize(RandomAccessReader.DEFAULT_BUFFER_SIZE, (int)(2 * BufferPool.MEMORY_USAGE_THRESHOLD));
+        requestUpToSize(RandomAccessReader.DEFAULT_BUFFER_SIZE, (int)(2 * BufferPool.getMemoryUsageThreshold()));
     }
 
     private void requestUpToSize(int bufferSize, int totalSize)

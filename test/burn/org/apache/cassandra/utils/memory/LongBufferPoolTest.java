@@ -244,9 +244,9 @@ public class LongBufferPoolTest
                                          DATE_FORMAT.format(new Date()),
                                          threadCount,
                                          TimeUnit.NANOSECONDS.toMinutes(duration)));
-        long prevPoolSize = BufferPool.MEMORY_USAGE_THRESHOLD;
+        long prevPoolSize = BufferPool.getMemoryUsageThreshold();
         logger.info("Overriding configured BufferPool.MEMORY_USAGE_THRESHOLD={} and enabling BufferPool.DEBUG", poolSize);
-        BufferPool.MEMORY_USAGE_THRESHOLD = poolSize;
+        BufferPool.setMemoryUsageThreshold(poolSize);
         Debug debug = new Debug();
         BufferPool.debug(debug);
 
@@ -288,7 +288,7 @@ public class LongBufferPoolTest
         assertEquals(0, testEnv.executorService.shutdownNow().size());
 
         logger.info("Reverting BufferPool.MEMORY_USAGE_THRESHOLD={}", prevPoolSize);
-        BufferPool.MEMORY_USAGE_THRESHOLD = prevPoolSize;
+        BufferPool.setMemoryUsageThreshold(prevPoolSize);
         BufferPool.debug(null);
 
         testEnv.assertCheckedThreadsSucceeded();
