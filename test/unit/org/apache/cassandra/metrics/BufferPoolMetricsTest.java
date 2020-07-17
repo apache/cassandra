@@ -51,7 +51,7 @@ public class BufferPoolMetricsTest
     @Before
     public void setUp()
     {
-        BufferPool.MEMORY_USAGE_THRESHOLD = 16 * 1024L * 1024L;
+        BufferPool.setMemoryUsageThreshold(16 * 1024L * 1024L);
     }
 
     @After
@@ -77,7 +77,7 @@ public class BufferPoolMetricsTest
         final long seed = System.currentTimeMillis();
         final Random rand = new Random(seed);
         final String assertionMessage = String.format("Failed with seed of %s", seed);
-        final long maxIterations = BufferPool.MEMORY_USAGE_THRESHOLD;
+        final long maxIterations = BufferPool.getMemoryUsageThreshold();
         final int maxBufferSize = BufferPool.NORMAL_CHUNK_SIZE - 1;
         int nextSizeToRequest;
         long totalBytesRequestedFromPool = 0;
