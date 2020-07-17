@@ -1,4 +1,5 @@
 4.0-beta2
+ * Optimize NoSpamLogger use in hot paths (CASSANDRA-15766)
  * Verify sstable components on startup (CASSANDRA-15945)
 Merged from 3.11:
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)

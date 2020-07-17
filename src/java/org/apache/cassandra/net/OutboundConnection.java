@@ -66,6 +66,7 @@ import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHO
 import static org.apache.cassandra.net.ResourceLimits.*;
 import static org.apache.cassandra.net.ResourceLimits.Outcome.*;
 import static org.apache.cassandra.net.SocketFactory.*;
+import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
 
@@ -119,6 +120,18 @@ public class OutboundConnection
     /** global shared limits that we use only if our local limits are exhausted;
      *  we allocate from here whenever queueSize > queueCapacity */
     private final EndpointAndGlobal reserveCapacityInBytes;
+
+    /** Used in logging statements to lazily build a human-readable number of pending bytes. */
+    private final Object readablePendingBytes =
+        new Object() { @Override public String toString() { return prettyPrintMemory(pendingBytes()); } };
+
+    /** Used in logging statements to lazily build a human-readable number of reserve endpoint bytes in use. */
+    private final Object readableReserveEndpointUsing =
+        new Object() { @Override public String toString() { return prettyPrintMemory(reserveCapacityInBytes.endpoint.using()); } };
+
+    /** Used in logging statements to lazily build a human-readable number of reserve global bytes in use. */
+    private final Object readableReserveGlobalUsing =
+        new Object() { @Override public String toString() { return prettyPrintMemory(reserveCapacityInBytes.global.using()); } };
 
     private volatile long submittedCount = 0;   // updated with cas
     private volatile long overloadedCount = 0;  // updated with cas
@@ -439,13 +452,14 @@ public class OutboundConnection
     private void onOverloaded(Message<?> message)
     {
         overloadedCountUpdater.incrementAndGet(this);
-        overloadedBytesUpdater.addAndGet(this, canonicalSize(message));
+        
+        int canonicalSize = canonicalSize(message);
+        overloadedBytesUpdater.addAndGet(this, canonicalSize);
+        
         noSpamLogger.warn("{} overloaded; dropping {} message (queue: {} local, {} endpoint, {} global)",
-                          id(),
-                          FBUtilities.prettyPrintMemory(canonicalSize(message)),
-                          FBUtilities.prettyPrintMemory(pendingBytes()),
-                          FBUtilities.prettyPrintMemory(reserveCapacityInBytes.endpoint.using()),
-                          FBUtilities.prettyPrintMemory(reserveCapacityInBytes.global.using()));
+                          this, FBUtilities.prettyPrintMemory(canonicalSize),
+                          readablePendingBytes, readableReserveEndpointUsing, readableReserveGlobalUsing);
+        
         callbacks.onOverloaded(message, template.to);
     }
 

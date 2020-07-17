@@ -71,8 +71,8 @@ public class BufferPool
     private final static BufferPoolMetrics metrics = new BufferPoolMetrics();
 
     // TODO: this should not be using FileCacheSizeInMB
-    @VisibleForTesting
-    public static long MEMORY_USAGE_THRESHOLD = DatabaseDescriptor.getFileCacheSizeInMB() * 1024L * 1024L;
+    private static long MEMORY_USAGE_THRESHOLD = DatabaseDescriptor.getFileCacheSizeInMB() * 1024L * 1024L;
+    private static String READABLE_MEMORY_USAGE_THRESHOLD = prettyPrintMemory(MEMORY_USAGE_THRESHOLD);
 
     private static Debug debug;
 
@@ -160,6 +160,19 @@ public class BufferPool
         return globalPool.sizeInBytes();
     }
 
+    @VisibleForTesting
+    public static void setMemoryUsageThreshold(long threshold)
+    {
+        MEMORY_USAGE_THRESHOLD = threshold;
+        READABLE_MEMORY_USAGE_THRESHOLD = prettyPrintMemory(MEMORY_USAGE_THRESHOLD);
+    }
+
+    @VisibleForTesting
+    public static long getMemoryUsageThreshold()
+    {
+        return MEMORY_USAGE_THRESHOLD;
+    }
+
     interface Debug
     {
         void registerNormal(Chunk chunk);
@@ -187,6 +200,7 @@ public class BufferPool
     {
         /** The size of a bigger chunk, 1 MiB, must be a multiple of NORMAL_CHUNK_SIZE */
         static final int MACRO_CHUNK_SIZE = 64 * NORMAL_CHUNK_SIZE;
+        private static final String READABLE_MACRO_CHUNK_SIZE = prettyPrintMemory(MACRO_CHUNK_SIZE);
 
         static
         {
@@ -194,14 +208,17 @@ public class BufferPool
             assert Integer.bitCount(MACRO_CHUNK_SIZE) == 1; // must be a power of 2
             assert MACRO_CHUNK_SIZE % NORMAL_CHUNK_SIZE == 0; // must be a multiple
 
-            logger.info("Global buffer pool limit is {}",
-                            prettyPrintMemory(MEMORY_USAGE_THRESHOLD));
+            logger.info("Global buffer pool limit is {}", prettyPrintMemory(MEMORY_USAGE_THRESHOLD));
         }
 
         private final Queue<Chunk> macroChunks = new ConcurrentLinkedQueue<>();
         // TODO (future): it would be preferable to use a CLStack to improve cache occupancy; it would also be preferable to use "CoreLocal" storage
         private final Queue<Chunk> chunks = new ConcurrentLinkedQueue<>();
         private final AtomicLong memoryUsage = new AtomicLong();
+
+        /** Used in logging statements to lazily build a human-readable current memory usage. */
+        private final Object readableMemoryUsage = 
+            new Object() { @Override public String toString() { return prettyPrintMemory(sizeInBytes()); } };
 
         /** Return a chunk, the caller will take owership of the parent chunk. */
         public Chunk get()
@@ -232,8 +249,7 @@ public class BufferPool
                     if (MEMORY_USAGE_THRESHOLD > 0)
                     {
                         noSpamLogger.info("Maximum memory usage reached ({}), cannot allocate chunk of {}",
-                                          prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
-                                          prettyPrintMemory(MACRO_CHUNK_SIZE));
+                                          READABLE_MEMORY_USAGE_THRESHOLD, READABLE_MACRO_CHUNK_SIZE);
                     }
                     return null;
                 }
@@ -252,9 +268,7 @@ public class BufferPool
                 noSpamLogger.error("Buffer pool failed to allocate chunk of {}, current size {} ({}). " +
                                    "Attempting to continue; buffers will be allocated in on-heap memory which can degrade performance. " +
                                    "Make sure direct memory size (-XX:MaxDirectMemorySize) is large enough to accommodate off-heap memtables and caches.",
-                                   prettyPrintMemory(MACRO_CHUNK_SIZE),
-                                   prettyPrintMemory(sizeInBytes()),
-                                   oom.toString());
+                                   READABLE_MACRO_CHUNK_SIZE, readableMemoryUsage, oom.getClass().getName());
                 return null;
             }
 
