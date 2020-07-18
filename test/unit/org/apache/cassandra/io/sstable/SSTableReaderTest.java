@@ -810,7 +810,7 @@ public class SSTableReaderTest
     }
 
     @Test
-    public void testVerifyCompressionInfoExistencePasses()
+    public void testVerifyCompressionInfoExistenceWhenTOCUnableToOpen()
     {
         Descriptor desc = setUpForTestVerfiyCompressionInfoExistence();
         Set<Component> components = SSTable.discoverComponentsFor(desc);
@@ -826,7 +826,7 @@ public class SSTableReaderTest
     }
 
     @Test
-    public void testVerifyCompressionInfoExistenceWhenTOCUnableToOpen()
+    public void testVerifyCompressionInfoExistencePasses()
     {
         Descriptor desc = setUpForTestVerfiyCompressionInfoExistence();
         Set<Component> components = SSTable.discoverComponentsFor(desc);
@@ -839,7 +839,6 @@ public class SSTableReaderTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED);
         SSTableReader sstable = getNewSSTable(cfs);
         cfs.clearUnsafe();
-        sstable.selfRef().release();
         Descriptor desc = sstable.descriptor;
 
         File compressionInfoFile = new File(desc.filenameFor(Component.COMPRESSION_INFO));
