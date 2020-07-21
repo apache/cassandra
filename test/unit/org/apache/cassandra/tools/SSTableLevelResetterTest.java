@@ -22,18 +22,27 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableLevelResetterTest extends OfflineToolUtils
 {
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
-    
+    private final ToolRunner.Runners runner = new ToolRunner.Runners();
+
     @Test
-    public void testSSTableLevelResetter_NoArgs()
+    public void testNoArgsPrintsHelp()
     {
-        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableLevelResetter").getExitCode());
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableLevelResetter.class.getName()))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(1, tool.getExitCode());
+        }
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -43,12 +52,50 @@ public class SSTableLevelResetterTest extends OfflineToolUtils
     }
 
     @Test
-    public void testSSTableLevelResetter_WithArgs()
+    public void testMaybeChangeDocs()
     {
-        runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableLevelResetter", "--really-reset", "system_schema", "tables")
-              .waitAndAssertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
-        assertSchemaLoaded();
-        assertServerNotLoaded();
+        // If you added, modified options or help, please update docs if necessary
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableLevelResetter.class.getName(), "-h"))
+        {
+            String help = "This command should be run with Cassandra stopped, otherwise you will get very strange behavior\n" + 
+                          "Verify that Cassandra is not running and then execute the command like this:\n" + 
+                          "Usage: sstablelevelreset --really-reset <keyspace> <table>\n";
+            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        }
+    }
+
+    @Test
+    public void testWrongArgFailsAndPrintsHelp()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableLevelResetter.class.getName(), "--debugwrong", "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(1, tool.getExitCode());
+        }
+    }
+
+    @Test
+    public void testDefaultCall()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableLevelResetter.class.getName(), "--really-reset", "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Found no sstables,"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(0,tool.getExitCode());
+        }
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testMissingSecurityFlagCall()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableLevelResetter.class.getName(), "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(1, tool.getExitCode());
+        }
+        assertCorrectEnvPostTest();
     }
 }

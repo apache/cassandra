@@ -22,18 +22,27 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableExpiredBlockersTest extends OfflineToolUtils
 {
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
-    
+    private final ToolRunner.Runners runner = new ToolRunner.Runners();
+
     @Test
-    public void testSSTableExpiredBlockers_NoArgs()
+    public void testNoArgsPrintsHelp()
     {
-        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableExpiredBlockers").getExitCode());
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableExpiredBlockers.class.getName()))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(1, tool.getExitCode());
+        }
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -43,12 +52,37 @@ public class SSTableExpiredBlockersTest extends OfflineToolUtils
     }
 
     @Test
-    public void testSSTableExpiredBlockers_WithArgs()
+    public void testMaybeChangeDocs()
     {
-        // returns exit code 1, since no sstables are there
-        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableExpiredBlockers", "system_schema", "tables").getExitCode());
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
-        assertSchemaLoaded();
-        assertServerNotLoaded();
+        // If you added, modified options or help, please update docs if necessary
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableExpiredBlockers.class.getName()))
+        {
+            String help = "Usage: sstableexpiredblockers <keyspace> <table>\n";
+            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        }
+    }
+
+    @Test
+    public void testWrongArgsIgnored()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableExpiredBlockers.class.getName(), "--debugwrong", "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No sstables for"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(1, tool.getExitCode());
+        }
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testDefaultCall()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(SSTableExpiredBlockers.class.getName(), "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No sstables for"));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(1, tool.getExitCode());
+        }
+        assertCorrectEnvPostTest();
     }
 }

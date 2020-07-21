@@ -58,6 +58,7 @@ public class ToolRunner implements AutoCloseable
     @SuppressWarnings("resource")
     private final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
     private InputStream stdin;
+    private boolean stdinAutoClose;
     private Thread[] ioWatchers;
     private Map<String, String> envs;
     private boolean runOutOfProcess = true;
@@ -216,8 +217,8 @@ public class ToolRunner implements AutoCloseable
 
         return this;
     }
-
-    public static int runClassAsTool(String clazz, String... args)
+    
+    public int runClassAsTool(String clazz, String... args)
     {
         try
         {
@@ -355,7 +356,7 @@ public class ToolRunner implements AutoCloseable
     }
 
     /**
-     * Checks if the stdErr is empty after removing any potential JVM env info output and other noise
+     * Returns stdErr after removing any potential JVM env info output through the provided cleaners
      * 
      * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual stdErr
      * 
@@ -371,7 +372,7 @@ public class ToolRunner implements AutoCloseable
     }
 
     /**
-     * Checks if the stdErr is empty after removing any potential JVM env info output. Uses default list of excludes
+     * Returns stdErr after removing any potential JVM env info output. Uses default list of excludes
      * 
      * {@link #getCleanedStderr(List)}
      */
@@ -451,6 +452,52 @@ public class ToolRunner implements AutoCloseable
         }
     }
 
+    private void watchIO()
+    {
+        OutputStream in = process.getOutputStream();
+        InputStream err = process.getErrorStream();
+        InputStream out = process.getInputStream();
+        while (true)
+        {
+            boolean errHandled;
+            boolean outHandled;
+            try
+            {
+                if (stdin != null)
+                {
+                    IOUtils.copy(stdin, in);
+                    if (stdinAutoClose)
+                    {
+                        in.close();
+                        stdin = null;
+                    }
+                }
+                errHandled = IOUtils.copy(err, errBuffer) > 0;
+                outHandled = IOUtils.copy(out, outBuffer) > 0;
+            }
+            catch(IOException e1)
+            {
+                logger.error("Error trying to use in/err/out from process");
+                Thread.currentThread().interrupt();
+                break;
+            }
+            if (!errHandled && !outHandled)
+            {
+                if (!process.isAlive())
+                    return;
+                try
+                {
+                    Thread.sleep(50L);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+    }
+
     public static class Runners
     {
         public static ToolRunner invokeNodetool(String... args)
@@ -460,12 +507,23 @@ public class ToolRunner implements AutoCloseable
 
         public static ToolRunner invokeNodetool(List<String> args)
         {
-            return invokeTool(buildNodetoolArgs(args), true);
+            return invokeTool(CQLTester.buildNodetoolArgs(args), true, true);
         }
 
-        private static List<String> buildNodetoolArgs(List<String> args)
+        /**
+         * Invokes Cqlsh. The first arg is the cql to execute
+         */
+        public ToolRunner invokeCqlsh(String... args)
         {
-            return CQLTester.buildNodetoolArgs(args);
+            return invokeCqlsh(Arrays.asList(args));
+        }
+
+        /**
+         * Invokes Cqlsh. The first arg is the cql to execute
+         */
+        public ToolRunner invokeCqlsh(List<String> args)
+        {
+            return invokeTool(CQLTester.buildCqlshArgs(args), true, true);
         }
 
         public static ToolRunner invokeClassAsTool(String... args)
@@ -475,7 +533,17 @@ public class ToolRunner implements AutoCloseable
 
         public static ToolRunner invokeClassAsTool(List<String> args)
         {
-            return invokeTool(args, false);
+            return invokeTool(args, false, true);
+        }
+
+        public ToolRunner invokeCassandraStress(String... args)
+        {
+            return invokeCassandraStress(Arrays.asList(args));
+        }
+
+        public ToolRunner invokeCassandraStress(List<String> args)
+        {
+            return invokeTool(CQLTester.buildCassandraStressArgs(args), true, true);
         }
 
         public static ToolRunner invokeTool(String... args)
@@ -485,16 +553,24 @@ public class ToolRunner implements AutoCloseable
 
         public static ToolRunner invokeTool(List<String> args)
         {
-            return invokeTool(args, true);
+            return invokeTool(args, true, true);
         }
 
-        public static ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
+        public static ToolRunner invokeToolNoWait(List<String> args)
         {
-            try (ToolRunner runner = new ToolRunner(args, runOutOfProcess).start())
-            {
-                runner.waitFor();
-                return runner;
-            }
+            return invokeTool(args, true, false);
         }
+
+        public static ToolRunner invokeTool(List<String> args, boolean runOutOfProcess, boolean wait)
+        {
+            ToolRunner runner = new ToolRunner(args, runOutOfProcess);
+            if (wait)
+                runner.start().waitFor();
+            else
+                runner.start();
+
+            return runner;
+        }
+
     }
 }

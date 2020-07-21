@@ -18,22 +18,33 @@
 
 package org.apache.cassandra.tools;
 
+import java.util.Arrays;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StandaloneUpgraderTest extends OfflineToolUtils
 {
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
-    
+    private final ToolRunner.Runners runner = new ToolRunner.Runners();
+
     @Test
-    public void testStandaloneUpgrader_NoArgs()
+    public void testNoArgsPrintsHelp()
     {
-        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneUpgrader").getExitCode());
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneUpgrader.class.getName()))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Missing arguments"));
+            assertEquals(1, tool.getExitCode());
+        }
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -43,12 +54,81 @@ public class StandaloneUpgraderTest extends OfflineToolUtils
     }
 
     @Test
-    public void testStandaloneUpgrader_WithArgs()
+    public void testMaybeChangeDocs()
     {
-        runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneUpgrader", "--debug", "system_schema", "tables")
-              .waitAndAssertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
-        assertSchemaLoaded();
-        assertServerNotLoaded();
+        // If you added, modified options or help, please update docs if necessary
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneUpgrader.class.getName(), "-h"))
+        {
+            String help = "usage: sstableupgrade [options] <keyspace> <cf> [snapshot]\n" + 
+                           "--\n" + 
+                           "Upgrade the sstables in the given cf (or snapshot) to the current version\n" + 
+                           "of Cassandra.This operation will rewrite the sstables in the specified cf\n" + 
+                           "to match the currently installed version of Cassandra.\n" + 
+                           "The snapshot option will only upgrade the specified snapshot. Upgrading\n" + 
+                           "snapshots is required before attempting to restore a snapshot taken in a\n" + 
+                           "major version older than the major version Cassandra is currently running.\n" + 
+                           "This will replace the files in the given snapshot as well as break any\n" + 
+                           "hard links to live sstables.\n" + 
+                           "--\n" + 
+                           "Options are:\n" + 
+                           "    --debug         display stack traces\n" + 
+                           " -h,--help          display this help message\n" + 
+                           " -k,--keep-source   do not delete the source sstables\n";
+            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        }
+    }
+
+    @Test
+    public void testWrongArgFailsAndPrintsHelp()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneUpgrader.class.getName(), "--debugwrong", "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unrecognized option"));
+            assertEquals(1, tool.getExitCode());
+        }
+    }
+
+    @Test
+    public void testDefaultCall()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneUpgrader.class.getName(), "system_schema", "tables"))
+        {
+            Assertions.assertThat(tool.getStdout()).isEqualTo("Found 0 sstables that need upgrading.\n");
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(0,tool.getExitCode());
+        }
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testFlagArgs()
+    {
+        Arrays.asList("--debug", "-k", "--keep-source").forEach(arg -> {
+            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneUpgrader.class.getName(),
+                                                       arg,
+                                                       "system_schema",
+                                                       "tables"))
+            {
+                Assertions.assertThat(tool.getStdout()).as("Arg: [%s]", arg).isEqualTo("Found 0 sstables that need upgrading.\n");
+                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                assertEquals(0,tool.getExitCode());
+            }
+            assertCorrectEnvPostTest();
+        });
+    }
+
+    @Test
+    public void testHelpArg()
+    {
+        Arrays.asList("-h", "--help").forEach(arg -> {
+            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneUpgrader.class.getName(), arg))
+            {
+                Assertions.assertThat(tool.getStdout()).as("Arg: [%s]", arg).containsIgnoringCase("Found 0 sstables that need upgrading.\n");
+                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                tool.assertOnExitCode();
+            }
+            assertCorrectEnvPostTest();
+        });
     }
 }

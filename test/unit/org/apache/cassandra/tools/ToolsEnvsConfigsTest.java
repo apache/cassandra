@@ -18,28 +18,36 @@
 
 package org.apache.cassandra.tools;
 
+import java.util.Collections;
+
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.cql3.CQLTester;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
-public class GetVersionTest extends OfflineToolUtils
+import static org.junit.Assert.assertTrue;
+
+public class ToolsEnvsConfigsTest
 {
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
-    
+    //Some JDK can output env info on stdout/err. Check we can clean them
+    @SuppressWarnings("resource")
     @Test
-    public void testGetVersion()
+    public void testJDKEnvInfoDefaultCleaners()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool("org.apache.cassandra.tools.GetVersion"))
+        ToolRunner runner = null;
+        try
         {
-            tool.waitAndAssertOnCleanExit();
+            runner = new ToolRunner(CQLTester.buildNodetoolArgs(Collections.emptyList()), true);
+            runner = runner.withEnvs(ImmutableMap.of("_JAVA_OPTIONS", "-Djava.net.preferIPv4Stack=true"));
+            runner = runner.start();
+            runner.waitFor();
+            assertTrue("Cleaned Stderr was not empty: " + runner.getCleanedStderr(),
+                       runner.getCleanedStderr().isEmpty());
         }
-        assertNoUnexpectedThreadsStarted(null, null);
-        assertSchemaNotLoaded();
-        assertCLSMNotLoaded();
-        assertSystemKSNotLoaded();
-        assertKeyspaceNotLoaded();
-        assertServerNotLoaded();
+        finally
+        {
+            runner.close();
+        }
     }
 }

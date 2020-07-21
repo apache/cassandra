@@ -23,22 +23,25 @@ import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class BulkLoaderTest extends OfflineToolUtils
 {
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    private final ToolRunner.Runners runner = new ToolRunner.Runners();
     
     @Test
     public void testBulkLoader_NoArgs() throws Exception
     {
-        ToolRunner tool = runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader");
-        assertEquals(1, tool.getExitCode());
-        assertTrue(!tool.getStderr().isEmpty());
+        try (ToolRunner tool = runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader"))
+        {
+            assertEquals(1, tool.getExitCode());
+            assertThat(tool.getCleanedStderr(), CoreMatchers.containsString("Missing sstable directory argument"));
+        }
         
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();

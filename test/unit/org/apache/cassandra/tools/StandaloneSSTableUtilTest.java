@@ -18,22 +18,35 @@
 
 package org.apache.cassandra.tools;
 
+import java.util.Arrays;
+
+import org.apache.commons.lang3.tuple.Pair;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StandaloneSSTableUtilTest extends OfflineToolUtils
 {
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
-    
+    private final ToolRunner.Runners runner = new ToolRunner.Runners();
+
     @Test
-    public void testStandaloneSSTableUtil_NoArgs()
+    public void testNoArgsPrintsHelp()
     {
-        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneSSTableUtil").getExitCode());
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName()))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Missing arguments"));
+            assertEquals(1, tool.getExitCode());
+        }
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -43,12 +56,135 @@ public class StandaloneSSTableUtilTest extends OfflineToolUtils
     }
 
     @Test
-    public void testStandaloneSSTableUtil_WithArgs()
+    public void testWrongArgFailsAndPrintsHelp()
     {
-        runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneSSTableUtil", "--debug", "-c", "system_schema", "tables")
-              .waitAndAssertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
-        assertSchemaLoaded();
-        assertServerNotLoaded();
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(), "--debugwrong", "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unrecognized option"));
+            assertEquals(1, tool.getExitCode());
+        }
+    }
+
+    @Test
+    public void testMaybeChangeDocs()
+    {
+        // If you added, modified options or help, please update docs if necessary
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(), "-h"))
+        {
+            String help = "usage: sstableutil [options] <keyspace> <column_family>\n" + 
+                           "--\n" + 
+                           "List sstable files for the provided table.\n" + 
+                           "--\n" + 
+                           "Options are:\n" + 
+                           " -c,--cleanup      clean-up any outstanding transactions\n" + 
+                           " -d,--debug        display stack traces\n" + 
+                           " -h,--help         display this help message\n" + 
+                           " -o,--oplog        include operation logs\n" + 
+                           " -t,--type <arg>   all (list all files, final or temporary), tmp (list\n" + 
+                           "                   temporary files only), final (list final files only),\n" + 
+                           " -v,--verbose      verbose output\n";
+            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        }
+    }
+
+    @Test
+    public void testDefaultCall()
+    {
+        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(), "system_schema", "tables"))
+        {
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Listing files..."));
+            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+            assertEquals(0,tool.getExitCode());
+        }
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testListFilesArgs()
+    {
+        Arrays.asList("-d", "--debug", "-o", "-oplog", "-v", "--verbose").forEach(arg -> {
+            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(),
+                                                            arg,
+                                                            "system_schema",
+                                                            "tables"))
+            {
+                Assertions.assertThat(tool.getStdout()).as("Arg: [%s]", arg).isEqualTo("Listing files...\n");
+                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                tool.assertOnExitCode();
+            }
+            assertCorrectEnvPostTest();
+        });
+    }
+
+    @Test
+    public void testCleanupArg()
+    {
+        Arrays.asList("-c", "--cleanup").forEach(arg -> {
+            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(),
+                                                            arg,
+                                                            "system_schema",
+                                                            "tables"))
+            {
+                assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Cleaning up..."));
+                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                tool.assertOnExitCode();
+            }
+            assertCorrectEnvPostTest();
+        });
+    }
+
+    @Test
+    public void testHelpArg()
+    {
+        Arrays.asList("-h", "--help").forEach(arg -> {
+            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(), arg))
+            {
+                assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                tool.assertOnExitCode();
+            }
+            assertCorrectEnvPostTest();
+        });
+    }
+
+    @Test
+    public void testTypeArg()
+    {
+        Arrays.asList("-t", "--type").forEach(arg -> {
+            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(),
+                                                            arg,
+                                                            "system_schema",
+                                                            "tables"))
+            {
+                assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+                assertThat("Arg: [" + arg + "]", tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Missing arguments"));
+                assertEquals("Arg: [" + arg + "]", 1, tool.getExitCode());
+            }
+            assertCorrectEnvPostTest();
+        });
+        
+        //'-t wrong' renders 'all' file types
+        Arrays.asList(Pair.of("-t", "all"),
+                      Pair.of("-t", "tmp"),
+                      Pair.of("-t", "final"),
+                      Pair.of("-t", "wrong"),
+                      Pair.of("--type", "all"),
+                      Pair.of("--type", "tmp"),
+                      Pair.of("--type", "final"),
+                      Pair.of("--type", "wrong"))
+              .forEach(arg -> {
+                  try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSSTableUtil.class.getName(),
+                                                             arg.getLeft(),
+                                                             arg.getRight(),
+                                                             "system_schema",
+                                                             "tables"))
+                  {
+                      Assertions.assertThat(tool.getStdout()).as("Arg: [%s]", arg).isEqualTo("Listing files...\n");
+                      Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                      tool.assertOnExitCode();
+                  }
+                  assertCorrectEnvPostTest();
+              });
     }
 }
