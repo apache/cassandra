@@ -192,52 +192,6 @@ public class ToolRunner implements AutoCloseable
 
         return this;
     }
-
-    private void watchIO()
-    {
-        OutputStream in = process.getOutputStream();
-        InputStream err = process.getErrorStream();
-        InputStream out = process.getInputStream();
-        while (true)
-        {
-            boolean errHandled;
-            boolean outHandled;
-            try
-            {
-                if (stdin != null)
-                {
-                    IOUtils.copy(stdin, in);
-                    if (stdinAutoClose)
-                    {
-                        in.close();
-                        stdin = null;
-                    }
-                }
-                errHandled = IOUtils.copy(err, errBuffer) > 0;
-                outHandled = IOUtils.copy(out, outBuffer) > 0;
-            }
-            catch(IOException e1)
-            {
-                logger.error("Error trying to use in/err/out from process");
-                Thread.currentThread().interrupt();
-                break;
-            }
-            if (!errHandled && !outHandled)
-            {
-                if (!process.isAlive())
-                    return;
-                try
-                {
-                    Thread.sleep(50L);
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }
-    }
     
     public int runClassAsTool(String clazz, String... args)
     {
@@ -389,45 +343,112 @@ public class ToolRunner implements AutoCloseable
     {
         forceKill();
     }
-    
-    static class Runners
+
+    private void watchIO()
     {
-        protected ToolRunner invokeNodetool(String... args)
+        OutputStream in = process.getOutputStream();
+        InputStream err = process.getErrorStream();
+        InputStream out = process.getInputStream();
+        while (true)
+        {
+            boolean errHandled;
+            boolean outHandled;
+            try
+            {
+                if (stdin != null)
+                {
+                    IOUtils.copy(stdin, in);
+                    if (stdinAutoClose)
+                    {
+                        in.close();
+                        stdin = null;
+                    }
+                }
+                errHandled = IOUtils.copy(err, errBuffer) > 0;
+                outHandled = IOUtils.copy(out, outBuffer) > 0;
+            }
+            catch(IOException e1)
+            {
+                logger.error("Error trying to use in/err/out from process");
+                Thread.currentThread().interrupt();
+                break;
+            }
+            if (!errHandled && !outHandled)
+            {
+                if (!process.isAlive())
+                    return;
+                try
+                {
+                    Thread.sleep(50L);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+    }
+
+    public static class Runners
+    {
+        public ToolRunner invokeNodetool(String... args)
         {
             return invokeNodetool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeNodetool(List<String> args)
+        public ToolRunner invokeNodetool(List<String> args)
         {
-            return invokeTool(buildNodetoolArgs(args), true);
+            return invokeTool(CQLTester.buildNodetoolArgs(args), true);
         }
 
-        private static List<String> buildNodetoolArgs(List<String> args)
+        /**
+         * Invokes Cqlsh. The first arg is the cql to execute
+         */
+        public ToolRunner invokeCqlsh(String... args)
         {
-            return CQLTester.buildNodetoolArgs(args);
+            return invokeCqlsh(Arrays.asList(args));
         }
-        
-        protected ToolRunner invokeClassAsTool(String... args)
+
+        /**
+         * Invokes Cqlsh. The first arg is the cql to execute
+         */
+        public ToolRunner invokeCqlsh(List<String> args)
+        {
+            return invokeTool(CQLTester.buildCqlshArgs(args), true);
+        }
+
+        public ToolRunner invokeClassAsTool(String... args)
         {
             return invokeClassAsTool(Arrays.asList(args));
         }
-        
-        protected ToolRunner invokeClassAsTool(List<String> args)
+
+        public ToolRunner invokeClassAsTool(List<String> args)
         {
             return invokeTool(args, false);
         }
 
-        protected ToolRunner invokeTool(String... args)
+        public ToolRunner invokeCassandraStress(String... args)
+        {
+            return invokeCassandraStress(Arrays.asList(args));
+        }
+
+        public ToolRunner invokeCassandraStress(List<String> args)
+        {
+            return invokeTool(CQLTester.buildCassandraStressArgs(args), true);
+        }
+
+        public ToolRunner invokeTool(String... args)
         {
             return invokeTool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeTool(List<String> args)
+        public ToolRunner invokeTool(List<String> args)
         {
             return invokeTool(args, true);
         }
 
-        protected ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
+        public ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
         {
             ToolRunner runner = new ToolRunner(args, runOutOfProcess);
             runner.start().waitFor();
