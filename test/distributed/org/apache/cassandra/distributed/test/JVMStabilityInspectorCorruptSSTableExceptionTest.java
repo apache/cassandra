@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
@@ -35,6 +36,8 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
 import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.Gossiper;
@@ -54,18 +57,18 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseImpl
 {
     @Test
-    public void testAbstractLocalAwareExecutorServiceOnIgnoredDiskFailurePolicy() throws IOException
+    public void testAbstractLocalAwareExecutorServiceOnIgnoredDiskFailurePolicy() throws Exception
     {
         test(DiskFailurePolicy.ignore, true, true);
     }
 
     @Test
-    public void testAbstractLocalAwareExecutorServiceOnStopParanoidDiskFailurePolicy() throws IOException
+    public void testAbstractLocalAwareExecutorServiceOnStopParanoidDiskFailurePolicy() throws Exception
     {
         test(DiskFailurePolicy.stop_paranoid, false, false);
     }
 
-    private static void test(DiskFailurePolicy policy, boolean expectNativeTransportRunning, boolean expectGossiperEnabled) throws IOException
+    private static void test(DiskFailurePolicy policy, boolean expectNativeTransportRunning, boolean expectGossiperEnabled) throws Exception
     {
         String table = policy.name();
         try (final Cluster cluster = init(getCluster(policy).start()))
@@ -88,8 +91,61 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
             // query should see corrupt sstable and should fail the query
             Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + "." + table + " WHERE id=?", ConsistencyLevel.ONE, 0L));
 
-            Assertions.assertThat(node.callOnInstance(() -> new boolean[]{ StorageService.instance.isNativeTransportRunning(), Gossiper.instance.isEnabled() }))
-                      .isEqualTo(new boolean[]{ expectNativeTransportRunning, expectGossiperEnabled });
+            waitForStop(!expectGossiperEnabled, node, new SerializableCallable<Boolean>()
+            {
+                public Boolean call()
+                {
+                    return Gossiper.instance.isEnabled();
+                }
+            });
+
+            waitForStop(!expectNativeTransportRunning, node, new SerializableCallable<Boolean>()
+            {
+                public Boolean call()
+                {
+                    return StorageService.instance.isNativeTransportRunning();
+                }
+            });
+        }
+    }
+
+    private static void waitForStop(boolean shouldWaitForStop,
+                                    IInvokableInstance node,
+                                    SerializableCallable<Boolean> serializableCallable) throws Exception
+    {
+        int attempts = 3;
+        boolean running = true;
+
+        while (attempts > 0 && running)
+        {
+            try
+            {
+                running = node.callOnInstance(serializableCallable);
+                attempts--;
+            }
+            catch (final NoClassDefFoundError ex)
+            {
+                // gossiper throws this
+                Assert.assertEquals("Could not initialize class org.apache.cassandra.service.StorageService", ex.getMessage());
+                running = false;
+            }
+            catch (final ExceptionInInitializerError ex)
+            {
+                // native thows this, ignore on purpose, this means that native transport is closed.
+                running = false;
+            }
+
+            Thread.sleep(5000);
+        }
+
+        if (shouldWaitForStop && running)
+        {
+            Assert.fail("we did want a service to stop, but it did not.");
+        }
+
+        if (!shouldWaitForStop && !running)
+        {
+            Assert.fail("we did not want a service to stop, but it did.");
         }
     }
 
