@@ -27,11 +27,11 @@ public class BitRateTest
     @Test
     public void testConversions()
     {
-        assertEquals(10, new BitRate("10bps").toBitsPerSecond());
-        assertEquals(10000, new BitRate("10Kbps").toBitsPerSecond());
-        assertEquals(0, new BitRate("10Kbps").toMegabitsPerSecond());
-        assertEquals(10000, new BitRate("10Mbps").toKilobitsPerSecond());
-        assertEquals(10000000, new BitRate("10Mbps").toBitsPerSecond());
+        assertEquals(10, new BitRate("10B/s").toBitsPerSecond());
+        assertEquals(10000, new BitRate("10KiB/s").toBitsPerSecond());
+        assertEquals(0, new BitRate("10KiB/s").toMegabitsPerSecond());
+        assertEquals(10000, new BitRate("10MiB/s").toKilobitsPerSecond());
+        assertEquals(10000000, new BitRate("10MiB/s").toBitsPerSecond());
     }
 
     @Test
@@ -39,21 +39,21 @@ public class BitRateTest
     {
         assertThatThrownBy(() -> new BitRate("10")).isInstanceOf(IllegalArgumentException.class)
                                                     .hasMessageContaining("Invalid bit rate: 10");
-        assertThatThrownBy(() -> new BitRate("-10bps")).isInstanceOf(IllegalArgumentException.class)
-                                                      .hasMessageContaining("Invalid bit rate: -10bps");
-        assertThatThrownBy(() -> new BitRate("10xbps")).isInstanceOf(IllegalArgumentException.class)
-                                                      .hasMessageContaining("Unsupported bit rate unit: xbps. Supported units are: bps, kbps, mbps");
+        assertThatThrownBy(() -> new BitRate("-10b/s")).isInstanceOf(IllegalArgumentException.class)
+                                                      .hasMessageContaining("Invalid bit rate: -10b/s");
+        assertThatThrownBy(() -> new BitRate("10xb/s")).isInstanceOf(IllegalArgumentException.class)
+                                                      .hasMessageContaining("Invalid bit rate: 10xb/s");
     }
 
     @Test
     public void testEquals()
     {
-        assertEquals(new BitRate("10bps"), new BitRate("10bps"));
-        assertEquals(new BitRate("10kbps"), new BitRate("10000bps"));
-        assertEquals(new BitRate("10000bps"), new BitRate("10kbps"));
+        assertEquals(new BitRate("10b/s"), new BitRate("10b/s"));
+        assertEquals(new BitRate("10kib/s"), new BitRate("10000b/s"));
+        assertEquals(new BitRate("10000b/s"), new BitRate("10kib/s"));
         assertEquals(BitRate.inMegabitsPerSecond(Long.MAX_VALUE), BitRate.inMegabitsPerSecond(Long.MAX_VALUE));
         assertNotEquals(BitRate.inMegabitsPerSecond(Long.MAX_VALUE), BitRate.inBitsPerSeconds(Long.MAX_VALUE));
-        assertNotEquals(new BitRate("0kbps"), new BitRate("10mbps"));
+        assertNotEquals(new BitRate("0kib/s"), new BitRate("10mib/s"));
     }
 
 }

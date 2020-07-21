@@ -269,7 +269,7 @@ public class Config
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converter.MegabitsPerSecondBitRateConverter.class, deprecated = true)
-    public volatile BitRate compaction_throughput = new BitRate("16Mbps");
+    public volatile BitRate compaction_throughput = new BitRate("16MiB/s");
     @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
     public volatile DataStorage compaction_large_partition_warning_threshold = new DataStorage("100MB");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converter.MegabytesDataStorageConverter.class, deprecated = true)
@@ -280,9 +280,9 @@ public class Config
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
     
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converter.MegabitsPerSecondBitRateConverter.class, deprecated = true)
-    public volatile BitRate stream_throughput_outbound = new BitRate("200Mbps");
+    public volatile BitRate stream_throughput_outbound = new BitRate("200MiB/s");
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converter.MegabitsPerSecondBitRateConverter.class, deprecated = true)
-    public volatile BitRate inter_dc_stream_throughput_outbound = new BitRate("200Mbps");
+    public volatile BitRate inter_dc_stream_throughput_outbound = new BitRate("200MiB/s");
 
     public volatile int entire_sstable_stream_throughput_outbound_megabits_per_sec = 200;
     public volatile int entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 200;

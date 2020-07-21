@@ -33,7 +33,7 @@ public final class BitRate
     /**
      * The Regexp used to parse the rate provided as String.
      */
-    private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(bps|mbps|kbps|Kbps|Mbps)$");
+    private static final Pattern BIT_RATE_UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|KiB/s|B/s)$");
 
     private final long quantity;
 
@@ -194,7 +194,7 @@ public final class BitRate
 
     public enum BitRateUnit
     {
-        BITS_PER_SECOND("bps")
+        BITS_PER_SECOND("b/s")
         {
             public long toBitsPerSecond(long d)
             {
@@ -216,7 +216,7 @@ public final class BitRate
                 return sourceUnit.toBitsPerSecond(source);
             }
         },
-        KILOBITS_PER_SECOND("kbps")
+        KILOBITS_PER_SECOND("kib/s")
         {
             public long toBitsPerSecond(long d)
             {
@@ -238,7 +238,7 @@ public final class BitRate
                 return sourceUnit.toKilobitsPerSecond(source);
             }
         },
-        MEGABITS_PER_SECOND("mbps")
+        MEGABITS_PER_SECOND("mib/s")
         {
             public long toBitsPerSecond(long d)
             {

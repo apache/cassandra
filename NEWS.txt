@@ -48,7 +48,7 @@ Upgrading
     - Many cassandra.yaml parameters' names have been changed. Full list can be found on ...... (ADD LINK LATER WHEN PAGE
       IS CREATED) (CASSANDRA-15234)
     - Configuration parameter commitlog_sync_batch_window_in_ms has been removed. (CASSANDRA-15234)
-    
+
 Deprecation
 -----------
 
