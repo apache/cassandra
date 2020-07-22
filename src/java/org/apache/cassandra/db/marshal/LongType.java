@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
@@ -99,7 +100,7 @@ public class LongType extends AbstractType<Long>
     @Override
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
-        return getSerializer().deserialize(buffer).toString();
+        return Objects.toString(getSerializer().deserialize(buffer), "\"\"");
     }
 
     @Override
