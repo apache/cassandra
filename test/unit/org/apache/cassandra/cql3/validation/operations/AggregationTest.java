@@ -449,6 +449,26 @@ public class AggregationTest extends CQLTester
         assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
                                KEYSPACE, parseFunctionName(a).name,
                                "double");
+
+        // The aggregate with nested tuple should be created without throwing InvalidRequestException. See CASSANDRA-15857
+        String f1 = createFunction(KEYSPACE,
+                                   "double, double",
+                                   "CREATE OR REPLACE FUNCTION %s(state double, val list<tuple<int, int>>) " +
+                                   "RETURNS NULL ON NULL INPUT " +
+                                   "RETURNS double " +
+                                   "LANGUAGE javascript " +
+                                   "AS '\"string\";';");
+
+        String a1 = createAggregate(KEYSPACE,
+                                    "list<tuple<int, int>>",
+                                    "CREATE OR REPLACE AGGREGATE %s(list<tuple<int, int>>) " +
+                                    "SFUNC " + shortFunctionName(f1) + " " +
+                                    "STYPE double " +
+                                    "INITCOND 0");
+
+        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
+                               KEYSPACE, parseFunctionName(a1).name,
+                               "list<tuple<int, int>>");
     }
 
     @Test
@@ -1573,12 +1593,20 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return state;'");
 
-        assertInvalidMessage("cannot be frozen",
-                             "CREATE AGGREGATE %s(tuple<int, int>) " +
-                             "SFUNC " + parseFunctionName(fState).name + ' ' +
-                             "STYPE frozen<tuple<int, int>> " +
-                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
-                             "INITCOND null");
+        // Tuples are always frozen. Both 'tuple' and 'frozen tuple' have the same effect.
+        // So allows to create aggregate with explicit frozen tuples as argument and state types.
+        String toDrop = createAggregate(KEYSPACE,
+                                        "frozen<tuple<int, int>>",
+                                        "CREATE AGGREGATE %s(frozen<tuple<int, int>>) " +
+                                        "SFUNC " + parseFunctionName(fState).name + ' ' +
+                                        "STYPE frozen<tuple<int, int>> " +
+                                        "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
+                                        "INITCOND null");
+        // Same as above, dropping a function with explicity frozen tuple should be allowed.
+        schemaChange("DROP AGGREGATE " + toDrop + "(frozen<tuple<int, int>>);");
+        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
+                               KEYSPACE, shortFunctionName(toDrop),
+                               "frozen<tuple<int, int>>");
 
         String aggregation = createAggregate(KEYSPACE,
                                              "tuple<int, int>",
@@ -1591,8 +1619,10 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(tuple(7, 8)));
 
-        assertInvalidMessage("Argument 'tuple<int, int>' cannot be frozen; remove frozen<> modifier from 'tuple<int, int>'",
-                             "DROP AGGREGATE %s (frozen<tuple<int, int>>);");
+        schemaChange("DROP AGGREGATE " + aggregation + "(frozen<tuple<int, int>>);");
+        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
+                               KEYSPACE, shortFunctionName(aggregation),
+                               "frozen<tuple<int, int>>");
     }
 
     @Test

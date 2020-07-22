@@ -122,6 +122,19 @@ public class UFTest extends CQLTester
         assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
                                KEYSPACE, parseFunctionName(f).name,
                                "double", "double");
+
+        // The function with nested tuple should be created without throwing InvalidRequestException. See CASSANDRA-15857
+        String f1 = createFunction(KEYSPACE,
+                                   "list<tuple<int, int>>, double",
+                                   "CREATE OR REPLACE FUNCTION %s(state list<tuple<int, int>>, val double) " +
+                                   "RETURNS NULL ON NULL INPUT " +
+                                   "RETURNS double " +
+                                   "LANGUAGE javascript " +
+                                   "AS '\"string\";';");
+
+        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.FUNCTION,
+                               KEYSPACE, parseFunctionName(f1).name,
+                               "list<tuple<int, int>>", "double");
     }
 
     @Test
