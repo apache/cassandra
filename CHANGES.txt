@@ -1,5 +1,8 @@
-3.0.21
+3.0.22:
  * Fix empty/null json string representation (CASSANDRA-15896)
+
+
+3.0.21
  * Backport CASSANDRA-12189: escape string literals (CASSANDRA-15948)
  * Avoid hinted handoff per-host throttle being arounded to 0 in large cluster (CASSANDRA-15859)
  * Avoid emitting empty range tombstones from RangeTombstoneList (CASSANDRA-15924)
