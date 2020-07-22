@@ -139,7 +139,7 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
 
     private AbstractType<?> prepareType(String typeName, CQL3Type.Raw rawType)
     {
-        if (rawType.isFrozen())
+        if (!rawType.isTuple() && rawType.isFrozen())
             throw new InvalidRequestException(String.format("The function %s should not be frozen; remove the frozen<> modifier", typeName));
 
         // UDT are not supported non frozen but we do not allow the frozen keyword for argument. So for the moment we
