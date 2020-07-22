@@ -91,6 +91,8 @@ public class FloatType extends NumberType<Float>
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         Float value = getSerializer().deserialize(buffer);
+        if (value == null)
+            return "\"\"";
         // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
         if (value.isNaN() || value.isInfinite())
             return "null";

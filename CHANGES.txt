@@ -3,6 +3,8 @@
  * Verify sstable components on startup (CASSANDRA-15945)
 Merged from 3.11:
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
+Merged from 3.0:
+ * Fix empty/null json string representation (CASSANDRA-15896)
 
 
 4.0-beta1
