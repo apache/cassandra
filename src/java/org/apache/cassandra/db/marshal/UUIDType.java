@@ -165,6 +165,13 @@ public class UUIDType extends AbstractType<UUID>
         }
     }
 
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        UUID deser = getSerializer().deserialize(buffer);
+        return '"' + (deser == null ? "" : deser.toString()) + '"';
+    }
+
     static int version(ByteBuffer uuid)
     {
         return (uuid.get(6) & 0xf0) >> 4;

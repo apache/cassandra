@@ -43,6 +43,13 @@ public class UUIDTypeTest
 
     UUIDType uuidType = new UUIDType();
 
+    @Test //CASSANDRA-15896
+    public void testToJsonEmptyValue()
+    {
+        String res = uuidType.toJSONString(uuidType.fromJSONObject("").bindAndGet(null), 0);
+        assertEquals("\"\"", res);
+    }
+
     @Test
     public void testRandomCompare()
     {
