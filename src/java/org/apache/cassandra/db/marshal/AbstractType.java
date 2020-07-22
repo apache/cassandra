@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -150,7 +151,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
      */
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
-        return '"' + getSerializer().deserialize(buffer).toString() + '"';
+        return '"' + Objects.toString(getSerializer().deserialize(buffer), "") + '"';
     }
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
