@@ -19,18 +19,20 @@
 package org.apache.cassandra.transport;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ProtocolOptions;
@@ -39,53 +41,40 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 
-import static junit.framework.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.cassandra.transport.BurnTestUtil.*;
 
 public class DriverBurnTest extends CQLTester
 {
-    private static final Logger logger = LoggerFactory.getLogger(CQLConnectionTest.class);
-
+    private CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
     @Before
     public void setup()
     {
-        requireNetwork();
+        PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED)
+        {
+            protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
+            {
+                return allocationObserver.endpoint(tracker);
+            }
+
+            protected ResourceLimits.Limit globalReserve(Server.EndpointPayloadTracker tracker)
+            {
+                return allocationObserver.global(tracker);
+            }
+        };
+
+        requireNetwork((builder) -> builder.withPipelineConfigurator(configurator));
     }
 
-    private static class SizeCaps
-    {
-        private final int valueMinSize;
-        private final int valueMaxSize;
-        private final int columnCountCap;
-        private final int rowsCountCap;
-
-        private SizeCaps(int valueMinSize, int valueMaxSize, int columnCountCap, int rowsCountCap)
-        {
-            this.valueMinSize = valueMinSize;
-            this.valueMaxSize = valueMaxSize;
-            this.columnCountCap = columnCountCap;
-            this.rowsCountCap = rowsCountCap;
-        }
-
-        public String toString()
-        {
-            return "SizeCaps{" +
-                   "valueMinSize=" + valueMinSize +
-                   ", valueMaxSize=" + valueMaxSize +
-                   ", columnCountCap=" + columnCountCap +
-                   ", rowsCountCap=" + rowsCountCap +
-                   '}';
-        }
-    }
     @Test
     public void test() throws Throwable
     {
@@ -104,10 +93,7 @@ public class DriverBurnTest extends CQLTester
                         {
                             int idx = Integer.parseInt(queryMessage.query);
                             SizeCaps caps = idx % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
-                            // TODO: assert values
-
-                            ResultMessage.Rows response = getRows(idx, caps);
-                            return response;
+                            return generateRows(idx, caps);
                         }
                         catch (NumberFormatException e)
                         {
@@ -129,8 +115,6 @@ public class DriverBurnTest extends CQLTester
             }
         });
 
-        List<Thread> threads = new ArrayList<>();
-
         List<AssertUtil.ThrowingSupplier<Cluster.Builder>> suppliers =
         Arrays.asList(() -> Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
                                    .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
@@ -148,10 +132,15 @@ public class DriverBurnTest extends CQLTester
                                    .withPort(nativePort)
         );
 
-        for (int t = 0; t < 10; t++)
+        int threads = 10;
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        CountDownLatch signal = new CountDownLatch(1);
+
+        for (int t = 0; t < threads; t++)
         {
             int threadId = t;
-            threads.add(new Thread(() -> {
+            executor.execute(() -> {
                 try (Cluster driver = suppliers.get(threadId % suppliers.size()).get().build();
                      Session session = driver.connect())
                 {
@@ -164,7 +153,7 @@ public class DriverBurnTest extends CQLTester
                         {
                             int descriptor = counter + j * 100 + threadId * 10000;
                             SizeCaps caps = descriptor % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
-                            futures.put(j, session.executeAsync(getQueryMessage(descriptor, caps)));
+                            futures.put(j, session.executeAsync(generateQueryStatement(descriptor, caps)));
                         }
 
                         for (Map.Entry<Integer, ResultSetFuture> e : futures.entrySet())
@@ -172,7 +161,7 @@ public class DriverBurnTest extends CQLTester
                             final int j = e.getKey().intValue();
                             final int descriptor = counter + j * 100 + threadId * 10000;
                             SizeCaps caps = descriptor % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
-                            ResultMessage.Rows expectedRS = getRows(descriptor, caps);
+                            ResultMessage.Rows expectedRS = generateRows(descriptor, caps);
                             List<Row> actualRS = e.getValue().get().all();
 
                             for (int i = 0; i < actualRS.size(); i++)
@@ -190,60 +179,19 @@ public class DriverBurnTest extends CQLTester
                 catch (Throwable e)
                 {
                     e.printStackTrace();
-                    fail("No exceptions should've been thrown: " + e.getMessage());
+                    error.set(e);
+                    signal.countDown();
                 }
-            }));
+            });
         }
 
-        for (Thread thread : threads)
-            thread.start();
+        Assert.assertFalse(signal.await(120, TimeUnit.SECONDS));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
 
-        for (Thread thread : threads)
-        {
-            thread.join();
-        }
+        assertThat(allocationObserver.endpointAllocationTotal()).isEqualTo(allocationObserver.endpointReleaseTotal());
+        assertThat(allocationObserver.globalAllocationTotal()).isEqualTo(allocationObserver.globalReleaseTotal());
     }
 
-    public static SimpleStatement getQueryMessage(int idx, SizeCaps sizeCaps)
-    {
-        Random rnd = new Random(idx);
 
-        ByteBuffer[] values = new ByteBuffer[sizeCaps.columnCountCap];
-        for (int i = 0; i < sizeCaps.columnCountCap; i++)
-            values[i] = bytes(rnd, sizeCaps.valueMinSize, sizeCaps.valueMaxSize);
-
-        return new SimpleStatement(Integer.toString(idx), values);
-    }
-
-    public static ResultMessage.Rows getRows(int idx, SizeCaps sizeCaps)
-    {
-        Random rnd = new Random(idx);
-        List<ColumnSpecification> columns = new ArrayList<>();
-        for (int i = 0; i < sizeCaps.columnCountCap; i++)
-        {
-            columns.add(new ColumnSpecification("ks", "cf",
-                                                new ColumnIdentifier(bytes(rnd, 5, 10), BytesType.instance),
-                                                BytesType.instance));
-        }
-
-        List<List<ByteBuffer>> rows = new ArrayList<>();
-        int count = rnd.nextInt(sizeCaps.rowsCountCap);
-        for (int i = 0; i < count; i++)
-        {
-            List<ByteBuffer> row = new ArrayList<>();
-            for (int j = 0; j < sizeCaps.columnCountCap; j++)
-                row.add(bytes(rnd, sizeCaps.valueMinSize, sizeCaps.valueMaxSize));
-            rows.add(row);
-        }
-
-        ResultSet resultSet = new ResultSet(new ResultSet.ResultMetadata(columns), rows);
-        return new ResultMessage.Rows(resultSet);
-    }
-
-    public static ByteBuffer bytes(Random rnd, int minSize, int maxSize)
-    {
-        byte[] bytes = new byte[rnd.nextInt(maxSize) + minSize];
-        rnd.nextBytes(bytes);
-        return ByteBuffer.wrap(bytes);
-    }
 }

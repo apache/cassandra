@@ -29,44 +29,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.function.Supplier;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
-import net.bytebuddy.implementation.bytecode.Throw;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.marshal.BytesType;
+
 import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import static org.apache.cassandra.transport.BurnTestUtil.*;
 
 public class SimpleClientBurnTest
 {
@@ -77,7 +68,7 @@ public class SimpleClientBurnTest
     private InetAddress address;
     private int port;
 
-    @BeforeClass
+    @Before
     public void setup()
     {
         DatabaseDescriptor.toolInitialization();
@@ -102,21 +93,6 @@ public class SimpleClientBurnTest
         }
     }
 
-    private static class SizeCaps
-    {
-        private final int valueMinSize;
-        private final int valueMaxSize;
-        private final int columnCountCap;
-        private final int rowsCountCap;
-
-        private SizeCaps(int valueMinSize, int valueMaxSize, int columnCountCap, int rowsCountCap)
-        {
-            this.valueMinSize = valueMinSize;
-            this.valueMaxSize = valueMaxSize;
-            this.columnCountCap = columnCountCap;
-            this.rowsCountCap = rowsCountCap;
-        }
-    }
 
     @Test
     public void test() throws Throwable
@@ -125,8 +101,23 @@ public class SimpleClientBurnTest
         SizeCaps largeMessageCap = new SizeCaps(1000, 2000, 5, 150);
         int largeMessageFrequency = 1000;
 
+        CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
+        PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED)
+        {
+            protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
+            {
+                return allocationObserver.endpoint(tracker);
+            }
+
+            protected ResourceLimits.Limit globalReserve(Server.EndpointPayloadTracker tracker)
+            {
+                return allocationObserver.global(tracker);
+            }
+        };
+
         Server server = new Server.Builder().withHost(address)
                                             .withPort(port)
+                                            .withPipelineConfigurator(configurator)
                                             .build();
         ClientMetrics.instance.init(Collections.singleton(server));
         server.start();
@@ -142,7 +133,7 @@ public class SimpleClientBurnTest
                     {
                         int idx = Integer.parseInt(queryMessage.query);
                         SizeCaps caps = idx % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
-                        return getRows(idx, caps);
+                        return generateRows(idx, caps);
                     }
                 };
             }
@@ -174,6 +165,7 @@ public class SimpleClientBurnTest
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         AtomicReference<Throwable> error = new AtomicReference<>();
         CountDownLatch signal = new CountDownLatch(1);
+
         // TODO: exercise client -> server large messages
         for (int t = 0; t < threads; t++)
         {
@@ -191,7 +183,7 @@ public class SimpleClientBurnTest
                         {
                             int descriptor = counter + j * 100 + threadId * 10000;
                             SizeCaps caps = descriptor % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
-                            QueryMessage query = getQueryMessage(descriptor, caps);
+                            QueryMessage query = generateQueryMessage(descriptor, caps);
                             messages.add(query);
                         }
 
@@ -202,7 +194,7 @@ public class SimpleClientBurnTest
                             SizeCaps caps = idx % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
                             ResultMessage.Rows actual = ((ResultMessage.Rows) entry.getValue());
 
-                            ResultMessage.Rows expected = getRows(idx, caps);
+                            ResultMessage.Rows expected = generateRows(idx, caps);
                             Assert.assertEquals(expected.result.rows.size(), actual.result.rows.size());
                             for (int i = 0; i < expected.result.rows.size(); i++)
                             {
@@ -226,68 +218,14 @@ public class SimpleClientBurnTest
             });
         }
 
-        Assert.assertFalse(signal.await(600, TimeUnit.SECONDS));
+        Assert.assertFalse(signal.await(120, TimeUnit.SECONDS));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
+
+        assertThat(allocationObserver.endpointAllocationTotal()).isEqualTo(allocationObserver.endpointReleaseTotal());
+        assertThat(allocationObserver.globalAllocationTotal()).isEqualTo(allocationObserver.globalReleaseTotal());
 
         server.stop();
     }
 
-    public static QueryMessage getQueryMessage(int idx, SizeCaps sizeCaps)
-    {
-        Random rnd = new Random(idx);
-        List<ByteBuffer> values = new ArrayList<>();
-        for (int i = 0; i < sizeCaps.columnCountCap * sizeCaps.rowsCountCap; i++)
-            values.add(bytes(rnd, sizeCaps.valueMinSize, sizeCaps.valueMaxSize));
-
-        QueryOptions queryOptions = QueryOptions.create(ConsistencyLevel.ONE,
-                                                        values,
-                                                        true,
-                                                        10,
-                                                        null,
-                                                        null,
-                                                        ProtocolVersion.V4,
-                                                        "KEYSPACE");
-
-        return new QueryMessage(Integer.toString(idx), queryOptions);
-    }
-
-    public static ResultMessage.Rows getRows(int idx, SizeCaps sizeCaps)
-    {
-        Random rnd = new Random(idx);
-        List<ColumnSpecification> columns = new ArrayList<>();
-        for (int i = 0; i < sizeCaps.columnCountCap; i++)
-        {
-            columns.add(new ColumnSpecification("ks", "cf",
-                                                new ColumnIdentifier(bytes(rnd, 5, 10), BytesType.instance),
-                                                BytesType.instance));
-        }
-
-        List<List<ByteBuffer>> rows = new ArrayList<>();
-        int count = rnd.nextInt(sizeCaps.rowsCountCap);
-        for (int i = 0; i < count; i++)
-        {
-            List<ByteBuffer> row = new ArrayList<>();
-            for (int j = 0; j < sizeCaps.columnCountCap; j++)
-                row.add(bytes(rnd, sizeCaps.valueMinSize, sizeCaps.valueMaxSize));
-            rows.add(row);
-        }
-
-        ResultSet resultSet = new ResultSet(new ResultSet.ResultMetadata(columns), rows);
-        return new ResultMessage.Rows(resultSet);
-    }
-
-    public static ByteBuffer bytes(Random rnd, int minSize, int maxSize)
-    {
-        byte[] bytes = new byte[rnd.nextInt(maxSize) + minSize];
-        rnd.nextBytes(bytes);
-        return ByteBuffer.wrap(bytes);
-    }
-
-    public static void main(String... args) throws Throwable
-    {
-        SimpleClientBurnTest test = new SimpleClientBurnTest();
-        test.setup();
-        test.test();
-    }
 }
