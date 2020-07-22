@@ -511,6 +511,11 @@ public interface CQL3Type
             return false;
         }
 
+        public boolean isTuple()
+        {
+            return false;
+        }
+
         public String keyspace()
         {
             return null;
@@ -660,7 +665,8 @@ public interface CQL3Type
             {
                 assert values != null : "Got null values type for a collection";
 
-                if (!frozen && values.supportsFreezing() && !values.frozen)
+                // skip if innerType is tuple, since tuple is implicitly forzen
+                if (!frozen && values.supportsFreezing() && !values.frozen && !values.isTuple())
                     throwNestedNonFrozenError(values);
 
                 // we represent Thrift supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
@@ -701,8 +707,6 @@ public interface CQL3Type
                     throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
                 else if (innerType.isUDT())
                     throw new InvalidRequestException("Non-frozen UDTs are not allowed inside collections: " + this);
-                else
-                    throw new InvalidRequestException("Non-frozen tuples are not allowed inside collections: " + this);
             }
 
             public boolean referencesUserType(String name)
@@ -805,7 +809,9 @@ public interface CQL3Type
 
             private RawTuple(List<CQL3Type.Raw> types)
             {
+                frozen = true;
                 this.types = types;
+                freeze();
             }
 
             public boolean supportsFreezing()
@@ -824,9 +830,6 @@ public interface CQL3Type
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
-                if (!frozen)
-                    freeze();
-
                 List<AbstractType<?>> ts = new ArrayList<>(types.size());
                 for (CQL3Type.Raw t : types)
                 {
@@ -836,6 +839,11 @@ public interface CQL3Type
                     ts.add(t.prepare(keyspace, udts).getType());
                 }
                 return new Tuple(new TupleType(ts));
+            }
+
+            public boolean isTuple()
+            {
+                return true;
             }
 
             public boolean referencesUserType(String name)

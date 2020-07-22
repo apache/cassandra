@@ -70,7 +70,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
             argTypes = new ArrayList<>(argRawTypes.size());
             for (CQL3Type.Raw rawType : argRawTypes)
             {
-                if (rawType.isFrozen())
+                if (!rawType.isTuple() && rawType.isFrozen())
                     throw new InvalidRequestException("The function arguments should not be frozen; remove the frozen<> modifier");
 
                 // UDT are not supported non frozen but we do not allow the frozen keyword for argument. So for the moment we
