@@ -86,6 +86,8 @@ public class DoubleType extends AbstractType<Double>
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
         Double value = getSerializer().deserialize(buffer);
+        if (value == null)
+            return "\"\"";
         // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
         if (value.isNaN() || value.isInfinite())
             return "null";
