@@ -23,15 +23,21 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.commons.math.stat.descriptive.DescriptiveStatistics;
+import org.apache.commons.math3.random.EmpiricalDistribution;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
@@ -50,12 +56,16 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 
+import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
+import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
+import static org.apache.cassandra.transport.BurnTestUtil.generateQueryStatement;
+import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.apache.cassandra.transport.BurnTestUtil.*;
 
 public class DriverBurnTest extends CQLTester
 {
     private CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
+
     @Before
     public void setup()
     {
@@ -76,6 +86,7 @@ public class DriverBurnTest extends CQLTester
     }
 
     @Test
+    @Ignore
     public void test() throws Throwable
     {
         final SizeCaps smallMessageCap = new SizeCaps(10, 20, 5, 10);
@@ -193,5 +204,166 @@ public class DriverBurnTest extends CQLTester
         assertThat(allocationObserver.globalAllocationTotal()).isEqualTo(allocationObserver.globalReleaseTotal());
     }
 
+    @Ignore
+    @Test
+    public void measureSmallV5() throws Throwable
+    {
+        perfTest(new SizeCaps(10, 20, 5, 10),
+                 new SizeCaps(10, 20, 5, 10),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .allowBetaProtocolVersion()
+                        .withPort(nativePort));
+    }
 
+    @Ignore
+    @Test
+    public void measureSmallV4() throws Throwable
+    {
+        perfTest(new SizeCaps(10, 20, 5, 10),
+                 new SizeCaps(10, 20, 5, 10),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
+                        .withPort(nativePort));
+    }
+
+    @Ignore
+    @Test
+    public void measureSmallV5ithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(10, 20, 5, 10),
+                 new SizeCaps(10, 20, 5, 10),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .allowBetaProtocolVersion()
+                        .withCompression(ProtocolOptions.Compression.LZ4)
+                        .withPort(nativePort));
+    }
+
+    @Ignore
+    @Test
+    public void measureSmallV4WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(10, 20, 5, 10),
+                 new SizeCaps(10, 20, 5, 10),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
+                        .withCompression(ProtocolOptions.Compression.LZ4)
+                        .withPort(nativePort));
+    }
+
+    public void perfTest(SizeCaps requestCaps, SizeCaps responseCaps, Cluster.Builder builder) throws Throwable
+    {
+        SimpleStatement request = generateQueryStatement(0, requestCaps);
+        ResultMessage.Rows response = generateRows(0, responseCaps);
+        QueryMessage requestMessage = generateQueryMessage(0, requestCaps);
+        Frame frame = requestMessage.encode(ProtocolVersion.V4);
+        int requestSize = frame.body.readableBytes();
+        frame.release();
+        frame = response.encode(ProtocolVersion.V4);
+        int responseSize = frame.body.readableBytes();
+        frame.release();
+        Message.Type.QUERY.unsafeSetCodec(new Message.Codec<QueryMessage>() {
+            public QueryMessage decode(ByteBuf body, ProtocolVersion version)
+            {
+                QueryMessage queryMessage = QueryMessage.codec.decode(body, version);
+                return new QueryMessage(queryMessage.query, queryMessage.options) {
+                    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+                    {
+                        try
+                        {
+                            int idx = Integer.parseInt(queryMessage.query); // unused
+                            return generateRows(idx, responseCaps);
+                        }
+                        catch (NumberFormatException e)
+                        {
+                            // for the requests driver issues under the hood
+                            return super.execute(state, queryStartNanoTime, traceRequest);
+                        }
+                    }
+                };
+            }
+
+            public void encode(QueryMessage queryMessage, ByteBuf dest, ProtocolVersion version)
+            {
+                QueryMessage.codec.encode(queryMessage, dest, version);
+            }
+
+            public int encodedSize(QueryMessage queryMessage, ProtocolVersion version)
+            {
+                return QueryMessage.codec.encodedSize(queryMessage, version);
+            }
+        });
+
+        int threads = 1;
+        int perThread = 100;
+        ExecutorService executor = Executors.newFixedThreadPool(threads + 10);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        CountDownLatch signal = new CountDownLatch(1);
+
+        AtomicBoolean measure = new AtomicBoolean(false);
+        DescriptiveStatistics stats = new DescriptiveStatistics();
+        Lock lock = new ReentrantLock();
+        for (int t = 0; t < threads; t++)
+        {
+            executor.execute(() -> {
+                try (Cluster driver = builder.build();
+                     Session session = driver.connect())
+                {
+                    while (!executor.isShutdown() && error.get() == null)
+                    {
+                        Map<Integer, ResultSetFuture> futures = new HashMap<>();
+
+                        for (int j = 0; j < perThread; j++)
+                        {
+                            long startNanos = System.nanoTime();
+                            ResultSetFuture future = session.executeAsync(request);
+                            future.addListener(() -> {
+                                long diff = System.nanoTime() - startNanos;
+                                if (measure.get())
+                                {
+                                    lock.lock();
+                                    try
+                                    {
+                                        stats.addValue(TimeUnit.MICROSECONDS.toMillis(diff));
+                                    }
+                                    finally
+                                    {
+                                        lock.unlock();
+                                    }
+                                }
+                            }, executor);
+                            futures.put(j, future);
+                        }
+
+                        for (Map.Entry<Integer, ResultSetFuture> e : futures.entrySet())
+                        {
+                            Assert.assertEquals(response.result.size(),
+                                                e.getValue().get().all().size());
+                        }
+                    }
+                }
+                catch (Throwable e)
+                {
+                    e.printStackTrace();
+                    error.set(e);
+                    signal.countDown();
+                }
+            });
+        }
+
+        Assert.assertFalse(signal.await(30, TimeUnit.SECONDS));
+        measure.set(true);
+        Assert.assertFalse(signal.await(60, TimeUnit.SECONDS));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+
+        System.out.println("requestSize = " + requestSize);
+        System.out.println("responseSize = " + responseSize);
+        System.out.println("Mean:     " + stats.getMean());
+        System.out.println("Variance: " + stats.getVariance());
+        System.out.println("Median:   " + stats.getPercentile(0.5));
+        System.out.println("90p:      " + stats.getPercentile(0.90));
+        System.out.println("95p:      " + stats.getPercentile(0.95));
+        System.out.println("99p:      " + stats.getPercentile(0.99));
+    }
 }
+// TODO: test disconnecting and reconnecting constantly
