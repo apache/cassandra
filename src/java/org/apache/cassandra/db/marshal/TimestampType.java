@@ -88,10 +88,15 @@ public class TimestampType extends AbstractType<Date>
         }
     }
 
+    private String toString(Date date)
+    {
+        return date != null ? TimestampSerializer.getJsonDateFormatter().format(date) : "";
+    }
+
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        return '"' + TimestampSerializer.getJsonDateFormatter().format(TimestampSerializer.instance.deserialize(buffer)) + '"';
+        return '"' + toString(TimestampSerializer.instance.deserialize(buffer)) + '"';
     }
 
     @Override
