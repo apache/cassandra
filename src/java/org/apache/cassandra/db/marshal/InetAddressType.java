@@ -74,10 +74,15 @@ public class InetAddressType extends AbstractType<InetAddress>
         }
     }
 
+    private String toString(InetAddress inet)
+    {
+        return inet != null ? inet.getHostAddress() : "";
+    }
+
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        return '"' + getSerializer().deserialize(buffer).getHostAddress() + '"';
+        return '"' + toString(getSerializer().deserialize(buffer)) + '"';
     }
 
     public CQL3Type asCQL3Type()
