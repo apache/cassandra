@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,7 +94,7 @@ public class SimpleClientBurnTest
         }
     }
 
-
+    @Ignore
     @Test
     public void test() throws Throwable
     {
@@ -161,7 +162,7 @@ public class SimpleClientBurnTest
               .connect(false)
         );
 
-        int threads = 10;
+        int threads = 3;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         AtomicReference<Throwable> error = new AtomicReference<>();
         CountDownLatch signal = new CountDownLatch(1);

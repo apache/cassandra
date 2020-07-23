@@ -477,29 +477,22 @@ public class SimpleClient implements Closeable
 
                 public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
                 {
-                    try
+                    Connection connection = ctx.channel().attr(Connection.attributeKey).get();
+                    // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
+                    ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
+
+                    Flusher.FrameSet frameSet = new Flusher.FrameSet(ctx.channel(), messageFrameEncoder.allocator(), 5);
+
+                    for (Message message : (List<Message>) msg)
                     {
-                        Connection connection = ctx.channel().attr(Connection.attributeKey).get();
-                        // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
-                        ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
-
-                        Flusher.FrameSet frameSet = new Flusher.FrameSet(ctx.channel(), messageFrameEncoder.allocator(), 5);
-
-                        for (Message message : (List<Message>) msg)
-                        {
-                            Frame frame = message.encode(version);
-                            if (frameSize(frame.header) >= largeMessageThreshold)
-                                Flusher.flushLargeMessage(ctx.channel(), frame, messageFrameEncoder.allocator());
-                            else
-                                frameSet.add(frame);
-                        }
-
-                        frameSet.finish();
+                        Frame frame = message.encode(version);
+                        if (frameSize(frame.header) >= largeMessageThreshold)
+                            Flusher.flushLargeMessage(ctx.channel(), frame, messageFrameEncoder.allocator());
+                        else
+                            frameSet.add(frame);
                     }
-                    catch (Throwable t)
-                    {
-                        logger.error(" ", t);
-                    }
+
+                    frameSet.finish();
                 }
             });
             pipeline.remove(this);

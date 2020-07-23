@@ -228,6 +228,28 @@ public class DriverBurnTest extends CQLTester
 
     @Ignore
     @Test
+    public void measureLargeV5() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .allowBetaProtocolVersion()
+                        .withPort(nativePort));
+    }
+
+    @Ignore
+    @Test
+    public void measureLargeV4() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
+                        .withPort(nativePort));
+    }
+
+    @Ignore
+    @Test
     public void measureSmallV5ithCompression() throws Throwable
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
@@ -293,8 +315,8 @@ public class DriverBurnTest extends CQLTester
             }
         });
 
-        int threads = 1;
-        int perThread = 100;
+        int threads = 10;
+        int perThread = 1;
         ExecutorService executor = Executors.newFixedThreadPool(threads + 10);
         AtomicReference<Throwable> error = new AtomicReference<>();
         CountDownLatch signal = new CountDownLatch(1);
