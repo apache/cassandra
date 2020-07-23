@@ -213,7 +213,7 @@ public class SimpleClient implements Closeable
 
         if (useCompression)
         {
-            options.put(StartupMessage.COMPRESSION, "snappy"); // todo: lz4, too!
+            options.put(StartupMessage.COMPRESSION, "snappy");
             connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
         }
         execute(new StartupMessage(options));
@@ -282,17 +282,16 @@ public class SimpleClient implements Closeable
 
     public void close()
     {
-        // TODO:
-//        // Wait until all messages are flushed before closing the channel.
-//        if (lastWriteFuture != null)
-//            lastWriteFuture.awaitUninterruptibly();
-//
-//        // Close the connection.  Make sure the close operation ends because
-//        // all I/O operations are asynchronous in Netty.
-//        channel.close().awaitUninterruptibly();
-//
-//        // Shut down all thread pools to exit.
-//        bootstrap.group().shutdownGracefully();
+        // Wait until all messages are flushed before closing the channel.
+        if (lastWriteFuture != null)
+            lastWriteFuture.awaitUninterruptibly();
+
+        // Close the connection.  Make sure the close operation ends because
+        // all I/O operations are asynchronous in Netty.
+        channel.close().awaitUninterruptibly();
+
+        // Shut down all thread pools to exit.
+        bootstrap.group().shutdownGracefully();
     }
 
     public Message.Response execute(Message.Request request)
