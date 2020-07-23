@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
 /**
@@ -206,6 +207,18 @@ public class Murmur3Partitioner implements IPartitioner
         public Token increaseSlightly()
         {
             return new LongToken(token + 1);
+        }
+
+        /**
+         * Reverses murmur3 to find a possible 16 byte key that generates a given token
+         */
+        @VisibleForTesting
+        public static ByteBuffer keyForToken(LongToken token)
+        {
+            ByteBuffer result = ByteBuffer.allocate(16);
+            long[] inv = MurmurHash.inv_hash3_x64_128(new long[] {token.token, 0L});
+            result.putLong(inv[0]).putLong(inv[1]).position(0);
+            return result;
         }
     }
 
