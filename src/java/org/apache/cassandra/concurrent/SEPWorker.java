@@ -77,8 +77,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             while (true)
             {
-                if (pool.shuttingDown)
+                // On the first iteration of the outer loop of a worker created by SEPExecutor.maybeSchedule(),
+                // the work and task permit has been taken from the scheduler before entering this loop.  Go
+                // through the outer loop at least once to execute the task and then exit so that the task
+                // accounting is correct and will trigger the shutdown signal correctly and correctly return
+                // the correct list of aborted tasks from SEPExecutor.shutdownNow()
+                if (pool.shuttingDown && get().assigned == null)
+                {
                     return;
+                }
 
                 if (isSpinning() && !selfAssign())
                 {
