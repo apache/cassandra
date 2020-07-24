@@ -137,7 +137,7 @@ public class ServerConnection extends Connection
             }
             catch (SSLPeerUnverifiedException e)
             {
-                logger.error("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
+                logger.debug("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
             }
         }
         return certificates;
