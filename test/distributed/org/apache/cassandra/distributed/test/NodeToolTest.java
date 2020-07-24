@@ -27,9 +27,14 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import com.google.common.base.Throwables;
+import com.google.common.collect.Iterators;
+import org.junit.Assert;
+
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 
 import static org.junit.Assert.assertEquals;
 
@@ -110,10 +115,45 @@ public class NodeToolTest extends TestBaseImpl
     @Test
     public void testSetCacheCapacityWhenDisabled() throws Throwable
     {
-        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
+        try (Cluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
         {
             NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
             ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
         }
     }
+
+    @Test
+    public void drainShutsDown() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.create(1)))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl(pk int PRIMARY KEY)"));
+
+            // make sure read/write works
+            IInvokableInstance node = cluster.get(1);
+            node.executeInternal(withKeyspace("INSERT INTO %s.tbl (pk) VALUES (?)"), 0);
+            SimpleQueryResult qr = node.executeInternalWithResult(withKeyspace("SELECT * FROM %s.tbl"));
+            Assert.assertArrayEquals(new Integer[]{ 0 }, Iterators.toArray(qr.map(r -> r.getInteger("pk")), Integer.class));
+
+            // drain will cause writes to fail, but reads will still work
+            node.nodetoolResult("drain").asserts().success();
+
+            // verify reads
+            qr = node.executeInternalWithResult(withKeyspace("SELECT * FROM %s.tbl"));
+            Assert.assertArrayEquals(new Integer[]{ 0 }, Iterators.toArray(qr.map(r -> r.getInteger("pk")), Integer.class));
+            // verify writes; must use coordinator, else the cluster hangs waiting for a CL segment that won't come
+            try
+            {
+                cluster.coordinator(1).executeWithResult(withKeyspace("INSERT INTO %s.tbl (pk) VALUES (?)"), ConsistencyLevel.ONE, 1);
+            }
+            catch (Exception e)
+            {
+                Throwable cause = Throwables.getRootCause(e);
+                // test runs in app classloader, but the exception will exist in the instance classloader; validate via name
+                if (!"org.apache.cassandra.exceptions.WriteTimeoutException".equals(cause.getClass().getCanonicalName()))
+                    throw e;
+            }
+        }
+    }
+
 }

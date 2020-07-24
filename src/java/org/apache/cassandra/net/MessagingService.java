@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -429,14 +430,13 @@ public final class MessagingService extends MessagingServiceMBeanImpl
         shutdown(1L, MINUTES, true, true);
     }
 
-    public void shutdown(long timeout, TimeUnit units, boolean shutdownGracefully, boolean shutdownExecutors)
+    public synchronized void shutdown(long timeout, TimeUnit units, boolean shutdownGracefully, boolean shutdownExecutors)
     {
         if (isShuttingDown)
         {
-            logger.info("Shutdown was already called");
+            logger.info("Messaging service was already shut down.");
             return;
         }
-
         isShuttingDown = true;
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
@@ -527,6 +527,12 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void listen()
     {
         inboundSockets.open();
+    }
+
+    public void unsafeResetListen()
+    {
+        inboundSockets.open();
+        isShuttingDown = false;
     }
 
     public void waitUntilListening() throws InterruptedException
