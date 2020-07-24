@@ -36,6 +36,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -237,8 +238,8 @@ public class InboundConnectionInitiator
             if (sslHandler != null)
             {
                 SSLSession session = sslHandler.engine().getSession();
-                logger.info("connection from peer {} to {}, protocol = {}, cipher suite = {}",
-                            ctx.channel().remoteAddress(), ctx.channel().localAddress(), session.getProtocol(), session.getCipherSuite());
+                logger.info("connection from peer {} to {}, protocol = {}",
+                            ctx.channel().remoteAddress(), ctx.channel().localAddress(), session.getProtocol());
             }
         }
 
@@ -391,6 +392,14 @@ public class InboundConnectionInitiator
 
             BufferPool.setRecycleWhenFreeForCurrentThread(false);
             pipeline.replace(this, "streamInbound", new StreamingInboundHandler(from, current_version, null));
+
+            logger.info("{} streaming connection established, version = {}, framing = {}, encryption = {}",
+                        SocketFactory.channelId(from, (InetSocketAddress) channel.remoteAddress(),
+                            settings.bindAddress, (InetSocketAddress) channel.localAddress(),
+                            ConnectionType.STREAMING, channel.id().asShortText()),
+                        current_version,
+                        initiate.framing,
+                        pipeline.get("ssl") != null ? encryptionLogStatement(pipeline.channel(), settings.encryption) : "disabled");
         }
 
         @VisibleForTesting
@@ -445,11 +454,11 @@ public class InboundConnectionInitiator
             InboundMessageHandler handler =
                 settings.handlers.apply(from).createHandler(frameDecoder, initiate.type, pipeline.channel(), useMessagingVersion);
 
-            logger.info("{} connection established, version = {}, framing = {}, encryption = {}",
+            logger.info("{} messaging connection established, version = {}, framing = {}, encryption = {}",
                         handler.id(true),
                         useMessagingVersion,
                         initiate.framing,
-                        pipeline.get("ssl") != null ? encryptionLogStatement(settings.encryption) : "disabled");
+                        pipeline.get("ssl") != null ? encryptionLogStatement(pipeline.channel(), settings.encryption) : "disabled");
 
             pipeline.addLast("deserialize", handler);
 
