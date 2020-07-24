@@ -1,5 +1,8 @@
-2.2.17
+2.2.18
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
+
+
+2.2.17
  * Fix nomenclature of allow and deny lists (CASSANDRA-15862)
  * Remove generated files from source artifact (CASSANDRA-15849)
  * Remove duplicated tools binaries from tarballs (CASSANDRA-15768)
