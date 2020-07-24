@@ -84,7 +84,7 @@ public class InboundConnectionSettings
     public String toString()
     {
         return format("address: (%s), nic: %s, encryption: %s",
-                      bindAddress, FBUtilities.getNetworkInterface(bindAddress.address), SocketFactory.encryptionLogStatement(encryption));
+                      bindAddress, FBUtilities.getNetworkInterface(bindAddress.address), SocketFactory.encryptionLogStatement(null, encryption));
     }
 
     public InboundConnectionSettings withAuthenticator(IInternodeAuthenticator authenticator)

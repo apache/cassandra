@@ -1151,7 +1151,7 @@ public class OutboundConnection
                                     id(true),
                                     success.messagingVersion,
                                     settings.framing,
-                                    encryptionLogStatement(settings.encryption));
+                                    encryptionLogStatement(channel, settings.encryption));
                         break;
 
                     case RETRY:
