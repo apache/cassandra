@@ -1,4 +1,5 @@
 4.0-beta2
+ * Resolve JMX output inconsistencies from CASSANDRA-7544 storage-port-configurable-per-node (CASSANDRA-15937)
  * Forbid altering UDTs used in partition keys (CASSANDRA-15933)
  * Fix version parsing logic when upgrading from 3.0 (CASSANDRA-15973)
  * Optimize NoSpamLogger use in hot paths (CASSANDRA-15766)
