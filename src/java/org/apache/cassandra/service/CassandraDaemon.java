@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.rmi.AccessException;
 import java.rmi.AlreadyBoundException;
@@ -372,11 +373,6 @@ public class CassandraDaemon
         if (sizeRecorderInterval > 0)
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
-        // Thrift
-        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
-        int rpcPort = DatabaseDescriptor.getRpcPort();
-        int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
-        thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
         initializeNativeTransport();
 
         completeSetup();
@@ -384,6 +380,12 @@ public class CassandraDaemon
 
     public void initializeNativeTransport()
     {
+        // Thrift
+        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
+        int rpcPort = DatabaseDescriptor.getRpcPort();
+        int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
+        thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
+
         // Native transport
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
@@ -398,6 +400,12 @@ public class CassandraDaemon
             throw new IllegalStateException("native transport should be set up before it can be started");
 
         nativeServer.start();
+        logger.info("Native server running on {}", new InetSocketAddress(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getNativeTransportPort()));
+
+        if (thriftServer == null)
+            throw new IllegalStateException("thrift transport should be set up before it can be started");
+        thriftServer.start();
+        logger.info("Thrift server running on {}", new InetSocketAddress(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getRpcPort()));
     }
 
     private void validateTransportsCanStart()
@@ -566,6 +574,12 @@ public class CassandraDaemon
         {
             nativeServer.stopAndAwaitTermination();
             nativeServer = null;
+        }
+
+        if (thriftServer != null)
+        {
+            thriftServer.stopAndAwaitTermination();
+            thriftServer = null;
         }
     }
 
