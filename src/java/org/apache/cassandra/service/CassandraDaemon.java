@@ -437,11 +437,6 @@ public class CassandraDaemon
         // due to scheduling errors or race conditions
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
 
-        // Thrift
-        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
-        int rpcPort = DatabaseDescriptor.getRpcPort();
-        int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
-        thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
         initializeNativeTransport();
 
         completeSetup();
@@ -449,6 +444,13 @@ public class CassandraDaemon
 
     public void initializeNativeTransport()
     {
+        // Thrift
+        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
+        int rpcPort = DatabaseDescriptor.getRpcPort();
+        int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
+        if (thriftServer == null)
+            thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
+
         // Native transport
         if (nativeTransportService == null)
             nativeTransportService = new NativeTransportService();
@@ -599,6 +601,12 @@ public class CassandraDaemon
             nativeTransportService.destroy();
             nativeTransportService = null;
         }
+
+        if (thriftServer != null)
+        {
+            thriftServer.stop();
+            thriftServer = null;
+        }
     }
 
 
@@ -708,14 +716,27 @@ public class CassandraDaemon
 
         if (nativeTransportService == null)
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
-        else
-            nativeTransportService.start();
+
+        nativeTransportService.start();
+
+        if (thriftServer == null)
+            throw new IllegalStateException("thrift transport should be set up before it can be started");
+        thriftServer.start();
     }
 
     public void stopNativeTransport()
     {
         if (nativeTransportService != null)
+        {
             nativeTransportService.stop();
+            nativeTransportService = null;
+        }
+
+        if (thriftServer != null)
+        {
+            thriftServer.stop();
+            thriftServer = null;
+        }
     }
 
     public boolean isNativeTransportRunning()
