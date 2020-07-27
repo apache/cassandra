@@ -367,7 +367,7 @@ public class LocalSessions
                                        session.coordinator.address,
                                        session.coordinator.port,
                                        session.participants.stream().map(participant -> participant.address).collect(Collectors.toSet()),
-                                       session.participants.stream().map(participant -> participant.toString()).collect(Collectors.toSet()),
+                                       session.participants.stream().map(participant -> participant.getHostAddressAndPort()).collect(Collectors.toSet()),
                                        serializeRanges(session.ranges),
                                        tableIdToUuid(session.tableIds));
     }
