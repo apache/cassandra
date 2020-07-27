@@ -1,6 +1,7 @@
 3.11.8
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
 Merged from 3.0:
+ * Forbid altering UDTs used in partition keys (CASSANDRA-15933)
  * Fix empty/null json string representation (CASSANDRA-15896)
 Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)

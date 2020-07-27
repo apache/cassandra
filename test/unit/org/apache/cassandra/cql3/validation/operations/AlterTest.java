@@ -547,4 +547,23 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s ALTER value1 TYPE 'org.apache.cassandra.db.marshal.BytesType'");
     }
 
+    @Test
+    public void testAlterTypeUsedInPartitionKey() throws Throwable
+    {
+        // frozen UDT used directly in a partition key
+        String  type1 = createType("CREATE TYPE %s (v1 int)");
+        String table1 = createTable("CREATE TABLE %s (pk frozen<" + type1 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen UDT used in a partition key
+        String  type2 = createType("CREATE TYPE %s (v1 frozen<" + type1 + ">, v2 frozen<" + type1 + ">)");
+        String table2 = createTable("CREATE TABLE %s (pk frozen<" + type2 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen collection used in a partition key
+        String table3 = createTable("CREATE TABLE %s (pk frozen<list<frozen<" + type1 + ">>>, val int, PRIMARY KEY(pk));");
+
+        // assert that ALTER fails and that the error message contains all the names of the table referencing it
+        assertInvalidMessage(table1, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table2, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table3, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+    }
 }
