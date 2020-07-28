@@ -313,12 +313,12 @@ public class TTLTest extends CQLTester
         // TTL is computed dynamically from row expiration time, so if it is
         // equal or higher to the minimum max TTL we compute before the query
         // we are fine.
-        int minMaxTTL = computeMaxTTL();
         UntypedResultSet execute = execute("SELECT ttl(" + field + ") FROM %s WHERE k = 1");
+        int minMaxTTL = computeMaxTTL();
         for (UntypedResultSet.Row row : execute)
         {
             int ttl = row.getInt("ttl(" + field + ")");
-            assertTrue(ttl >= minMaxTTL);
+            assert (ttl >= minMaxTTL) : "ttl must be greater than or equal to minMaxTTL, but " + ttl + " is less than " + minMaxTTL;
         }
     }
 
