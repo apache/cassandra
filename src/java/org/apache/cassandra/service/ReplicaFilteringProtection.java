@@ -479,13 +479,14 @@ class ReplicaFilteringProtection
 
             if (toFetch != null)
             {
-                UnfilteredPartitionIterator partitions = fetchFromSource();
-                
-                if (partitions.hasNext())
+                try (UnfilteredPartitionIterator partitions = fetchFromSource())
                 {
-                    try (UnfilteredRowIterator fetchedRows = partitions.next())
+                    if (partitions.hasNext())
                     {
-                        return UnfilteredRowIterators.merge(Arrays.asList(original, fetchedRows), command.nowInSec());
+                        try (UnfilteredRowIterator fetchedRows = partitions.next())
+                        {
+                            return UnfilteredRowIterators.merge(Arrays.asList(original, fetchedRows), command.nowInSec());
+                        }
                     }
                 }
             }
