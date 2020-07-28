@@ -55,6 +55,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -84,6 +85,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -382,6 +384,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
+
+                Verb.REQUEST_RSP.unsafeSetSerializer(() -> ReadResponse.serializer);
 
                 if (config.has(NETWORK))
                 {
