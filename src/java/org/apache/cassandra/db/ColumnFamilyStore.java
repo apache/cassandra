@@ -699,7 +699,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             catch (IOException e)
             {
-                FileUtils.handleCorruptSSTable(new CorruptSSTableException(e, entry.getKey().filenameFor(Component.STATS)));
+                JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(e, entry.getKey().filenameFor(Component.STATS)));
                 logger.error("Cannot read sstable {}; other IO error, skipping table", entry, e);
                 continue;
             }
@@ -729,19 +729,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             catch (CorruptSSTableException ex)
             {
-                FileUtils.handleCorruptSSTable(ex);
+                JVMStabilityInspector.inspectThrowable(ex);
                 logger.error("Corrupt sstable {}; skipping table", entry, ex);
                 continue;
             }
             catch (FSError ex)
             {
-                FileUtils.handleFSError(ex);
+                JVMStabilityInspector.inspectThrowable(ex);
                 logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
                 continue;
             }
             catch (IOException ex)
             {
-                FileUtils.handleCorruptSSTable(new CorruptSSTableException(ex, entry.getKey().filenameFor(Component.DATA)));
+                JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(ex, entry.getKey().filenameFor(Component.DATA)));
                 logger.error("Cannot read sstable {}; other IO error, skipping table", entry, ex);
                 continue;
             }
