@@ -296,7 +296,7 @@ public class NodeProbe implements AutoCloseable
     private void checkJobs(PrintStream out, int jobs)
     {
         // TODO this should get the configured number of concurrent_compactors via JMX and not using DatabaseDescriptor
-        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.toolInitialization(false); // if running in dtest, this would fail if true (default)
         if (jobs > DatabaseDescriptor.getConcurrentCompactors())
             out.println(String.format("jobs (%d) is bigger than configured concurrent_compactors (%d) on this host, using at most %d threads", jobs, DatabaseDescriptor.getConcurrentCompactors(), DatabaseDescriptor.getConcurrentCompactors()));
     }
