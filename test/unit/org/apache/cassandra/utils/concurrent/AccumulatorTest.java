@@ -108,7 +108,7 @@ public class AccumulatorTest
         accu.clearUnsafe(1);
 
         assertEquals(3, accu.size());
-        assertFalse(accu.snapshot().iterator().hasNext());
+        assertTrue(accu.snapshot().iterator().hasNext());
 
         accu.add("4");
         accu.add("5");
