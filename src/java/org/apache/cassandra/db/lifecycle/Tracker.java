@@ -486,4 +486,12 @@ public class Tracker
     {
         return view.get();
     }
+
+    @VisibleForTesting
+    public void removeUnsafe(Set<SSTableReader> toRemove)
+    {
+        Pair<View, View> result = apply(view -> {
+            return updateLiveSet(toRemove, emptySet()).apply(view);
+        });
+    }
 }

@@ -42,10 +42,11 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         if (!StorageService.instance.isSetupCompleted())
             handleStartupFSError(e);
 
-        JVMStabilityInspector.inspectThrowable(e);
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
             case stop_paranoid:
+                // exception not logged here on purpose as it is already logged
+                logger.error("Stopping transports as disk_failure_policy is " + DatabaseDescriptor.getDiskFailurePolicy());
                 StorageService.instance.stopTransports();
                 break;
         }
@@ -57,11 +58,12 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         if (!StorageService.instance.isSetupCompleted())
             handleStartupFSError(e);
 
-        JVMStabilityInspector.inspectThrowable(e);
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
             case stop_paranoid:
             case stop:
+                // exception not logged here on purpose as it is already logged
+                logger.error("Stopping transports as disk_failure_policy is " + DatabaseDescriptor.getDiskFailurePolicy());
                 StorageService.instance.stopTransports();
                 break;
             case best_effort:
