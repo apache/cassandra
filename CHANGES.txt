@@ -3,6 +3,7 @@
 Merged from 3.0:
  * Forbid altering UDTs used in partition keys (CASSANDRA-15933)
  * Fix empty/null json string representation (CASSANDRA-15896)
+ * 3.x fails to start if commit log has range tombstones from a column which is also deleted (CASSANDRA-15970)
 Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
 
