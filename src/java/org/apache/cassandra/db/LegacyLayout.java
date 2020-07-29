@@ -1598,6 +1598,8 @@ public abstract class LegacyLayout
          */
         public Row getRow()
         {
+            if (clustering == null)
+                return null;
             if (!hasValidCells && invalidLivenessInfo != null)
                 builder.addPrimaryKeyLivenessInfo(invalidLivenessInfo);
             return builder.build();
