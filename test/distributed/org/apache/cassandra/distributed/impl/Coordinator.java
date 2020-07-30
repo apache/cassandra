@@ -39,6 +39,7 @@ import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -91,6 +92,11 @@ public class Coordinator implements ICoordinator
             boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
         prepared.validate(QueryState.forInternalCalls().getClientState());
+
+        // Start capturing warnings on this thread. Note that this will implicitly clear out any previous 
+        // warnings as it sets a new State instance on the ThreadLocal.
+        ClientWarn.instance.captureWarnings();
+        
         ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
                                              QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                  boundBBValues,
@@ -100,6 +106,10 @@ public class Coordinator implements ICoordinator
                                                                  null,
                                                                  ProtocolVersion.CURRENT),
                                              System.nanoTime());
+
+        // Collect warnings reported during the query.
+        if (res != null)
+            res.setWarnings(ClientWarn.instance.getWarnings());
 
         return RowUtil.toQueryResult(res);
     }
