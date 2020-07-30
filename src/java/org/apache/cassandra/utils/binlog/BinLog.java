@@ -45,6 +45,7 @@ import net.openhft.chronicle.wire.WriteMarshallable;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
@@ -460,7 +461,7 @@ public class BinLog implements Runnable
         }
         if (accumulate instanceof FSError)
         {
-            FileUtils.handleFSError((FSError)accumulate);
+            JVMStabilityInspector.inspectThrowable(accumulate);
         }
         return accumulate;
     }
