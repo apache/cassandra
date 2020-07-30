@@ -453,26 +453,15 @@ public class CassandraDaemon
     public static void uncaughtException(Thread t, Throwable e)
     {
         StorageMetrics.uncaughtExceptions.inc();
-        logger.error("Exception in thread " + t, e);
+        logger.error("Exception in thread {}", t, e);
         Tracing.trace("Exception in thread {}", t, e);
         for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
         {
-            JVMStabilityInspector.inspectThrowable(e2);
-
-            if (e2 instanceof FSError)
-            {
-                if (e2 != e) // make sure FSError gets logged exactly once.
-                    logger.error("Exception in thread " + t, e2);
-                FileUtils.handleFSError((FSError) e2);
-            }
-
-            if (e2 instanceof CorruptSSTableException)
-            {
-                if (e2 != e)
-                    logger.error("Exception in thread " + t, e2);
-                FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
-            }
+            // make sure error gets logged exactly once.
+            if (e2 != e && (e2 instanceof FSError || e2 instanceof CorruptSSTableException))
+                logger.error("Exception in thread {}", t, e2);
         }
+        JVMStabilityInspector.inspectThrowable(e);
     }
 
     /*
