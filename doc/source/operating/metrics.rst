@@ -75,61 +75,65 @@ Reported name format:
     **all** tables and keyspaces on the node.
 
 
-======================================= ============== ===========
-Name                                    Type           Description
-======================================= ============== ===========
-MemtableOnHeapSize                      Gauge<Long>    Total amount of data stored in the memtable that resides **on**-heap, including column related overhead and partitions overwritten.
-MemtableOffHeapSize                     Gauge<Long>    Total amount of data stored in the memtable that resides **off**-heap, including column related overhead and partitions overwritten.
-MemtableLiveDataSize                    Gauge<Long>    Total amount of live data stored in the memtable, excluding any data structure overhead.
-AllMemtablesOnHeapSize                  Gauge<Long>    Total amount of data stored in the memtables (2i and pending flush memtables included) that resides **on**-heap.
-AllMemtablesOffHeapSize                 Gauge<Long>    Total amount of data stored in the memtables (2i and pending flush memtables included) that resides **off**-heap.
-AllMemtablesLiveDataSize                Gauge<Long>    Total amount of live data stored in the memtables (2i and pending flush memtables included) that resides off-heap, excluding any data structure overhead.
-MemtableColumnsCount                    Gauge<Long>    Total number of columns present in the memtable.
-MemtableSwitchCount                     Counter        Number of times flush has resulted in the memtable being switched out.
-CompressionRatio                        Gauge<Double>  Current compression ratio for all SSTables.
-EstimatedPartitionSizeHistogram         Gauge<long[]>  Histogram of estimated partition size (in bytes).
-EstimatedPartitionCount                 Gauge<Long>    Approximate number of keys in table.
-EstimatedColumnCountHistogram           Gauge<long[]>  Histogram of estimated number of columns.
-SSTablesPerReadHistogram                Histogram      Histogram of the number of sstable data files accessed per single partition read. SSTables skipped due to Bloom Filters, min-max key or partition index lookup are not taken into acoount.
-ReadLatency                             Latency        Local read latency for this table.
-RangeLatency                            Latency        Local range scan latency for this table.
-WriteLatency                            Latency        Local write latency for this table.
-CoordinatorReadLatency                  Timer          Coordinator read latency for this table.
-CoordinatorScanLatency                  Timer          Coordinator range scan latency for this table.
-PendingFlushes                          Counter        Estimated number of flush tasks pending for this table.
-BytesFlushed                            Counter        Total number of bytes flushed since server [re]start.
-CompactionBytesWritten                  Counter        Total number of bytes written by compaction since server [re]start.
-PendingCompactions                      Gauge<Integer> Estimate of number of pending compactions for this table.
-LiveSSTableCount                        Gauge<Integer> Number of SSTables on disk for this table.
-LiveDiskSpaceUsed                       Counter        Disk space used by SSTables belonging to this table (in bytes).
-TotalDiskSpaceUsed                      Counter        Total disk space used by SSTables belonging to this table, including obsolete ones waiting to be GC'd.
-MinPartitionSize                        Gauge<Long>    Size of the smallest compacted partition (in bytes).
-MaxPartitionSize                        Gauge<Long>    Size of the largest compacted partition (in bytes).
-MeanPartitionSize                       Gauge<Long>    Size of the average compacted partition (in bytes).
-BloomFilterFalsePositives               Gauge<Long>    Number of false positives on table's bloom filter.
-BloomFilterFalseRatio                   Gauge<Double>  False positive ratio of table's bloom filter.
-BloomFilterDiskSpaceUsed                Gauge<Long>    Disk space used by bloom filter (in bytes).
-BloomFilterOffHeapMemoryUsed            Gauge<Long>    Off-heap memory used by bloom filter.
-IndexSummaryOffHeapMemoryUsed           Gauge<Long>    Off-heap memory used by index summary.
-CompressionMetadataOffHeapMemoryUsed    Gauge<Long>    Off-heap memory used by compression meta data.
-KeyCacheHitRate                         Gauge<Double>  Key cache hit rate for this table.
-TombstoneScannedHistogram               Histogram      Histogram of tombstones scanned in queries on this table.
-LiveScannedHistogram                    Histogram      Histogram of live cells scanned in queries on this table.
-ColUpdateTimeDeltaHistogram             Histogram      Histogram of column update time delta on this table.
-ViewLockAcquireTime                     Timer          Time taken acquiring a partition lock for materialized view updates on this table.
-ViewReadTime                            Timer          Time taken during the local read of a materialized view update.
-TrueSnapshotsSize                       Gauge<Long>    Disk space used by snapshots of this table including all SSTable components.
-RowCacheHitOutOfRange                   Counter        Number of table row cache hits that do not satisfy the query filter, thus went to disk.
-RowCacheHit                             Counter        Number of table row cache hits.
-RowCacheMiss                            Counter        Number of table row cache misses.
-CasPrepare                              Latency        Latency of paxos prepare round.
-CasPropose                              Latency        Latency of paxos propose round.
-CasCommit                               Latency        Latency of paxos commit round.
-PercentRepaired                         Gauge<Double>  Percent of table data that is repaired on disk.
-SpeculativeRetries                      Counter        Number of times speculative retries were sent for this table.
-WaitingOnFreeMemtableSpace              Histogram      Histogram of time spent waiting for free memtable space, either on- or off-heap.
-DroppedMutations                        Counter        Number of dropped mutations on this table.
-======================================= ============== ===========
+=============================================== ============== ===========
+Name                                            Type           Description
+=============================================== ============== ===========
+MemtableOnHeapSize                              Gauge<Long>    Total amount of data stored in the memtable that resides **on**-heap, including column related overhead and partitions overwritten.
+MemtableOffHeapSize                             Gauge<Long>    Total amount of data stored in the memtable that resides **off**-heap, including column related overhead and partitions overwritten.
+MemtableLiveDataSize                            Gauge<Long>    Total amount of live data stored in the memtable, excluding any data structure overhead.
+AllMemtablesOnHeapSize                          Gauge<Long>    Total amount of data stored in the memtables (2i and pending flush memtables included) that resides **on**-heap.
+AllMemtablesOffHeapSize                         Gauge<Long>    Total amount of data stored in the memtables (2i and pending flush memtables included) that resides **off**-heap.
+AllMemtablesLiveDataSize                        Gauge<Long>    Total amount of live data stored in the memtables (2i and pending flush memtables included) that resides off-heap, excluding any data structure overhead.
+MemtableColumnsCount                            Gauge<Long>    Total number of columns present in the memtable.
+MemtableSwitchCount                             Counter        Number of times flush has resulted in the memtable being switched out.
+CompressionRatio                                Gauge<Double>  Current compression ratio for all SSTables.
+EstimatedPartitionSizeHistogram                 Gauge<long[]>  Histogram of estimated partition size (in bytes).
+EstimatedPartitionCount                         Gauge<Long>    Approximate number of keys in table.
+EstimatedColumnCountHistogram                   Gauge<long[]>  Histogram of estimated number of columns.
+SSTablesPerReadHistogram                        Histogram      Histogram of the number of sstable data files accessed per single partition read. SSTables skipped due to Bloom Filters, min-max key or partition index lookup are not taken into acoount.
+ReadLatency                                     Latency        Local read latency for this table.
+RangeLatency                                    Latency        Local range scan latency for this table.
+WriteLatency                                    Latency        Local write latency for this table.
+CoordinatorReadLatency                          Timer          Coordinator read latency for this table.
+CoordinatorScanLatency                          Timer          Coordinator range scan latency for this table.
+PendingFlushes                                  Counter        Estimated number of flush tasks pending for this table.
+BytesFlushed                                    Counter        Total number of bytes flushed since server [re]start.
+CompactionBytesWritten                          Counter        Total number of bytes written by compaction since server [re]start.
+PendingCompactions                              Gauge<Integer> Estimate of number of pending compactions for this table.
+LiveSSTableCount                                Gauge<Integer> Number of SSTables on disk for this table.
+LiveDiskSpaceUsed                               Counter        Disk space used by SSTables belonging to this table (in bytes).
+TotalDiskSpaceUsed                              Counter        Total disk space used by SSTables belonging to this table, including obsolete ones waiting to be GC'd.
+MinPartitionSize                                Gauge<Long>    Size of the smallest compacted partition (in bytes).
+MaxPartitionSize                                Gauge<Long>    Size of the largest compacted partition (in bytes).
+MeanPartitionSize                               Gauge<Long>    Size of the average compacted partition (in bytes).
+BloomFilterFalsePositives                       Gauge<Long>    Number of false positives on table's bloom filter.
+BloomFilterFalseRatio                           Gauge<Double>  False positive ratio of table's bloom filter.
+BloomFilterDiskSpaceUsed                        Gauge<Long>    Disk space used by bloom filter (in bytes).
+BloomFilterOffHeapMemoryUsed                    Gauge<Long>    Off-heap memory used by bloom filter.
+IndexSummaryOffHeapMemoryUsed                   Gauge<Long>    Off-heap memory used by index summary.
+CompressionMetadataOffHeapMemoryUsed            Gauge<Long>    Off-heap memory used by compression meta data.
+KeyCacheHitRate                                 Gauge<Double>  Key cache hit rate for this table.
+TombstoneScannedHistogram                       Histogram      Histogram of tombstones scanned in queries on this table.
+LiveScannedHistogram                            Histogram      Histogram of live cells scanned in queries on this table.
+ColUpdateTimeDeltaHistogram                     Histogram      Histogram of column update time delta on this table.
+ViewLockAcquireTime                             Timer          Time taken acquiring a partition lock for materialized view updates on this table.
+ViewReadTime                                    Timer          Time taken during the local read of a materialized view update.
+TrueSnapshotsSize                               Gauge<Long>    Disk space used by snapshots of this table including all SSTable components.
+RowCacheHitOutOfRange                           Counter        Number of table row cache hits that do not satisfy the query filter, thus went to disk.
+RowCacheHit                                     Counter        Number of table row cache hits.
+RowCacheMiss                                    Counter        Number of table row cache misses.
+CasPrepare                                      Latency        Latency of paxos prepare round.
+CasPropose                                      Latency        Latency of paxos propose round.
+CasCommit                                       Latency        Latency of paxos commit round.
+PercentRepaired                                 Gauge<Double>  Percent of table data that is repaired on disk.
+SpeculativeRetries                              Counter        Number of times speculative retries were sent for this table.
+WaitingOnFreeMemtableSpace                      Histogram      Histogram of time spent waiting for free memtable space, either on- or off-heap.
+DroppedMutations                                Counter        Number of dropped mutations on this table.
+ReadRepairRequests                              Meter          Throughput for mutations generated by read-repair.
+ShortReadProtectionRequests                     Meter          Throughput for requests to get extra rows during short read protection.
+ReplicaFilteringProtectionRequests              Meter          Throughput for row completion requests during replica filtering protection.
+ReplicaFilteringProtectionRowsCachedPerQuery    Histogram      Histogram of the number of rows cached per query when replica filtering protection is engaged.
+============================================    ============== ===========
 
 Keyspace Metrics
 ^^^^^^^^^^^^^^^^
