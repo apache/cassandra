@@ -50,6 +50,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
@@ -337,7 +338,7 @@ public class DirectoriesTest
             {
                 String[] path = new String[] {KS, "bad"};
                 File dir = new File(Directories.dataDirectories[0].location, StringUtils.join(path, File.separator));
-                FileUtils.handleFSError(new FSWriteError(new IOException("Unable to create directory " + dir), dir));
+                JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException("Unable to create directory " + dir), dir));
             }
 
             for (DataDirectory dd : Directories.dataDirectories)

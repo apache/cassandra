@@ -1,6 +1,7 @@
 3.11.8
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
 Merged from 3.0:
+ * stop_paranoid disk failure policy is ignored on CorruptSSTableException after node is up (CASSANDRA-15191)
  * Forbid altering UDTs used in partition keys (CASSANDRA-15933)
  * Fix empty/null json string representation (CASSANDRA-15896)
  * 3.x fails to start if commit log has range tombstones from a column which is also deleted (CASSANDRA-15970)

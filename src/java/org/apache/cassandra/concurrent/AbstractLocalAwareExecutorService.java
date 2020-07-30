@@ -29,9 +29,6 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -169,12 +166,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
                 logger.error("Uncaught exception on thread {}", Thread.currentThread(), t);
                 result = t;
                 failure = true;
-                if (t instanceof CorruptSSTableException)
-                    FileUtils.handleCorruptSSTable((CorruptSSTableException) t);
-                else if (t instanceof FSError)
-                    FileUtils.handleFSError((FSError) t);
-                else
-                    JVMStabilityInspector.inspectThrowable(t);
+                JVMStabilityInspector.inspectThrowable(t);
             }
             finally
             {

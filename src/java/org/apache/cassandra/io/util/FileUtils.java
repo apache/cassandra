@@ -504,7 +504,7 @@ public final class FileUtils
      */
     public static void handleFSErrorAndPropagate(FSError e)
     {
-        handleFSError(e);
+        JVMStabilityInspector.inspectThrowable(e);
         throw propagate(e);
     }
 

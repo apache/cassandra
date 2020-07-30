@@ -83,6 +83,7 @@ import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -90,6 +91,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.LegacySchemaMigrator;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
@@ -458,6 +460,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
+                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+
                 mkdirs();
 
                 assert config.networkTopology().contains(config.broadcastAddress());

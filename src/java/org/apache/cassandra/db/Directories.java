@@ -47,6 +47,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -253,7 +254,7 @@ public class Directories
             {
                 // don't just let the default exception handler do this, we need the create loop to continue
                 logger.error("Failed to create {} directory", dir);
-                FileUtils.handleFSError(e);
+                JVMStabilityInspector.inspectThrowable(e);
             }
         }
 
