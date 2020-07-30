@@ -210,10 +210,10 @@ public class CQLConnectionTest
             assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
             assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);
         }
-        catch (Exception e)
+        catch (Throwable t)
         {
-            logger.error("Unexpected error", e);
-            throw new RuntimeException(e);
+            logger.error("Unexpected error", t);
+            throw new RuntimeException(t);
         }
         finally
         {
@@ -650,7 +650,7 @@ public class CQLConnectionTest
 
         private void stop()
         {
-            if (channel.isOpen())
+            if (channel != null && channel.isOpen())
                 channel.close();
         }
     }

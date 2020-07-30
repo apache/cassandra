@@ -121,8 +121,7 @@ public class ExceptionHandlers
             }
 
             // netty wraps SSL errors in a CodecExcpetion
-            boolean isIOException = exception instanceof IOException || (exception.getCause() instanceof IOException);
-            if (!alwaysLogAtError && isIOException)
+            if (!alwaysLogAtError && (exception instanceof IOException || (exception.getCause() instanceof IOException)))
             {
                 String errorMessage = exception.getMessage();
                 boolean logAtTrace = false;

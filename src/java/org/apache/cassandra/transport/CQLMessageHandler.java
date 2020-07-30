@@ -52,6 +52,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
 
     public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
+    private static final int UNKNOWN_STREAM_ID = 0;
 
     private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
     private final Message.Decoder<M> messageDecoder;
@@ -107,7 +108,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve)
     {
         Frame frame = toCqlFrame(bytes);
-        if (frame == null)
+        // null indicates a failure to extract the CQL frame. This will trigger a protocol exception
+        // and closing the connection.
+        if (null == frame)
             return false;
 
         // max (CQL) frame size defaults to 256mb, so should be safe to downcast
@@ -175,7 +178,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         new LargeMessage(frame.header, ShareableBytes.wrap(frame.body.nioBuffer())).onComplete();
     }
 
-    // todo - return error to client or throw
     private Frame toCqlFrame(ShareableBytes bytes)
     {
         ByteBuffer buf = bytes.get();
@@ -191,8 +193,13 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         {
             JVMStabilityInspector.inspectThrowable(t, false);
             logger.error("{} unexpected exception caught while deserializing a message", id(), t);
+            // Ideally we would recover from this as we could simply drop the messaging frame.
+            // However, we have no good way to communicate this back to the client as we don't
+            // yet know the stream id. So this will trigger an Error response and the connection
+            // to be closed.
+            handleError(new ProtocolException("Deserialization error processing CQL payload"));
+            return null;
         }
-        return null;
     }
 
     private void processCqlFrame(Frame frame)
@@ -208,19 +215,52 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
     }
 
-    // For expected errors this ensures we pass a WrappedException,
-    // which contains a streamId, to the error handler. This makes
-    // sure that whereever possible, the streamId is propagated back
-    // to the client.
+    /**
+     * For "expected" errors this ensures we pass a WrappedException,
+     * which contains a streamId, to the error handler. This makes
+     * sure that whereever possible, the streamId is propagated back
+     * to the client.
+     * This also releases the capacity acquired for processing as
+     * indicated by supplied header.
+     * @param t
+     * @param header
+     */
     private void handleErrorAndRelease(Throwable t, Frame.Header header)
     {
         release(header);
         handleError(t, header);
     }
 
+    /**
+     * For "expected" errors this ensures we pass a WrappedException,
+     * which contains a streamId, to the error handler. This makes
+     * sure that whereever possible, the streamId is propagated back
+     * to the client.
+     * This variant doesn't call release as it is intended for use
+     * when an error occurs without any capacity being acquired.
+     * Typically, this would be the result of an acquisition failure
+     * if the THROW_ON_OVERLOAD option has been specified by the client.
+     * @param t
+     * @param header
+     */
     private void handleError(Throwable t, Frame.Header header)
     {
         errorHandler.accept(ErrorMessage.wrap(t, header.streamId));
+    }
+
+    /**
+     * For use in the case where the error can't be mapped to a specific stream id,
+     * such as a corrupted messaging frame, or when extracing a CQL frame from the
+     * messaging frame's payload fails. This does not attempt to release any
+     * resources, as these errors should only occur before any capacity acquisition
+     * is attempted (e.g. on receipt of a corrupt messaging frame, or failure to
+     * extract a CQL frame from the message body).
+     *
+     * @param t
+     */
+    private void handleError(Throwable t)
+    {
+        errorHandler.accept(t);
     }
 
     // Acts as a Dispatcher.FlushItemConverter
@@ -334,24 +374,26 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
      * streams. Simply dropping the corrupt frame or returning an error response would not give the
      * client enough information to map back to inflight requests, leading to timeouts.
      * Instead, we need to fail fast, possibly dropping the connection whenever a corrupt frame is
-     * encountered. Consequently, we throw whenever a corrupt frame is encountered, regardless of its
-     * type.
+     * encountered. Consequently, we terminate the connection (via a ProtocolException) whenever a
+     * corrupt frame is encountered, regardless of its type.
      */
     protected void processCorruptFrame(FrameDecoder.CorruptFrame frame) throws Crc.InvalidCrc
     {
         corruptFramesUnrecovered++;
         if (!frame.isRecoverable())
         {
-            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected in frame header", id());
-            logger.error("{} invalid, unrecoverable CRC mismatch detected in frame header", id());
-            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+            String error = String.format("%s invalid, unrecoverable CRC mismatch detected in frame header. " +
+                                         "Read %d, Computed %d", id(), frame.readCRC, frame.computedCRC);
+            noSpamLogger.error(error);
+            handleError(new ProtocolException(error));
         }
         else
         {
             receivedBytes += frame.frameSize;
-            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected in frame body", id());
-            logger.error("{} invalid, unrecoverable CRC mismatch detected in frame header", id());
-            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+            String error = String.format("%s invalid, unrecoverable CRC mismatch detected in frame body. " +
+                                         "Read %d, Computed %d", id(), frame.readCRC, frame.computedCRC);
+            noSpamLogger.error(error);
+            handleError(new ProtocolException(error));
         }
     }
 
@@ -410,9 +452,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         {
             if (overloaded)
             {
-                handleErrorAndRelease(new OverloadedException("Server is in overloaded state. " +
+                handleError(new OverloadedException("Server is in overloaded state. " +
                                                               "Cannot accept more requests at this point"),
-                                      header);
+                            header);
             }
             else if (!isCorrupt)
             {
