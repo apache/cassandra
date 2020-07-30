@@ -41,6 +41,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFactory;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.DefaultSelectStrategyFactory;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
@@ -248,7 +249,8 @@ public final class SocketFactory
         sb.append("enabled (factory=");
         sb.append(SSLFactory.openSslIsAvailable() ? "openssl" : "jdk");
 
-        SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
+        final ChannelPipeline pipeline = channel.pipeline();
+        SslHandler sslHandler = pipeline == null ? null : pipeline.get(SslHandler.class);
         if (sslHandler != null)
         {
             SSLSession session = sslHandler.engine().getSession();
