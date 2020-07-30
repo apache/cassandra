@@ -299,7 +299,7 @@ public abstract class Message
             return tracingId;
         }
 
-        Message setWarnings(List<String> warnings)
+        public Message setWarnings(List<String> warnings)
         {
             this.warnings = warnings;
             return this;
