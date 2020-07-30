@@ -7,6 +7,7 @@ Merged from 3.11:
  * stop_paranoid disk failure policy is ignored on CorruptSSTableException after node is up (CASSANDRA-15191)
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
 Merged from 3.0:
+ * Operational improvements and hardening for replica filtering protection (CASSANDRA-15907)
  * Fix empty/null json string representation (CASSANDRA-15896)
 Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
