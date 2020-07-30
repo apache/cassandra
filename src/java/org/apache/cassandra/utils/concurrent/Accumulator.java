@@ -20,7 +20,6 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.util.AbstractCollection;
 import java.util.Collection;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
@@ -159,14 +158,12 @@ public class Accumulator<E>
     }
 
     /**
-     * Removes all of the elements from this accumulator.
+     * Removes element at the speficied index from this accumulator.
      *
      * This method is not thread-safe when used concurrently with {@link #add(Object)}.
      */
-    public void clearUnsafe()
+    public void clearUnsafe(int i)
     {
-        nextIndexUpdater.set(this, 0);
-        presentCountUpdater.set(this, 0);
-        Arrays.fill(values, null);
+        values[i] = null;
     }
 }
