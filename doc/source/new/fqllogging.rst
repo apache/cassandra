@@ -89,13 +89,15 @@ The logger follows a well-defined sequence of events:
 1. The consumer thread that writes log records is started. This action can occur only once.
 2. The consumer thread offers a record to the log. If the in-memory queue is full, the record will be dropped and offer returns a `false` value.
 3. If accepted, the record is entered into the log. If the in-memory queue is full, the putting thread will be blocked until there is space or it is interrupted.
-4. The buffers are cleaned up thread exit. Finalization will check again, to ensure there are no stragglers in the queue.
+4. The buffers are cleaned up at thread exit. Finalization will check again, to ensure there are no stragglers in the queue.
 5. The consumer thread is stopped. It can be called multiple times.
 
 Using FQL
 ---------
 
-To use FQL, two actions must be completed. FQL must be configured using either the `cassandra.yaml` file or ``nodetool``, and logging must be enabled using ``nodetool enablefullquerylog``. Both actions are completed on a per-node basis.
+To use FQL, two actions must be completed. FQL must be configured using either the `cassandra.yaml` file or ``nodetool``, and logging must be enabled using ``nodetool enablefullquerylog``. 
+Both actions are completed on a per-node basis.
+With either method, at a minimum, the path to the log directory must be specified.
 Full query logs are generated on each enabled node, so logs on each node will have that node's queries.
 
 Configuring FQL in cassandra.yaml
