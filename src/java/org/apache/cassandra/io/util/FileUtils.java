@@ -92,12 +92,12 @@ public final class FileUtils
             logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
                 "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
                 "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
-                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options");
+                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options", e);
             throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
         }
         catch (Throwable t)
         {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator.");
+            logger.error("FATAL: Cannot initialize optimized memory deallocator.", t);
             JVMStabilityInspector.inspectThrowable(t);
             throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
         }

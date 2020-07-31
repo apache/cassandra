@@ -337,8 +337,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
-                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
@@ -354,6 +352,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.daemonInitialization();
+                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CommitLog.instance.start();
 
