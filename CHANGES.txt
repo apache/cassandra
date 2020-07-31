@@ -1,4 +1,5 @@
 3.11.12
+ * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
 Merged from 3.0:
  * Handle properly UnsatisfiedLinkError in NativeLibrary#getProcessID() (CASSANDRA-16578)
  * Remove mutation data from error log message (CASSANDRA-16817)
