@@ -506,14 +506,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
-                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-
                 mkdirs();
 
                 assert config.networkTopology().contains(config.broadcastAddress());
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.setDaemonInitialized();
+                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
 
                 // We need to  persist this as soon as possible after startup checks.
