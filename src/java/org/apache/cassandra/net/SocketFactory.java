@@ -242,15 +242,17 @@ public final class SocketFactory
 
     static String encryptionLogStatement(Channel channel, EncryptionOptions options)
     {
-        if (options == null)
+        if (options == null || !options.isEnabled())
             return "disabled";
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("enabled (factory=");
+        StringBuilder sb = new StringBuilder(64);
+        if (options.optional)
+            sb.append("optional (factory=");
+        else
+            sb.append("enabled (factory=");
         sb.append(SSLFactory.openSslIsAvailable() ? "openssl" : "jdk");
 
-        final ChannelPipeline pipeline = channel.pipeline();
-        SslHandler sslHandler = pipeline == null ? null : pipeline.get(SslHandler.class);
+        final SslHandler sslHandler = channel == null ? null : channel.pipeline().get(SslHandler.class);
         if (sslHandler != null)
         {
             SSLSession session = sslHandler.engine().getSession();
