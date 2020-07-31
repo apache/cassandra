@@ -568,11 +568,11 @@ the list of queries run, respectively, in `--results` and `--store-queries`:
 
 ::
 
-$ fqltool replay \
---keyspace querylogkeyspace --results /cassandra/fql/logs/results/replay \
---store-queries /cassandra/fql/logs/queries/replay \
--- target 3.91.56.164 \
-/tmp/cassandrafullquerylog
+ $ fqltool replay \
+ --keyspace querylogkeyspace --results /cassandra/fql/logs/results/replay \
+ --store-queries /cassandra/fql/logs/queries/replay \
+ -- target 3.91.56.164 \
+ /tmp/cassandrafullquerylog
 
 The ``--results`` and ``--store-queries`` directories are optional, but if ``--store-queries`` is set, then ``--results`` must also be set.
 The ``--target`` specifies the node on which to replay to logs.
