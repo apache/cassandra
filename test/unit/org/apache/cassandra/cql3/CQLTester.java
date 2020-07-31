@@ -483,12 +483,40 @@ public abstract class CQLTester
         if (server != null)
             return;
 
+        prepareNetwork();
+        initializeNetwork();
+    }
+
+    protected static void prepareNetwork()
+    {
         SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
 
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
+    }
 
+    protected static void reinitializeNetwork()
+    {
+        if (server != null && server.isRunning())
+        {
+            server.stop();
+            server = null;
+        }
+        List<CloseFuture> futures = new ArrayList<>();
+        for (Cluster cluster : clusters.values())
+            futures.add(cluster.closeAsync());
+        for (Session session : sessions.values())
+            futures.add(session.closeAsync());
+        FBUtilities.waitOnFutures(futures);
+        clusters.clear();
+        sessions.clear();
+
+        initializeNetwork();
+    }
+
+    private static void initializeNetwork()
+    {
         server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
         ClientMetrics.instance.init(Collections.singleton(server));
         server.start();

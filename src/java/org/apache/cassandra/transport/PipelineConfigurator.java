@@ -261,6 +261,7 @@ public class PipelineConfigurator
         // correctly handled before the handler itself is removed.
         // See https://issues.apache.org/jira/browse/CASSANDRA-13649
         pipeline.addLast(EXCEPTION_HANDLER, PreV5Handlers.ExceptionHandler.instance);
+        onInitialPipelineReady(pipeline);
     }
 
     public void configureModernPipeline(ChannelHandlerContext ctx,
@@ -320,10 +321,11 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_PROCESSOR, processor);
         pipeline.replace(EXCEPTION_HANDLER, EXCEPTION_HANDLER, exceptionHandler);
         pipeline.remove(INITIAL_HANDLER);
-        onPipelineReady();
+        onNegotiationComplete(pipeline);
     }
 
-    protected void onPipelineReady() {}
+    protected void onInitialPipelineReady(ChannelPipeline pipeline) {}
+    protected void onNegotiationComplete(ChannelPipeline pipeline) {}
 
     protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
     {
@@ -379,7 +381,7 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, CQL_MESSAGE_ENCODER, PreV5Handlers.ProtocolEncoder.instance);
         pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, tracker));
         pipeline.remove(INITIAL_HANDLER);
-        onPipelineReady();
+        onNegotiationComplete(pipeline);
     }
 }
 

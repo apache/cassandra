@@ -199,6 +199,7 @@ abstract class Flusher implements Runnable
                 buf.put(body.slice(body.readerIndex(), remaining).nioBuffer());
 
             body.readerIndex(body.readerIndex() + remaining);
+            payload.finish();
             writeAndFlush(channel, payload);
         }
     }

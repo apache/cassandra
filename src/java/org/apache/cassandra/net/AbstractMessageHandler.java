@@ -250,7 +250,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
 
     protected abstract boolean processFirstFrameOfLargeMessage(IntactFrame frame, Limit endpointReserve, Limit globalReserve) throws IOException;
 
-    private boolean processSubsequentFrameOfLargeMessage(Frame frame)
+    protected boolean processSubsequentFrameOfLargeMessage(Frame frame)
     {
         receivedBytes += frame.frameSize;
         if (largeMessage.supply(frame))

@@ -211,7 +211,7 @@ public class PreV5Handlers
             ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
             if (ctx.channel().isOpen())
             {
-                ChannelFuture future = ctx.writeAndFlush(errorMessage);
+                ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(ProtocolVersion.CURRENT));
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (cause instanceof ProtocolException)
                 {

@@ -151,9 +151,9 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
                 default:
                     ErrorMessage error =
-                    ErrorMessage.fromException(
-                    new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
-                                                        inbound.header.type)));
+                        ErrorMessage.fromException(
+                            new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS",
+                                                                inbound.header.type)));
                     outbound = error.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound);
             }

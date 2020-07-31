@@ -377,24 +377,25 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
      * encountered. Consequently, we terminate the connection (via a ProtocolException) whenever a
      * corrupt frame is encountered, regardless of its type.
      */
-    protected void processCorruptFrame(FrameDecoder.CorruptFrame frame) throws Crc.InvalidCrc
+    protected void processCorruptFrame(FrameDecoder.CorruptFrame frame)
     {
         corruptFramesUnrecovered++;
-        if (!frame.isRecoverable())
+        String error = String.format("%s invalid, unrecoverable CRC mismatch detected in frame %s. Read %d, Computed %d",
+                                     id(), frame.isRecoverable() ? "body" : "header", frame.readCRC, frame.computedCRC);
+
+        noSpamLogger.error(error);
+
+        // If this is part of a multi-frame message, process it before passing control to the error handler.
+        // This is so we can take care of any housekeeping associated with large messages.
+        if (!frame.isSelfContained)
         {
-            String error = String.format("%s invalid, unrecoverable CRC mismatch detected in frame header. " +
-                                         "Read %d, Computed %d", id(), frame.readCRC, frame.computedCRC);
-            noSpamLogger.error(error);
-            handleError(new ProtocolException(error));
+            if (null == largeMessage) // first frame of a large message
+                receivedBytes += frame.frameSize;
+            else // subsequent frame of a large message
+                processSubsequentFrameOfLargeMessage(frame);
         }
-        else
-        {
-            receivedBytes += frame.frameSize;
-            String error = String.format("%s invalid, unrecoverable CRC mismatch detected in frame body. " +
-                                         "Read %d, Computed %d", id(), frame.readCRC, frame.computedCRC);
-            noSpamLogger.error(error);
-            handleError(new ProtocolException(error));
-        }
+
+        handleError(new ProtocolException(error));
     }
 
     protected void fatalExceptionCaught(Throwable cause)

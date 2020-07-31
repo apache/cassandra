@@ -24,9 +24,9 @@ import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
@@ -36,7 +36,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -46,22 +45,27 @@ import io.netty.handler.codec.MessageToMessageDecoder;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.proxy.InboundProxyHandler;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.transport.CQLMessageHandler.MessageConsumer;
-import org.apache.cassandra.transport.messages.OptionsMessage;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.net.FramingTest.randomishBytes;
+import static org.apache.cassandra.transport.CQLMessageHandler.frameSize;
+import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -98,6 +102,164 @@ public class CQLConnectionTest
             throw new RuntimeException(e);
         }
         alloc = GlobalBufferPoolAllocator.instance;
+        // set connection-local queue size to 0 so that all capacity is allocated from reserves
+        DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(0);
+    }
+
+    @Test
+    public void handleErrorDuringNegotiation() throws Throwable
+    {
+        int messageCount = 0;
+        Codec codec = Codec.crc(alloc);
+        AllocationObserver observer = new AllocationObserver();
+        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
+        // Force protocol version to an unsupported version
+        controller.withPayloadTransform(msg -> {
+            ByteBuf bb = (ByteBuf)msg;
+            bb.setByte(0, 99 & Frame.PROTOCOL_VERSION_MASK);
+            return msg;
+        });
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withAllocationObserver(observer)
+                                                            .withProxyController(controller)
+                                                            .build();
+        Server server = server(configurator);
+        Client client = new Client(codec, messageCount);
+        server.start();
+        client.connect(address, port);
+        assertFalse(client.isConnected());
+        assertThat(client.getConnectionError())
+            .isNotNull()
+            .matches(message ->
+                message.error.getMessage()
+                             .equals("Invalid or unsupported protocol version (99); " +
+                                     "supported versions are (3/v3, 4/v4, 5/v5-beta)"));
+        server.stop();
+
+        // the failure happens before any capacity is allocated
+        observer.verifier().accept(0);
+        Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
+        assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
+        assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);;
+    }
+
+    @Test
+    public void handleCorruptionAfterNegotiation() throws Throwable
+    {
+        // A corrupt messaging frame should terminate the connection as clients
+        // generally don't track which stream IDs are present in the frame, and the
+        // server has no way to signal which streams are affected.
+        // Before closing, the server should send an ErrorMessage to inform the
+        // client of the corrupt message.
+        int messageCount = 10;
+        Codec codec = Codec.crc(alloc);
+        AllocationObserver observer = new AllocationObserver();
+        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withAllocationObserver(observer)
+                                                            .withProxyController(controller)
+                                                            .build();
+        Server server = server(configurator);
+        Client client = new Client(codec, messageCount);
+        server.start();
+        client.connect(address, port);
+        assertTrue(client.isConnected());
+
+        // Only install the transform after protocol negotiation is complete
+        controller.withPayloadTransform(msg -> {
+            // Corrupt frame
+            ByteBuf bb = (ByteBuf) msg;
+            bb.setByte(bb.readableBytes() / 2, 0xffff);
+            return msg;
+        });
+
+        for (int i=0; i < messageCount; i++)
+            client.send(randomFrame(i, Message.Type.OPTIONS));
+
+        client.awaitResponses();
+        // Client has disconnected
+        assertFalse(client.isConnected());
+        // But before it did, it sent an error response
+        Frame receieved = client.inboundFrames.poll();
+        assertNotNull(receieved);
+        Message.Response response = Message.responseDecoder().decode(client.channel, receieved);
+        assertEquals(Message.Type.ERROR, response.type);
+        assertTrue(((ErrorMessage)response).error.getMessage().contains("unrecoverable CRC mismatch detected in frame body"));
+
+        // the failure happens before any capacity is allocated
+        observer.verifier().accept(0);
+        Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
+        assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
+        assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);;
+
+        server.stop();
+    }
+
+    @Test
+    public void handleCorruptionOfLargeMessage() throws Throwable
+    {
+        // A corrupt messaging frame should terminate the connection as clients
+        // generally don't track which stream IDs are present in the frame, and the
+        // server has no way to signal which streams are affected.
+        // Before closing, the server should send an ErrorMessage to inform the
+        // client of the corrupt message.
+        // Client needs to expect multiple responses or else awaitResponses returns
+        // after the error is first received and we race between disconnecting and
+        // checking the connection status.
+        int messageCount = 10;
+        Codec codec = Codec.crc(alloc);
+        AllocationObserver observer = new AllocationObserver();
+        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withAllocationObserver(observer)
+                                                            .withProxyController(controller)
+                                                            .build();
+        Server server = server(configurator);
+        Client client = new Client(codec, messageCount);
+        server.start();
+        client.connect(address, port);
+        assertTrue(client.isConnected());
+
+        // Only install the transform after protocol negotiation is complete
+        AtomicInteger byteCount = new AtomicInteger(0);
+        AtomicBoolean corrupted = new AtomicBoolean(false);
+        controller.withPayloadTransform(msg -> {
+            // Don't corrupt the first frame, but subsequent ones
+            ByteBuf bb = (ByteBuf) msg;
+            int beforeBytes = byteCount.getAndAdd(bb.readableBytes());
+            // if the bytes in this buffer takes us into the second frame,
+            // corrupt it somewhere after the frame boundary
+            if (!corrupted.get() && beforeBytes + bb.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE)
+            {
+                int remainingInFirstFrame = MAX_FRAMED_PAYLOAD_SIZE - beforeBytes;
+                int toCorrupt = remainingInFirstFrame + random.nextInt(bb.readableBytes() - remainingInFirstFrame);
+                bb.setByte(toCorrupt, 0xffff);
+                corrupted.set(true);
+            }
+            return msg;
+        });
+
+        int totalBytes = MAX_FRAMED_PAYLOAD_SIZE * 2;
+        client.send(randomFrame(0, Message.Type.OPTIONS, totalBytes, totalBytes));
+        client.awaitResponses();
+        // Client has disconnected
+        assertFalse(client.isConnected());
+        // But before it did, it sent an error response
+        Frame receieved = client.inboundFrames.poll();
+        assertNotNull(receieved);
+        Message.Response response = Message.responseDecoder().decode(client.channel, receieved);
+        assertEquals(Message.Type.ERROR, response.type);
+        assertTrue(((ErrorMessage)response).error.getMessage().contains("unrecoverable CRC mismatch detected in frame"));
+        // total capacity is aquired when the first frame is read
+        observer.verifier().accept(totalBytes);
+        Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
+        assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
+        assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);
+
+        server.stop();
     }
 
     @Test
@@ -118,8 +280,7 @@ public class CQLConnectionTest
         final int messageCount = minMessages + random.nextInt(maxMessages - minMessages);
         logger.info("Sending total of {} messages", messageCount);
 
-
-        TestConsumer consumer = new TestConsumer(messageCount, new ResultMessage.Void(), codec.encoder);
+        TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
         AllocationObserver observer = new AllocationObserver();
         Message.Decoder<Message.Request> decoder = new FixedDecoder();
         Predicate<Frame.Header> responseMatcher = h -> h.type == Message.Type.RESULT;
@@ -148,7 +309,7 @@ public class CQLConnectionTest
     private void messageDecodingErrorEncounteredMidFrame(int messageCount, Codec codec)
     {
         final int streamWithError = messageCount / 2;
-        TestConsumer consumer = new TestConsumer(messageCount, new ResultMessage.Void(), codec.encoder);
+        TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
         AllocationObserver observer = new AllocationObserver();
         Message.Decoder<Message.Request> decoder = new FixedDecoder()
         {
@@ -181,8 +342,6 @@ public class CQLConnectionTest
                          Predicate<Frame.Header> responseMatcher,
                          LongConsumer allocationVerifier)
     {
-        // set connection-local queue size to 0 so that all capacity is allocated from reserves
-        DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(0);
         Server server = server(configurator);
         Client client = new Client(codec, messageCount);
         try
@@ -200,7 +359,10 @@ public class CQLConnectionTest
             client.awaitResponses();
             Frame response;
             while ((response = client.pollResponses()) != null)
+            {
+                response.release();
                 assertThat(response.header).matches(responseMatcher);
+            }
 
             // verify that we did have to acquire some resources from the global/endpoint reserves
             allocationVerifier.accept(totalBytes);
@@ -232,7 +394,12 @@ public class CQLConnectionTest
 
     private Frame randomFrame(int streamId, Message.Type type)
     {
-        byte[] bytes = randomishBytes(random, 100, 1024);
+        return randomFrame(streamId, type, 100, 1024);
+    }
+
+    private Frame randomFrame(int streamId, Message.Type type, int minSize, int maxSize)
+    {
+        byte[] bytes = randomishBytes(random, minSize, maxSize);
         return Frame.create(type,
                             streamId,
                             ProtocolVersion.V5,
@@ -259,15 +426,14 @@ public class CQLConnectionTest
     static class TestConsumer implements MessageConsumer<Message.Request>
     {
         final EnumSet<Frame.Header.Flag> flags = EnumSet.of(Frame.Header.Flag.USE_BETA);
-        final int messageCount;
         final Message.Response fixedResponse;
         final Frame responseTemplate;
         final FrameEncoder frameEncoder;
+        final AtomicBoolean scheduled = new AtomicBoolean(false);
         FrameAccumulator accumulator;
 
-        TestConsumer(int messageCount, Message.Response fixedResponse, FrameEncoder frameEncoder)
+        TestConsumer(Message.Response fixedResponse, FrameEncoder frameEncoder)
         {
-            this.messageCount = messageCount;
             this.fixedResponse = fixedResponse;
             this.responseTemplate = fixedResponse.encode(ProtocolVersion.V5);
             this.frameEncoder = frameEncoder;
@@ -285,9 +451,9 @@ public class CQLConnectionTest
                                           responseTemplate.header.flags,
                                           responseTemplate.body.duplicate());
             item.release();
-
             accumulator.accumulate(response);
-            channel.eventLoop().schedule(() -> accumulator.maybeWrite(), 10, TimeUnit.MILLISECONDS);
+            if (scheduled.compareAndSet(false, true))
+                channel.eventLoop().scheduleAtFixedRate(() ->  accumulator.maybeWrite(), 10, 10, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -297,6 +463,7 @@ public class CQLConnectionTest
         private final MessageConsumer<Message.Request> consumer;
         private final AllocationObserver allocationObserver;
         private final Message.Decoder<Message.Request> decoder;
+        private final InboundProxyHandler.Controller proxyController;
 
         public ServerConfigurator(Builder builder)
         {
@@ -304,6 +471,7 @@ public class CQLConnectionTest
             this.consumer = builder.consumer;
             this.decoder = builder.decoder;
             this.allocationObserver = builder.observer;
+            this.proxyController = builder.proxyController;
         }
 
         static Builder builder()
@@ -316,6 +484,7 @@ public class CQLConnectionTest
            MessageConsumer<Message.Request> consumer;
            AllocationObserver observer;
            Message.Decoder<Message.Request> decoder;
+           InboundProxyHandler.Controller proxyController;
 
            Builder withConsumer(MessageConsumer<Message.Request> consumer)
            {
@@ -335,6 +504,12 @@ public class CQLConnectionTest
                return this;
            }
 
+           Builder withProxyController(InboundProxyHandler.Controller proxyController)
+           {
+               this.proxyController = proxyController;
+               return this;
+           }
+
            ServerConfigurator build()
            {
                return new ServerConfigurator(this);
@@ -346,7 +521,16 @@ public class CQLConnectionTest
             return decoder == null ? super.messageDecoder() : decoder;
         }
 
-        protected void onPipelineReady()
+        protected void onInitialPipelineReady(ChannelPipeline pipeline)
+        {
+            if (proxyController != null)
+            {
+                InboundProxyHandler proxy = new InboundProxyHandler(proxyController);
+                pipeline.addFirst("PROXY", proxy);
+            }
+        }
+
+        protected void onNegotiationComplete(ChannelPipeline pipeline)
         {
             pipelineReady.signalAll();
         }
@@ -379,26 +563,22 @@ public class CQLConnectionTest
 
         long endpointAllocationTotal()
         {
-            assert endpoint != null;
-            return endpoint.totalAllocated.get();
+            return endpoint == null ? 0 : endpoint.totalAllocated.get();
         }
 
         long endpointReleaseTotal()
         {
-            assert endpoint != null;
-            return endpoint.totalReleased.get();
+            return endpoint == null ? 0 : endpoint.totalReleased.get();
         }
 
         long globalAllocationTotal()
         {
-            assert global != null;
-            return global.totalAllocated.get();
+            return global == null ? 0 : global.totalAllocated.get();
         }
 
         long globalReleaseTotal()
         {
-            assert global != null;
-            return global.totalReleased.get();
+            return global == null ? 0 : global.totalReleased.get();
         }
 
         synchronized InstrumentedLimit endpoint(Server.EndpointPayloadTracker tracker)
@@ -523,24 +703,27 @@ public class CQLConnectionTest
         private final Codec codec;
         private Channel channel;
         final int expectedResponses;
-        final CountDownLatch processed;
+        final CountDownLatch responsesReceived;
+        private volatile boolean connected = false;
 
         final Queue<Frame> inboundFrames = new LinkedBlockingQueue<>();
-        FrameAccumulator outboundFrames ;
         long sendSize = 0;
+        FrameAccumulator outboundFrames ;
+        ErrorMessage connectionError;
+        Throwable disconnectionError;
 
         Client(Codec codec, int expectedResponses)
         {
             this.codec = codec;
             this.expectedResponses = expectedResponses;
-            this.processed = new CountDownLatch(expectedResponses);
+            this.responsesReceived = new CountDownLatch(expectedResponses);
         }
 
         private void connect(InetAddress address, int port) throws IOException, InterruptedException
         {
             final CountDownLatch ready = new CountDownLatch(1);
             Bootstrap bootstrap = new Bootstrap()
-                                    .group(new NioEventLoopGroup())
+                                    .group(new NioEventLoopGroup(0, new NamedThreadFactory("TEST-CLIENT")))
                                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
                                     .option(ChannelOption.TCP_NODELAY, true);
             bootstrap.handler(new ChannelInitializer<Channel>()
@@ -560,11 +743,23 @@ public class CQLConnectionTest
                         final Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
                         protected void decode(ChannelHandlerContext ctx, Frame msg, List<Object> out) throws Exception
                         {
+                            if ( msg.header.type == Message.Type.ERROR)
+                            {
+                                connectionError = (ErrorMessage)Message.responseDecoder()
+                                                                       .decode(ctx.channel(), msg);
+
+                                msg.release();
+                                stop();
+                                ready.countDown();
+                                return;
+                            }
+
                             // As soon as we receive a READY message, modify the pipeline
                             assert msg.header.type == Message.Type.READY;
+                            msg.release();
 
                             // just split the messaging frame into cql frames and stash them for verification
-                            FrameDecoder.FrameProcessor processor = frame -> {
+                            FrameDecoder.FrameProcessor processor =  frame -> {
                                 if (frame instanceof FrameDecoder.IntactFrame)
                                 {
                                     ByteBuffer bytes = ((FrameDecoder.IntactFrame)frame).contents.get();
@@ -574,7 +769,7 @@ public class CQLConnectionTest
                                         try
                                         {
                                             inboundFrames.add(cqlFrameDecoder.decodeFrame(buffer));
-                                            processed.countDown();
+                                            responsesReceived.countDown();
                                         }
                                         catch (Exception e)
                                         {
@@ -596,7 +791,25 @@ public class CQLConnectionTest
                             channel.pipeline().replace(this, "messageFrameDecoder", codec.decoder);
                             // add an outbound message frame encoder
                             channel.pipeline().addLast("messageFrameEncoder", codec.encoder);
+                            channel.pipeline().addLast("errorHandler", new ChannelInboundHandlerAdapter()
+                            {
+                                @Override
+                                public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause) throws Exception
+                                {
+                                    // if the connection is closed finish early as
+                                    // we don't want to wait for expected responses
+                                    if (cause instanceof IOException)
+                                    {
+                                        connected = false;
+                                        disconnectionError = cause;
+                                        int remaining = (int) responsesReceived.getCount();
+                                        for (int i=0; i < remaining; i++)
+                                            responsesReceived.countDown();
+                                    }
+                                }
+                            });
                             codec.decoder.activate(processor);
+                            connected = true;
                             ready.countDown();
                         }
                     });
@@ -626,6 +839,7 @@ public class CQLConnectionTest
 
             if (!ready.await(10, TimeUnit.SECONDS))
                 throw new RuntimeException("Failed to establish client connection in 10s");
+
         }
 
         void send(Frame frame)
@@ -637,10 +851,22 @@ public class CQLConnectionTest
         private void awaitResponses() throws InterruptedException
         {
             outboundFrames.maybeWrite();
-            if (!processed.await(5, TimeUnit.SECONDS))
+            if (!responsesReceived.await(10, TimeUnit.SECONDS))
+            {
                 fail(String.format("Didn't receive all responses, expected %d, actual %d",
                                    expectedResponses,
-                                   expectedResponses - processed.getCount()));
+                                   inboundFrames.size()));
+            }
+        }
+
+        private boolean isConnected()
+        {
+            return connected;
+        }
+
+        private ErrorMessage getConnectionError()
+        {
+            return connectionError;
         }
 
         private Frame pollResponses()
@@ -652,13 +878,19 @@ public class CQLConnectionTest
         {
             if (channel != null && channel.isOpen())
                 channel.close();
+
+            outboundFrames.releaseAll();
+            Frame f;
+            while ((f = inboundFrames.poll()) != null)
+                f.release();
         }
     }
 
+    // Simple stand-in for Flusher in non-test code. Writers push CQL Messages/Frames onto a queue and
+    // this periodically collates them into messaging frames and flushes them to the channel.
     private static class FrameAccumulator
     {
-        long sendSize = 0;
-        final List<Frame> outboundFrames = new ArrayList<>();
+        final Queue<Frame> outboundFrames = new ConcurrentLinkedQueue<>();
         final FrameEncoder frameEncoder;
         final Channel channel;
 
@@ -670,11 +902,14 @@ public class CQLConnectionTest
 
         private void accumulate(Frame frame)
         {
-            if (sendSize + Frame.Header.LENGTH + frame.header.bodySizeInBytes > Flusher.MAX_FRAMED_PAYLOAD_SIZE)
-                maybeWrite();
+            outboundFrames.offer(frame);
+        }
 
-            sendSize += Frame.Header.LENGTH + frame.header.bodySizeInBytes;
-            outboundFrames.add(frame);
+        private void releaseAll()
+        {
+            Frame f;
+            while ((f = outboundFrames.poll()) != null)
+                f.release();
         }
 
         private void maybeWrite()
@@ -682,19 +917,86 @@ public class CQLConnectionTest
             if (outboundFrames.isEmpty())
                 return;
 
-            FrameEncoder.Payload payload = frameEncoder.allocator().allocate(true, Ints.checkedCast(sendSize));
+            List<Frame> buffer = new ArrayList<>();
+            long bufferSize = 0L;
+            boolean pending = false;
+            Frame f;
+            while ((f = outboundFrames.poll()) != null)
+            {
+                if (f.header.bodySizeInBytes > MAX_FRAMED_PAYLOAD_SIZE)
+                {
+                    writeLargeMessage(f);
+                }
+                else
+                {
+                    int frameSize = frameSize(f.header);
+                    if (bufferSize + frameSize >= MAX_FRAMED_PAYLOAD_SIZE)
+                    {
+                        flushBuffer(buffer, bufferSize);
+                        buffer.clear();
+                        bufferSize = 0;
+                    }
+                    buffer.add(f);
+                    bufferSize += frameSize;
+                    pending = true;
+                }
+            }
 
-            for (Frame f : outboundFrames)
+            if (pending)
+                flushBuffer(buffer, bufferSize);
+        }
+
+        private void flushBuffer(List<Frame> frames, long bufferSize)
+        {
+            FrameEncoder.Payload payload = allocate(Ints.checkedCast(bufferSize), true);
+
+            for (Frame f : frames)
                 f.encodeInto(payload.buffer);
-
-            logger.trace("Sending frame with {} messages and total size {}",
-                        outboundFrames.size(),
-                        FBUtilities.prettyPrintMemory(sendSize));
 
             payload.finish();
             channel.writeAndFlush(payload, channel.voidPromise());
-            outboundFrames.clear();
-            sendSize = 0;
+        }
+
+        private FrameEncoder.Payload allocate(int size, boolean selfContained)
+        {
+            FrameEncoder.Payload payload = frameEncoder.allocator()
+                                                       .allocate(selfContained, Math.min(size, MAX_FRAMED_PAYLOAD_SIZE));
+            if (size >= MAX_FRAMED_PAYLOAD_SIZE)
+                payload.buffer.limit(MAX_FRAMED_PAYLOAD_SIZE);
+
+            return payload;
+        }
+
+        private void writeLargeMessage(Frame f)
+        {
+            FrameEncoder.Payload payload;
+            ByteBuffer buf;
+            boolean firstFrame = true;
+            while (f.body.readableBytes() > 0 || firstFrame)
+            {
+                int payloadSize = Math.min(f.body.readableBytes(), MAX_FRAMED_PAYLOAD_SIZE);
+                payload = allocate(f.body.readableBytes(), false);
+
+                buf = payload.buffer;
+                // BufferPool may give us a buffer larger than we asked for.
+                // FrameEncoder may object if buffer.remaining is >= MAX_SIZE.
+                if (payloadSize >= MAX_FRAMED_PAYLOAD_SIZE)
+                    buf.limit(MAX_FRAMED_PAYLOAD_SIZE);
+
+                if (firstFrame)
+                {
+                    f.encodeHeaderInto(buf);
+                    firstFrame = false;
+                }
+
+                int remaining = Math.min(buf.remaining(), f.body.readableBytes());
+                if (remaining > 0)
+                    buf.put(f.body.slice(f.body.readerIndex(), remaining).nioBuffer());
+
+                f.body.readerIndex(f.body.readerIndex() + remaining);
+                payload.finish();
+                channel.writeAndFlush(payload, channel.voidPromise());
+            }
         }
     }
 }
