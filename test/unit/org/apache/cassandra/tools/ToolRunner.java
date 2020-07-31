@@ -330,12 +330,21 @@ public class ToolRunner implements AutoCloseable
     
     public ToolRunner waitAndAssertOnCleanExit()
     {
-        return waitAndAssertOnExitCode().assertEmptyStdErr();
+        return waitAndAssertOnExitCode().assertCleanStdErr();
     }
     
-    public ToolRunner assertEmptyStdErr()
+    /**
+     * Checks if the stdErr is empty after removing any JVM env info output
+     * 
+     * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual stdErr
+     * 
+     * @return
+     */
+    public ToolRunner assertCleanStdErr()
     {
-        assertTrue(getStderr().isEmpty());
+        assertTrue("Failed because stdErr wasn't clean: " + getStderr(),
+                   getStderr().isEmpty()
+                   || getStderr().toLowerCase().replaceAll("(?m)^picked up.*\\R", "").isEmpty());
         return this;
     }
 
