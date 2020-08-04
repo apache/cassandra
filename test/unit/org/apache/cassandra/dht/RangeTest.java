@@ -27,7 +27,9 @@ import java.util.Random;
 import java.util.Set;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -722,5 +724,20 @@ public class RangeTest
         Range<Token> r0 = r(10, -10);
         Range<Token> r1 = r(20, -5);
         assertNotSame(r0.compareTo(r1), r1.compareTo(r0));
+    }
+
+    @Test
+    public void testGroupIntersect()
+    {
+        assertTrue(Range.intersects(asList(r(1, 5), r(10, 15)), asList(r(4, 6), r(20, 25))));
+        assertFalse(Range.intersects(asList(r(1, 5), r(10, 15)), asList(r(6, 7), r(20, 25))));
+    }
+
+    @Test
+    public void testGroupSubtract()
+    {
+        Collection<Range<Token>> ranges = Sets.newHashSet(r(1, 5), r(10, 15));
+        assertEquals(ranges, Range.subtract(ranges, asList(r(6, 7), r(20, 25))));
+        assertEquals(Sets.newHashSet(r(1, 4), r(11, 15)), Range.subtract(ranges, asList(r(4, 7), r(8, 11))));
     }
 }

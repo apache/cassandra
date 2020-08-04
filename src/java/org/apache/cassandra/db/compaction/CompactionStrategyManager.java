@@ -39,6 +39,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
+
+import org.apache.cassandra.db.compaction.PendingRepairManager.CleanupTask;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +71,7 @@ import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -1222,5 +1225,27 @@ public class CompactionStrategyManager implements INotificationConsumer
             throw new IllegalStateException(String.format("Failed setting repairedAt to %d on %s (repairedAt is %d)", repairedAt, sstable, sstable.getRepairedAt()));
         if (isTransient != sstable.isTransient())
             throw new IllegalStateException(String.format("Failed setting isTransient to %b on %s (isTransient is %b)", isTransient, sstable, sstable.isTransient()));
+    }
+
+    public CleanupSummary releaseRepairData(Collection<UUID> sessions)
+    {
+        List<CleanupTask> cleanupTasks = new ArrayList<>();
+        readLock.lock();
+        try
+        {
+            for (PendingRepairManager prm : Iterables.concat(pendingRepairs.getManagers(), transientRepairs.getManagers()))
+                cleanupTasks.add(prm.releaseSessionData(sessions));
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+
+        CleanupSummary summary = new CleanupSummary(cfs, Collections.emptySet(), Collections.emptySet());
+
+        for (CleanupTask task : cleanupTasks)
+            summary = CleanupSummary.add(summary, task.cleanup());
+
+        return summary;
     }
 }
