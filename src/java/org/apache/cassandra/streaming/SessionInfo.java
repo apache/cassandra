@@ -149,6 +149,14 @@ public final class SessionInfo implements Serializable
         return getTotalSizes(receivingSummaries);
     }
 
+    public long getTotalBytesToReceive()
+    {
+        long total = 0;
+        for (ProgressInfo stream : receivingFiles.values())
+            total += stream.totalBytes;
+        return total;
+    }
+
     /**
      * @return total size(in bytes) to send in the session
      */

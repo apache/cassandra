@@ -390,44 +390,44 @@ public class ToolRunner implements AutoCloseable
         forceKill();
     }
     
-    static class Runners
+    public static final class Runners
     {
-        protected ToolRunner invokeNodetool(String... args)
+        public ToolRunner invokeNodetool(String... args)
         {
             return invokeNodetool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeNodetool(List<String> args)
+        public ToolRunner invokeNodetool(List<String> args)
         {
             return invokeTool(buildNodetoolArgs(args), true);
         }
 
-        private static List<String> buildNodetoolArgs(List<String> args)
+        public static List<String> buildNodetoolArgs(List<String> args)
         {
             return CQLTester.buildNodetoolArgs(args);
         }
-        
-        protected ToolRunner invokeClassAsTool(String... args)
+
+        public ToolRunner invokeClassAsTool(String... args)
         {
             return invokeClassAsTool(Arrays.asList(args));
         }
-        
-        protected ToolRunner invokeClassAsTool(List<String> args)
+
+        public ToolRunner invokeClassAsTool(List<String> args)
         {
             return invokeTool(args, false);
         }
 
-        protected ToolRunner invokeTool(String... args)
+        public ToolRunner invokeTool(String... args)
         {
             return invokeTool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeTool(List<String> args)
+        public ToolRunner invokeTool(List<String> args)
         {
             return invokeTool(args, true);
         }
 
-        protected ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
+        public ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
         {
             ToolRunner runner = new ToolRunner(args, runOutOfProcess);
             runner.start().waitFor();
