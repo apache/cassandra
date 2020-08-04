@@ -21,6 +21,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.ObjectUtils;
 
 import org.apache.cassandra.db.PartitionPosition;
@@ -137,6 +138,11 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         // as new Range<T>(that.left, that.right) will then cover the full ring which is not what we
         // want.
         return contains(that.left) || (!that.left.equals(that.right) && intersects(new Range<T>(that.left, that.right)));
+    }
+
+    public static boolean intersects(Iterable<Range<Token>> l, Iterable<Range<Token>> r)
+    {
+        return Iterables.any(l, rng -> rng.intersects(r));
     }
 
     @SafeVarargs
@@ -335,6 +341,17 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
         return result;
     }
+
+    public static <T extends RingPosition<T>> Set<Range<T>> subtract(Collection<Range<T>> ranges, Collection<Range<T>> subtract)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        for (Range<T> range : ranges)
+        {
+            result.addAll(range.subtractAll(subtract));
+        }
+        return result;
+    }
+
     /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])

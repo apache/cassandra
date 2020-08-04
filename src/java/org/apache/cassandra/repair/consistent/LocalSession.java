@@ -98,14 +98,16 @@ public class LocalSession extends ConsistentSession
         private int startedAt;
         private int lastUpdate;
 
-        public void withStartedAt(int startedAt)
+        public Builder withStartedAt(int startedAt)
         {
             this.startedAt = startedAt;
+            return this;
         }
 
-        public void withLastUpdate(int lastUpdate)
+        public Builder withLastUpdate(int lastUpdate)
         {
             this.lastUpdate = lastUpdate;
+            return this;
         }
 
         void validate()
