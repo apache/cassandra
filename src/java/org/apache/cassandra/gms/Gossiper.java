@@ -48,6 +48,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
@@ -812,13 +813,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                     Map<InetAddress, EndpointState> epStates)
     {
         EndpointState epState = epStates.get(endpoint);
-        // if there's no previous state, or the node was previously removed from the cluster, we're good
-        if (epState == null || isDeadState(epState))
+        // if there's no previous state, we're good
+        if (epState == null)
+            return true;
+
+        String status = getGossipStatus(epState);
+
+        if (status.equals(VersionedValue.HIBERNATE)
+            && !SystemKeyspace.bootstrapComplete())
+        {
+            logger.warn("A node with the same IP in hibernate status was detected. Was a replacement already attempted?");
+            return false;
+        }
+
+        //the node was previously removed from the cluster
+        if (isDeadState(epState))
             return true;
 
         if (isBootstrapping)
         {
-            String status = getGossipStatus(epState);
             // these states are not allowed to join the cluster as it would not be safe
             final List<String> unsafeStatuses = new ArrayList<String>()
             {{
