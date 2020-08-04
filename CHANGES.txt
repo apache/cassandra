@@ -1,4 +1,5 @@
 4.0-beta2
+ * Fix unicode chars error input (CASSANDRA-15990)
  * Improved testability for CacheMetrics and ChunkCacheMetrics (CASSANDRA-15788)
  * Handle errors in StreamSession#prepare (CASSANDRA-15852)
  * FQL replay should have options to ignore DDL statements (CASSANDRA-16039)
@@ -22,7 +23,6 @@ Merged from 3.0:
  * Fix empty/null json string representation (CASSANDRA-15896)
 Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
-
 
 4.0-beta1
  * Remove BackPressureStrategy (CASSANDRA-15375)

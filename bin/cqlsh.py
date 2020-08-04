@@ -352,6 +352,10 @@ class DecodeError(Exception):
         return '<%s %s>' % (self.__class__.__name__, self.message())
 
 
+def maybe_ensure_text(val):
+    return ensure_text(val) if val else val
+
+
 class FormatError(DecodeError):
     verb = 'format'
 
@@ -414,7 +418,7 @@ def insert_driver_hooks():
 
 
 class Shell(cmd.Cmd):
-    custom_prompt = os.getenv('CQLSH_PROMPT', '')
+    custom_prompt = ensure_text(os.getenv('CQLSH_PROMPT', ''))
     if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "cqlsh> "
@@ -859,7 +863,7 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            self.lastcmd = input(prompt)
+            self.lastcmd = input(ensure_str(prompt))
             line = ensure_text(self.lastcmd) + '\n'
         else:
             self.lastcmd = ensure_text(self.stdin.readline())
@@ -2139,6 +2143,11 @@ def read_options(cmdlineargs, environment):
     optvalues.execute = None
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
+    # Make sure some user values read from the command line are in unicode
+    options.execute = maybe_ensure_text(options.execute)
+    options.username = maybe_ensure_text(options.username)
+    options.password = maybe_ensure_text(options.password)
+    options.keyspace = maybe_ensure_text(options.keyspace)
 
     hostname = option_with_default(configs.get, 'connection', 'hostname', DEFAULT_HOST)
     port = option_with_default(configs.get, 'connection', 'port', DEFAULT_PORT)
