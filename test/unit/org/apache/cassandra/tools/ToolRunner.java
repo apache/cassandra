@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.io.IOUtils;
 
@@ -50,7 +51,7 @@ public class ToolRunner implements AutoCloseable
 {
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
-    public List<String> stdErrRegExpCleaners = Arrays.asList("(?im)^picked up.*\\R");
+    public final ImmutableList<String> defaultCleanersList = ImmutableList.of("(?im)^picked up.*\\R");
     
     private final List<String> allArgs = new ArrayList<>();
     private Process process;
@@ -402,7 +403,7 @@ public class ToolRunner implements AutoCloseable
      */
     public String getCleanedStderr()
     {
-        return getCleanedStderr(stdErrRegExpCleaners);
+        return getCleanedStderr(defaultCleanersList);
     }
 
     public void forceKill()
