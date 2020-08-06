@@ -372,7 +372,7 @@ The partition key
 
 Within a table, CQL defines the notion of a *partition*. A partition is simply the set of rows that share the same value
 for their partition key. Note that if the partition key is composed of multiple columns, then rows belong to the same
-partition only they have the same values for all those partition key column. So for instance, given the following table
+partition only if they have the same values for all those partition key columns. So for instance, given the following table
 definition and content::
 
     CREATE TABLE t (
@@ -399,10 +399,10 @@ Note that a table always has a partition key, and that if the table has no :ref:
 <clustering-columns>`, then every partition of that table is only comprised of a single row (since the primary key
 uniquely identifies rows and the primary key is equal to the partition key if there is no clustering columns).
 
-The most important property of partition is that all the rows belonging to the same partition are guarantee to be stored
+The most important property of partition is that all the rows belonging to the same partition are guaranteed to be stored
 on the same set of replica nodes. In other words, the partition key of a table defines which of the rows will be
 localized together in the Cluster, and it is thus important to choose your partition key wisely so that rows that needs
-to be fetch together are in the same partition (so that querying those rows together require contacting a minimum of
+to be fetched together are in the same partition (so that querying those rows together require contacting a minimum of
 nodes).
 
 Please note however that there is a flip-side to this guarantee: as all rows sharing a partition key are guaranteed to
@@ -411,8 +411,8 @@ be stored on the same set of replica node, a partition key that groups too much 
 Another useful property of a partition is that when writing data, all the updates belonging to a single partition are
 done *atomically* and in *isolation*, which is not the case across partitions.
 
-The proper choice of the partition key and clustering columns for a table is probably one of the most important aspect
-of data modeling in Cassandra, and it largely impact which queries can be performed, and how efficiently they are.
+The proper choice of the partition key and clustering columns for a table is probably one of the most important aspects
+of data modeling in Cassandra, and it largely impacts which queries can be performed, and how efficient they are.
 
 
 .. _clustering-columns:
@@ -463,9 +463,9 @@ options of a table are described in the following sections.
 Compact tables
 ``````````````
 
-.. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
+.. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally as non compact ones (for the
    same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
-   and usage. It only exists for historical reason and is preserved for backward compatibility And as ``COMPACT
+   and usage. It only exists for historical reasons and is preserved for backward compatibility And as ``COMPACT
    STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
    ``COMPACT STORAGE`` option.
 
@@ -476,7 +476,7 @@ reasons). Amongst those limitation:
 
 - a compact table cannot use collections nor static columns.
 - if a compact table has at least one clustering column, then it must have *exactly* one column outside of the primary
-  key ones. This imply you cannot add or remove columns after creation in particular.
+  key ones. This implies that you cannot add or remove columns after creation in particular.
 - a compact table is limited in the indexes it can create, and no materialized view can be created on it.
 
 .. _clustering-order:
@@ -485,7 +485,7 @@ Reversing the clustering order
 ``````````````````````````````
 
 The clustering order of a table is defined by the :ref:`clustering columns <clustering-columns>` of that table. By
-default, that ordering is based on natural order of those clustering order, but the ``CLUSTERING ORDER`` allows to
+default, that ordering is based on the natural order of those clustering order, but the ``CLUSTERING ORDER`` allows to
 change that clustering order to use the *reverse* natural order for some (potentially all) of the columns.
 
 The ``CLUSTERING ORDER`` option takes the comma-separated list of the clustering column, each with a ``ASC`` (for
@@ -496,12 +496,12 @@ clustering columns using the ``ASC`` modifier.
 Note that this option is basically a hint for the storage engine to change the order in which it stores the row but it
 has 3 visible consequences:
 
-# it limits which ``ORDER BY`` clause are allowed for :ref:`selects <select-statement>` on that table. You can only
+# it limits which ``ORDER BY`` clauses are allowed for :ref:`selects <select-statement>` on that table. You can only
   order results by the clustering order or the reverse clustering order. Meaning that if a table has 2 clustering column
   ``a`` and ``b`` and you defined ``WITH CLUSTERING ORDER (a DESC, b ASC)``, then in queries you will be allowed to use
   ``ORDER BY (a DESC, b ASC)`` and (reverse clustering order) ``ORDER BY (a ASC, b DESC)`` but **not** ``ORDER BY (a
   ASC, b ASC)`` (nor ``ORDER BY (a DESC, b DESC)``).
-# it also change the default order of results when queried (if no ``ORDER BY`` is provided). Results are always returned
+# it also changes the default order of results when queried (if no ``ORDER BY`` is provided). Results are always returned
   in clustering order (within a partition).
 # it has a small performance impact on some queries as queries in reverse clustering order are slower than the one in
   forward clustering order. In practice, this means that if you plan on querying mostly in the reverse natural order of
@@ -799,15 +799,15 @@ For instance::
 The ``ALTER TABLE`` statement can:
 
 - Add new column(s) to the table (through the ``ADD`` instruction). Note that the primary key of a table cannot be
-  changed and thus newly added column will, by extension, never be part of the primary key. Also note that :ref:`compact
-  tables <compact-tables>` have restrictions regarding column addition. Note that this is constant (in the amount of
+  changed and thus newly added column(s) will, by extension, never be part of the primary key. Also note that :ref:`compact
+  tables <compact-tables>` have restrictions regarding column addition. Note that this is a constant (in the amount of
   data the cluster contains) time operation.
 - Remove column(s) from the table. This drops both the column and all its content, but note that while the column
   becomes immediately unavailable, its content is only removed lazily during compaction. Please also see the warnings
   below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
   cluster) time operation.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
-  <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
+  <create-table-options>` are the same as when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
   erasing all previous ``compaction`` options, so you need to re-specify all the sub-options if you want to keep them.
   The same note applies to the set of ``compression`` sub-options.
