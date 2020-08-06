@@ -282,6 +282,13 @@
             <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
+    <path id="fqltool.classpath">
+        <fileset dir="${build.dir.lib}">
+            <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
+            <exclude name="**/ant-*.jar"/>
+        </fileset>
+    </path>
 
   <macrodef name="create-javadoc">
     <attribute name="destdir"/>
@@ -584,6 +591,7 @@
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
 
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.11"/>
+          <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.13.0" />
           <dependency groupId="junit" artifactId="junit" version="4.12" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
@@ -729,6 +737,8 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
+        <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
+
         <dependency groupId="junit" artifactId="junit"/>
         <dependency groupId="org.mockito" artifactId="mockito-core" />
         <dependency groupId="org.quicktheories" artifactId="quicktheories" />
@@ -1093,6 +1103,7 @@
                encoding="utf-8" destdir="${fqltool.build.classes}" includeantruntime="true">
             <src path="${fqltool.build.src}" />
             <classpath>
+                <path refid="fqltool.classpath"/>
                 <path refid="cassandra.classes" />
                 <path>
                     <fileset dir="${build.lib}">
