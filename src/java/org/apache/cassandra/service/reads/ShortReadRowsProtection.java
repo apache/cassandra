@@ -111,7 +111,7 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
          * rows. In that scenario the counter will remain at 0 until the partition is closed - which happens after
          * the moreContents() call.
          */
-        if (countedInCurrentPartition(singleResultCounter) == 0)
+        if (singleResultCounter.rowsCountedInCurrentPartition() == 0)
             return null;
 
         /*
@@ -121,8 +121,8 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
         if (Clustering.EMPTY == lastClustering)
             return null;
 
-        lastFetched = countedInCurrentPartition(singleResultCounter) - lastCounted;
-        lastCounted = countedInCurrentPartition(singleResultCounter);
+        lastFetched = singleResultCounter.rowsCountedInCurrentPartition() - lastCounted;
+        lastCounted = singleResultCounter.rowsCountedInCurrentPartition();
 
         // getting back fewer rows than we asked for means the partition on the replica has been fully consumed
         if (lastQueried > 0 && lastFetched < lastQueried)
@@ -169,14 +169,6 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
 
         SinglePartitionReadCommand cmd = makeFetchAdditionalRowsReadCommand(lastQueried);
         return UnfilteredPartitionIterators.getOnlyElement(commandExecutor.apply(cmd), cmd);
-    }
-
-    // Counts the number of rows for regular queries and the number of groups for GROUP BY queries
-    private int countedInCurrentPartition(DataLimits.Counter counter)
-    {
-        return command.limits().isGroupByLimit()
-               ? counter.rowCountedInCurrentPartition()
-               : counter.countedInCurrentPartition();
     }
 
     private SinglePartitionReadCommand makeFetchAdditionalRowsReadCommand(int toQuery)

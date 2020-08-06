@@ -145,7 +145,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
          */
         int toQuery = command.limits().count() != DataLimits.NO_LIMIT
-                      ? command.limits().count() - counted(mergedResultCounter)
+                      ? command.limits().count() - mergedResultCounter.rowsCounted()
                       : command.limits().perPartitionCount();
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
@@ -156,14 +156,6 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         preFetchCallback.run();
 
         return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
-    }
-
-    // Counts the number of rows for regular queries and the number of groups for GROUP BY queries
-    private int counted(DataLimits.Counter counter)
-    {
-        return command.limits().isGroupByLimit()
-               ? counter.rowCounted()
-               : counter.counted();
     }
 
     private UnfilteredPartitionIterator makeAndExecuteFetchAdditionalPartitionReadCommand(int toQuery)
