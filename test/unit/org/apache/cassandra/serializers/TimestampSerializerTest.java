@@ -54,6 +54,7 @@ public class TimestampSerializerTest
                 new Pair<String, Long>("1970-01-01 01:00+0100", ONE_HOUR - ONE_HOUR),
                 new Pair<String, Long>("1970-01-02 00:00+01:00", ONE_DAY - ONE_HOUR),
                 new Pair<String, Long>("1970-01-01 01:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new Pair<String, Long>("1970-01-01 01:00Z", ONE_HOUR),
 
                 new Pair<String, Long>("1970-01-01 00:00:00", BASE_OFFSET),
                 new Pair<String, Long>("1970-01-01 00:00:01", BASE_OFFSET + ONE_SECOND),
@@ -65,6 +66,7 @@ public class TimestampSerializerTest
                 new Pair<String, Long>("1970-01-01 01:00:00+0100", ONE_HOUR - ONE_HOUR),
                 new Pair<String, Long>("1970-01-02 00:00:00+01:00", ONE_DAY - ONE_HOUR),
                 new Pair<String, Long>("1970-01-01 01:00:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new Pair<String, Long>("1970-01-01 01:00:00Z", ONE_HOUR),
 
                 new Pair<String, Long>("1970-01-01 00:00:00.000", BASE_OFFSET),
                 new Pair<String, Long>("1970-01-01 00:00:00.000", BASE_OFFSET),
@@ -78,6 +80,7 @@ public class TimestampSerializerTest
                 new Pair<String, Long>("1970-01-01 01:00:00.002+0100", ONE_HOUR - ONE_HOUR + 2),
                 new Pair<String, Long>("1970-01-02 00:00:00.003+01:00", ONE_DAY - ONE_HOUR + 3),
                 new Pair<String, Long>("1970-01-01 01:00:00.004-0200", ONE_HOUR + 2 * ONE_HOUR + 4),
+                new Pair<String, Long>("1970-01-01 01:00:00.004Z", ONE_HOUR + 4),
 
                 new Pair<String, Long>("1970-01-01T00:00", BASE_OFFSET),
                 new Pair<String, Long>("1970-01-01T00:01", BASE_OFFSET + ONE_MINUTE),
@@ -88,6 +91,7 @@ public class TimestampSerializerTest
                 new Pair<String, Long>("1970-01-01T01:00+0100", ONE_HOUR - ONE_HOUR),
                 new Pair<String, Long>("1970-01-02T00:00+01:00", ONE_DAY - ONE_HOUR),
                 new Pair<String, Long>("1970-01-01T01:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new Pair<String, Long>("1970-01-01T01:00Z", ONE_HOUR),
 
                 new Pair<String, Long>("1970-01-01T00:00:00", BASE_OFFSET),
                 new Pair<String, Long>("1970-01-01T00:00:01", BASE_OFFSET + ONE_SECOND),
@@ -99,6 +103,7 @@ public class TimestampSerializerTest
                 new Pair<String, Long>("1970-01-01T01:00:00+0100", ONE_HOUR - ONE_HOUR),
                 new Pair<String, Long>("1970-01-02T00:00:00+01:00", ONE_DAY - ONE_HOUR),
                 new Pair<String, Long>("1970-01-01T01:00:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new Pair<String, Long>("1970-01-01T01:00:00Z", ONE_HOUR),
 
                 new Pair<String, Long>("1970-01-01T00:00:00.000", BASE_OFFSET),
                 new Pair<String, Long>("1970-01-01T00:00:00.000", BASE_OFFSET),
@@ -112,13 +117,15 @@ public class TimestampSerializerTest
                 new Pair<String, Long>("1970-01-01T01:00:00.002+0100", ONE_HOUR - ONE_HOUR + 2),
                 new Pair<String, Long>("1970-01-02T00:00:00.003+01:00", ONE_DAY - ONE_HOUR + 3),
                 new Pair<String, Long>("1970-01-01T01:00:00.004-0200", ONE_HOUR + 2 * ONE_HOUR + 4),
+                new Pair<String, Long>("1970-01-01T01:00:00.004Z", ONE_HOUR + 4),
 
                 new Pair<String, Long>("1970-01-01", BASE_OFFSET),
                 new Pair<String, Long>("1970-01-02 UTC", ONE_DAY),
                 new Pair<String, Long>("1970-01-01+01", -ONE_HOUR),
                 new Pair<String, Long>("1970-01-01+0100", -ONE_HOUR),
                 new Pair<String, Long>("1970-01-02+01:00", ONE_DAY - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01-0200", 2 * ONE_HOUR)
+                new Pair<String, Long>("1970-01-01-0200", 2 * ONE_HOUR),
+                new Pair<String, Long>("1970-01-01Z", 0L)
             )
         );
 
