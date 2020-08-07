@@ -35,7 +35,7 @@ Some of the features of FQL are:
 - Can configure the settings in either the `cassandra.yaml` file or by using ``nodetool``.
 - Introduces new ``fqltool`` that currently can ``Dump`` the binary logs to a readable format. Other options are ``Replay`` and ``Compare``.
 
-FQL logs all Cassandra Query Language (CQL) requests, both events that modify the data and those that query. 
+FQL logs all successful Cassandra Query Language (CQL) requests, both events that modify the data and those that query. 
 While audit logs also include CQL requests, FQL logs only the CQL request. This difference means that FQL can be used to replay or compare logs, which audit logging cannot. FQL is useful for debugging, performance benchmarking, testing and auditing CQL queries, while audit logs are useful for compliance.
 
 In performance testing, FQL appears to have little or no overhead in ``WRITE`` only workloads, and a minor overhead in ``MIXED`` workload.
@@ -160,6 +160,7 @@ archive_command
 ^^^^^^^^^^^^^^^
 
 The ``archive_command`` option sets the user-defined archive script to execute on rolled log files. 
+When not defined, files are deleted, with a default of ``""`` which then maps to `org.apache.cassandra.utils.binlog.DeletingArchiver`.
 For example: ``archive_command: /usr/local/bin/archiveit.sh %path # %path is the file being rolled``
 
 max_archive_retries
@@ -168,7 +169,7 @@ max_archive_retries
 The ``max_archive_retries`` option sets the max number of retries of failed archive commands. The default is 10.
 For example: ``max_archive_retries: 10``
 
-FQL can also be configured using ``nodetool` when enabling the feature, and will override any values set in the `cassandra.yaml` file, as discussed in the next section.
+FQL can also be configured using ``nodetool`` when enabling the feature, and will override any values set in the `cassandra.yaml` file, as discussed in the next section.
 
 Enabling FQL
 ------------
@@ -253,9 +254,9 @@ fqltool
 The ``fqltool`` command is used to view (dump), replay, or compare logs.
 ``fqltool dump`` converts the binary log files into human-readable format; only the log directory must be supplied as a command-line option.
 
-``fqltool replay`` (CASSANDRA-14618) enables replay of logs. 
+``fqltool replay`` (`CASSANDRA-14618 <https://issues.apache.org/jira/browse/CASSANDRA-14618>`_) enables replay of logs. 
 The command can run from a different machine or cluster for testing, debugging, or performance benchmarking. 
-The command, run on the same node on which the logs are generated can recreate a dropped database object.
+The command can also be used to recreate a dropped database object.
 Use ``fqltool replay`` to record and compare different runs of production traffic against different versions/configurations of Cassandra or different clusters.
 Another use is to gather logs from several machines and replay them in “order” by the timestamps recorded.
 
