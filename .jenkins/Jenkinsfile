@@ -72,7 +72,7 @@ pipeline {
               }
             }
           }
-          stage('JVM DTests') {
+          stage('jvm-dtest') {
             steps {
               script {
                 jvm_dtest = build job: "${env.JOB_NAME}-jvm-dtest", propagate: false
@@ -84,6 +84,23 @@ pipeline {
                   warnError('missing test xml files') {
                       script {
                           copyTestResults('jvm-dtest', jvm_dtest.getNumber())
+                      }
+                  }
+              }
+            }
+          }
+          stage('jvm-dtest-upgrade') {
+            steps {
+              script {
+                jvm_dtest_upgrade = build job: "${env.JOB_NAME}-jvm-dtest-upgrade", propagate: false
+                if (jvm_dtest_upgrade.result != 'SUCCESS') unstable('jvm-dtest-upgrade failures')
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('jvm-dtest-upgrade', jvm_dtest_upgrade.getNumber())
                       }
                   }
               }
