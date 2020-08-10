@@ -21,8 +21,8 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
-import javafx.util.Pair;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Ignore;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -43,93 +43,93 @@ public class TimestampSerializerTest
     @Test
     public void testFormatResults() throws MarshalException, ParseException
     {
-        List<Pair<String, Long>> ioPairs = new ArrayList<>(
+        List<ImmutablePair<String, Long>> ioImmutablePairs = new ArrayList<>(
             Arrays.asList(
-                new Pair<String, Long>("1970-01-01 00:00", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01 00:01", BASE_OFFSET + ONE_MINUTE),
-                new Pair<String, Long>("1970-01-01 01:00", BASE_OFFSET + ONE_HOUR),
-                new Pair<String, Long>("1970-01-02 00:00", BASE_OFFSET + ONE_DAY),
-                new Pair<String, Long>("1970-01-02 00:00 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01 00:01+01", ONE_MINUTE - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01 01:00+0100", ONE_HOUR - ONE_HOUR),
-                new Pair<String, Long>("1970-01-02 00:00+01:00", ONE_DAY - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01 01:00-0200", ONE_HOUR + 2 * ONE_HOUR),
-                new Pair<String, Long>("1970-01-01 01:00Z", ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 00:00", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01 00:01", BASE_OFFSET + ONE_MINUTE),
+                new ImmutablePair<String, Long>("1970-01-01 01:00", BASE_OFFSET + ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02 00:00", BASE_OFFSET + ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-02 00:00 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01 00:01+01", ONE_MINUTE - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 01:00+0100", ONE_HOUR - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02 00:00+01:00", ONE_DAY - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 01:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 01:00Z", ONE_HOUR),
 
-                new Pair<String, Long>("1970-01-01 00:00:00", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01 00:00:01", BASE_OFFSET + ONE_SECOND),
-                new Pair<String, Long>("1970-01-01 00:01:00", BASE_OFFSET + ONE_MINUTE),
-                new Pair<String, Long>("1970-01-01 01:00:00", BASE_OFFSET + ONE_HOUR),
-                new Pair<String, Long>("1970-01-02 00:00:00", BASE_OFFSET + ONE_DAY),
-                new Pair<String, Long>("1970-01-02 00:00:00 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01 00:01:00+01", ONE_MINUTE - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01 01:00:00+0100", ONE_HOUR - ONE_HOUR),
-                new Pair<String, Long>("1970-01-02 00:00:00+01:00", ONE_DAY - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01 01:00:00-0200", ONE_HOUR + 2 * ONE_HOUR),
-                new Pair<String, Long>("1970-01-01 01:00:00Z", ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:01", BASE_OFFSET + ONE_SECOND),
+                new ImmutablePair<String, Long>("1970-01-01 00:01:00", BASE_OFFSET + ONE_MINUTE),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00", BASE_OFFSET + ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02 00:00:00", BASE_OFFSET + ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-02 00:00:00 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01 00:01:00+01", ONE_MINUTE - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00+0100", ONE_HOUR - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02 00:00:00+01:00", ONE_DAY - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00Z", ONE_HOUR),
 
-                new Pair<String, Long>("1970-01-01 00:00:00.000", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01 00:00:00.000", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01 00:00:01.000", BASE_OFFSET + ONE_SECOND),
-                new Pair<String, Long>("1970-01-01 00:01:00.000", BASE_OFFSET + ONE_MINUTE),
-                new Pair<String, Long>("1970-01-01 01:00:00.000", BASE_OFFSET + ONE_HOUR),
-                new Pair<String, Long>("1970-01-02 00:00:00.000", BASE_OFFSET + ONE_DAY),
-                new Pair<String, Long>("1970-01-02 00:00:00.000 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01 00:00:00.100 UTC", 100L),
-                new Pair<String, Long>("1970-01-01 00:01:00.001+01", ONE_MINUTE - ONE_HOUR + 1),
-                new Pair<String, Long>("1970-01-01 01:00:00.002+0100", ONE_HOUR - ONE_HOUR + 2),
-                new Pair<String, Long>("1970-01-02 00:00:00.003+01:00", ONE_DAY - ONE_HOUR + 3),
-                new Pair<String, Long>("1970-01-01 01:00:00.004-0200", ONE_HOUR + 2 * ONE_HOUR + 4),
-                new Pair<String, Long>("1970-01-01 01:00:00.004Z", ONE_HOUR + 4),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00.000", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00.000", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:01.000", BASE_OFFSET + ONE_SECOND),
+                new ImmutablePair<String, Long>("1970-01-01 00:01:00.000", BASE_OFFSET + ONE_MINUTE),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00.000", BASE_OFFSET + ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02 00:00:00.000", BASE_OFFSET + ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-02 00:00:00.000 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00.100 UTC", 100L),
+                new ImmutablePair<String, Long>("1970-01-01 00:01:00.001+01", ONE_MINUTE - ONE_HOUR + 1),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00.002+0100", ONE_HOUR - ONE_HOUR + 2),
+                new ImmutablePair<String, Long>("1970-01-02 00:00:00.003+01:00", ONE_DAY - ONE_HOUR + 3),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00.004-0200", ONE_HOUR + 2 * ONE_HOUR + 4),
+                new ImmutablePair<String, Long>("1970-01-01 01:00:00.004Z", ONE_HOUR + 4),
 
-                new Pair<String, Long>("1970-01-01T00:00", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01T00:01", BASE_OFFSET + ONE_MINUTE),
-                new Pair<String, Long>("1970-01-01T01:00", BASE_OFFSET + ONE_HOUR),
-                new Pair<String, Long>("1970-01-02T00:00", BASE_OFFSET + ONE_DAY),
-                new Pair<String, Long>("1970-01-02T00:00 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01T00:01+01", ONE_MINUTE - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01T01:00+0100", ONE_HOUR - ONE_HOUR),
-                new Pair<String, Long>("1970-01-02T00:00+01:00", ONE_DAY - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01T01:00-0200", ONE_HOUR + 2 * ONE_HOUR),
-                new Pair<String, Long>("1970-01-01T01:00Z", ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T00:00", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01T00:01", BASE_OFFSET + ONE_MINUTE),
+                new ImmutablePair<String, Long>("1970-01-01T01:00", BASE_OFFSET + ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02T00:00", BASE_OFFSET + ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-02T00:00 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01T00:01+01", ONE_MINUTE - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T01:00+0100", ONE_HOUR - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02T00:00+01:00", ONE_DAY - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T01:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T01:00Z", ONE_HOUR),
 
-                new Pair<String, Long>("1970-01-01T00:00:00", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01T00:00:01", BASE_OFFSET + ONE_SECOND),
-                new Pair<String, Long>("1970-01-01T00:01:00", BASE_OFFSET + ONE_MINUTE),
-                new Pair<String, Long>("1970-01-01T01:00:00", BASE_OFFSET + ONE_HOUR),
-                new Pair<String, Long>("1970-01-02T00:00:00", BASE_OFFSET + ONE_DAY),
-                new Pair<String, Long>("1970-01-02T00:00:00 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01T00:01:00+01", ONE_MINUTE - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01T01:00:00+0100", ONE_HOUR - ONE_HOUR),
-                new Pair<String, Long>("1970-01-02T00:00:00+01:00", ONE_DAY - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01T01:00:00-0200", ONE_HOUR + 2 * ONE_HOUR),
-                new Pair<String, Long>("1970-01-01T01:00:00Z", ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:01", BASE_OFFSET + ONE_SECOND),
+                new ImmutablePair<String, Long>("1970-01-01T00:01:00", BASE_OFFSET + ONE_MINUTE),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00", BASE_OFFSET + ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02T00:00:00", BASE_OFFSET + ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-02T00:00:00 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01T00:01:00+01", ONE_MINUTE - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00+0100", ONE_HOUR - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02T00:00:00+01:00", ONE_DAY - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00-0200", ONE_HOUR + 2 * ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00Z", ONE_HOUR),
 
-                new Pair<String, Long>("1970-01-01T00:00:00.000", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01T00:00:00.000", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-01T00:00:01.000", BASE_OFFSET + ONE_SECOND),
-                new Pair<String, Long>("1970-01-01T00:01:00.000", BASE_OFFSET + ONE_MINUTE),
-                new Pair<String, Long>("1970-01-01T01:00:00.000", BASE_OFFSET + ONE_HOUR),
-                new Pair<String, Long>("1970-01-02T00:00:00.000", BASE_OFFSET + ONE_DAY),
-                new Pair<String, Long>("1970-01-02T00:00:00.000 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01T00:00:00.100 UTC", 100L),
-                new Pair<String, Long>("1970-01-01T00:01:00.001+01", ONE_MINUTE - ONE_HOUR + 1),
-                new Pair<String, Long>("1970-01-01T01:00:00.002+0100", ONE_HOUR - ONE_HOUR + 2),
-                new Pair<String, Long>("1970-01-02T00:00:00.003+01:00", ONE_DAY - ONE_HOUR + 3),
-                new Pair<String, Long>("1970-01-01T01:00:00.004-0200", ONE_HOUR + 2 * ONE_HOUR + 4),
-                new Pair<String, Long>("1970-01-01T01:00:00.004Z", ONE_HOUR + 4),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00.000", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00.000", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:01.000", BASE_OFFSET + ONE_SECOND),
+                new ImmutablePair<String, Long>("1970-01-01T00:01:00.000", BASE_OFFSET + ONE_MINUTE),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00.000", BASE_OFFSET + ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02T00:00:00.000", BASE_OFFSET + ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-02T00:00:00.000 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00.100 UTC", 100L),
+                new ImmutablePair<String, Long>("1970-01-01T00:01:00.001+01", ONE_MINUTE - ONE_HOUR + 1),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00.002+0100", ONE_HOUR - ONE_HOUR + 2),
+                new ImmutablePair<String, Long>("1970-01-02T00:00:00.003+01:00", ONE_DAY - ONE_HOUR + 3),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00.004-0200", ONE_HOUR + 2 * ONE_HOUR + 4),
+                new ImmutablePair<String, Long>("1970-01-01T01:00:00.004Z", ONE_HOUR + 4),
 
-                new Pair<String, Long>("1970-01-01", BASE_OFFSET),
-                new Pair<String, Long>("1970-01-02 UTC", ONE_DAY),
-                new Pair<String, Long>("1970-01-01+01", -ONE_HOUR),
-                new Pair<String, Long>("1970-01-01+0100", -ONE_HOUR),
-                new Pair<String, Long>("1970-01-02+01:00", ONE_DAY - ONE_HOUR),
-                new Pair<String, Long>("1970-01-01-0200", 2 * ONE_HOUR),
-                new Pair<String, Long>("1970-01-01Z", 0L)
+                new ImmutablePair<String, Long>("1970-01-01", BASE_OFFSET),
+                new ImmutablePair<String, Long>("1970-01-02 UTC", ONE_DAY),
+                new ImmutablePair<String, Long>("1970-01-01+01", -ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01+0100", -ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-02+01:00", ONE_DAY - ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01-0200", 2 * ONE_HOUR),
+                new ImmutablePair<String, Long>("1970-01-01Z", 0L)
             )
         );
 
-        validateStringTimestampPairs(ioPairs);
+        validateStringTimestampImmutablePairs(ioImmutablePairs);
     }
 
     @Test
@@ -137,34 +137,34 @@ public class TimestampSerializerTest
     {
         // Central Standard Time; CST, GMT-06:00
         final long cstOffset = 6 * ONE_HOUR;
-        List<Pair<String, Long>> ioPairs = new ArrayList<>(
+        List<ImmutablePair<String, Long>> ioImmutablePairs = new ArrayList<>(
             Arrays.asList(
-                new Pair<String, Long>("1970-01-01 00:00:00 Central Standard Time", cstOffset),
-                new Pair<String, Long>("1970-01-01 00:00:00 CST", cstOffset),
-                new Pair<String, Long>("1970-01-01T00:00:00 GMT-06:00", cstOffset)
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00 Central Standard Time", cstOffset),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00 CST", cstOffset),
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00 GMT-06:00", cstOffset)
             )
         );
-        validateStringTimestampPairs(ioPairs);
+        validateStringTimestampImmutablePairs(ioImmutablePairs);
     }
 
     @Ignore("CASSANDRA-15976 and other incongruities")
     @Test
     public void testVaryingFractionalPrecision()
     {
-        List<Pair<String, Long>> ioPairs = new ArrayList<>(
+        List<ImmutablePair<String, Long>> ioImmutablePairs = new ArrayList<>(
             Arrays.asList(
-                new Pair<String, Long>("1970-01-01 00:00:00.10 UTC", 100L), // CASSANDRA-15976
-                new Pair<String, Long>("1970-01-01 00:00:00.1 UTC", 100L),  //  ^
-                new Pair<String, Long>("1970-01-01T00:00:00.10 UTC", 100L), // CASSANDRA-15976
-                new Pair<String, Long>("1970-01-01T00:00:00.1 UTC", 100L),
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00.10 UTC", 100L), // CASSANDRA-15976
+                new ImmutablePair<String, Long>("1970-01-01 00:00:00.1 UTC", 100L),  //  ^
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00.10 UTC", 100L), // CASSANDRA-15976
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00.1 UTC", 100L),
                 // Decimal fractions may be added to any of the three time elements. However, a fraction may only be added to the lowest order time element in the representation.
-                new Pair<String, Long>("1970-01-01T00:0.5 UTC", 30000L),
+                new ImmutablePair<String, Long>("1970-01-01T00:0.5 UTC", 30000L),
                 // There is no limit on the number of decimal places for the decimal fraction. However, the number of decimal places needs to be agreed to by the communicating parties. For example, in Microsoft SQL Server, the precision of a decimal fraction is 3, i.e., "yyyy-mm-ddThh:mm:ss[.mmm]".[27]
-                new Pair<String, Long>("1970-01-01T00:00:00.5999 UTC", 600L)
+                new ImmutablePair<String, Long>("1970-01-01T00:00:00.5999 UTC", 600L)
 
             )
         );
-        validateStringTimestampPairs(ioPairs);
+        validateStringTimestampImmutablePairs(ioImmutablePairs);
     }
 
     @Test
@@ -229,9 +229,9 @@ public class TimestampSerializerTest
         assertTrue("'now' timestamp not within expected tolerance.", now <= parsed && parsed <= now + threshold);
     }
 
-    private void validateStringTimestampPairs(List<Pair<String,Long>> ioPairs)
+    private void validateStringTimestampImmutablePairs(List<ImmutablePair<String,Long>> ioImmutablePairs)
     {
-        for (Pair<String,Long> p: ioPairs)
+        for (ImmutablePair<String,Long> p: ioImmutablePairs)
         {
             try
             {
