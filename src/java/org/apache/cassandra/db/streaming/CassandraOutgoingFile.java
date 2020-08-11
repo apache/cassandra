@@ -155,8 +155,8 @@ public class CassandraOutgoingFile implements OutgoingStream
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
             // file sizes. (Note: Windows doesn't support atomic replace and index summary redistribution deletes
             // existing file first)
-            // Recreate the latest manifest and hard links for mutated components in case they are modified.
-            try (ComponentContext context = sstable.runWithReadLock(ignored -> ComponentContext.create(sstable.descriptor)))
+            // Recreate the latest manifest and hard links for mutatable components in case they are modified.
+            try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable.descriptor)))
             {
                 CassandraStreamHeader current = makeHeader(sstable, operation, sections, estimatedKeys, true, context.manifest());
                 CassandraStreamHeader.serializer.serialize(current, out, version);
