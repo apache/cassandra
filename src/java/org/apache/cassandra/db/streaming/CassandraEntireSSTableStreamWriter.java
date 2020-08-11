@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 
 import org.slf4j.Logger;
@@ -43,15 +42,17 @@ public class CassandraEntireSSTableStreamWriter
     private static final Logger logger = LoggerFactory.getLogger(CassandraEntireSSTableStreamWriter.class);
 
     private final SSTableReader sstable;
+    private final ComponentContext context;
     private final ComponentManifest manifest;
     private final StreamSession session;
     private final StreamRateLimiter limiter;
 
-    public CassandraEntireSSTableStreamWriter(SSTableReader sstable, StreamSession session, ComponentManifest manifest)
+    public CassandraEntireSSTableStreamWriter(SSTableReader sstable, StreamSession session, ComponentContext context)
     {
         this.session = session;
         this.sstable = sstable;
-        this.manifest = manifest;
+        this.context = context;
+        this.manifest = context.manifest();
         this.limiter = StreamManager.getRateLimiter(session.peer);
     }
 
@@ -88,7 +89,7 @@ public class CassandraEntireSSTableStreamWriter
                          prettyPrintMemory(length));
 
             @SuppressWarnings("resource") // this is closed after the file is transferred by AsyncChannelOutputPlus
-            FileChannel channel = manifest.channel(sstable.descriptor, component);
+            FileChannel channel = context.channel(sstable.descriptor, component, length);
             long bytesWritten = out.writeFileToChannel(channel, limiter);
             progress += bytesWritten;
 

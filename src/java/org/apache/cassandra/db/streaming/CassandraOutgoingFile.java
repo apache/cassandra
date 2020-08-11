@@ -66,7 +66,7 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         this.filename = sstable.getFilename();
         this.shouldStreamEntireSSTable = computeShouldStreamEntireSSTables();
-        ComponentManifest manifest = ComponentManifest.create(sstable, false);
+        ComponentManifest manifest = ComponentManifest.create(sstable.descriptor);
         this.header = makeHeader(sstable, operation, sections, estimatedKeys, shouldStreamEntireSSTable, manifest);
     }
 
@@ -155,20 +155,15 @@ public class CassandraOutgoingFile implements OutgoingStream
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
             // file sizes. (Note: Windows doesn't support atomic replace and index summary redistribution deletes
             // existing file first)
-            // Recreate the latest manifest with hard links in case components are modified.
-            ComponentManifest manifest = sstable.runWithReadLock(ignored -> ComponentManifest.create(sstable, true));
-            try
+            // Recreate the latest manifest and hard links for mutated components in case they are modified.
+            try (ComponentContext context = sstable.runWithReadLock(ignored -> ComponentContext.create(sstable.descriptor)))
             {
-                CassandraStreamHeader current = makeHeader(sstable, operation, sections, estimatedKeys, true, manifest);
+                CassandraStreamHeader current = makeHeader(sstable, operation, sections, estimatedKeys, true, context.manifest());
                 CassandraStreamHeader.serializer.serialize(current, out, version);
                 out.flush();
 
-                CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, current.componentManifest);
+                CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
                 writer.write((AsyncStreamingOutputPlus) out);
-            }
-            finally
-            {
-                manifest.onStreamComplete();
             }
         }
         else

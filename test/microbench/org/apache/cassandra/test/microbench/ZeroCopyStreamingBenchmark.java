@@ -40,12 +40,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamReader;
-import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamWriter;
-import org.apache.cassandra.db.streaming.CassandraStreamHeader;
-import org.apache.cassandra.db.streaming.CassandraStreamReader;
-import org.apache.cassandra.db.streaming.CassandraStreamWriter;
-import org.apache.cassandra.db.streaming.ComponentManifest;
+import org.apache.cassandra.db.streaming.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -103,6 +98,7 @@ public class ZeroCopyStreamingBenchmark
         private static ColumnFamilyStore store;
         private StreamSession session;
         private CassandraEntireSSTableStreamWriter blockStreamWriter;
+        private ComponentContext context;
         private ByteBuf serializedBlockStream;
         private InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         private CassandraEntireSSTableStreamReader blockStreamReader;
@@ -119,7 +115,8 @@ public class ZeroCopyStreamingBenchmark
 
             sstable = store.getLiveSSTables().iterator().next();
             session = setupStreamingSessionForTest();
-            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, ComponentManifest.create(sstable, false));
+            context = ComponentContext.create(sstable.descriptor);
+            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, context);
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
             AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(blockStreamCaptureChannel);
@@ -137,7 +134,7 @@ public class ZeroCopyStreamingBenchmark
                                      .withEstimatedKeys(sstable.estimatedKeys())
                                      .withSections(Collections.emptyList())
                                      .withSerializationHeader(sstable.header.toComponent())
-                                     .withComponentManifest(ComponentManifest.create(sstable, false))
+                                     .withComponentManifest(ComponentManifest.create(sstable.descriptor))
                                      .isEntireSSTable(true)
                                      .withFirstKey(sstable.first)
                                      .withTableId(sstable.metadata().id)
@@ -207,6 +204,7 @@ public class ZeroCopyStreamingBenchmark
         @TearDown
         public void tearDown() throws IOException
         {
+            context.close();
             SchemaLoader.cleanupAndLeaveDirs();
             CommitLog.instance.stopUnsafe(true);
         }

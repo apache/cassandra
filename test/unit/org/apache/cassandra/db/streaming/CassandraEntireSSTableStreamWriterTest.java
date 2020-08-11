@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Queue;
 import java.util.UUID;
 
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -72,6 +73,7 @@ public class CassandraEntireSSTableStreamWriterTest
     public static final String CF_STANDARDLOWINDEXINTERVAL = "StandardLowIndexInterval";
 
     private static SSTableReader sstable;
+    private static Descriptor descriptor;
     private static ColumnFamilyStore store;
 
     @BeforeClass
@@ -104,6 +106,7 @@ public class CassandraEntireSSTableStreamWriterTest
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();
+        descriptor = sstable.descriptor;
     }
 
     @Test
@@ -111,11 +114,12 @@ public class CassandraEntireSSTableStreamWriterTest
     {
         StreamSession session = setupStreamingSessionForTest();
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, ComponentManifest.create(sstable, false));
-
         EmbeddedChannel channel = new EmbeddedChannel();
-        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
+        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+             ComponentContext context = ComponentContext.create(descriptor))
         {
+            CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
+
             writer.write(out);
 
             Queue msgs = channel.outboundMessages();
@@ -130,13 +134,14 @@ public class CassandraEntireSSTableStreamWriterTest
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, ComponentManifest.create(sstable, false));
 
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
-        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
+        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+             ComponentContext context = ComponentContext.create(descriptor))
         {
+            CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
             writer.write(out);
 
             session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
@@ -149,7 +154,7 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withEstimatedKeys(sstable.estimatedKeys())
                                  .withSections(Collections.emptyList())
                                  .withSerializationHeader(sstable.header.toComponent())
-                                 .withComponentManifest(ComponentManifest.create(sstable, false))
+                                 .withComponentManifest(ComponentManifest.create(descriptor))
                                  .isEntireSSTable(true)
                                  .withFirstKey(sstable.first)
                                  .withTableId(sstable.metadata().id)
