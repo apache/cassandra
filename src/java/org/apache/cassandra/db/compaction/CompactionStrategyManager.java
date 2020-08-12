@@ -235,12 +235,6 @@ public class CompactionStrategyManager implements INotificationConsumer
         return res;
     }
 
-    public boolean shouldDefragment()
-    {
-        assert repaired.getClass().equals(unrepaired.getClass());
-        return repaired.shouldDefragment();
-    }
-
     public Directories getDirectories()
     {
         assert repaired.getClass().equals(unrepaired.getClass());
