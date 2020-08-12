@@ -711,6 +711,14 @@ class TestCqlParsing(TestCase):
     def test_parse_select_token(self):
         pass
 
+    def test_strip_comment_blocks_from_input(self):
+        parsed = parse_cqlsh_statements('SELECT FROM /* \n comment block starts here; \n and continues here \n */ "MyTable";')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                 [('SELECT', 'reserved_identifier'),
+                                  ('FROM', 'reserved_identifier'),
+                                  ('"MyTable"', 'quotedName'),
+                                  (';', 'endtoken')])
+
 
 def parse_cqlsh_statements(text):
     '''
