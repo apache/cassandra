@@ -153,6 +153,9 @@ The time of day may also be omitted (``'2011-02-03'`` or ``'2011-02-03+0000'``),
 default to 00:00:00 in the specified or default time zone. However, if only the date part is relevant, consider using
 the :ref:`date <dates>` type.
 
+Note: while Cassandra will parse and accept time literals with a greater number of digits, the value stored will be truncated to 
+millisecond precision.
+
 .. _dates:
 
 Working with dates
