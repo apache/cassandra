@@ -136,7 +136,7 @@ public final class ClientMetrics
 
         for (Server server : servers)
             for (ClientStat stat : server.recentClientStats())
-                stats.add(new HashMap(stat.asMap()));
+                stats.add(new HashMap(stat.asMap())); // asMap returns guava, so need to convert to java for jmx
 
         stats.sort(Comparator.comparing(map -> map.get(ClientStat.PROTOCOL_VERSION)));
 

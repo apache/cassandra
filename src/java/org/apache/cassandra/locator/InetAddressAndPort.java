@@ -126,10 +126,18 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return getHostAddress(true);
     }
 
-    static final Pattern jmxIncompatibleChars = Pattern.compile("[\\[\\]:]");
+    private static final Pattern JMX_INCOMPATIBLE_CHARS = Pattern.compile("[\\[\\]:]");
+
+
+    /**
+     * Return a version of getHostAddressAndPort suitable for use in JMX object names without
+     * requiring any escaping.  Replaces each character invalid for JMX names with an underscore.
+     *
+     * @return String with JMX-safe representation of the IP address and port
+     */
     public String getHostAddressAndPortForJMX()
     {
-        return jmxIncompatibleChars.matcher(getHostAddressAndPort()).replaceAll("_");
+        return JMX_INCOMPATIBLE_CHARS.matcher(getHostAddressAndPort()).replaceAll("_");
     }
 
     public String getHostAddress(boolean withPort)
@@ -162,35 +170,42 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         }
     }
 
+    /** Format an InetAddressAndPort in the same style as InetAddress.toString.
+     *  The string returned is of the form: hostname / literal IP address : port
+     *  (without the whitespace). Literal IPv6 addresses will be wrapped with [ ]
+     *  to make the port number clear.
+     *
+     *  If the host name is unresolved, no reverse name service lookup
+     *  is performed. The hostname part will be represented by an empty string.
+     *
+     * @param address InetAddress to convert String
+     * @param port Port number to convert to String
+     * @return String representation of the IP address and port
+     */
     public static String toString(InetAddress address, int port)
     {
-        String hostName = Objects.toString(address.getHostName(), "");
-        String hostAddress = address.getHostAddress();
+        String addressToString = address.toString(); // cannot use getHostName as it resolves
+        int nameLength = addressToString.lastIndexOf('/'); // use last index to prevent ambiguity if host name contains /
+        assert nameLength >= 0 : "InetAddress.toString format may have changed, expecting /";
 
-        if (hostName.equals(hostAddress))
-            hostName = "";
-
-        String addressString = address.toString();
-        StringBuilder sb = new StringBuilder(hostName.length() + hostAddress.length() + 8);
-
-        boolean addressContainsColon = hostAddress.indexOf(':') >= 0;
-
-        sb.append(hostName);
-        if (addressContainsColon) // IPv6 addresses contain colons and need to disambiguate
-            sb.append("/[");
-        else
-            sb.append('/');
-
-        sb.append(hostAddress);
-
-        if (addressContainsColon)
+        // Check if need to wrap address with [ ] for IPv6 addresses
+        if (addressToString.indexOf(':', nameLength) >= 0)
+        {
+            StringBuilder sb = new StringBuilder(addressToString.length() + 16);
+            sb.append(addressToString, 0, nameLength + 1); // append optional host and / char
+            sb.append('[');
+            sb.append(addressToString, nameLength + 1, addressToString.length());
             sb.append("]:");
-        else
+            sb.append(port);
+            return sb.toString();
+        }
+        else // can just append :port
+        {
+            StringBuilder sb = new StringBuilder(addressToString); // will have enough capacity for port
             sb.append(":");
-
-        sb.append(port);
-
-        return sb.toString();
+            sb.append(port);
+            return sb.toString();
+        }
     }
 
     public static InetAddressAndPort getByName(String name) throws UnknownHostException

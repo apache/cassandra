@@ -121,7 +121,7 @@ public class EndpointStateTest
     {
         final Token token = DatabaseDescriptor.getPartitioner().getRandomToken();
         final List<Token> tokens = Collections.singletonList(token);
-        final InetAddress ip = InetAddress.getByName("127.0.0.1");
+        final InetAddress ip = InetAddress.getByAddress(null, new byte[] { 127, 0, 0, 1});
         final UUID hostId = UUID.randomUUID();
         final HeartBeatState hb = new HeartBeatState(0);
         final EndpointState state = new EndpointState(hb);
