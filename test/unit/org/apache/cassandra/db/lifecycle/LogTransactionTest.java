@@ -1243,12 +1243,12 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                                           cfs.metadata,
                                                           dFile,
                                                           iFile,
-                                                          MockSchema.indexSummary.sharedCopy(),
                                                           new AlwaysPresentFilter(),
                                                           1L,
                                                           metadata,
                                                           SSTableReader.OpenReason.NORMAL,
-                                                          header);
+                                                          header,
+                                                          MockSchema.indexSummary.sharedCopy());
         reader.first = reader.last = MockSchema.readerBounds(generation);
         return reader;
     }

@@ -333,8 +333,13 @@ public class BigTableWriter extends SSTableWriter
         invalidateCacheAtBoundary(dfile);
         SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components, metadata,
-                                                           ifile, dfile, indexSummary,
-                                                           iwriter.bf.sharedCopy(), maxDataAge, stats, SSTableReader.OpenReason.EARLY, header);
+                                                           ifile, dfile,
+                                                           iwriter.bf.sharedCopy(), 
+                                                           maxDataAge, 
+                                                           stats, 
+                                                           SSTableReader.OpenReason.EARLY, 
+                                                           header,
+                                                           indexSummary);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);
@@ -382,12 +387,12 @@ public class BigTableWriter extends SSTableWriter
                                                            metadata,
                                                            ifile,
                                                            dfile,
-                                                           indexSummary,
                                                            iwriter.bf.sharedCopy(),
                                                            maxDataAge,
                                                            stats,
                                                            openReason,
-                                                           header);
+                                                           header,
+                                                           indexSummary);
         sstable.first = getMinimalKey(first);
         sstable.last = getMinimalKey(last);
         return sstable;

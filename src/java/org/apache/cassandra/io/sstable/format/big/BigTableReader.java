@@ -41,9 +41,11 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReas
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.IFilter;
 
 /**
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -53,9 +55,11 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
-    BigTableReader(Descriptor desc, Set<Component> components, TableMetadataRef metadata, Long maxDataAge, StatsMetadata sstableMetadata, OpenReason openReason, SerializationHeader header)
+    BigTableReader(Descriptor desc, Set<Component> components, TableMetadataRef metadata, Long maxDataAge,
+                   StatsMetadata sstableMetadata, OpenReason openReason, SerializationHeader header, IndexSummary summary,
+                   FileHandle dfile, FileHandle ifile, IFilter bf)
     {
-        super(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header);
+        super(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header, summary, dfile, ifile, bf);
     }
 
     public UnfilteredRowIterator iterator(DecoratedKey key,

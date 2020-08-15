@@ -142,7 +142,7 @@ public class KeyspaceTest extends CQLTester
 
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
-        sstables.iterator().next().forceFilterFailures();
+        Util.disableBloomFilter(cfs);
 
         for (String key : new String[]{"0", "2"})
             Util.assertEmpty(Util.cmd(cfs, key).build());
