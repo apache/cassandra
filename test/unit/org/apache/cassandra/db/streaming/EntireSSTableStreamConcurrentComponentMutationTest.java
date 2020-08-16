@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -130,9 +131,6 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
 
-        sstable = store.getLiveSSTables().iterator().next();
-        descriptor = sstable.descriptor;
-
         Token start = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(0));
         Token end = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(100));
         rangesAtEndpoint = RangesAtEndpoint.toDummyList(Collections.singleton(new Range<>(start, end)));
@@ -144,6 +142,13 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     public static void cleanup()
     {
         service.shutdown();
+    }
+
+    @Before
+    public void init()
+    {
+        sstable = store.getLiveSSTables().iterator().next();
+        descriptor = sstable.descriptor;
     }
 
     @After
