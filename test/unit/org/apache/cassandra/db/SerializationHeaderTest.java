@@ -119,7 +119,7 @@ public class SerializationHeaderTest
                 {
                     UnfilteredRowIterator partition = partitions.next();
                     Assert.assertFalse(partition.hasNext());
-                    long value = Int32Type.instance.compose(partition.staticRow().getCell(columnStatic).value());
+                    long value = Int32Type.instance.compose(partition.staticRow().getCell(columnStatic).buffer());
                     Assert.assertEquals(value, (long)i);
                 }
                 Assert.assertFalse(partitions.hasNext());
@@ -128,7 +128,7 @@ public class SerializationHeaderTest
                 for (int i = 0 ; i < 5 ; ++i)
                 {
                     UnfilteredRowIterator partition = partitions.next();
-                    long value = Int32Type.instance.compose(((Row)partition.next()).getCell(columnRegular).value());
+                    long value = Int32Type.instance.compose(((Row)partition.next()).getCell(columnRegular).buffer());
                     Assert.assertEquals(value, (long)i);
                     Assert.assertTrue(partition.staticRow().isEmpty());
                     Assert.assertFalse(partition.hasNext());

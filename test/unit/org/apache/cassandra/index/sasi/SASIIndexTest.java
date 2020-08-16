@@ -1682,9 +1682,9 @@ public class SASIIndexTest
                 return UTF8Type.instance.getSerializer();
             }
 
-            public int compareCustom(ByteBuffer a, ByteBuffer b)
+            public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
             {
-                return UTF8Type.instance.compare(a, b);
+                return UTF8Type.instance.compare(left, accessorL, right, accessorR);
             }
         };
 

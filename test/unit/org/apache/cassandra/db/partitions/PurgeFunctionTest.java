@@ -240,7 +240,7 @@ public final class PurgeFunctionTest
         ByteBuffer[] clusteringByteBuffers =
             new ByteBuffer[] { decompose(metadata.clusteringColumns().get(0).type, clusteringValue) };
 
-        return new RangeTombstoneBoundMarker(ClusteringBound.create(kind, clusteringByteBuffers),
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(kind, clusteringByteBuffers),
                                              new DeletionTime(timestamp, localDeletionTime));
     }
 
@@ -254,7 +254,7 @@ public final class PurgeFunctionTest
         ByteBuffer[] clusteringByteBuffers =
             new ByteBuffer[] { decompose(metadata.clusteringColumns().get(0).type, clusteringValue) };
 
-        return new RangeTombstoneBoundaryMarker(ClusteringBoundary.create(kind, clusteringByteBuffers),
+        return new RangeTombstoneBoundaryMarker(BufferClusteringBoundary.create(kind, clusteringByteBuffers),
                                                 new DeletionTime(closeTimestamp, closeLocalDeletionTime),
                                                 new DeletionTime(openTimestamp, openDeletionTime));
     }

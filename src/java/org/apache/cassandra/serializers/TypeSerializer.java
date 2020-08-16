@@ -20,32 +20,61 @@ package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
 
-public interface TypeSerializer<T>
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+
+public abstract class TypeSerializer<T>
 {
-    public ByteBuffer serialize(T value);
+    public abstract <V> V serialize(T value, ValueAccessor<V> handle);
+
+    public final ByteBuffer serializeBuffer(T value)
+    {
+        return serialize(value, ByteBufferAccessor.instance);
+    }
+
+    public final ByteBuffer serialize(T value)  // TODO: remove / rename
+    {
+        return serializeBuffer(value);
+    }
+
+    public abstract <V> T deserialize(V value, ValueAccessor<V> handle);
 
     /*
      * Does not modify the position or limit of the buffer even temporarily.
      */
-    public T deserialize(ByteBuffer bytes);
+    public final T deserialize(ByteBuffer bytes)  // TODO: remove / rename
+    {
+        return deserialize(bytes, ByteBufferAccessor.instance);
+    }
 
     /*
      * Validate that the byte array is a valid sequence for the type this represents.
      * This guarantees deserialize() can be called without errors.
-     *
-     * Does not modify the position or limit of the buffer even temporarily
      */
-    public void validate(ByteBuffer bytes) throws MarshalException;
+    public abstract <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException;
 
-    public String toString(T value);
-
-    public Class<T> getType();
-
-    public default String toCQLLiteral(ByteBuffer buffer)
+    /*
+     * Does not modify the position or limit of the buffer even temporarily.
+     */
+    public final void validate(ByteBuffer bytes) throws MarshalException
     {
-        return buffer == null || !buffer.hasRemaining()
-             ? "null"
-             : toString(deserialize(buffer));
+        validate(bytes, ByteBufferAccessor.instance);
+    }
+
+    public abstract String toString(T value);
+
+    public abstract Class<T> getType();
+
+    public final String toCQLLiteral(ByteBuffer buffer)
+    {
+        return toCQLLiteral(buffer, ByteBufferAccessor.instance);
+    }
+
+    public <V> String toCQLLiteral(V value, ValueAccessor<V> accessor)
+    {
+        return value == null || accessor.isEmpty(value)
+               ? "null"
+               : toString(deserialize(value, accessor));
     }
 }
 

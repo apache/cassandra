@@ -31,38 +31,47 @@ public class CTypeTest
         CompositeType baseType = CompositeType.getInstance(AsciiType.instance, UUIDType.instance, LongType.instance);
 
         ByteBuffer a1 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("a"),
                 UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"),
                 ByteBufferUtil.bytes(1));
         ByteBuffer a2 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("a"),
                 UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"),
                 ByteBufferUtil.bytes(100));
         ByteBuffer b1 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("a"),
                 UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
                 ByteBufferUtil.bytes(1));
         ByteBuffer b2 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("a"),
                 UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
                 ByteBufferUtil.bytes(100));
         ByteBuffer c1 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("z"),
                 UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"),
                 ByteBufferUtil.bytes(1));
         ByteBuffer c2 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("z"),
                 UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"),
                 ByteBufferUtil.bytes(100));
         ByteBuffer d1 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("z"),
                 UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
                 ByteBufferUtil.bytes(1));
         ByteBuffer d2 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.bytes("z"),
                 UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
                 ByteBufferUtil.bytes(100));
         ByteBuffer z1 = CompositeType.build(
+                ByteBufferAccessor.instance,
                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                 UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
                 ByteBufferUtil.bytes(100));
@@ -105,8 +114,8 @@ public class CTypeTest
     public void testSimpleType2()
     {
         CompositeType baseType = CompositeType.getInstance(UUIDType.instance);
-        ByteBuffer a = CompositeType.build(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"));
-        ByteBuffer z = CompositeType.build(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+        ByteBuffer a = CompositeType.build(ByteBufferAccessor.instance, UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"));
+        ByteBuffer z = CompositeType.build(ByteBufferAccessor.instance, UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
 
         assert baseType.compare(a,z) < 0;
         assert baseType.compare(z,a) > 0;
@@ -118,8 +127,8 @@ public class CTypeTest
     public void testSimpleType1()
     {
         CompositeType baseType = CompositeType.getInstance(BytesType.instance);
-        ByteBuffer a = CompositeType.build(ByteBufferUtil.bytes("a"));
-        ByteBuffer z = CompositeType.build(ByteBufferUtil.bytes("z"));
+        ByteBuffer a = CompositeType.build(ByteBufferAccessor.instance, ByteBufferUtil.bytes("a"));
+        ByteBuffer z = CompositeType.build(ByteBufferAccessor.instance, ByteBufferUtil.bytes("z"));
 
         assert baseType.compare(a,z) < 0;
         assert baseType.compare(z,a) > 0;

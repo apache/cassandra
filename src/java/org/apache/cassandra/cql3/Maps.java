@@ -228,7 +228,7 @@ public abstract class Maps
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, version);
+                Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
                 Map<ByteBuffer, ByteBuffer> map = new LinkedHashMap<>(m.size());
                 for (Map.Entry<?, ?> entry : m.entrySet())
                     map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));

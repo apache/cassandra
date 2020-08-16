@@ -312,7 +312,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
             Clustering clustering = row.clustering();
             for (ColumnMetadata def : metadata.clusteringColumns())
-                data.put(def.name.toString(), clustering.get(def.position()));
+                data.put(def.name.toString(), clustering.getBuffer(def.position()));
 
             for (ColumnMetadata def : metadata.regularAndStaticColumns())
             {
@@ -320,7 +320,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                 {
                     Cell cell = row.getCell(def);
                     if (cell != null)
-                        data.put(def.name.toString(), cell.value());
+                        data.put(def.name.toString(), cell.buffer());
                 }
                 else
                 {

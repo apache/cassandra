@@ -108,7 +108,7 @@ public final class RTBoundCloser extends Transformation<UnfilteredRowIterator>
 
             // create an artificial inclusive closing RT bound with bound matching last seen row's clustering
             RangeTombstoneBoundMarker closingBound =
-                RangeTombstoneBoundMarker.inclusiveClose(partition.isReverseOrder(), lastRowClustering.getRawValues(), openMarkerDeletionTime);
+                RangeTombstoneBoundMarker.inclusiveClose(partition.isReverseOrder(), lastRowClustering.getBufferArray(), openMarkerDeletionTime);
 
             return UnfilteredRowIterators.singleton(closingBound,
                                                     partition.metadata(),

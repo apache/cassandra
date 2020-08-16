@@ -196,7 +196,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
                           lowerBoundPrefix.getRawValues().length,
                           metadata().comparator.size(),
                           sstable.getFilename());
-            return ClusteringBound.inclusiveOpen(filter.isReversed(), lowerBoundPrefix.getRawValues());
+            return BufferClusteringBound.inclusiveOpen(filter.isReversed(), lowerBoundPrefix.getBufferArray());
         }
         catch (IOException e)
         {
@@ -251,6 +251,6 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
                       vals.size(),
                       metadata().comparator.size(),
                       sstable.getFilename());
-        return  ClusteringBound.inclusiveOpen(filter.isReversed(), vals.toArray(new ByteBuffer[vals.size()]));
+        return  BufferClusteringBound.inclusiveOpen(filter.isReversed(), vals.toArray(new ByteBuffer[vals.size()]));
     }
 }

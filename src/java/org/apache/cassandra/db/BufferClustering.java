@@ -32,17 +32,22 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * {@code null} values (this is currently only allowed in COMPACT table for historical reasons, but we
  * could imagine lifting that limitation if we decide it make sense from a CQL point of view).
  */
-public class BufferClustering extends AbstractBufferClusteringPrefix implements Clustering
+public class BufferClustering extends AbstractBufferClusteringPrefix implements Clustering<ByteBuffer>
 {
     BufferClustering(ByteBuffer... values)
     {
         super(Kind.CLUSTERING, values);
     }
 
-    public ClusteringPrefix minimize()
+    public ClusteringPrefix<ByteBuffer> minimize()
     {
         if (!ByteBufferUtil.canMinimize(values))
             return this;
         return new BufferClustering(ByteBufferUtil.minimizeBuffers(values));
+    }
+
+    public static BufferClustering make(ByteBuffer... values)
+    {
+        return new BufferClustering(values);
     }
 }

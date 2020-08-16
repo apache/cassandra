@@ -375,7 +375,7 @@ public final class RTTransformationsTest
         for (int i = 0; i < clusteringValues.length; i++)
             clusteringByteBuffers[i] = decompose(metadata.clusteringColumns().get(i).type, clusteringValues[i]);
 
-        return new RangeTombstoneBoundMarker(ClusteringBound.create(kind, clusteringByteBuffers), new DeletionTime(timestamp, nowInSec));
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(kind, clusteringByteBuffers), new DeletionTime(timestamp, nowInSec));
     }
 
     private RangeTombstoneBoundaryMarker boundary(ClusteringPrefix.Kind kind, long closeTimestamp, long openTimestamp, Object... clusteringValues)
@@ -384,7 +384,7 @@ public final class RTTransformationsTest
         for (int i = 0; i < clusteringValues.length; i++)
             clusteringByteBuffers[i] = decompose(metadata.clusteringColumns().get(i).type, clusteringValues[i]);
 
-        return new RangeTombstoneBoundaryMarker(ClusteringBoundary.create(kind, clusteringByteBuffers),
+        return new RangeTombstoneBoundaryMarker(BufferClusteringBoundary.create(kind, clusteringByteBuffers),
                                                 new DeletionTime(closeTimestamp, nowInSec),
                                                 new DeletionTime(openTimestamp, nowInSec));
     }

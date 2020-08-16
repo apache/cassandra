@@ -222,27 +222,34 @@ public interface CQL3Type
         {
             CQL3Type keys = ((MapType) type).getKeysType().asCQL3Type();
             CQL3Type values = ((MapType) type).getValuesType().asCQL3Type();
+            int offset = 0;
             for (int i = 0; i < size; i++)
             {
                 if (i > 0)
                     target.append(", ");
-                ByteBuffer element = CollectionSerializer.readValue(buffer, version);
+                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(keys.toCQLLiteral(element, version));
                 target.append(": ");
-                element = CollectionSerializer.readValue(buffer, version);
+                element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(values.toCQLLiteral(element, version));
             }
+            buffer.position(buffer.position() + offset);
         }
 
         private static void generateSetOrListCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size, CQL3Type elements)
         {
+            int offset = 0;
             for (int i = 0; i < size; i++)
             {
                 if (i > 0)
                     target.append(", ");
-                ByteBuffer element = CollectionSerializer.readValue(buffer, version);
+                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(elements.toCQLLiteral(element, version));
             }
+            buffer.position(buffer.position() + offset);
         }
 
         @Override

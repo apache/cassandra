@@ -18,27 +18,28 @@
 
 package org.apache.cassandra.serializers;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class BytesSerializer implements TypeSerializer<ByteBuffer>
+public class BytesSerializer extends TypeSerializer<ByteBuffer>
 {
     public static final BytesSerializer instance = new BytesSerializer();
 
-    public ByteBuffer serialize(ByteBuffer bytes)
+    public <V> V serialize(ByteBuffer value, ValueAccessor<V> handle)
     {
         // We make a copy in case the user modifies the input
-        return bytes.duplicate();
+        return handle.valueOf(value.duplicate());
     }
 
-    public ByteBuffer deserialize(ByteBuffer value)
+    public <V> ByteBuffer deserialize(V value, ValueAccessor<V> handle)
     {
         // This is from the DB, so it is not shared with someone else
-        return value;
+        return handle.toBuffer(value);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
         // all bytes are legal.
     }
@@ -54,10 +55,10 @@ public class BytesSerializer implements TypeSerializer<ByteBuffer>
     }
 
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    public <V> String toCQLLiteral(V value, ValueAccessor<V> accessor)
     {
-        return buffer == null
+        return value == null
              ? "null"
-             : "0x" + toString(deserialize(buffer));
+             : "0x" + toString(deserialize(value, accessor));
     }
 }

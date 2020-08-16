@@ -28,6 +28,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
 
@@ -167,9 +170,9 @@ public class CounterContext
         return state.context;
     }
 
-    public static int headerLength(ByteBuffer context)
+    public static <V> int headerLength(V context, ValueAccessor<V> accessor)
     {
-        return HEADER_SIZE_LENGTH + Math.abs(context.getShort(context.position())) * HEADER_ELT_LENGTH;
+        return HEADER_SIZE_LENGTH + Math.abs(accessor.getShort(context, 0)) * HEADER_ELT_LENGTH;
     }
 
     private static int compareId(ByteBuffer bb1, int pos1, ByteBuffer bb2, int pos2)
@@ -566,13 +569,18 @@ public class CounterContext
      * @param context a counter context
      * @return the aggregated count represented by {@code context}
      */
-    public long total(ByteBuffer context)
+    public <V> long total(V context, ValueAccessor<V> accessor)
     {
         long total = 0L;
         // we could use a ContextState but it is easy enough that we avoid the object creation
-        for (int offset = context.position() + headerLength(context); offset < context.limit(); offset += STEP_LENGTH)
-            total += context.getLong(offset + CounterId.LENGTH + CLOCK_LENGTH);
+        for (int offset = headerLength(context, accessor), size=accessor.size(context); offset < size; offset += STEP_LENGTH)
+            total += accessor.getLong(context, offset + CounterId.LENGTH + CLOCK_LENGTH);
         return total;
+    }
+
+    public long total(Cell cell)
+    {
+        return total(cell.value(), cell.accessor());
     }
 
     public boolean shouldClearLocal(ByteBuffer context)
@@ -584,16 +592,16 @@ public class CounterContext
     /**
      * Detects whether or not the context has any legacy (local or remote) shards in it.
      */
-    public boolean hasLegacyShards(ByteBuffer context)
+    public <V>  boolean hasLegacyShards(V context, ValueAccessor<V> accessor)
     {
-        int totalCount = (context.remaining() - headerLength(context)) / STEP_LENGTH;
-        int localAndGlobalCount = Math.abs(context.getShort(context.position()));
+        int totalCount = (headerLength(context, accessor)) / STEP_LENGTH;
+        int localAndGlobalCount = Math.abs(accessor.getShort(context, 0));
 
         if (localAndGlobalCount < totalCount)
             return true; // remote shard(s) present
 
         for (int i = 0; i < localAndGlobalCount; i++)
-            if (context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
+            if (accessor.getShort(context, HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
                 return true; // found a local shard
 
         return false;
@@ -666,19 +674,19 @@ public class CounterContext
         for (int i = 0; i < globalShardIndexes.size(); i++)
             cleared.putShort(cleared.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH, globalShardIndexes.get(i));
 
-        int origHeaderLength = headerLength(context);
+        int origHeaderLength = headerLength(context, ByteBufferAccessor.instance);
         ByteBufferUtil.copyBytes(context,
                                  context.position() + origHeaderLength,
                                  cleared,
-                                 cleared.position() + headerLength(cleared),
+                                 cleared.position() + headerLength(cleared, ByteBufferAccessor.instance),
                                  context.remaining() - origHeaderLength);
 
         return cleared;
     }
 
-    public void validateContext(ByteBuffer context) throws MarshalException
+    public <V> void validateContext(V context, ValueAccessor<V> accessor) throws MarshalException
     {
-        if ((context.remaining() - headerLength(context)) % STEP_LENGTH != 0)
+        if ((accessor.size(context) - headerLength(context, accessor)) % STEP_LENGTH != 0)
             throw new MarshalException("Invalid size for a counter context");
     }
 
@@ -719,7 +727,7 @@ public class CounterContext
     @VisibleForTesting
     public int findPositionOf(ByteBuffer context, CounterId id)
     {
-        int headerLength = headerLength(context);
+        int headerLength = headerLength(context, ByteBufferAccessor.instance);
         int offset = context.position() + headerLength;
 
         int left = 0;
@@ -764,7 +772,7 @@ public class CounterContext
         private ContextState(ByteBuffer context)
         {
             this.context = context;
-            this.headerLength = this.bodyOffset = headerLength(context);
+            this.headerLength = this.bodyOffset = headerLength(context, ByteBufferAccessor.instance);
             this.headerOffset = HEADER_SIZE_LENGTH;
             updateIsGlobalOrLocal();
         }

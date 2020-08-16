@@ -58,12 +58,10 @@ public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBo
 
     public void validateData(TableMetadata metadata)
     {
-        ClusteringBoundOrBoundary bound = clustering();
+        ClusteringBoundOrBoundary<?> bound = clustering();
         for (int i = 0; i < bound.size(); i++)
         {
-            ByteBuffer value = bound.get(i);
-            if (value != null)
-                metadata.comparator.subtype(i).validate(value);
+            bound.validate(i, metadata.comparator);
         }
     }
 

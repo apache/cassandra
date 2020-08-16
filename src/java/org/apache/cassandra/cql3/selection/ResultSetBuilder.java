@@ -113,8 +113,8 @@ public final class ResultSetBuilder
     private ByteBuffer value(Cell c)
     {
         return c.isCounterCell()
-             ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
-             : c.value();
+             ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value(), c.accessor()))
+             : c.buffer();
     }
 
     /**

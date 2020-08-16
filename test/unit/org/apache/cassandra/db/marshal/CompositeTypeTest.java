@@ -208,7 +208,7 @@ public class CompositeTypeTest
     }
     private void compareValues(Cell c, String r) throws CharacterCodingException
     {
-        assert ByteBufferUtil.string(c.value()).equals(r) : "Expected: {" + ByteBufferUtil.string(c.value()) + "} got: {" + r + "}";
+        assert ByteBufferUtil.string(c.buffer()).equals(r) : "Expected: {" + ByteBufferUtil.string(c.buffer()) + "} got: {" + r + "}";
     }
 
     @Test
@@ -268,7 +268,7 @@ public class CompositeTypeTest
             for (int i = 0; i < input.length; i++)
                 bbs[i] = UTF8Type.instance.fromString(input[i]);
 
-            ByteBuffer value = comp.fromString(comp.getString(CompositeType.build(bbs)));
+            ByteBuffer value = comp.fromString(comp.getString(CompositeType.build(ByteBufferAccessor.instance, bbs)));
             ByteBuffer[] splitted = comp.split(value);
             for (int i = 0; i < splitted.length; i++)
                 assertEquals(input[i], UTF8Type.instance.getString(splitted[i]));

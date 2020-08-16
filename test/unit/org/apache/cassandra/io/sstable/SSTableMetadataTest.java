@@ -38,7 +38,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -52,7 +51,7 @@ public class SSTableMetadataTest
     public static final String CF_COUNTER1 = "Counter1";
 
     @BeforeClass
-    public static void defineSchema() throws Exception
+    public static void defineSchema()
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,

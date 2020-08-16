@@ -162,11 +162,11 @@ public class CommitLogUpgradeTest
             {
                 for (Row row : update)
                     if (row.clustering().size() > 0 &&
-                        AsciiType.instance.compose(row.clustering().get(0)).startsWith(CELLNAME))
+                        AsciiType.instance.compose(row.clustering().getBuffer(0)).startsWith(CELLNAME))
                     {
                         for (Cell cell : row.cells())
                         {
-                            hash = hash(hash, cell.value());
+                            hash = hash(hash, cell.buffer());
                             ++cells;
                         }
                     }

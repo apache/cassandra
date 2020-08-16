@@ -72,7 +72,7 @@ public class CounterMutationTest
         new CounterMutation(m, ConsistencyLevel.ONE).apply();
 
         Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val").build());
-        assertEquals(expected, CounterContext.instance().total(row.getCell(cDef).value()));
+        assertEquals(expected, CounterContext.instance().total(row.getCell(cDef)));
     }
 
     @Test
@@ -104,8 +104,8 @@ public class CounterMutationTest
         new CounterMutation(m, ConsistencyLevel.ONE).apply();
 
         Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val", "val2").build());
-        assertEquals(expectedOne, CounterContext.instance().total(row.getCell(cDefOne).value()));
-        assertEquals(expectedTwo, CounterContext.instance().total(row.getCell(cDefTwo).value()));
+        assertEquals(expectedOne, CounterContext.instance().total(row.getCell(cDefOne)));
+        assertEquals(expectedTwo, CounterContext.instance().total(row.getCell(cDefTwo)));
     }
 
     @Test
@@ -137,14 +137,14 @@ public class CounterMutationTest
         ColumnMetadata c2cfs1 = cfsOne.metadata().getColumn(ByteBufferUtil.bytes("val2"));
 
         Row row = Util.getOnlyRow(Util.cmd(cfsOne).includeRow("cc").columns("val", "val2").build());
-        assertEquals(1L, CounterContext.instance().total(row.getCell(c1cfs1).value()));
-        assertEquals(-1L, CounterContext.instance().total(row.getCell(c2cfs1).value()));
+        assertEquals(1L, CounterContext.instance().total(row.getCell(c1cfs1)));
+        assertEquals(-1L, CounterContext.instance().total(row.getCell(c2cfs1)));
 
         ColumnMetadata c1cfs2 = cfsTwo.metadata().getColumn(ByteBufferUtil.bytes("val"));
         ColumnMetadata c2cfs2 = cfsTwo.metadata().getColumn(ByteBufferUtil.bytes("val2"));
         row = Util.getOnlyRow(Util.cmd(cfsTwo).includeRow("cc").columns("val", "val2").build());
-        assertEquals(2L, CounterContext.instance().total(row.getCell(c1cfs2).value()));
-        assertEquals(-2L, CounterContext.instance().total(row.getCell(c2cfs2).value()));
+        assertEquals(2L, CounterContext.instance().total(row.getCell(c1cfs2)));
+        assertEquals(-2L, CounterContext.instance().total(row.getCell(c2cfs2)));
 
         // Check the caches, separately
         CBuilder cb = CBuilder.create(cfsOne.metadata().comparator);
@@ -175,8 +175,8 @@ public class CounterMutationTest
             ConsistencyLevel.ONE).apply();
 
         Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val", "val2").build());
-        assertEquals(1L, CounterContext.instance().total(row.getCell(cOne).value()));
-        assertEquals(-1L, CounterContext.instance().total(row.getCell(cTwo).value()));
+        assertEquals(1L, CounterContext.instance().total(row.getCell(cOne)));
+        assertEquals(-1L, CounterContext.instance().total(row.getCell(cTwo)));
 
         // Remove the first counter, increment the second counter
         new CounterMutation(
@@ -189,7 +189,7 @@ public class CounterMutationTest
 
         row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val", "val2").build());
         assertEquals(null, row.getCell(cOne));
-        assertEquals(-6L, CounterContext.instance().total(row.getCell(cTwo).value()));
+        assertEquals(-6L, CounterContext.instance().total(row.getCell(cTwo)));
 
         // Increment the first counter, make sure it's still shadowed by the tombstone
         new CounterMutation(

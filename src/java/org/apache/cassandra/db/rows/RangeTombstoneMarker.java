@@ -74,7 +74,7 @@ public interface RangeTombstoneMarker extends Unfiltered
         private final DeletionTime partitionDeletion;
         private final boolean reversed;
 
-        private ClusteringBoundOrBoundary bound;
+        private ClusteringBoundOrBoundary<?> bound;
         private final RangeTombstoneMarker[] markers;
 
         // For each iterator, what is the currently open marker deletion time (or null if there is no open marker on that iterator)
@@ -125,7 +125,7 @@ public interface RangeTombstoneMarker extends Unfiltered
             if (reversed)
                 isBeforeClustering = !isBeforeClustering;
 
-            ByteBuffer[] values = bound.getRawValues();
+            ByteBuffer[] values = bound.getBufferArray(); // FIXME: does this need to be a buffer array?
             RangeTombstoneMarker merged;
             if (previousDeletionTimeInMerged.isLive())
             {

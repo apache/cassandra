@@ -298,7 +298,7 @@ public class JsonConversionTest
     private static <T> void assertBytebufferPositionAndOutput(String json, T value, AbstractType<T> type)
             throws Exception
     {
-        ByteBuffer bb = type.getSerializer().serialize(value);
+        ByteBuffer bb = type.getSerializer().serialize(value, ByteBufferAccessor.instance);
         int position = bb.position();
 
         String output = type.toJSONString(bb, ProtocolVersion.CURRENT);

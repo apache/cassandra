@@ -87,7 +87,7 @@ public class UpdateParameters
             // If it's a COMPACT STORAGE table with a single clustering column and for backward compatibility we
             // don't want to allow that to be empty (even though this would be fine for the storage engine).
             assert clustering.size() == 1;
-            ByteBuffer value = clustering.get(0);
+            ByteBuffer value = clustering.getBuffer(0);
             if (value == null || !value.hasRemaining())
                 throw new InvalidRequestException("Invalid empty or null value for column " + metadata.clusteringColumns().get(0).name);
         }

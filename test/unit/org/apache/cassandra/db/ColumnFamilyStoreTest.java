@@ -424,7 +424,7 @@ public class ColumnFamilyStoreTest
             {
                 for (Row r : partition)
                 {
-                    if (r.getCell(col).value().equals(val))
+                    if (r.getCell(col).buffer().equals(val))
                         ++found;
                 }
             }

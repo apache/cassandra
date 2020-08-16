@@ -18,26 +18,25 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 
-public class IntegerSerializer implements TypeSerializer<BigInteger>
+public class IntegerSerializer extends TypeSerializer<BigInteger>
 {
     public static final IntegerSerializer instance = new IntegerSerializer();
 
-    public BigInteger deserialize(ByteBuffer bytes)
+    public <V> BigInteger deserialize(V value, ValueAccessor<V> handle)
     {
-        return bytes.hasRemaining() ? new BigInteger(ByteBufferUtil.getArray(bytes)) : null;
+        return !handle.isEmpty(value) ? new BigInteger(handle.toArray(value)) : null;
     }
 
-    public ByteBuffer serialize(BigInteger value)
+    public <V> V serialize(BigInteger value, ValueAccessor<V> handle)
     {
-        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBuffer.wrap(value.toByteArray());
+        return value == null ? handle.empty() : handle.valueOf(value.toByteArray());
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
         // no invalid integers.
     }

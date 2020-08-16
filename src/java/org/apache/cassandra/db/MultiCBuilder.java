@@ -285,7 +285,7 @@ public abstract class MultiCBuilder
                                    ? elements
                                    : Arrays.copyOf(elements, size);
 
-            return BTreeSet.of(comparator, ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues));
+            return BTreeSet.of(comparator, BufferClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues));
         }
     }
 

@@ -243,8 +243,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         Preconditions.checkState((minClustering == null && maxClustering == null)
                                  || comparator.compare(maxClustering, minClustering) >= 0);
-        ByteBuffer[] minValues = minClustering != null ? minClustering.getRawValues() : EMPTY_CLUSTERING;
-        ByteBuffer[] maxValues = maxClustering != null ? maxClustering.getRawValues() : EMPTY_CLUSTERING;
+        ByteBuffer[] minValues = minClustering != null ? minClustering.getBufferArray() : EMPTY_CLUSTERING;
+        ByteBuffer[] maxValues = maxClustering != null ? maxClustering.getBufferArray() : EMPTY_CLUSTERING;
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
         components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,

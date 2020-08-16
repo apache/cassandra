@@ -395,7 +395,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         if (cell.isTombstone())
         {
-            if (cell.value().hasRemaining())
+            if (cell.valueSize() > 0)
                 throw new MarshalException("A tombstone should not have a value");
             if (cell.path() != null)
                 validateCellPath(cell.path());
@@ -408,7 +408,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         }
         else
         {
-            type.validateCellValue(cell.value());
+            type.validateCellValue(cell.value(), cell.accessor());
             if (cell.path() != null)
                 validateCellPath(cell.path());
         }

@@ -180,7 +180,7 @@ public class CommitLogReaderTest extends CQLTester
             for (Row r : pu)
             {
                 String expected = Integer.toString(i + offset);
-                String seen = new String(r.getCell(cd).value().array());
+                String seen = new String(r.getCell(cd).buffer().array());
                 if (!expected.equals(seen))
                     Assert.fail("Mismatch at index: " + i + ". Offset: " + offset + " Expected: " + expected + " Seen: " + seen);
             }

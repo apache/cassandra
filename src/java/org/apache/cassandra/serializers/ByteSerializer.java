@@ -18,28 +18,26 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
-import java.nio.ByteBuffer;
-
-public class ByteSerializer implements TypeSerializer<Byte>
+public class ByteSerializer extends TypeSerializer<Byte>
 {
     public static final ByteSerializer instance = new ByteSerializer();
 
-    public Byte deserialize(ByteBuffer bytes)
+    public <V> Byte deserialize(V value, ValueAccessor<V> handle)
     {
-        return bytes == null || bytes.remaining() == 0 ? null : ByteBufferUtil.toByte(bytes);
+        return value == null || handle.isEmpty(value) ? null : handle.toByte(value);
     }
 
-    public ByteBuffer serialize(Byte value)
+    public <V> V serialize(Byte value, ValueAccessor<V> handle)
     {
-        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+        return value == null ? handle.empty() : handle.valueOf(value);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
-        if (bytes.remaining() != 1)
-            throw new MarshalException(String.format("Expected 1 byte for a tinyint (%d)", bytes.remaining()));
+        if (handle.size(value) != 1)
+            throw new MarshalException(String.format("Expected 1 byte for a tinyint (%d)", handle.size(value)));
     }
 
     public String toString(Byte value)

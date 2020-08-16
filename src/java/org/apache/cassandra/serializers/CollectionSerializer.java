@@ -22,52 +22,68 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class CollectionSerializer<T> implements TypeSerializer<T>
+public abstract class CollectionSerializer<T> extends TypeSerializer<T>
 {
-    protected abstract List<ByteBuffer> serializeValues(T value);
+    protected abstract <V> List<V> serializeValues(T value, ValueAccessor<V> handle);
     protected abstract int getElementCount(T value);
 
-    public abstract T deserializeForNativeProtocol(ByteBuffer buffer, ProtocolVersion version);
-    public abstract void validateForNativeProtocol(ByteBuffer buffer, ProtocolVersion version);
+    public abstract <V> T deserializeForNativeProtocol(V value, ValueAccessor<V> handle, ProtocolVersion version);
 
-    public ByteBuffer serialize(T value)
+    public T deserializeForNativeProtocol(ByteBuffer value, ProtocolVersion version)
     {
-        List<ByteBuffer> values = serializeValues(value);
-        // See deserialize() for why using the protocol v3 variant is the right thing to do.
-        return pack(values, getElementCount(value), ProtocolVersion.V3);
+        return deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
     }
 
-    public T deserialize(ByteBuffer bytes)
+    public abstract <V> void validateForNativeProtocol(V value, ValueAccessor<V> handle, ProtocolVersion version);
+
+    public <V> V serialize(T input, ValueAccessor<V> handle)
+    {
+        List<V> values = serializeValues(input, handle);
+        // See deserialize() for why using the protocol v3 variant is the right thing to do.
+        return pack(values, handle, getElementCount(input), ProtocolVersion.V3);
+    }
+
+    public <V> T deserialize(V value, ValueAccessor<V> handle)
     {
         // The only cases we serialize/deserialize collections internally (i.e. not for the protocol sake),
         // is:
         //  1) when collections are frozen
         //  2) for internal calls.
         // In both case, using the protocol 3 version variant is the right thing to do.
-        return deserializeForNativeProtocol(bytes, ProtocolVersion.V3);
+        return deserializeForNativeProtocol(value, handle, ProtocolVersion.V3);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T1> void validate(T1 value, ValueAccessor<T1> handle) throws MarshalException
     {
         // Same thing as above
-        validateForNativeProtocol(bytes, ProtocolVersion.V3);
+        validateForNativeProtocol(value, handle, ProtocolVersion.V3);
     }
 
-    public static ByteBuffer pack(Collection<ByteBuffer> buffers, int elements, ProtocolVersion version)
+    public static ByteBuffer pack(Collection<ByteBuffer> values, int elements, ProtocolVersion version)
+    {
+        return pack(values, ByteBufferAccessor.instance, elements, version);
+    }
+
+    public static <V> V pack(Collection<V> values, ValueAccessor<V> handle, int elements, ProtocolVersion version)
     {
         int size = 0;
-        for (ByteBuffer bb : buffers)
-            size += sizeOfValue(bb, version);
+        for (V value : values)
+            size += sizeOfValue(value, handle, version);
 
         ByteBuffer result = ByteBuffer.allocate(sizeOfCollectionSize(elements, version) + size);
         writeCollectionSize(result, elements, version);
-        for (ByteBuffer bb : buffers)
-            writeValue(result, bb, version);
-        return (ByteBuffer)result.flip();
+        for (V value : values)
+        {
+            writeValue(result, value, handle, version);
+        }
+        return handle.valueOf((ByteBuffer) result.flip());
     }
 
     protected static void writeCollectionSize(ByteBuffer output, int elements, ProtocolVersion version)
@@ -77,15 +93,20 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     public static int readCollectionSize(ByteBuffer input, ProtocolVersion version)
     {
-        return input.getInt();
+        return readCollectionSize(input, ByteBufferAccessor.instance, version);
     }
 
-    protected static int sizeOfCollectionSize(int elements, ProtocolVersion version)
+    public static <V> int readCollectionSize(V value, ValueAccessor<V> handle, ProtocolVersion version)
+    {
+        return handle.toInt(value);
+    }
+
+    public static int sizeOfCollectionSize(int elements, ProtocolVersion version)
     {
         return 4;
     }
 
-    public static void writeValue(ByteBuffer output, ByteBuffer value, ProtocolVersion version)
+    public static <V> void writeValue(ByteBuffer output, V value, ValueAccessor<V> handle, ProtocolVersion version)
     {
         if (value == null)
         {
@@ -93,17 +114,17 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
             return;
         }
 
-        output.putInt(value.remaining());
-        output.put(value.duplicate());
+        output.putInt(handle.size(value));
+        handle.write(value, output);
     }
 
-    public static ByteBuffer readValue(ByteBuffer input, ProtocolVersion version)
+    public static <V> V readValue(V input, ValueAccessor<V> handle, int offset, ProtocolVersion version)
     {
-        int size = input.getInt();
+        int size = handle.getInt(input, offset);
         if (size < 0)
             return null;
 
-        return ByteBufferUtil.readBytes(input, size);
+        return handle.slice(input, offset + 4, size);
     }
 
     protected static void skipValue(ByteBuffer input, ProtocolVersion version)
@@ -112,9 +133,15 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         input.position(input.position() + size);
     }
 
-    public static int sizeOfValue(ByteBuffer value, ProtocolVersion version)
+    public static <V> int skipValue(V input, ValueAccessor<V> handle, int offset, ProtocolVersion version)
     {
-        return value == null ? 4 : 4 + value.remaining();
+        int size = handle.getInt(input, offset);
+        return TypeSizes.sizeof(size) + size;
+    }
+
+    public static <V> int sizeOfValue(V value, ValueAccessor<V> handle, ProtocolVersion version)
+    {
+        return value == null ? 4 : 4 + handle.size(value);
     }
 
     /**

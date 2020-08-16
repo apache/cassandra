@@ -19,6 +19,7 @@ package org.apache.cassandra.db.partition;
 
 import static org.junit.Assert.*;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -79,6 +80,30 @@ public class PartitionImplementationTest
                          .build();
 
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata);
+    }
+
+    public static BufferClusteringBound inclusiveStartOf(ClusteringPrefix<ByteBuffer> prefix)
+    {
+        ByteBuffer[] values = new ByteBuffer[prefix.size()];
+        for (int i = 0; i < prefix.size(); i++)
+            values[i] = prefix.get(i);
+        return BufferClusteringBound.inclusiveStartOf(values);
+    }
+
+    public static BufferClusteringBound exclusiveStartOf(ClusteringPrefix<ByteBuffer> prefix)
+    {
+        ByteBuffer[] values = new ByteBuffer[prefix.size()];
+        for (int i = 0; i < prefix.size(); i++)
+            values[i] = prefix.get(i);
+        return BufferClusteringBound.exclusiveStartOf(values);
+    }
+
+    public static BufferClusteringBound inclusiveEndOf(ClusteringPrefix<ByteBuffer> prefix)
+    {
+        ByteBuffer[] values = new ByteBuffer[prefix.size()];
+        for (int i = 0; i < prefix.size(); i++)
+            values[i] = prefix.get(i);
+        return BufferClusteringBound.inclusiveEndOf(values);
     }
 
     private List<Row> generateRows()
@@ -210,7 +235,7 @@ public class PartitionImplementationTest
         return content;
     }
 
-    private Clustering clustering(int i)
+    private Clustering<ByteBuffer> clustering(int i)
     {
         return metadata.comparator.make(String.format("Row%06d", i));
     }
@@ -354,7 +379,7 @@ public class PartitionImplementationTest
             Clustering start = clustering(pos);
             pos += sz;
             Clustering end = clustering(pos);
-            Slice slice = Slice.make(skip == 0 ? ClusteringBound.exclusiveStartOf(start) : ClusteringBound.inclusiveStartOf(start), ClusteringBound.inclusiveEndOf(end));
+            Slice slice = Slice.make(skip == 0 ? exclusiveStartOf(start) : inclusiveStartOf(start), inclusiveEndOf(end));
             builder.add(slice);
         }
         return builder.build();

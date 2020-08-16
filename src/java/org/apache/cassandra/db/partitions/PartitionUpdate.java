@@ -713,8 +713,8 @@ public class PartitionUpdate extends AbstractBTreePartition
         public ByteBuffer value()
         {
             return path == null
-                 ? row.getCell(column).value()
-                 : row.getCell(column, path).value();
+                 ? row.getCell(column).buffer()
+                 : row.getCell(column, path).buffer();
         }
 
         public void setValue(ByteBuffer value)

@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 /**
  * Allows to build ClusteringPrefixes, either Clustering or ClusteringBound.
@@ -45,7 +47,7 @@ public abstract class CBuilder
             throw new UnsupportedOperationException();
         }
 
-        public CBuilder add(ByteBuffer value)
+        public <T> CBuilder add(T value, ValueAccessor<T> accessor)
         {
             throw new UnsupportedOperationException();
         }
@@ -99,10 +101,18 @@ public abstract class CBuilder
     public abstract int count();
     public abstract int remainingCount();
     public abstract ClusteringComparator comparator();
-    public abstract CBuilder add(ByteBuffer value);
+    public final CBuilder add(ByteBuffer value)
+    {
+        return add(value, ByteBufferAccessor.instance);
+    }
+    public final <T> CBuilder add(ClusteringPrefix<T> prefix, int i)
+    {
+        return add(prefix.get(i), prefix.accessor());
+    }
+    public abstract <T> CBuilder add(T value, ValueAccessor<T> accessor);
     public abstract CBuilder add(Object value);
     public abstract Clustering build();
-    public abstract ClusteringBound buildBound(boolean isStart, boolean isInclusive);
+    public abstract <T> ClusteringBound<T> buildBound(boolean isStart, boolean isInclusive);
     public abstract Slice buildSlice();
     public abstract Clustering buildWith(ByteBuffer value);
     public abstract Clustering buildWith(List<ByteBuffer> newValues);
@@ -137,11 +147,11 @@ public abstract class CBuilder
             return type;
         }
 
-        public CBuilder add(ByteBuffer value)
+        public <T> CBuilder add(T value, ValueAccessor<T> accessor)
         {
             if (isDone())
                 throw new IllegalStateException();
-            values[size++] = value;
+            values[size++] = accessor.toBuffer(value);
             return this;
         }
 
@@ -174,7 +184,7 @@ public abstract class CBuilder
             if (size == 0)
                 return isStart ? ClusteringBound.BOTTOM : ClusteringBound.TOP;
 
-            return ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive),
+            return BufferClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive),
                                 size == values.length ? values : Arrays.copyOfRange(values, 0, size));
         }
 
@@ -214,7 +224,7 @@ public abstract class CBuilder
         {
             ByteBuffer[] newValues = Arrays.copyOf(values, size+1);
             newValues[size] = value;
-            return ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues);
+            return BufferClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues);
         }
 
         public ClusteringBound buildBoundWith(List<ByteBuffer> newValues, boolean isStart, boolean isInclusive)
@@ -224,7 +234,7 @@ public abstract class CBuilder
             for (ByteBuffer value : newValues)
                 buffers[newSize++] = value;
 
-            return ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), buffers);
+            return BufferClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), buffers);
         }
     }
 }

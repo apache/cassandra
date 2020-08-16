@@ -21,6 +21,7 @@ package org.apache.cassandra.cql.jdbc;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.serializers.DecimalSerializer;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,7 +34,7 @@ public class JdbcDecimalTest
         BigDecimal expected = new BigDecimal("123456789123456789.987654321");
         DecimalSerializer decimal = new DecimalSerializer();
         
-        ByteBuffer buffer = decimal.serialize(expected);
+        ByteBuffer buffer = decimal.serialize(expected, ByteBufferAccessor.instance);
         BigDecimal actual = decimal.deserialize(buffer);
         Assert.assertEquals(expected, actual);
     }

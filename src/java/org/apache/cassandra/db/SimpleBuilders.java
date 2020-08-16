@@ -303,8 +303,8 @@ public abstract class SimpleBuilders
 
             private RangeTombstone build()
             {
-                ClusteringBound startBound = ClusteringBound.create(comparator, true, startInclusive, start);
-                ClusteringBound endBound = ClusteringBound.create(comparator, false, endInclusive, end);
+                ClusteringBound startBound = BufferClusteringBound.create(comparator, true, startInclusive, start);
+                ClusteringBound endBound = BufferClusteringBound.create(comparator, false, endInclusive, end);
                 return new RangeTombstone(Slice.make(startBound, endBound), deletionTime);
             }
         }

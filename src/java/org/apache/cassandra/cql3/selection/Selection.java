@@ -29,6 +29,7 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -327,7 +328,7 @@ public abstract class Selection
         }
         sb.append("}");
 
-        jsonRow[0] = UTF8Type.instance.getSerializer().serialize(sb.toString());
+        jsonRow[0] = UTF8Type.instance.getSerializer().serialize(sb.toString(), ByteBufferAccessor.instance);
         return Arrays.asList(jsonRow);
     }
 

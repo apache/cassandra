@@ -17,35 +17,31 @@
  */
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
-public class DecimalSerializer implements TypeSerializer<BigDecimal>
+public class DecimalSerializer extends TypeSerializer<BigDecimal>
 {
     public static final DecimalSerializer instance = new DecimalSerializer();
 
-    public BigDecimal deserialize(ByteBuffer bytes)
+    public <V> BigDecimal deserialize(V value, ValueAccessor<V> handle)
     {
-        if (bytes == null || bytes.remaining() == 0)
+        if (value == null || handle.isEmpty(value))
             return null;
 
         // do not consume the contents of the ByteBuffer
-        bytes = bytes.duplicate();
-        int scale = bytes.getInt();
-        byte[] bibytes = new byte[bytes.remaining()];
-        bytes.get(bibytes);
-
-        BigInteger bi = new BigInteger(bibytes);
+        int scale = handle.getInt(value, 0);
+        BigInteger bi = new BigInteger(handle.toArray(value, 4, handle.size(value) - 4));
         return new BigDecimal(bi, scale);
     }
 
-    public ByteBuffer serialize(BigDecimal value)
+    public <V> V serialize(BigDecimal value, ValueAccessor<V> handle)
     {
         if (value == null)
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            return handle.empty();
 
         BigInteger bi = value.unscaledValue();
         int scale = value.scale();
@@ -55,14 +51,14 @@ public class DecimalSerializer implements TypeSerializer<BigDecimal>
         bytes.putInt(scale);
         bytes.put(bibytes);
         bytes.rewind();
-        return bytes;
+        return handle.valueOf(bytes);  // FIXME: value write ops
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
         // We at least store the scale.
-        if (bytes.remaining() != 0 && bytes.remaining() < 4)
-            throw new MarshalException(String.format("Expected 0 or at least 4 bytes (%d)", bytes.remaining()));
+        if (handle.size(value) != 0 && handle.size(value) < 4)
+            throw new MarshalException(String.format("Expected 0 or at least 4 bytes (%d)", handle.size(value)));
     }
 
     public String toString(BigDecimal value)

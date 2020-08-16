@@ -46,7 +46,7 @@ public class UnfilteredRowsGenerator
     {
         if (curr == null)
             return "null";
-        String val = Int32Type.instance.getString(curr.clustering().get(0));
+        String val = Int32Type.instance.getString(curr.clustering().getBuffer(0));
         if (curr instanceof RangeTombstoneMarker)
         {
             RangeTombstoneMarker marker = (RangeTombstoneMarker) curr;
@@ -241,7 +241,7 @@ public class UnfilteredRowsGenerator
 
     static ClusteringBound boundFor(int pos, boolean start, boolean inclusive)
     {
-        return ClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
+        return BufferClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
     static void attachBoundaries(List<Unfiltered> content)
@@ -260,7 +260,7 @@ public class UnfilteredRowsGenerator
                 ClusteringBound b = (ClusteringBound) prev.clustering();
                 ClusteringBoundary boundary = ClusteringBoundary.create(
                         b.isInclusive() ? ClusteringBound.Kind.INCL_END_EXCL_START_BOUNDARY : ClusteringBound.Kind.EXCL_END_INCL_START_BOUNDARY,
-                        b.getRawValues());
+                        b);
                 prev = new RangeTombstoneBoundaryMarker(boundary, prev.closeDeletionTime(false), curr.openDeletionTime(false));
                 currUnfiltered = prev;
                 --di;
@@ -284,8 +284,8 @@ public class UnfilteredRowsGenerator
 
     private static RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
     {
-        return new RangeTombstoneBoundMarker(ClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
-                                                                    new ByteBuffer[] {clusteringFor(pos).get(0)}),
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
+                                                                    new ByteBuffer[] {clusteringFor(pos).getBuffer(0)}),
                                              new DeletionTime(delTime, delTime));
     }
 

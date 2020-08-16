@@ -37,7 +37,7 @@ public final class IndexEntry
     public final long timestamp;
 
     public final ByteBuffer indexedKey;
-    public final Clustering indexedEntryClustering;
+    public final Clustering<?> indexedEntryClustering;
 
     public IndexEntry(DecoratedKey indexValue,
                       Clustering indexClustering,

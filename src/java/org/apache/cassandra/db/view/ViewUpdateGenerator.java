@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -212,7 +213,7 @@ public class ViewUpdateGenerator
             return UpdateAction.DELETE_OLD;
         }
 
-        return baseColumn.cellValueType().compare(before.value(), after.value()) == 0
+        return baseColumn.cellValueType().compare(before.buffer(), after.buffer()) == 0
              ? UpdateAction.UPDATE_EXISTING
              : UpdateAction.SWITCH_ENTRY;
     }
@@ -581,7 +582,7 @@ public class ViewUpdateGenerator
     {
         ByteBuffer rawKey = viewMetadata.partitionKeyColumns().size() == 1
                           ? currentViewEntryPartitionKey[0]
-                          : CompositeType.build(currentViewEntryPartitionKey);
+                          : CompositeType.build(ByteBufferAccessor.instance, currentViewEntryPartitionKey);
 
         return viewMetadata.partitioner.decorateKey(rawKey);
     }
@@ -593,10 +594,10 @@ public class ViewUpdateGenerator
             case PARTITION_KEY:
                 return basePartitionKey[column.position()];
             case CLUSTERING:
-                return row.clustering().get(column.position());
+                return row.clustering().getBuffer(column.position());
             default:
                 // This shouldn't NPE as we shouldn't get there if the value can be null (or there is a bug in updateAction())
-                return row.getCell(column).value();
+                return row.getCell(column).buffer();
         }
     }
 }

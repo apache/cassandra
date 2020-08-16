@@ -447,7 +447,7 @@ public class Util
     {
         Cell cell = cell(cfs, row, columnName);
         assert cell != null : "Row " + row.toString(cfs.metadata()) + " has no cell for " + columnName;
-        assertEquals(value, cell.column().type.compose(cell.value()));
+        assertEquals(value, cell.column().type.compose(cell.buffer()));
     }
 
     public static void consume(UnfilteredRowIterator iter)
@@ -548,7 +548,7 @@ public class Util
     public static void assertColumn(Cell cell, String value, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.value(), ByteBufferUtil.bytes(value)));
+        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.buffer(), ByteBufferUtil.bytes(value)));
         assertEquals(timestamp, cell.timestamp());
     }
 

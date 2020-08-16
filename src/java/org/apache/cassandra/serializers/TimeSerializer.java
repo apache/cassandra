@@ -17,25 +17,24 @@
  */
 package org.apache.cassandra.serializers;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
-public class TimeSerializer implements TypeSerializer<Long>
+public class TimeSerializer extends TypeSerializer<Long>
 {
     public static final Pattern timePattern = Pattern.compile("^-?\\d+$");
     public static final TimeSerializer instance = new TimeSerializer();
 
-    public Long deserialize(ByteBuffer bytes)
+    public <V> Long deserialize(V value, ValueAccessor<V> handle)
     {
-        return bytes.remaining() == 0 ? null : ByteBufferUtil.toLong(bytes);
+        return handle.size(value) == 0 ? null : handle.toLong(value);
     }
 
-    public ByteBuffer serialize(Long value)
+    public <V> V serialize(Long value, ValueAccessor<V> handle)
     {
-        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+        return value == null ? handle.empty() : handle.valueOf(value);
     }
 
     public static Long timeStringToLong(String source) throws MarshalException
@@ -67,10 +66,10 @@ public class TimeSerializer implements TypeSerializer<Long>
         }
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> handle) throws MarshalException
     {
-        if (bytes.remaining() != 8)
-            throw new MarshalException(String.format("Expected 8 byte long for time (%d)", bytes.remaining()));
+        if (handle.size(value) != 8)
+            throw new MarshalException(String.format("Expected 8 byte long for time (%d)", handle.size(value)));
     }
 
     public String toString(Long value)

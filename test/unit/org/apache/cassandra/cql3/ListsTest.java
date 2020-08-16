@@ -160,7 +160,7 @@ public class ListsTest extends CQLTester
                 Assert.assertTrue(last.compareTo(uuid) < 0);
             last = uuid;
 
-            Assert.assertEquals(String.format("different values found: expected: '%d', found '%d'", ByteBufferUtil.toInt(terms.get(idx)), ByteBufferUtil.toInt(cell.value())),
+            Assert.assertEquals(String.format("different values found: expected: '%d', found '%d'", ByteBufferUtil.toInt(terms.get(idx)), ByteBufferUtil.toInt(cell.buffer())),
                                 terms.get(idx), cell.value());
             idx++;
         }
