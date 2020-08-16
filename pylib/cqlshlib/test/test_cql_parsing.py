@@ -712,12 +712,56 @@ class TestCqlParsing(TestCase):
         pass
 
     def test_strip_comment_blocks_from_input(self):
+
+        parsed = parse_cqlsh_statements('SELECT FROM /* comment block */ "MyTable";')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                 [('SELECT', 'reserved_identifier'),
+                                  ('FROM', 'reserved_identifier'),
+                                  ('"MyTable"', 'quotedName'),
+                                  (';', 'endtoken')])
+
         parsed = parse_cqlsh_statements('SELECT FROM /* \n comment block starts here; \n and continues here \n */ "MyTable";')
         self.assertSequenceEqual(tokens_with_types(parsed),
                                  [('SELECT', 'reserved_identifier'),
                                   ('FROM', 'reserved_identifier'),
                                   ('"MyTable"', 'quotedName'),
                                   (';', 'endtoken')])
+
+        parsed = parse_cqlsh_statements('''
+                                        SELECT FROM /*
+                                         comment block starts here;
+                                         and continues here
+                                         */ "MyTable";
+                                        ''')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                 [('SELECT', 'reserved_identifier'),
+                                  ('FROM', 'reserved_identifier'),
+                                  ('"MyTable"', 'quotedName'),
+                                  (';', 'endtoken')])
+
+        parsed = parse_cqlsh_statements('''
+                                        /* comment block */
+                                        SELECT FROM "MyTable";
+                                        ''')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                 [('SELECT', 'reserved_identifier'),
+                                  ('FROM', 'reserved_identifier'),
+                                  ('"MyTable"', 'quotedName'),
+                                  (';', 'endtoken')])
+
+        parsed = parse_cqlsh_statements('''
+                                        /* comment block */
+                                        /* another comment */ SELECT FROM /*
+                                         comment block starts here;
+                                         and continues here
+                                         */ "MyTable";
+                                        ''')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                 [('SELECT', 'reserved_identifier'),
+                                  ('FROM', 'reserved_identifier'),
+                                  ('"MyTable"', 'quotedName'),
+                                  (';', 'endtoken')])
+
 
 
 def parse_cqlsh_statements(text):
