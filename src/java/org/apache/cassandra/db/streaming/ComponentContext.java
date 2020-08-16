@@ -19,6 +19,9 @@
 package org.apache.cassandra.db.streaming;
 
 import com.google.common.collect.ImmutableSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
@@ -37,6 +40,8 @@ import java.util.Set;
  */
 public class ComponentContext implements AutoCloseable
 {
+    private static final Logger logger = LoggerFactory.getLogger(ComponentContext.class);
+
     private static final Set<Component> MUTABLE_COMPONENTS = ImmutableSet.of(Component.STATS, Component.SUMMARY);
 
     private final Map<Component, File> hardLinks;
@@ -74,10 +79,10 @@ public class ComponentContext implements AutoCloseable
     /**
      * @return file channel to be streamed, either original component or hardlinked component.
      */
-    @SuppressWarnings("resource") // file channel will be closed by Caller
     public FileChannel channel(Descriptor descriptor, Component component, long size) throws IOException
     {
         String toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component).getPath() : descriptor.filenameFor(component);
+        @SuppressWarnings("resource") // file channel will be closed by Caller
         FileChannel channel = new RandomAccessFile(toTransfer, "r").getChannel();
 
         assert size == channel.size() : String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
@@ -88,7 +93,13 @@ public class ComponentContext implements AutoCloseable
     @Override
     public void close()
     {
-        hardLinks.values().forEach(File::delete);
+        Throwable accumulate = null;
+        for (File file : hardLinks.values())
+            accumulate = FileUtils.deleteWithConfirm(file, accumulate);
+
         hardLinks.clear();
+
+        if (accumulate != null)
+            logger.warn("Failed to remove hard link files: {}", accumulate.getMessage());
     }
 }

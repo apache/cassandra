@@ -2088,7 +2088,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             descriptor.getMetadataSerializer().mutateLevel(descriptor, newLevel);
             reloadSSTableMetadata();
-        };
+        }
     }
 
     /**
@@ -2100,7 +2100,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, newRepairedAt, newPendingRepair, isTransient);
             reloadSSTableMetadata();
-        };
+        }
     }
 
     /**
