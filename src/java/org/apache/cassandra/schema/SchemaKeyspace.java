@@ -866,15 +866,34 @@ public final class SchemaKeyspace
         StringBuilder messages = new StringBuilder();
         for (UntypedResultSet.Row row : query(query))
         {
-            if (SchemaConstants.isLocalSystemKeyspace(row.getString("keyspace_name")))
+            String keyspaceName = row.getString("keyspace_name");
+            if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
                 continue;
 
-            Set<String> flags = row.getFrozenSet("flags", UTF8Type.instance);
-            if (TableMetadata.Flag.isLegacyCompactTable(TableMetadata.Flag.fromStringSet(flags)))
+            Set<TableMetadata.Flag> flags = TableMetadata.Flag.fromStringSet(row.getFrozenSet("flags", UTF8Type.instance));
+            if (TableMetadata.Flag.isLegacyCompactTable(flags))
             {
-                messages.append(String.format("ALTER TABLE %s.%s DROP COMPACT STORAGE;\n",
-                                              maybeQuote(row.getString("keyspace_name")),
-                                              maybeQuote(row.getString("table_name"))));
+                String tableName = row.getString("table_name");
+                if (isSafeToDropCompactStorage(keyspaceName, tableName))
+                {
+                    flags.remove(TableMetadata.Flag.DENSE);
+                    flags.add(TableMetadata.Flag.COMPOUND);
+                    String update = String.format("UPDATE %s.%s SET flags={%s} WHERE keyspace_name='%s' AND table_name='%s'",
+                                                  SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES,
+                                                  TableMetadata.Flag.toStringSet(flags).stream()
+                                                                                       .map(f -> "'" + f + "'")
+                                                                                       .collect(Collectors.joining(", ")),
+                                                  keyspaceName, tableName);
+
+                    logger.info("Safely dropping COMPACT STORAGE on {}.{}", keyspaceName, tableName);
+                    executeInternal(update);
+                }
+                else
+                {
+                    messages.append(String.format("ALTER TABLE %s.%s DROP COMPACT STORAGE;\n",
+                                                  maybeQuote(row.getString("keyspace_name")),
+                                                  maybeQuote(tableName)));
+                }
             }
         }
 
@@ -887,6 +906,35 @@ public final class SchemaKeyspace
                                                      "Then restart the node with the new Cassandra version.",
                                                      messages));
         }
+    }
+
+    private static boolean isSafeToDropCompactStorage(String keyspaceName, String tableName)
+    {
+        if (!Boolean.parseBoolean(System.getProperty("cassandra.auto_drop_compact_storage", "false")))
+            return false;
+
+        String columnQuery = String.format("SELECT kind, type FROM %s.%s WHERE keyspace_name='%s' and table_name='%s'",
+                                           SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS, keyspaceName, tableName);
+
+        String simpleType = "empty";
+        int simpleCount = 0;
+        for (UntypedResultSet.Row row : query(columnQuery))
+        {
+            String kind = row.getString("kind");
+            if (kind.equalsIgnoreCase("partition_key") || kind.equalsIgnoreCase("clustering"))
+                continue;
+
+            if (kind.equalsIgnoreCase("static"))
+                return false;
+
+            simpleCount++; // if not partition, clustering, or static column then its a regular columnb
+            simpleType = row.getString("type"); // only save one type becuase if there is > 1 simple column then false is returned
+        }
+
+        if (simpleCount == 1 && !simpleType.equalsIgnoreCase("empty"))
+            return true;
+
+        return false;
     }
 
     private static Keyspaces fetchKeyspacesWithout(Set<String> excludedKeyspaceNames)
