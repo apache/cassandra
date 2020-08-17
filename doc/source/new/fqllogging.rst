@@ -550,18 +550,24 @@ The main objectives of ``fqltool replay`` are:
 
 The FQL replay could also be used on the same node on which the full query log are generated to recreate a dropped database object.
 
+Please keep in mind that ``fqltool replay`` is not replaying DDL statements automatically. You have to explicitly enable it by ``--replay-ddl-statements`` flag.
+
  The syntax of ``fqltool replay`` is as follows:
 
 ::
 
-  fqltool replay [--keyspace <keyspace>] [--results <results>]
- [--store-queries <store_queries>] --target <target>... [--] <path1>
- [<path2>...<pathN>]
+  fqltool replay [--keyspace <keyspace>] [--replay-ddl-statements]
+ [--results <results>] [--store-queries <store_queries>]
+ --target <target>... [--] <path1> [<path2>...<pathN>]
 
  OPTIONS
    --keyspace <keyspace>
   Only replay queries against this keyspace and queries without
   keyspace set.
+
+   --replay-ddl-statements
+   If specified, replays DDL statements as well, they are excluded from
+   replaying by default.
 
    --results <results>
   Where to store the results of the queries, this should be a
@@ -593,7 +599,7 @@ Subsequently run ``fqltool replay``.   The directory to store results of queries
 
 ::
 
- [ec2-user@ip-10-0-2-238 cassandra]$ fqltool replay --keyspace AuditLogKeyspace --results
+ [ec2-user@ip-10-0-2-238 cassandra]$ fqltool replay --replay-ddl-statements --keyspace AuditLogKeyspace --results
  /cassandra/fql/logs/results/replay --store-queries /cassandra/fql/logs/queries/replay --
  target 3.91.56.164 -- /tmp/cassandrafullquerylog
 
