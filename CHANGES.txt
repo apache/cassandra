@@ -35,6 +35,7 @@ Merged from 3.0:
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
 Merged from 2.2:
  * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
+ * Automatically drop compact storage on tables for which it is safe (CASSANDRA-16048)
 
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
