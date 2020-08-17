@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -424,15 +425,15 @@ public class ToolRunner implements AutoCloseable
     {
         forceKill();
     }
-    
-    static class Runners
+
+    public static class Runners
     {
-        protected ToolRunner invokeNodetool(String... args)
+        public ToolRunner invokeNodetool(String... args)
         {
             return invokeNodetool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeNodetool(List<String> args)
+        public ToolRunner invokeNodetool(List<String> args)
         {
             return invokeTool(buildNodetoolArgs(args), true);
         }
@@ -441,28 +442,28 @@ public class ToolRunner implements AutoCloseable
         {
             return CQLTester.buildNodetoolArgs(args);
         }
-        
-        protected ToolRunner invokeClassAsTool(String... args)
+
+        public ToolRunner invokeClassAsTool(String... args)
         {
             return invokeClassAsTool(Arrays.asList(args));
         }
-        
-        protected ToolRunner invokeClassAsTool(List<String> args)
+
+        public ToolRunner invokeClassAsTool(List<String> args)
         {
             return invokeTool(args, false);
         }
 
-        protected ToolRunner invokeTool(String... args)
+        public ToolRunner invokeTool(String... args)
         {
             return invokeTool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeTool(List<String> args)
+        public ToolRunner invokeTool(List<String> args)
         {
             return invokeTool(args, true);
         }
 
-        protected ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
+        public ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
         {
             ToolRunner runner = new ToolRunner(args, runOutOfProcess);
             runner.start().waitFor();
