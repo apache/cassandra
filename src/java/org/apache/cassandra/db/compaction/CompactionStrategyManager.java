@@ -104,7 +104,6 @@ public class CompactionStrategyManager implements INotificationConsumer
         we will use the new compaction parameters.
      **/
     private volatile CompactionParams schemaCompactionParams;
-    private boolean shouldDefragment;
     private boolean supportsEarlyOpen;
     private int fanout;
 
@@ -216,7 +215,6 @@ public class CompactionStrategyManager implements INotificationConsumer
             }
             repaired.forEach(AbstractCompactionStrategy::startup);
             unrepaired.forEach(AbstractCompactionStrategy::startup);
-            shouldDefragment = repaired.get(0).shouldDefragment();
             supportsEarlyOpen = repaired.get(0).supportsEarlyOpen();
             fanout = (repaired.get(0) instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
         }
@@ -470,11 +468,6 @@ public class CompactionStrategyManager implements INotificationConsumer
                 res[i] = b[i];
         }
         return res;
-    }
-
-    public boolean shouldDefragment()
-    {
-        return shouldDefragment;
     }
 
     public Directories getDirectories()

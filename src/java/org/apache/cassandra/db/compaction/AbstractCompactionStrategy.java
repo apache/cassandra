@@ -304,11 +304,6 @@ public abstract class AbstractCompactionStrategy
         return new ScannerList(scanners);
     }
 
-    public boolean shouldDefragment()
-    {
-        return false;
-    }
-
     public String getName()
     {
         return getClass().getSimpleName();
