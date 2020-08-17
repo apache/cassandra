@@ -134,7 +134,6 @@ public class CompactionStrategyManager implements INotificationConsumer
         we will use the new compaction parameters.
      */
     private volatile CompactionParams schemaCompactionParams;
-    private boolean shouldDefragment;
     private boolean supportsEarlyOpen;
     private int fanout;
 
@@ -309,7 +308,6 @@ public class CompactionStrategyManager implements INotificationConsumer
                     compactionStrategyFor(sstable).addSSTable(sstable);
             }
             holders.forEach(AbstractStrategyHolder::startup);
-            shouldDefragment = repaired.first().shouldDefragment();
             supportsEarlyOpen = repaired.first().supportsEarlyOpen();
             fanout = (repaired.first() instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.first()).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
         }
@@ -598,11 +596,6 @@ public class CompactionStrategyManager implements INotificationConsumer
                 res[i] = b[i];
         }
         return res;
-    }
-
-    public boolean shouldDefragment()
-    {
-        return shouldDefragment;
     }
 
     private void handleFlushNotification(Iterable<SSTableReader> added)
