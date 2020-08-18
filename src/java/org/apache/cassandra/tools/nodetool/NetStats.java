@@ -59,10 +59,29 @@ public class NetStats extends NodeToolCmd
                 System.out.printf("%n");
                 if (!info.receivingSummaries.isEmpty())
                 {
+                    long totalFilesToReceive = info.getTotalFilesToReceive();
+                    long totalBytesToReceive = info.getTotalSizeToReceive();
+                    long totalFilesReceived = info.getTotalFilesReceived();
+                    long totalSizeReceived = info.getTotalSizeReceived();
+                    double percentageFilesReceived = ((double) totalFilesReceived / totalFilesToReceive) * 100;
+                    double percentageSizesReceived = ((double) totalSizeReceived / totalBytesToReceive) * 100;
+
                     if (humanReadable)
-                        System.out.printf("        Receiving %d files, %s total. Already received %d files, %s total%n", info.getTotalFilesToReceive(), FileUtils.stringifyFileSize(info.getTotalSizeToReceive()), info.getTotalFilesReceived(), FileUtils.stringifyFileSize(info.getTotalSizeReceived()));
+                        System.out.printf("        Receiving %d files, %s total. Already received %d files (%.2f%%), %s total (%.2f%%)%n",
+                                          totalFilesToReceive,
+                                          FileUtils.stringifyFileSize(totalBytesToReceive),
+                                          totalFilesReceived,
+                                          percentageFilesReceived,
+                                          FileUtils.stringifyFileSize(totalSizeReceived),
+                                          percentageSizesReceived);
                     else
-                        System.out.printf("        Receiving %d files, %d bytes total. Already received %d files, %d bytes total%n", info.getTotalFilesToReceive(), info.getTotalSizeToReceive(), info.getTotalFilesReceived(), info.getTotalSizeReceived());
+                        System.out.printf("        Receiving %d files, %d bytes total. Already received %d files (%.2f%%), %d bytes total (%.2f%%)%n",
+                                          totalFilesToReceive,
+                                          totalBytesToReceive,
+                                          totalFilesReceived,
+                                          percentageFilesReceived,
+                                          totalSizeReceived,
+                                          percentageSizesReceived);
                     for (ProgressInfo progress : info.getReceivingFiles())
                     {
                         System.out.printf("            %s%n", progress.toString(printPort));
@@ -70,10 +89,29 @@ public class NetStats extends NodeToolCmd
                 }
                 if (!info.sendingSummaries.isEmpty())
                 {
+                    long totalFilesToSend = info.getTotalFilesToSend();
+                    long totalSizeToSend = info.getTotalSizeToSend();
+                    long totalFilesSent = info.getTotalFilesSent();
+                    long totalSizeSent = info.getTotalSizeSent();
+                    double percentageFilesSent = ((double) totalFilesSent / totalFilesToSend) * 100;
+                    double percentageSizeSent = ((double) totalSizeSent / totalSizeToSend) * 100;
+
                     if (humanReadable)
-                        System.out.printf("        Sending %d files, %s total. Already sent %d files, %s total%n", info.getTotalFilesToSend(), FileUtils.stringifyFileSize(info.getTotalSizeToSend()), info.getTotalFilesSent(), FileUtils.stringifyFileSize(info.getTotalSizeSent()));
+                        System.out.printf("        Sending %d files, %s total. Already sent %d files (%.2f%%), %s total (%.2f%%)%n",
+                                          totalFilesToSend,
+                                          FileUtils.stringifyFileSize(totalSizeToSend),
+                                          totalFilesSent,
+                                          percentageFilesSent,
+                                          FileUtils.stringifyFileSize(totalSizeSent),
+                                          percentageSizeSent);
                     else
-                        System.out.printf("        Sending %d files, %d bytes total. Already sent %d files, %d bytes total%n", info.getTotalFilesToSend(), info.getTotalSizeToSend(), info.getTotalFilesSent(), info.getTotalSizeSent());
+                        System.out.printf("        Sending %d files, %d bytes total. Already sent %d files (%.2f%%), %d bytes total (%.2f%%) %n",
+                                          totalFilesToSend,
+                                          totalSizeToSend,
+                                          totalFilesSent,
+                                          percentageFilesSent,
+                                          totalSizeSent,
+                                          percentageSizeSent);
                     for (ProgressInfo progress : info.getSendingFiles())
                     {
                         System.out.printf("            %s%n", progress.toString(printPort));
@@ -98,35 +136,35 @@ public class NetStats extends NodeToolCmd
             long dropped;
 
             pending = 0;
-            for (int n : ms.getLargeMessagePendingTasks().values())
+            for (int n : ms.getLargeMessagePendingTasksWithPort().values())
                 pending += n;
             completed = 0;
-            for (long n : ms.getLargeMessageCompletedTasks().values())
+            for (long n : ms.getLargeMessageCompletedTasksWithPort().values())
                 completed += n;
             dropped = 0;
-            for (long n : ms.getLargeMessageDroppedTasks().values())
+            for (long n : ms.getLargeMessageDroppedTasksWithPort().values())
                 dropped += n;
             System.out.printf("%-25s%10s%10s%15s%10s%n", "Large messages", "n/a", pending, completed, dropped);
 
             pending = 0;
-            for (int n : ms.getSmallMessagePendingTasks().values())
+            for (int n : ms.getSmallMessagePendingTasksWithPort().values())
                 pending += n;
             completed = 0;
-            for (long n : ms.getSmallMessageCompletedTasks().values())
+            for (long n : ms.getSmallMessageCompletedTasksWithPort().values())
                 completed += n;
             dropped = 0;
-            for (long n : ms.getSmallMessageDroppedTasks().values())
+            for (long n : ms.getSmallMessageDroppedTasksWithPort().values())
                 dropped += n;
             System.out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
 
             pending = 0;
-            for (int n : ms.getGossipMessagePendingTasks().values())
+            for (int n : ms.getGossipMessagePendingTasksWithPort().values())
                 pending += n;
             completed = 0;
-            for (long n : ms.getGossipMessageCompletedTasks().values())
+            for (long n : ms.getGossipMessageCompletedTasksWithPort().values())
                 completed += n;
             dropped = 0;
-            for (long n : ms.getGossipMessageDroppedTasks().values())
+            for (long n : ms.getGossipMessageDroppedTasksWithPort().values())
                 dropped += n;
             System.out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
         }
