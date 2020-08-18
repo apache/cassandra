@@ -106,18 +106,30 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     public static class ForRangeRead extends ForRead<EndpointsForRange>
     {
         final AbstractBounds<PartitionPosition> range;
+        final int vnodeCount;
 
-        public ForRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange candidates, EndpointsForRange contact)
+        public ForRangeRead(Keyspace keyspace,
+                            ConsistencyLevel consistencyLevel,
+                            AbstractBounds<PartitionPosition> range,
+                            EndpointsForRange candidates,
+                            EndpointsForRange contact,
+                            int vnodeCount)
         {
             super(keyspace, consistencyLevel, candidates, contact);
             this.range = range;
+            this.vnodeCount = vnodeCount;
         }
 
         public AbstractBounds<PartitionPosition> range() { return range; }
 
+        /**
+         * @return number of vnode ranges covered by the range
+         */
+        public int vnodeCount() { return vnodeCount; }
+
         ForRangeRead withContact(EndpointsForRange newContact)
         {
-            return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact);
+            return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact, vnodeCount);
         }
     }
 

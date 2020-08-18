@@ -46,7 +46,16 @@ Go to ``Manage Jenkins -> Manage Plugins -> Available`` and install the followin
 * Throttle Concurrent Builds Plug-in
 * Test stability history
 * Hudson Post build task
+* Slack Notification
+* Copy artifact
 
+
+Configure Throttle Category
+---------------------------
+
+Builds that are not containerized (e.g. cqlshlib tests and in-jvm dtests) use local resources for Cassandra (ccm). To prevent these builds running concurrently the ``Cassandra`` throttle category needs to be created.
+
+This is done under ``Manage Jenkins -> System Configuration -> Throttle Concurrent Builds``. Enter "Cassandra" for the ``Category Name`` and "1" for ``Maximum Concurrent Builds Per Node``.
 
 Setup seed job
 --------------

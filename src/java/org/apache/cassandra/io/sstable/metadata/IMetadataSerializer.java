@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -60,6 +61,15 @@ public interface IMetadataSerializer
      * @throws IOException
      */
     MetadataComponent deserialize(Descriptor descriptor, MetadataType type) throws IOException;
+
+    /**
+     * Mutate SSTable Metadata
+     *
+     * @param descriptor SSTable descriptor
+     * @param transform function to mutate sstable metadata
+     * @throws IOException
+     */
+    public void mutate(Descriptor descriptor, Function<StatsMetadata, StatsMetadata> transform) throws IOException;
 
     /**
      * Mutate SSTable level

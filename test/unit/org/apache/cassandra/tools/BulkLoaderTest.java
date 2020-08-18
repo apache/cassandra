@@ -24,15 +24,22 @@ import org.junit.runner.RunWith;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class BulkLoaderTest extends ToolsTester
+public class BulkLoaderTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
-    public void testBulkLoader_NoArgs()
+    public void testBulkLoader_NoArgs() throws Exception
     {
-        runTool(1, "org.apache.cassandra.tools.BulkLoader");
+        ToolRunner tool = runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader");
+        assertEquals(1, tool.getExitCode());
+        assertTrue(!tool.getStderr().isEmpty());
+        
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -40,13 +47,14 @@ public class BulkLoaderTest extends ToolsTester
         assertKeyspaceNotLoaded();
         assertServerNotLoaded();
     }
-
+    
     @Test
     public void testBulkLoader_WithArgs() throws Exception
     {
         try
         {
-            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"))
+                   .waitAndAssertOnCleanExit();
             fail();
         }
         catch (RuntimeException e)
@@ -69,7 +77,8 @@ public class BulkLoaderTest extends ToolsTester
     {
         try
         {
-            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9042", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9042", OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"))
+                  .waitAndAssertOnCleanExit();
             fail();
         }
         catch (RuntimeException e)
@@ -92,7 +101,8 @@ public class BulkLoaderTest extends ToolsTester
     {
         try
         {
-            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9042", "--port", "9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9042", "--port", "9041", OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"))
+                  .waitAndAssertOnCleanExit();
             fail();
         }
         catch (RuntimeException e)
@@ -115,7 +125,7 @@ public class BulkLoaderTest extends ToolsTester
     {
         try
         {
-            runTool(1, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9041", OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
         }
         catch (RuntimeException e)
         {
@@ -128,7 +138,7 @@ public class BulkLoaderTest extends ToolsTester
     {
         try
         {
-            runTool(1, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
+            runner.invokeClassAsTool("org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9041", OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
         }
         catch (RuntimeException e)
         {

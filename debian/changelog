@@ -1,3 +1,9 @@
+cassandra (4.0~beta1) unstable; urgency=medium
+
+  * New release
+
+ -- Mick <mick@firefly>  Fri, 17 Jul 2020 23:22:24 +0200
+
 cassandra (4.0~alpha4) unstable; urgency=medium
 
   * New release

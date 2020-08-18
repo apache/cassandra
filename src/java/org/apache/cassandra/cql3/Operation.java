@@ -135,7 +135,7 @@ public abstract class Operation
         /**
          * The name of the column affected by this delete operation.
          */
-        public ColumnMetadata.Raw affectedColumn();
+        public ColumnIdentifier affectedColumn();
 
         /**
          * This method validates the operation (i.e. validate it is well typed)
@@ -436,14 +436,14 @@ public abstract class Operation
 
     public static class ColumnDeletion implements RawDeletion
     {
-        private final ColumnMetadata.Raw id;
+        private final ColumnIdentifier id;
 
-        public ColumnDeletion(ColumnMetadata.Raw id)
+        public ColumnDeletion(ColumnIdentifier id)
         {
             this.id = id;
         }
 
-        public ColumnMetadata.Raw affectedColumn()
+        public ColumnIdentifier affectedColumn()
         {
             return id;
         }
@@ -457,16 +457,16 @@ public abstract class Operation
 
     public static class ElementDeletion implements RawDeletion
     {
-        private final ColumnMetadata.Raw id;
+        private final ColumnIdentifier id;
         private final Term.Raw element;
 
-        public ElementDeletion(ColumnMetadata.Raw id, Term.Raw element)
+        public ElementDeletion(ColumnIdentifier id, Term.Raw element)
         {
             this.id = id;
             this.element = element;
         }
 
-        public ColumnMetadata.Raw affectedColumn()
+        public ColumnIdentifier affectedColumn()
         {
             return id;
         }
@@ -496,16 +496,16 @@ public abstract class Operation
 
     public static class FieldDeletion implements RawDeletion
     {
-        private final ColumnMetadata.Raw id;
+        private final ColumnIdentifier id;
         private final FieldIdentifier field;
 
-        public FieldDeletion(ColumnMetadata.Raw id, FieldIdentifier field)
+        public FieldDeletion(ColumnIdentifier id, FieldIdentifier field)
         {
             this.id = id;
             this.field = field;
         }
 
-        public ColumnMetadata.Raw affectedColumn()
+        public ColumnIdentifier affectedColumn()
         {
             return id;
         }

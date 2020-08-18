@@ -121,6 +121,12 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return Collections.singletonList(elements);
+    }
+
+    @Override
     public AbstractType<?> freezeNestedMulticellTypes()
     {
         if (!isMultiCell())

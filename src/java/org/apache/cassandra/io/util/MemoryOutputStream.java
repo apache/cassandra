@@ -27,7 +27,7 @@ public class MemoryOutputStream extends OutputStream
 {
 
     private final Memory mem;
-    private int position = 0;
+    private long position = 0;
 
     public MemoryOutputStream(Memory mem)
     {
@@ -44,10 +44,5 @@ public class MemoryOutputStream extends OutputStream
     {
         mem.setBytes(position, b, off, len);
         position += len;
-    }
-
-    public int position()
-    {
-        return position;
     }
 }

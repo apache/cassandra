@@ -28,6 +28,7 @@ public class EmptySerializer implements TypeSerializer<Void>
 
     public Void deserialize(ByteBuffer bytes)
     {
+        validate(bytes);
         return null;
     }
 

@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y software-properties-common
 RUN wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | apt-key add - \
     && add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/ \
     && apt-get update \
-    && apt-get install -y adoptopenjdk-8-hotspot ant
+    && apt-get install -y adoptopenjdk-11-hotspot ant
 
 
 RUN apt-get clean

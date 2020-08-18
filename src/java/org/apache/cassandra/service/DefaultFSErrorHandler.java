@@ -24,7 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.BlacklistedDirectories;
+import org.apache.cassandra.db.DisallowedDirectories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSErrorHandler;
@@ -42,10 +42,11 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         if (!StorageService.instance.isDaemonSetupCompleted())
             handleStartupFSError(e);
 
-        JVMStabilityInspector.inspectThrowable(e);
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
             case stop_paranoid:
+                // exception not logged here on purpose as it is already logged
+                logger.error("Stopping transports as disk_failure_policy is " + DatabaseDescriptor.getDiskFailurePolicy());
                 StorageService.instance.stopTransports();
                 break;
         }
@@ -57,19 +58,20 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         if (!StorageService.instance.isDaemonSetupCompleted())
             handleStartupFSError(e);
 
-        JVMStabilityInspector.inspectThrowable(e);
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
             case stop_paranoid:
             case stop:
+                // exception not logged here on purpose as it is already logged
+                logger.error("Stopping transports as disk_failure_policy is " + DatabaseDescriptor.getDiskFailurePolicy());
                 StorageService.instance.stopTransports();
                 break;
             case best_effort:
                 // for both read and write errors mark the path as unwritable.
-                BlacklistedDirectories.maybeMarkUnwritable(e.path);
+                DisallowedDirectories.maybeMarkUnwritable(e.path);
                 if (e instanceof FSReadError)
                 {
-                    File directory = BlacklistedDirectories.maybeMarkUnreadable(e.path);
+                    File directory = DisallowedDirectories.maybeMarkUnreadable(e.path);
                     if (directory != null)
                         Keyspace.removeUnreadableSSTables(directory);
                 }

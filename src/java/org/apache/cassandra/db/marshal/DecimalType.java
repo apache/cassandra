@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
@@ -85,9 +86,9 @@ public class DecimalType extends NumberType<BigDecimal>
     {
         try
         {
-            return new Constants.Value(getSerializer().serialize(new BigDecimal(parsed.toString())));
+            return new Constants.Value(fromString(Objects.toString(parsed)));
         }
-        catch (NumberFormatException exc)
+        catch (NumberFormatException | MarshalException exc)
         {
             throw new MarshalException(String.format("Value '%s' is not a valid representation of a decimal value", parsed));
         }
@@ -96,7 +97,7 @@ public class DecimalType extends NumberType<BigDecimal>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        return getSerializer().deserialize(buffer).toString();
+        return Objects.toString(getSerializer().deserialize(buffer), "\"\"");
     }
 
     public CQL3Type asCQL3Type()

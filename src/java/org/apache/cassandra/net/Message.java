@@ -188,6 +188,11 @@ public class Message<T>
         return outWithParam(nextId(), verb, payload, null, null);
     }
 
+    public static <T> Message<T> out(Verb verb, T payload, long expiresAtNanos)
+    {
+        return outWithParam(nextId(), verb, expiresAtNanos, payload, 0, null, null);
+    }
+
     public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag)
     {
         assert !verb.isResponse();

@@ -24,9 +24,13 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class StandaloneSplitterTest extends ToolsTester
+public class StandaloneSplitterTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @BeforeClass
     public static void before()
     {
@@ -39,7 +43,7 @@ public class StandaloneSplitterTest extends ToolsTester
     @Test
     public void testStandaloneSplitter_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.StandaloneSplitter");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.StandaloneSplitter").getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();

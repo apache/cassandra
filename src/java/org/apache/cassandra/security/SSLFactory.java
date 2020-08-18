@@ -370,13 +370,13 @@ public final class SSLFactory
 
         List<HotReloadableFile> fileList = new ArrayList<>();
 
-        if (serverOpts != null && serverOpts.enabled)
+        if (serverOpts != null && serverOpts.isEnabled())
         {
             fileList.add(new HotReloadableFile(serverOpts.keystore));
             fileList.add(new HotReloadableFile(serverOpts.truststore));
         }
 
-        if (clientOpts != null && clientOpts.enabled)
+        if (clientOpts != null && clientOpts.isEnabled())
         {
             fileList.add(new HotReloadableFile(clientOpts.keystore));
             fileList.add(new HotReloadableFile(clientOpts.truststore));
@@ -406,7 +406,7 @@ public final class SSLFactory
         try
         {
             // Ensure we're able to create both server & client SslContexts
-            if (serverOpts != null && serverOpts.enabled)
+            if (serverOpts != null && serverOpts.isEnabled())
             {
                 createNettySslContext(serverOpts, true, SocketType.SERVER, openSslIsAvailable());
                 createNettySslContext(serverOpts, true, SocketType.CLIENT, openSslIsAvailable());
@@ -420,7 +420,7 @@ public final class SSLFactory
         try
         {
             // Ensure we're able to create both server & client SslContexts
-            if (clientOpts != null && clientOpts.enabled)
+            if (clientOpts != null && clientOpts.isEnabled())
             {
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, openSslIsAvailable());
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, openSslIsAvailable());

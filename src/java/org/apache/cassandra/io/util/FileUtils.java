@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -92,12 +93,12 @@ public final class FileUtils
             logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
                 "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
                 "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
-                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options");
+                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options", e);
             throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
         }
         catch (Throwable t)
         {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator.");
+            logger.error("FATAL: Cannot initialize optimized memory deallocator.", t);
             JVMStabilityInspector.inspectThrowable(t);
             throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
         }
@@ -280,9 +281,13 @@ public final class FileUtils
         {
             channel.truncate(size);
         }
+        catch (NoSuchFileException | FileNotFoundException nfe)
+        {
+            throw new RuntimeException(nfe);
+        }
         catch (IOException e)
         {
-            throw new RuntimeException(e);
+            throw new FSWriteError(e, path);
         }
     }
 
@@ -602,7 +607,7 @@ public final class FileUtils
      */
     public static void handleFSErrorAndPropagate(FSError e)
     {
-        handleFSError(e);
+        JVMStabilityInspector.inspectThrowable(e);
         throw propagate(e);
     }
 
@@ -730,9 +735,13 @@ public final class FileUtils
                 SyncUtil.force(fc, false);
             }
         }
+        catch (ClosedChannelException cce)
+        {
+            throw new RuntimeException(cce);
+        }
         catch (IOException ex)
         {
-            throw new RuntimeException(ex);
+            throw new FSWriteError(ex, file);
         }
     }
 

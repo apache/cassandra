@@ -209,10 +209,10 @@ public abstract class AbstractCompactionStrategy
     public abstract long getMaxSSTableBytes();
 
     /**
-     * Filters SSTables that are to be blacklisted from the given collection
+     * Filters SSTables that are to be excluded from the given collection
      *
-     * @param originalCandidates The collection to check for blacklisted SSTables
-     * @return list of the SSTables with blacklisted ones filtered out
+     * @param originalCandidates The collection to check for excluded SSTables
+     * @return list of the SSTables with excluded ones filtered out
      */
     public static List<SSTableReader> filterSuspectSSTables(Iterable<SSTableReader> originalCandidates)
     {
@@ -250,11 +250,6 @@ public abstract class AbstractCompactionStrategy
             ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
         return new ScannerList(scanners);
-    }
-
-    public boolean shouldDefragment()
-    {
-        return false;
     }
 
     public String getName()

@@ -28,6 +28,7 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.cql3.CQLFragmentParser;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -81,13 +82,13 @@ public class CASQuery extends SchemaStatement
             throw new IllegalArgumentException("could not parse update query:" + statement.getQueryString(), e);
         }
 
-        final List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> casConditionList = modificationStatement.getConditions();
+        final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> casConditionList = modificationStatement.getConditions();
         List<Integer> casConditionIndex = new ArrayList<>();
 
         boolean first = true;
         StringBuilder casReadConditionQuery = new StringBuilder();
         casReadConditionQuery.append("SELECT ");
-        for (final Pair<ColumnMetadata.Raw, ColumnCondition.Raw> condition : casConditionList)
+        for (final Pair<ColumnIdentifier, ColumnCondition.Raw> condition : casConditionList)
         {
             if (!condition.right.getValue().getText().equals("?"))
             {
@@ -98,8 +99,8 @@ public class CASQuery extends SchemaStatement
             {
                 casReadConditionQuery.append(", ");
             }
-            casReadConditionQuery.append(condition.left.rawText());
-            casConditionIndex.add(getDataSpecification().partitionGenerator.indexOf(condition.left.rawText()));
+            casReadConditionQuery.append(condition.left.toString());
+            casConditionIndex.add(getDataSpecification().partitionGenerator.indexOf(condition.left.toString()));
             first = false;
         }
         casReadConditionQuery.append(" FROM ").append(tableName).append(" WHERE ");

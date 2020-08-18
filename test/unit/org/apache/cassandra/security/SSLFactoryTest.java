@@ -165,10 +165,10 @@ public class SSLFactoryTest
     {
         try
         {
-            EncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                        .withEnabled(true);
+            ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
+                                              .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
-            SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
+            SSLFactory.initHotReloading(options, options, true);
 
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
                                                                                                            .isAvailable());
@@ -197,11 +197,11 @@ public class SSLFactoryTest
     @Test(expected = IOException.class)
     public void testSslFactorySslInit_BadPassword_ThrowsException() throws IOException
     {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions)
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
                                     .withKeyStorePassword("bad password")
-                                    .withEnabled(true);
+                                    .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
-        SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
+        SSLFactory.initHotReloading(options, options, true);
     }
 
     @Test
@@ -209,8 +209,7 @@ public class SSLFactoryTest
     {
         try
         {
-            ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                              .withEnabled(true);
+            ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
 
             SSLFactory.initHotReloading(options, options, true);
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
@@ -243,9 +242,7 @@ public class SSLFactoryTest
 
             File testKeystoreFile = new File(options.keystore + ".test");
             FileUtils.copyFile(new File(options.keystore),testKeystoreFile);
-            options = options
-                      .withKeyStore(testKeystoreFile.getPath())
-                      .withEnabled(true);
+            options = options.withKeyStore(testKeystoreFile.getPath());
 
 
             SSLFactory.initHotReloading(options, options, true);

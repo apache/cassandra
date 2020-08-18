@@ -58,12 +58,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
-import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -402,6 +402,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
+        verifyCompressionInfoExistenceIfApplicable(descriptor, components);
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata;
@@ -501,6 +502,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // For the 3.0+ sstable format, the (misnomed) stats component hold the serialization header which we need to deserialize the sstable content
         assert components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
 
+        verifyCompressionInfoExistenceIfApplicable(descriptor, components);
+
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
 
         Map<MetadataType, MetadataComponent> sstableMetadata;
@@ -589,13 +592,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     }
                     catch (CorruptSSTableException ex)
                     {
-                        FileUtils.handleCorruptSSTable(ex);
+                        JVMStabilityInspector.inspectThrowable(ex);
                         logger.error("Corrupt sstable {}; skipping table", entry, ex);
                         return;
                     }
                     catch (FSError ex)
                     {
-                        FileUtils.handleFSError(ex);
+                        JVMStabilityInspector.inspectThrowable(ex);
                         logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
                         return;
                     }
@@ -659,6 +662,37 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         Factory readerFactory = descriptor.getFormat().getReaderFactory();
 
         return readerFactory.open(descriptor, components, metadata, maxDataAge, sstableMetadata, openReason, header);
+    }
+
+    /**
+     * Best-effort checking to verify the expected compression info component exists, according to the TOC file.
+     * The verification depends on the existence of TOC file. If absent, the verification is skipped.
+     * @param descriptor
+     * @param actualComponents, actual components listed from the file system.
+     * @throws CorruptSSTableException, if TOC expects compression info but not found from disk.
+     * @throws FSReadError, if unable to read from TOC file.
+     */
+    public static void verifyCompressionInfoExistenceIfApplicable(Descriptor descriptor,
+                                                                  Set<Component> actualComponents)
+    throws CorruptSSTableException, FSReadError
+    {
+        File tocFile = new File(descriptor.filenameFor(Component.TOC));
+        if (tocFile.exists())
+        {
+            try
+            {
+                Set<Component> expectedComponents = readTOC(descriptor, false);
+                if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
+                {
+                    String compressionInfoFileName = descriptor.filenameFor(Component.COMPRESSION_INFO);
+                    throw new CorruptSSTableException(new FileNotFoundException(compressionInfoFileName), compressionInfoFileName);
+                }
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, tocFile);
+            }
+        }
     }
 
     protected SSTableReader(final Descriptor desc,
@@ -1742,7 +1776,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public void markSuspect()
     {
         if (logger.isTraceEnabled())
-            logger.trace("Marking {} as a suspect for blacklisting.", getFilename());
+            logger.trace("Marking {} as a suspect to be excluded from reads.", getFilename());
 
         isSuspect.getAndSet(true);
     }

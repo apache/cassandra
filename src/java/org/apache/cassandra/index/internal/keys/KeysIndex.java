@@ -58,8 +58,8 @@ public class KeysIndex extends CassandraIndex
     }
 
     protected ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
-                                      CellPath path, ByteBuffer cellValue)
+                                         Clustering clustering,
+                                         CellPath path, ByteBuffer cellValue)
     {
         return cellValue;
     }
@@ -77,7 +77,7 @@ public class KeysIndex extends CassandraIndex
         Cell cell = row.getCell(indexedColumn);
 
         return (cell == null
-             || !cell.isLive(nowInSec)
-             || indexedColumn.type.compare(indexValue, cell.value()) != 0);
+                || !cell.isLive(nowInSec)
+                || indexedColumn.type.compare(indexValue, cell.value()) != 0);
     }
 }

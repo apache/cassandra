@@ -19,6 +19,8 @@ package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
 
+import io.netty.channel.Channel;
+
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamSession;
@@ -136,5 +138,14 @@ public abstract class StreamMessage
     public int getPriority()
     {
         return type.priority;
+    }
+
+    /**
+     * Get or create a {@link StreamSession} based on this stream message data: not all stream messages support this,
+     * so the default implementation just throws an exception.
+     */
+    public StreamSession getOrCreateSession(Channel channel)
+    {
+        throw new UnsupportedOperationException("Not supported by streaming messages of type: " + this.getClass());
     }
 }
