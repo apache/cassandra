@@ -21,6 +21,7 @@ Merged from 3.0:
  * Check for endpoint collision with hibernating nodes (CASSANDRA-14599)
  * Operational improvements and hardening for replica filtering protection (CASSANDRA-15907)
  * Fix empty/null json string representation (CASSANDRA-15896)
+ * Handle difference in timestamp precision between java8 and java11 in LogFIle.java (CASSANDRA-16050)
 Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
 
