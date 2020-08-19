@@ -63,6 +63,9 @@ class InboundSockets
         // purely to prevent close racing with open
         private boolean closedWithoutOpening;
 
+        // used to prevent racing on close
+        private Future<Void> closeFuture;
+
         /**
          * A group of the open, inbound {@link Channel}s connected to this node. This is mostly interesting so that all of
          * the inbound connections/channels can be closed when the listening socket itself is being closed.
@@ -135,6 +138,13 @@ class InboundSockets
                     closedWithoutOpening = true;
                     return new SucceededFuture<>(GlobalEventExecutor.INSTANCE, null);
                 }
+
+                if (closeFuture != null)
+                {
+                    return closeFuture;
+                }
+
+                closeFuture = done;
 
                 if (listen != null)
                 {
