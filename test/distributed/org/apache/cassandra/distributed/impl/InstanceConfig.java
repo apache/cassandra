@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -39,11 +40,12 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 public class InstanceConfig implements IInstanceConfig
 {
     private static final Object NULL = new Object();
-    private static final Logger logger = LoggerFactory.getLogger(InstanceConfig.class);
+    private static final NoSpamLogger logger = NoSpamLogger.getLogger(LoggerFactory.getLogger(InstanceConfig.class), 1, TimeUnit.SECONDS);
 
     public final int num;
     public int num() { return num; }
