@@ -235,16 +235,29 @@ final class LogFile implements AutoCloseable
         // it matches. Because we delete files from oldest to newest, the latest update time should
         // always match.
         record.status.onDiskRecord = record.withExistingFiles(existingFiles);
-        if (record.updateTime != record.status.onDiskRecord.updateTime && record.status.onDiskRecord.updateTime > 0)
+        // we can have transaction files with mismatching updateTime resolutions due to switching between jdk8 and jdk11, truncate both to be consistent:
+        if (truncateMillis(record.updateTime) != truncateMillis(record.status.onDiskRecord.updateTime) && record.status.onDiskRecord.updateTime > 0)
         {
             record.setError(String.format("Unexpected files detected for sstable [%s]: " +
-                                          "last update time [%tT] should have been [%tT]",
+                                          "last update time [%tc] (%d) should have been [%tc] (%d)",
                                           record.fileName(),
                                           record.status.onDiskRecord.updateTime,
+                                          record.status.onDiskRecord.updateTime,
+                                          record.updateTime,
                                           record.updateTime));
 
         }
     }
+
+    /**
+     * due to difference in timestamp resolution between jdk8 and 11 we need to return second resolution here (number
+     * should end in 000): https://bugs.openjdk.java.net/browse/JDK-8177809
+     */
+    static long truncateMillis(long lastModified)
+    {
+        return lastModified - (lastModified % 1000);
+    }
+
 
     static void verifyRecordWithCorruptedLastRecord(LogRecord record)
     {
