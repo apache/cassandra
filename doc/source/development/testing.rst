@@ -48,9 +48,9 @@ Unit tests can be run from the command line using the ``ant test`` command, ``an
 
     ant test -Dtest.name=SimpleQueryTest
 
-To run only the ``testStaticCompactTables()`` test method from that class, you would run::
+To run only the ``testTableWithOneClustering()`` test method from that class, you would run::
 
-    ant testsome -Dtest.name=org.apache.cassandra.cql3.SimpleQueryTest -Dtest.methods=testStaticCompactTables
+    ant testsome -Dtest.name=org.apache.cassandra.cql3.SimpleQueryTest -Dtest.methods=testTableWithOneClustering
 
 If you see an error like this::
 
