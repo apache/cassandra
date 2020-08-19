@@ -110,7 +110,8 @@ public class OutboundConnection
 
     private final OutboundMessageCallbacks callbacks;
     private final OutboundDebugCallbacks debug;
-    private final OutboundMessageQueue queue;
+    @VisibleForTesting
+    final OutboundMessageQueue queue;
     /** the number of bytes we permit to queue to the network without acquiring any shared resource permits */
     private final long pendingCapacityInBytes;
     /** the number of messages and bytes queued for flush to the network,

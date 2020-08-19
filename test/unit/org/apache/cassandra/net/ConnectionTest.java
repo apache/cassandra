@@ -685,9 +685,21 @@ public class ConnectionTest
                         Message<?> message = Message.builder(Verb._TEST_1, noPayload)
                                                     .withExpiresAt(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(50L))
                                                     .build();
-                        outbound.enqueue(message);
-                        Assert.assertFalse(outbound.isConnected());
-                        Assert.assertEquals(1, outbound.pendingCount());
+                        OutboundMessageQueue queue = outbound.queue;
+                        while (true)
+                        {
+                            try (OutboundMessageQueue.WithLock withLock = queue.lockOrCallback(System.nanoTime(), null))
+                            {
+                                if (withLock != null)
+                                {
+                                    outbound.enqueue(message);
+                                    Assert.assertFalse(outbound.isConnected());
+                                    Assert.assertEquals(1, outbound.pendingCount());
+                                    break;
+                                }
+                            }
+                        }
+
                         CompletableFuture.runAsync(() -> {
                             while (outbound.pendingCount() > 0 && !Thread.interrupted()) {}
                         }).get(10, SECONDS);
