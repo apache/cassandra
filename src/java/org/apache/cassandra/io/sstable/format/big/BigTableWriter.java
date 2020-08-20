@@ -334,12 +334,12 @@ public class BigTableWriter extends SSTableWriter
         SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components, metadata,
                                                            ifile, dfile,
+                                                           indexSummary,
                                                            iwriter.bf.sharedCopy(), 
                                                            maxDataAge, 
                                                            stats, 
                                                            SSTableReader.OpenReason.EARLY, 
-                                                           header,
-                                                           indexSummary);
+                                                           header);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);
@@ -387,12 +387,12 @@ public class BigTableWriter extends SSTableWriter
                                                            metadata,
                                                            ifile,
                                                            dfile,
+                                                           indexSummary,
                                                            iwriter.bf.sharedCopy(),
                                                            maxDataAge,
                                                            stats,
                                                            openReason,
-                                                           header,
-                                                           indexSummary);
+                                                           header);
         sstable.first = getMinimalKey(first);
         sstable.last = getMinimalKey(last);
         return sstable;

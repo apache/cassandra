@@ -1241,14 +1241,14 @@ public class LogTransactionTest extends AbstractTransactionalTest
         SSTableReader reader = SSTableReader.internalOpen(descriptor,
                                                           components,
                                                           cfs.metadata,
-                                                          dFile,
                                                           iFile,
+                                                          dFile,
+                                                          MockSchema.indexSummary.sharedCopy(),
                                                           new AlwaysPresentFilter(),
                                                           1L,
                                                           metadata,
                                                           SSTableReader.OpenReason.NORMAL,
-                                                          header,
-                                                          MockSchema.indexSummary.sharedCopy());
+                                                          header);
         reader.first = reader.last = MockSchema.readerBounds(generation);
         return reader;
     }
