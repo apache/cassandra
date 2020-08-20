@@ -875,7 +875,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         SSTableReader replacement = internalOpen(descriptor,
                                                  components,
                                                  metadata,
-                                                 ifile != null ? ifile.sharedCopy() : null,
+                                                 ifile.sharedCopy(),
                                                  dfile.sharedCopy(),
                                                  indexSummary,
                                                  newBloomFilter,

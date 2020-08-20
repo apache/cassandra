@@ -133,10 +133,8 @@ public class MockSchema
                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
                                                  .get(MetadataType.STATS);
         SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
-                                                          fileHandle.sharedCopy(), fileHandle.sharedCopy(),
-                                                          indexSummary.sharedCopy(),
-                                                          new AlwaysPresentFilter(), 1L, metadata, 
-                                                          SSTableReader.OpenReason.NORMAL, header);
+                                                          fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
+                                                          new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
         reader.first = readerBounds(firstToken);
         reader.last = readerBounds(lastToken);
         if (!keepRef)

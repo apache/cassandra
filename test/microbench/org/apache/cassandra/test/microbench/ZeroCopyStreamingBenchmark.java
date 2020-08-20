@@ -46,7 +46,6 @@ import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.db.streaming.CassandraStreamWriter;
 import org.apache.cassandra.db.streaming.ComponentContext;
-import org.apache.cassandra.db.streaming.ComponentManifest;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -140,7 +139,7 @@ public class ZeroCopyStreamingBenchmark
                                      .withEstimatedKeys(sstable.estimatedKeys())
                                      .withSections(Collections.emptyList())
                                      .withSerializationHeader(sstable.header.toComponent())
-                                     .withComponentManifest(ComponentManifest.create(sstable.descriptor))
+                                     .withComponentManifest(context.manifest())
                                      .isEntireSSTable(true)
                                      .withFirstKey(sstable.first)
                                      .withTableId(sstable.metadata().id)
