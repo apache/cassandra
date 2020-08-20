@@ -683,7 +683,7 @@ public class Message<T>
             // int cast cuts off the high-order half of the timestamp, which we can assume remains
             // the same between now and when the recipient reconstructs it.
             out.writeInt((int) approxTime.translate().toMillisSinceEpoch(header.createdAtNanos));
-            out.writeUnsignedVInt(1 + NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
+            out.writeUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
             out.writeUnsignedVInt(header.verb.id);
             out.writeUnsignedVInt(header.flags);
             serializeParams(header.params, out, version);

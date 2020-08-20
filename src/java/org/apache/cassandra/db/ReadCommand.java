@@ -27,6 +27,7 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -60,6 +61,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
@@ -904,8 +906,21 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    private static class Serializer implements IVersionedSerializer<ReadCommand>
+    public static class Serializer implements IVersionedSerializer<ReadCommand>
     {
+        private final TableMetadataProvider schema;
+
+        public Serializer()
+        {
+            this(Schema.instance);
+        }
+
+        @VisibleForTesting
+        public Serializer(TableMetadataProvider schema)
+        {
+            this.schema = Objects.requireNonNull(schema, "schema");
+        }
+
         private static int digestFlag(boolean isDigest)
         {
             return isDigest ? 0x01 : 0;
@@ -983,7 +998,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
             boolean hasIndex = hasIndex(flags);
             int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
-            TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
+            TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
