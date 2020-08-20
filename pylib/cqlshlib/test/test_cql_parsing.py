@@ -762,6 +762,19 @@ class TestCqlParsing(TestCase):
                                   ('"MyTable"', 'quotedName'),
                                   (';', 'endtoken')])
 
+        parsed = parse_cqlsh_statements('''
+                                        SELECT FROM "/*MyTable*/";
+                                        ''')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                 [('SELECT', 'reserved_identifier'),
+                                  ('FROM', 'reserved_identifier'),
+                                  ('"/*MyTable*/"', 'quotedName'),
+                                  (';', 'endtoken')])
+
+        parse_cqlsh_statements('''
+                               */ SELECT FROM "MyTable";
+                               ''')
+        self.assertRaises(SyntaxError)
 
 
 def parse_cqlsh_statements(text):
