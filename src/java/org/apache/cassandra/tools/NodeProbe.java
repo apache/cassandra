@@ -1634,26 +1634,26 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
+    public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
     {
-        return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+        return new Double[]{ metric.get50thPercentile(),
+                Double.valueOf(metric.get75thPercentile()),
+                Double.valueOf(metric.get95thPercentile()),
+                Double.valueOf(metric.get98thPercentile()),
+                Double.valueOf(metric.get99thPercentile()),
+                Double.valueOf(metric.getMin()),
+                Double.valueOf(metric.getMax())};
     }
 
-    public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxTimerMBean metric)
+    public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxTimerMBean metric)
     {
-        return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+        return new Double[]{ Double.valueOf(metric.get50thPercentile()),
+                             Double.valueOf(metric.get75thPercentile()),
+                             Double.valueOf(metric.get95thPercentile()),
+                             Double.valueOf(metric.get98thPercentile()),
+                             Double.valueOf(metric.get99thPercentile()),
+                             Double.valueOf(metric.getMin()),
+                             Double.valueOf(metric.getMax())};
     }
 
     public TabularData getCompactionHistory()

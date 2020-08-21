@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 
 public class TpStatsHolder implements StatsHolder
 {
@@ -39,7 +38,7 @@ public class TpStatsHolder implements StatsHolder
         HashMap<String, Object> result = new HashMap<>();
         HashMap<String, Map<String, Object>> threadPools = new HashMap<>();
         HashMap<String, Object> droppedMessage = new HashMap<>();
-        HashMap<String, double[]> waitLatencies = new HashMap<>();
+        HashMap<String, Double[]> waitLatencies = new HashMap<>();
 
         for (Map.Entry<String, String> tp : probe.getThreadPools().entries())
         {
