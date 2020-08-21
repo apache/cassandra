@@ -30,12 +30,12 @@ public class ProxyHistograms extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         String[] percentiles = {"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
-        double[] readLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Read"));
-        double[] writeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Write"));
-        double[] rangeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("RangeSlice"));
-        double[] casReadLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("CASRead"));
-        double[] casWriteLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("CASWrite"));
-        double[] viewWriteLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("ViewWrite"));
+        Double[] readLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Read"));
+        Double[] writeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Write"));
+        Double[] rangeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("RangeSlice"));
+        Double[] casReadLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("CASRead"));
+        Double[] casWriteLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("CASWrite"));
+        Double[] viewWriteLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("ViewWrite"));
 
         System.out.println("proxy histograms");
         System.out.println(format("%-10s%19s%19s%19s%19s%19s%19s",
