@@ -360,7 +360,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     protected long maxMemorySize(ColumnIndex columnIndex)
     {
         // 1G for memtable and configuration for compaction
-        return source == OperationType.FLUSH ? 1073741824L : columnIndex.getMode().maxCompactionFlushMemoryInMb;
+        return source == OperationType.FLUSH ? 1073741824L : columnIndex.getMode().maxCompactionFlushMemoryInBytes;
     }
 
     public int hashCode()

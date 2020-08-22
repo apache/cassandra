@@ -60,15 +60,15 @@ public class IndexMode
     public final Mode mode;
     public final boolean isAnalyzed, isLiteral;
     public final Class analyzerClass;
-    public final long maxCompactionFlushMemoryInMb;
+    public final long maxCompactionFlushMemoryInBytes;
 
-    private IndexMode(Mode mode, boolean isLiteral, boolean isAnalyzed, Class analyzerClass, long maxFlushMemMb)
+    private IndexMode(Mode mode, boolean isLiteral, boolean isAnalyzed, Class analyzerClass, long maxMemBytes)
     {
         this.mode = mode;
         this.isLiteral = isLiteral;
         this.isAnalyzed = isAnalyzed;
         this.analyzerClass = analyzerClass;
-        this.maxCompactionFlushMemoryInMb = maxFlushMemMb;
+        this.maxCompactionFlushMemoryInBytes = maxMemBytes;
     }
 
     public AbstractAnalyzer getAnalyzer(AbstractType<?> validator)
@@ -186,11 +186,11 @@ public class IndexMode
             logger.error("failed to parse {} option, defaulting to 'false'.", INDEX_IS_LITERAL_OPTION);
         }
 
-        Long maxMemMb = indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION) == null
+        long maxMemBytes = indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION) == null
                 ? (long) (1073741824 * INDEX_MAX_FLUSH_DEFAULT_MULTIPLIER) // 1G default for memtable
-                : Long.parseLong(indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION));
+                : 1048576L * Long.parseLong(indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION));
 
-        return new IndexMode(mode, isLiteral, isAnalyzed, analyzerClass, maxMemMb);
+        return new IndexMode(mode, isLiteral, isAnalyzed, analyzerClass, maxMemBytes);
     }
 
     public boolean supports(Op operator)

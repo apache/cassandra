@@ -1,4 +1,5 @@
 3.11.8
+ * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)
  * Fix short read protection for GROUP BY queries (CASSANDRA-15459)
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
 Merged from 3.0:
