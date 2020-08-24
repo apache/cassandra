@@ -321,6 +321,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (gossipActive)
         {
             logger.warn("Stopping gossip by operator request");
+
+            if (isNativeTransportRunning())
+            {
+                logger.warn("Disabling gossip while native transport is still active is unsafe");
+            }
+
             Gossiper.instance.stop();
             gossipActive = false;
         }
@@ -461,11 +467,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void stopTransports()
     {
-        if (isGossipActive())
-        {
-            logger.error("Stopping gossiper");
-            stopGossiping();
-        }
         if (isRPCServerRunning())
         {
             logger.error("Stopping RPC server");
@@ -475,6 +476,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.error("Stopping native transport");
             stopNativeTransport();
+        }
+        if (isGossipActive())
+        {
+            logger.error("Stopping gossiper");
+            stopGossiping();
         }
     }
 

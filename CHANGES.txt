@@ -2,6 +2,7 @@
  * Fix short read protection for GROUP BY queries (CASSANDRA-15459)
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
 Merged from 3.0:
+ * Fix gossip shutdown order (CASSANDRA-15816)
  * Remove broken 'defrag-on-read' optimization (CASSANDRA-15432)
  * Check for endpoint collision with hibernating nodes (CASSANDRA-14599)
  * Operational improvements and hardening for replica filtering protection (CASSANDRA-15907)
