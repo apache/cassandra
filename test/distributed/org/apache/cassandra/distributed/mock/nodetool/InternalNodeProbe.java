@@ -28,12 +28,12 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
@@ -92,7 +92,8 @@ public class InternalNodeProbe extends NodeProbe
         fdProxy = (FailureDetectorMBean) FailureDetector.instance;
         cacheService = CacheService.instance;
         spProxy = StorageProxy.instance;
-        hhProxy = HintedHandOffManager.instance;
+        hsProxy = HintsService.instance;
+
         gcProxy = new GCInspector();
         gossProxy = Gossiper.instance;
         bmProxy = BatchlogManager.instance;

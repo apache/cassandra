@@ -66,7 +66,7 @@ public final class HintsService implements HintsServiceMBean
 
     public static HintsService instance = new HintsService();
 
-    private static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
+    public static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
 
     private static final int MIN_BUFFER_SIZE = 32 << 20;
     static final ImmutableMap<String, Object> EMPTY_PARAMS = ImmutableMap.of();
