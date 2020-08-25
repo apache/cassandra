@@ -17,6 +17,7 @@
  * Optimize NoSpamLogger use in hot paths (CASSANDRA-15766)
  * Verify sstable components on startup (CASSANDRA-15945)
 Merged from 3.11:
+ * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)
  * Fix short read protection for GROUP BY queries (CASSANDRA-15459)
  * stop_paranoid disk failure policy is ignored on CorruptSSTableException after node is up (CASSANDRA-15191)
  * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
