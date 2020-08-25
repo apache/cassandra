@@ -7,7 +7,7 @@
 .. with the License.  You may obtain a copy of the License at
 ..
 ..     http://www.apache.org/licenses/LICENSE-2.0
-..
+.................................................
 .. Unless required by applicable law or agreed to in writing, software
 .. distributed under the License is distributed on an "AS IS" BASIS,
 .. WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -538,34 +538,10 @@ TotalHints                 Counter        Number of hint messages written to thi
 TotalHintsInProgress       Counter        Number of hints attemping to be sent currently.
 ========================== ============== ===========
 
-.. _handoff-metrics:
-
-HintedHandoff Metrics
-^^^^^^^^^^^^^^^^^^^^^
-
-Metrics specific to Hinted Handoff.  There are also some metrics related to hints tracked in ``Storage Metrics``
-
-These metrics include the peer endpoint **in the metric name**
-
-Reported name format:
-
-**Metric Name**
-    ``org.apache.cassandra.metrics.HintedHandOffManager.<MetricName>``
-
-**JMX MBean**
-    ``org.apache.cassandra.metrics:type=HintedHandOffManager name=<MetricName>``
-
-=========================== ============== ===========
-Name                        Type           Description
-=========================== ============== ===========
-Hints_created-<PeerIP>       Counter        Number of hints on disk for this peer.
-Hints_not_stored-<PeerIP>    Counter        Number of hints not stored for this peer, due to being down past the configured hint window.
-=========================== ============== ===========
-
 .. _hintsservice-metrics:
 
 HintsService Metrics
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 Metrics specific to the Hints delivery service.  There are also some metrics related to hints tracked in ``Storage Metrics``
 
