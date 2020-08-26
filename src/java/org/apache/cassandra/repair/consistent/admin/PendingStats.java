@@ -45,6 +45,7 @@ public class PendingStats
                                                SimpleType.STRING,
                                                PendingStat.COMPOSITE_TYPE,
                                                PendingStat.COMPOSITE_TYPE,
+                                               PendingStat.COMPOSITE_TYPE,
                                                PendingStat.COMPOSITE_TYPE};
             COMPOSITE_TYPE = new CompositeType(RepairStats.Section.class.getName(), "PendingStats", COMPOSITE_NAMES, COMPOSITE_NAMES, COMPOSITE_TYPES);
         }
