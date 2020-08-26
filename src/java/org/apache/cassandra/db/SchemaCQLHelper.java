@@ -19,10 +19,13 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.*;
@@ -32,6 +35,9 @@ import org.apache.cassandra.schema.*;
  */
 public class SchemaCQLHelper
 {
+    private static final Pattern EMPTY_TYPE_REGEX = Pattern.compile("empty", Pattern.LITERAL);
+    private static final String EMPTY_TYPE_QUOTED = Matcher.quoteReplacement("'org.apache.cassandra.db.marshal.EmptyType'");
+
     /**
      * Generates the DDL statement for a {@code schema.cql} snapshot file.
      */
@@ -154,5 +160,21 @@ public class SchemaCQLHelper
                     .orElseThrow(() -> new IllegalStateException(String.format("user type %s is part of table %s definition but its definition was missing", 
                                                                               UTF8Type.instance.getString(name),
                                                                               metadata)));
+    }
+
+    /**
+     * Converts the type to a CQL type.  This method special cases empty and UDTs so the string can be used in a create
+     * statement.
+     *
+     * Special cases
+     * <ul>
+     *     <li>empty - replaces with 'org.apache.cassandra.db.marshal.EmptyType'.  empty is the tostring of the type in
+     *     CQL but not allowed to create as empty, but fully qualified name is allowed</li>
+     *     <li>UserType - replaces with TupleType</li>
+     * </ul>
+     */
+    public static String toCqlType(AbstractType<?> type)
+    {
+        return EMPTY_TYPE_REGEX.matcher(type.expandUserTypes().asCQL3Type().toString()).replaceAll(EMPTY_TYPE_QUOTED);
     }
 }

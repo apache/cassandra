@@ -36,9 +36,10 @@ public class UserTypeSerializer extends BytesSerializer
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         ByteBuffer input = bytes.duplicate();
-        int i = 0;
+        int i = -1; // first thing in the loop is to increment, so when starting this will get set to 0 and match the fields
         for (Entry<String, TypeSerializer<?>> entry : fields.entrySet())
         {
+            i++;
             // we allow the input to have less fields than declared so as to support field addition.
             if (!input.hasRemaining())
                 return;
@@ -56,8 +57,14 @@ public class UserTypeSerializer extends BytesSerializer
                 throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, entry.getKey()));
 
             ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            entry.getValue().validate(field);
-            i++;
+            try
+            {
+                entry.getValue().validate(field);
+            }
+            catch (MarshalException e)
+            {
+                throw new MarshalException(String.format("Failure validating the %dth field %s; %s", i, entry.getKey(), e.getMessage()), e);
+            }
         }
 
         // We're allowed to get less fields than declared, but not more

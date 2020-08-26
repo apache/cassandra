@@ -19,9 +19,7 @@ package org.apache.cassandra.net;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -45,7 +43,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -209,6 +206,20 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
+
+    public enum Version
+    {
+        VERSION_30(10),
+        VERSION_3014(11),
+        VERSION_40(12);
+
+        public final int value;
+
+        Version(int value)
+        {
+            this.value = value;
+        }
+    }
 
     private static class MSHandle
     {

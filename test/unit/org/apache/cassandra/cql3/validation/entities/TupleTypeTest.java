@@ -17,13 +17,35 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.SchemaCQLHelper;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
+
+import static org.apache.cassandra.db.SchemaCQLHelper.toCqlType;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypeGen;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.tupleTypeGen;
+import static org.apache.cassandra.utils.FailingConsumer.orFail;
+import static org.apache.cassandra.utils.Generators.filter;
+import static org.quicktheories.QuickTheory.qt;
 
 public class TupleTypeTest extends CQLTester
 {
@@ -232,6 +254,141 @@ public class TupleTypeTest extends CQLTester
         execute("INSERT INTO %s (id, tdemo) VALUES (1, ('2017-02-03 03:05+0000','Europe'))");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mmX", Locale.ENGLISH);
         assertRows(execute("SELECT tdemo FROM %s"), row(tuple( df.parse("2017-02-03 03:05+0000"), "Europe")));
+    }
+
+    @Test
+    public void tuplePartitionReadWrite()
+    {
+        qt().withExamples(100).withShrinkCycles(0).forAll(typesAndRowsGen()).checkAssert(orFail(testcase -> {
+            TupleType tupleType = testcase.type;
+            createTable("CREATE TABLE %s (id " + toCqlType(tupleType) + ", value int, PRIMARY KEY(id))");
+            SortedMap<ByteBuffer, Integer> map = new TreeMap<>(Comparator.comparing(currentTableMetadata().partitioner::decorateKey));
+            int count = 0;
+            for (ByteBuffer value : testcase.uniqueRows)
+            {
+                map.put(value, count);
+                ByteBuffer[] tupleBuffers = tupleType.split(value);
+
+                // use cast to avoid warning
+                execute("INSERT INTO %s (id, value) VALUES (?, ?)", tuple((Object[]) tupleBuffers), count);
+
+                assertRows(execute("SELECT * FROM %s WHERE id = ?", tuple((Object[]) tupleBuffers)),
+                           row(tuple((Object[]) tupleBuffers), count));
+                count++;
+            }
+            assertRows(execute("SELECT * FROM %s LIMIT 100"),
+                       map.entrySet().stream().map(e -> row(e.getKey(), e.getValue())).toArray(Object[][]::new));
+        }));
+    }
+
+    @Test
+    public void tupleCkReadWriteAsc()
+    {
+        tupleCkReadWrite(Order.ASC);
+    }
+
+    @Test
+    public void tupleCkReadWriteDesc()
+    {
+        tupleCkReadWrite(Order.DESC);
+    }
+
+    private void tupleCkReadWrite(Order order)
+    {
+        // for some reason this test is much slower than the partition key test: with 100 examples partition key is 6s and these tests were 20-30s
+        qt().withExamples(50).withShrinkCycles(0).forAll(typesAndRowsGen()).checkAssert(orFail(testcase -> {
+            TupleType tupleType = testcase.type;
+            createTable("CREATE TABLE %s (pk int, ck " + toCqlType(tupleType) + ", value int, PRIMARY KEY(pk, ck))" +
+                        " WITH CLUSTERING ORDER BY (ck "+order.name()+")");
+            String cql = SchemaCQLHelper.getTableMetadataAsCQL(currentTableMetadata(), false, false, false);
+            SortedMap<ByteBuffer, Integer> map = new TreeMap<>(order.apply(tupleType));
+            int count = 0;
+            for (ByteBuffer value : testcase.uniqueRows)
+            {
+                map.put(value, count);
+                ByteBuffer[] tupleBuffers = tupleType.split(value);
+
+                // use cast to avoid warning
+                execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, tuple((Object[]) tupleBuffers), count);
+
+                assertRows(execute("SELECT * FROM %s WHERE pk = ? AND ck = ?", 1, tuple((Object[]) tupleBuffers)),
+                           row(1, tuple((Object[]) tupleBuffers), count));
+                count++;
+            }
+            UntypedResultSet results = execute("SELECT * FROM %s LIMIT 100");
+            assertRows(results,
+                       map.entrySet().stream().map(e -> row(1, e.getKey(), e.getValue())).toArray(Object[][]::new));
+        }));
+    }
+
+    private static final class TypeAndRows
+    {
+        TupleType type;
+        List<ByteBuffer> uniqueRows;
+    }
+
+    private static Gen<TypeAndRows> typesAndRowsGen()
+    {
+        return typesAndRowsGen(10);
+    }
+
+    private static Gen<TypeAndRows> typesAndRowsGen(int numRows)
+    {
+        Gen<TupleType> typeGen = tupleTypeGen(primitiveTypeGen(), SourceDSL.integers().between(1, 10));
+        Set<ByteBuffer> distinctRows = new HashSet<>(numRows); // reuse the memory
+        Gen<TypeAndRows> gen = rnd -> {
+            TypeAndRows c = new TypeAndRows();
+            c.type = typeGen.generate(rnd);
+            TypeSupport<ByteBuffer> support = getTypeSupport(c.type);
+            Gen<ByteBuffer> valueGen = filter(support.valueGen, b -> b.remaining() <= Short.MAX_VALUE);
+            valueGen = filter(valueGen, 20, v -> !distinctRows.contains(v));
+
+            distinctRows.clear();
+            for (int i = 0; i < numRows; i++)
+            {
+                try
+                {
+                    assert distinctRows.add(valueGen.generate(rnd)) : "unable to add distinct row";
+                }
+                catch (IllegalStateException e)
+                {
+                    // gave up trying to find values... so just try with how ever many rows we could
+                    logger.warn("Unable to generate enough distinct rows; using {} rows", distinctRows.size());
+                    break;
+                }
+            }
+            c.uniqueRows = new ArrayList<>(distinctRows);
+            return c;
+        };
+        gen = gen.describedAs(c -> c.type.asCQL3Type().toString());
+        return gen;
+    }
+
+    private enum Order {
+        ASC
+        {
+            <T> Comparator<T> apply(Comparator<T> c)
+            {
+                return c;
+            }
+        },
+        DESC
+        {
+            <T> Comparator<T> apply(Comparator<T> c)
+            {
+                return c.reversed();
+            }
+        };
+
+        abstract <T> Comparator<T> apply(Comparator<T> c);
+    }
+
+    private static List<Object[]> toObjects(UntypedResultSet results)
+    {
+        List<Object[]> rows = new ArrayList<>(results.size());
+        for (UntypedResultSet.Row row : results)
+            rows.add(results.metadata().stream().map(c -> c.type.compose(row.getBlob(c.name.toString()))).toArray());
+        return rows;
     }
 }
 

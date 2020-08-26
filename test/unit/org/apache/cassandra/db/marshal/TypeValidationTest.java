@@ -1,15 +1,3 @@
-package org.apache.cassandra.db.marshal;
-
-import org.apache.cassandra.Util;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.UUIDGen;
-import org.junit.Test;
-
-import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.util.UUID;
-
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -28,6 +16,28 @@ import java.util.UUID;
  * limitations under the License.
  */
 
+package org.apache.cassandra.db.marshal;
+
+import org.apache.cassandra.Util;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.AbstractTypeGenerators;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
+import org.assertj.core.api.Assertions;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
+
+import org.junit.Test;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.util.UUID;
+
+import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypeGen;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.userTypeGen;
+import static org.quicktheories.QuickTheory.qt;
 
 public class TypeValidationTest
 {
@@ -123,6 +133,104 @@ public class TypeValidationTest
     public void testInvalid4th()
     {
         UTF8Type.instance.validate(ByteBuffer.wrap(new byte[] {(byte)0xf0, (byte)0x90, (byte)0x81, (byte)0xff}));
+    }
+
+    private static Gen<? extends TupleType> flatTupleGen()
+    {
+        return AbstractTypeGenerators.tupleTypeGen(primitiveTypeGen(), SourceDSL.integers().between(0, 20));
+    }
+
+    private static Gen<? extends TupleType> nestedTupleGen()
+    {
+        return AbstractTypeGenerators.tupleTypeGen();
+    }
+
+    private static Gen<? extends TupleType> flatUDTGen()
+    {
+        return userTypeGen(primitiveTypeGen(), SourceDSL.integers().between(0, 20));
+    }
+
+    private static  Gen<? extends TupleType> nestedUDTGen()
+    {
+        return AbstractTypeGenerators.userTypeGen();
+    }
+
+    @Test
+    public void buildAndSplitTupleFlat()
+    {
+        buildAndSplit(flatTupleGen());
+    }
+
+    @Test
+    public void buildAndSplitTupleNested()
+    {
+        buildAndSplit(nestedTupleGen());
+    }
+
+    @Test
+    public void buildAndSplitUDTFlat()
+    {
+        buildAndSplit(flatUDTGen());
+    }
+
+    @Test
+    public void buildAndSplitUDTNested()
+    {
+        buildAndSplit(nestedUDTGen());
+    }
+
+    private static void buildAndSplit(Gen<? extends TupleType> baseGen)
+    {
+        qt().forAll(tupleWithValueGen(baseGen)).checkAssert(pair -> {
+            TupleType tuple = pair.left;
+            ByteBuffer value = pair.right;
+            Assertions.assertThat(TupleType.buildValue(tuple.split(value)))
+                      .as("TupleType.buildValue(split(value)) == value")
+                      .isEqualTo(value);
+        });
+    }
+
+    @Test
+    public void validateTupleFlat()
+    {
+        validate(flatTupleGen());
+    }
+
+    @Test
+    public void validateTupleNested()
+    {
+        validate(nestedTupleGen());
+    }
+
+    private static void validate(Gen<? extends TupleType> baseGen)
+    {
+        qt().forAll(tupleWithValueGen(baseGen)).checkAssert(pair -> {
+            TupleType tuple = pair.left;
+            ByteBuffer value = pair.right;
+            tuple.validate(value);
+        });
+    }
+
+    private static Gen<Pair<TupleType, ByteBuffer>> tupleWithValueGen(Gen<? extends TupleType> baseGen)
+    {
+        Gen<Pair<TupleType, ByteBuffer>> gen = rnd -> {
+            TupleType type = baseGen.generate(rnd);
+            return Pair.create(type, getTypeSupport(type).valueGen.generate(rnd));
+        };
+        gen = gen.describedAs(pair -> pair.left.asCQL3Type().toString());
+        return gen;
+    }
+
+    @Test
+    public void validateUDTFlat()
+    {
+        validate(flatUDTGen());
+    }
+
+    @Test
+    public void validateUDTNested()
+    {
+        validate(nestedUDTGen());
     }
 
     // todo: for completeness, should test invalid two byte pairs.

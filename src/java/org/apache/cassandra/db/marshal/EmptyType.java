@@ -121,6 +121,14 @@ public class EmptyType extends AbstractType<Void>
     }
 
     @Override
+    public long writtenLength(ByteBuffer value)
+    {
+        // default implemenation requires non-empty bytes but this always requires empty bytes, so special case
+        validate(value);
+        return 0;
+    }
+
+    @Override
     public ByteBuffer readValue(DataInputPlus in)
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;
