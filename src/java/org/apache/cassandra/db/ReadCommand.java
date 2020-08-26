@@ -906,6 +906,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
+    @VisibleForTesting
     public static class Serializer implements IVersionedSerializer<ReadCommand>
     {
         private final TableMetadataProvider schema;
