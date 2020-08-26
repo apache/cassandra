@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,19 +64,19 @@ public class TopologyChangeTest extends TestBaseImpl
 
         static class Event
         {
-            String host;
+            InetSocketAddress host;
             EventType type;
 
             Event(EventType type, Host host)
             {
                 this.type = type;
-                this.host = host.getBroadcastSocketAddress().toString();
+                this.host = host.getBroadcastSocketAddress();
             }
 
             public Event(EventType type, IInvokableInstance iInvokableInstance)
             {
                 this.type = type;
-                this.host = iInvokableInstance.broadcastAddress().toString();
+                this.host = iInvokableInstance.broadcastAddress();
             }
 
 

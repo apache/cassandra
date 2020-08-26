@@ -1754,7 +1754,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public String getNativeaddress(InetAddressAndPort endpoint, boolean withPort)
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return FBUtilities.getBroadcastNativeAddressAndPort().toString(withPort);
+            return FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(withPort);
         else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null)
         {
             try
@@ -3127,7 +3127,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             map.put(entry.getKey().getHostAddress(withPort), FileUtils.stringifyFileSize(entry.getValue()));
         }
         // gossiper doesn't see its own updates, so we need to special-case the local node
-        map.put(withPort ? FBUtilities.getJustBroadcastAddress().getHostAddress() : FBUtilities.getBroadcastAddressAndPort().toString(), getLoadString());
+        map.put(FBUtilities.getBroadcastAddressAndPort().getHostAddress(withPort), getLoadString());
         return map;
     }
 
@@ -3226,7 +3226,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Pair<Token, InetAddressAndPort> node : tokenMetadata.getMovingEndpoints())
         {
-            endpoints.add(node.right.toString());
+            endpoints.add(node.right.getHostAddressAndPort());
         }
 
         return endpoints;
