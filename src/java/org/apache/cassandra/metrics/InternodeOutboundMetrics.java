@@ -117,7 +117,7 @@ public class InternodeOutboundMetrics
     public InternodeOutboundMetrics(InetAddressAndPort ip, final OutboundConnections messagingPool)
     {
         // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
-        address = ip.toString().replace(':', '_');
+        address = ip.getHostAddressAndPortForJMX();
 
         factory = new DefaultNameFactory("Connection", address);
 

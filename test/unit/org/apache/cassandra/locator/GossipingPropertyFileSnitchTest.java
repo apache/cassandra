@@ -61,6 +61,6 @@ public class GossipingPropertyFileSnitchTest
     public void testLoadConfig() throws Exception
     {
         final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch();
-        checkEndpoint(snitch, FBUtilities.getBroadcastAddressAndPort().toString(), "DC1", "RAC1");
+        checkEndpoint(snitch, FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), "DC1", "RAC1");
     }
 }

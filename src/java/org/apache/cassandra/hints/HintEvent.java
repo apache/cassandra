@@ -89,7 +89,7 @@ final class HintEvent extends DiagnosticEvent
         // be extra defensive against nulls and bugs
         HashMap<String, Serializable> ret = new HashMap<>();
         ret.put("targetHostId", targetHostId);
-        ret.put("targetAddress", targetAddress.getHostAddress(true));
+        ret.put("targetAddress", targetAddress.getHostAddressAndPort());
         if (dispatchResult != null) ret.put("dispatchResult", dispatchResult.name());
         if (pageHintsSuccessful != null || pageHintsFailed != null || pageHintsTimeout != null)
         {

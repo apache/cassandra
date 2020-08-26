@@ -123,6 +123,6 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT,
                                                    StorageService.instance.valueFactory.internalAddressAndPort(FBUtilities.getLocalAddressAndPort()));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,
-                                                   StorageService.instance.valueFactory.internalIP(FBUtilities.getJustLocalAddress().getHostAddress()));
+                                                   StorageService.instance.valueFactory.internalIP(FBUtilities.getJustLocalAddress()));
     }
 }

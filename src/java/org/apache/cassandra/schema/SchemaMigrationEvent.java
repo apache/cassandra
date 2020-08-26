@@ -100,7 +100,7 @@ final class SchemaMigrationEvent extends DiagnosticEvent
     public Map<String, Serializable> toMap()
     {
         HashMap<String, Serializable> ret = new HashMap<>();
-        if (endpoint != null) ret.put("endpoint", endpoint.getHostAddress(true));
+        if (endpoint != null) ret.put("endpoint", endpoint.getHostAddressAndPort());
         ret.put("endpointSchemaVersion", Schema.schemaVersionToString(endpointSchemaVersion));
         ret.put("localSchemaVersion", Schema.schemaVersionToString(localSchemaVersion));
         if (endpointMessagingVersion != null) ret.put("endpointMessagingVersion", endpointMessagingVersion);

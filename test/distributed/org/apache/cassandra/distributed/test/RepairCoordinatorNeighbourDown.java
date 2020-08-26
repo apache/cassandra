@@ -74,7 +74,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
         String table = tableName("neighbourdown");
         assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-            String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().toString());
+            String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort());
             Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
             try
             {
@@ -170,8 +170,8 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             if (withNotifications)
             {
                 result.asserts()
-                      .errorContains("Endpoint 127.0.0.2:7012 died")
-                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Endpoint 127.0.0.2:7012 died")
+                      .errorContains("/127.0.0.2:7012 died")
+                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "/127.0.0.2:7012 died")
                       .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
             }
             else
@@ -188,7 +188,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
             if (repairType != RepairType.PREVIEW)
             {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Endpoint 127.0.0.2:7012 died");
+                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "/127.0.0.2:7012 died");
             }
             else
             {

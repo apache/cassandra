@@ -223,7 +223,7 @@ public final class SystemDistributedKeyspace
         for (InetAddressAndPort endpoint : commonRange.endpoints)
         {
             participants.add(endpoint.getHostAddress(false));
-            participants_v2.add(endpoint.toString());
+            participants_v2.add(endpoint.getHostAddressAndPort());
         }
 
         String query =
