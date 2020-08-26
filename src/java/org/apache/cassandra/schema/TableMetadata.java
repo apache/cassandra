@@ -911,7 +911,7 @@ public final class TableMetadata implements SchemaElement
             return this;
         }
 
-        Builder addColumns(Iterable<ColumnMetadata> columns)
+        public Builder addColumns(Iterable<ColumnMetadata> columns)
         {
             columns.forEach(this::addColumn);
             return this;

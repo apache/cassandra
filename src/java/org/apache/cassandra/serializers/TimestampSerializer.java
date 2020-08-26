@@ -101,14 +101,6 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
 
-    private static final FastThreadLocal<SimpleDateFormat> FORMATTER = new FastThreadLocal<SimpleDateFormat>()
-    {
-        protected SimpleDateFormat initialValue()
-        {
-            return new SimpleDateFormat("yyyy-MM-dd HH:mmXX");
-        }
-    };
-
     private static final FastThreadLocal<SimpleDateFormat> FORMATTER_UTC = new FastThreadLocal<SimpleDateFormat>()
     {
         protected SimpleDateFormat initialValue()
@@ -188,7 +180,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public String toString(Date value)
     {
-        return value == null ? "" : FORMATTER.get().format(value);
+        return toStringUTC(value);
     }
 
     public String toStringUTC(Date value)
