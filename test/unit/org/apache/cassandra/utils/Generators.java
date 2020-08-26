@@ -185,7 +185,6 @@ public final class Generators
         ZonedDateTime startOfTime = now.minusYears(50);
         ZonedDateTime endOfDays = now.plusYears(50);
         Constraint millisConstraint = Constraint.between(startOfTime.toInstant().toEpochMilli(), endOfDays.toInstant().toEpochMilli());
-        Constraint nanosConstraint = Constraint.between(startOfTime.toInstant().toEpochMilli(), endOfDays.toInstant().toEpochMilli());
         Constraint nanosInSecondConstraint = Constraint.between(0, 999999999);
         TIMESTAMP_GEN = rnd -> {
             Timestamp ts = new Timestamp(rnd.next(millisConstraint));
