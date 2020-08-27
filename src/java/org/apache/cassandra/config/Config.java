@@ -217,6 +217,7 @@ public class Config
     public int min_free_space_per_drive_in_mb = 50;
 
     public volatile int concurrent_materialized_view_builders = 1;
+    public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
@@ -329,6 +330,8 @@ public class Config
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
+
+    public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     public volatile Long index_summary_capacity_in_mb;
     public volatile int index_summary_resize_interval_in_minutes = 60;

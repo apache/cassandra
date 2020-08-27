@@ -42,16 +42,25 @@ import org.apache.cassandra.locator.Replica;
 public class ShortReadProtection
 {
     @SuppressWarnings("resource")
-    public static UnfilteredPartitionIterator extend(Replica source, UnfilteredPartitionIterator partitions,
-                                                     ReadCommand command, DataLimits.Counter mergedResultCounter,
-                                                     long queryStartNanoTime, boolean enforceStrictLiveness)
+    public static UnfilteredPartitionIterator extend(Replica source,
+                                                     Runnable preFetchCallback,
+                                                     UnfilteredPartitionIterator partitions,
+                                                     ReadCommand command,
+                                                     DataLimits.Counter mergedResultCounter,
+                                                     long queryStartNanoTime,
+                                                     boolean enforceStrictLiveness)
     {
         DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                              false,
                                                                              command.selectsFullPartition(),
                                                                              enforceStrictLiveness).onlyCount();
 
-        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command, source, singleResultCounter, mergedResultCounter, queryStartNanoTime);
+        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command,
+                                                                                     source,
+                                                                                     preFetchCallback,
+                                                                                     singleResultCounter,
+                                                                                     mergedResultCounter,
+                                                                                     queryStartNanoTime);
 
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen

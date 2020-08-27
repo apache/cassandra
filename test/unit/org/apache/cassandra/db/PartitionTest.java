@@ -53,7 +53,6 @@ public class PartitionTest
     private static final String KEYSPACE1 = "Keyspace1";
     private static final String CF_STANDARD1 = "Standard1";
     private static final String CF_TENCOL = "TenColumns";
-    private static final String CF_COUNTER1 = "Counter1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -62,8 +61,7 @@ public class PartitionTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_TENCOL, 10, AsciiType.instance),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_COUNTER1, BytesType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_TENCOL, 10, AsciiType.instance));
     }
 
     @Test

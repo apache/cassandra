@@ -204,6 +204,31 @@
         </not>
     </condition>
 
+    <!--
+      JVM arguments for tests.
+
+      There is a race condition bug in java 11 (see CASSANDRA-15981) which causes a crash of the 
+      JVM; this race is between CMS and class unloading.  In java 8 we can cap the metaspace to 
+      make tests stable on low resource environments, but in java 11 we need to make it unlimited 
+      (don't define MaxMetaspaceSize) and disable class unloading in CMS outside of a 
+      stop-the-world pause.
+    -->
+    <resources id="_jvm8_test_arg_items">
+        <string>-XX:MaxMetaspaceExpansion=64M</string>
+        <string>-XX:MaxMetaspaceSize=512M</string>
+        <string>-XX:MetaspaceSize=128M</string>
+    </resources>
+    <pathconvert property="_jvm8_test_arg_items_concat" refid="_jvm8_test_arg_items" pathsep=" "/>
+    <resources id="_jvm11_test_arg_items">
+        <string>-XX:-CMSClassUnloadingEnabled</string>
+    </resources>
+    <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
+    <condition property="test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
+    </condition>
+
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <condition property="jdk11-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" else="">
         <not>
@@ -538,7 +563,7 @@
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
-          <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.1"/>
+          <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
           <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2">
             <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
@@ -563,8 +588,7 @@
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.3" />
-
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.4" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
@@ -1419,9 +1443,6 @@
              algorithm to limit the metaspace size and clean up SoftReferences
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
-        <jvmarg value="-XX:MaxMetaspaceSize=384M" />
-        <jvmarg value="-XX:MetaspaceSize=128M" />
-        <jvmarg value="-XX:MaxMetaspaceExpansion=64M" />
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
@@ -1431,10 +1452,11 @@
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
-          <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+        <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg line="${java11-jvmargs}"/>
-	<!-- disable shrinks in quicktheories CASSANDRA-15554 -->
+        <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
+        <jvmarg line="${test-jvmargs}" />
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
         <!--
@@ -2077,7 +2099,6 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
-      <jvmarg value="-XX:MaxMetaspaceSize=512M"/>
     </testmacro>
   </target>
 

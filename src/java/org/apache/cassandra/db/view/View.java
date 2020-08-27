@@ -26,6 +26,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.selection.RawSelector;
+import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -188,7 +189,7 @@ public class View
                          .columns()
                          .stream()
                          .map(c -> c.name.toString())
-                         .map(ColumnMetadata.Raw::forQuoted)
+                         .map(Selectable.RawIdentifier::forQuoted)
                          .map(c -> new RawSelector(c, null))
                          .collect(Collectors.toList());
     }

@@ -51,7 +51,7 @@ import static java.lang.String.format;
 
 import static com.google.common.collect.Iterables.size;
 
-public final class Schema
+public final class Schema implements TableMetadataProvider
 {
     public static final Schema instance = new Schema();
 
@@ -417,6 +417,7 @@ public final class Schema
              : ksm.getTableOrViewNullable(table);
     }
 
+    @Override
     @Nullable
     public TableMetadata getTableMetadata(TableId id)
     {
@@ -443,22 +444,6 @@ public final class Schema
     public TableMetadata getTableMetadata(Descriptor descriptor)
     {
         return getTableMetadata(descriptor.ksname, descriptor.cfname);
-    }
-
-    /**
-     * @throws UnknownTableException if the table couldn't be found in the metadata
-     */
-    public TableMetadata getExistingTableMetadata(TableId id) throws UnknownTableException
-    {
-        TableMetadata metadata = getTableMetadata(id);
-        if (metadata != null)
-            return metadata;
-
-        String message =
-            String.format("Couldn't find table with id %s. If a table was just created, this is likely due to the schema"
-                          + "not being fully propagated.  Please wait for schema agreement on table creation.",
-                          id);
-        throw new UnknownTableException(message, id);
     }
 
     /* Function helpers */

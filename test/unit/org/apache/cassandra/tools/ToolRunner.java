@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.io.IOUtils;
 
@@ -49,6 +50,8 @@ import static org.junit.Assert.fail;
 public class ToolRunner implements AutoCloseable
 {
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
+
+    private static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R");
     
     private final List<String> allArgs = new ArrayList<>();
     private Process process;
@@ -330,12 +333,18 @@ public class ToolRunner implements AutoCloseable
     
     public ToolRunner waitAndAssertOnCleanExit()
     {
-        return waitAndAssertOnExitCode().assertEmptyStdErr();
+        return waitAndAssertOnExitCode().assertCleanStdErr();
     }
     
-    public ToolRunner assertEmptyStdErr()
+    /**
+     * Checks if the stdErr is empty after removing any potential JVM env info output and other noise
+     * 
+     * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual stdErr
+     * @return The ToolRunner instance
+     */
+    public ToolRunner assertCleanStdErr()
     {
-        assertTrue(getStderr().isEmpty());
+        assertTrue("Failed because cleaned stdErr wasn't empty: " + getCleanedStderr(), getCleanedStderr().isEmpty());
         return this;
     }
 
@@ -371,6 +380,32 @@ public class ToolRunner implements AutoCloseable
         return errBuffer.toString();
     }
 
+    /**
+     * Checks if the stdErr is empty after removing any potential JVM env info output and other noise
+     * 
+     * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual stdErr
+     * 
+     * @param regExpCleaners List of regExps to remove from stdErr
+     * @return The stdErr with all excludes removed
+     */
+    public String getCleanedStderr(List<String> regExpCleaners)
+    {
+        String sanitizedStderr = getStderr();
+        for (String regExp: regExpCleaners)
+            sanitizedStderr = sanitizedStderr.replaceAll(regExp, "");
+        return sanitizedStderr;
+    }
+
+    /**
+     * Checks if the stdErr is empty after removing any potential JVM env info output. Uses default list of excludes
+     * 
+     * {@link #getCleanedStderr(List)}
+     */
+    public String getCleanedStderr()
+    {
+        return getCleanedStderr(DEFAULT_CLEANERS);
+    }
+
     public void forceKill()
     {
         try
@@ -389,15 +424,15 @@ public class ToolRunner implements AutoCloseable
     {
         forceKill();
     }
-    
-    static class Runners
+
+    public static class Runners
     {
-        protected ToolRunner invokeNodetool(String... args)
+        public ToolRunner invokeNodetool(String... args)
         {
             return invokeNodetool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeNodetool(List<String> args)
+        public ToolRunner invokeNodetool(List<String> args)
         {
             return invokeTool(buildNodetoolArgs(args), true);
         }
@@ -406,28 +441,28 @@ public class ToolRunner implements AutoCloseable
         {
             return CQLTester.buildNodetoolArgs(args);
         }
-        
-        protected ToolRunner invokeClassAsTool(String... args)
+
+        public ToolRunner invokeClassAsTool(String... args)
         {
             return invokeClassAsTool(Arrays.asList(args));
         }
-        
-        protected ToolRunner invokeClassAsTool(List<String> args)
+
+        public ToolRunner invokeClassAsTool(List<String> args)
         {
             return invokeTool(args, false);
         }
 
-        protected ToolRunner invokeTool(String... args)
+        public ToolRunner invokeTool(String... args)
         {
             return invokeTool(Arrays.asList(args));
         }
 
-        protected ToolRunner invokeTool(List<String> args)
+        public ToolRunner invokeTool(List<String> args)
         {
             return invokeTool(args, true);
         }
 
-        protected ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
+        public ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
         {
             ToolRunner runner = new ToolRunner(args, runOutOfProcess);
             runner.start().waitFor();

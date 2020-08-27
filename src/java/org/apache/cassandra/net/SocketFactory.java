@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 
 import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -51,7 +52,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.Errors;
-import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.DefaultEventExecutorChooserFactory;
@@ -235,6 +235,32 @@ public final class SocketFactory
 
         String encryptionType = SSLFactory.openSslIsAvailable() ? "openssl" : "jdk";
         return "enabled (" + encryptionType + ')';
+    }
+
+    static String encryptionLogStatement(Channel channel, EncryptionOptions options)
+    {
+        if (options == null || !options.isEnabled())
+            return "disabled";
+
+        StringBuilder sb = new StringBuilder(64);
+        if (options.optional)
+            sb.append("optional (factory=");
+        else
+            sb.append("enabled (factory=");
+        sb.append(SSLFactory.openSslIsAvailable() ? "openssl" : "jdk");
+
+        final SslHandler sslHandler = channel == null ? null : channel.pipeline().get(SslHandler.class);
+        if (sslHandler != null)
+        {
+            SSLSession session = sslHandler.engine().getSession();
+            sb.append(";protocol=")
+              .append(session.getProtocol())
+              .append(";cipher=")
+              .append(session.getCipherSuite());
+        }
+
+        sb.append(')');
+        return sb.toString();
     }
 
     EventLoopGroup defaultGroup()

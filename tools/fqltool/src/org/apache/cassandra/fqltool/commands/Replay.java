@@ -26,6 +26,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
@@ -33,7 +35,6 @@ import io.airlift.airline.Option;
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ChronicleQueueBuilder;
-
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
@@ -46,6 +47,8 @@ import org.apache.cassandra.utils.MergeIterator;
 @Command(name = "replay", description = "Replay full query logs")
 public class Replay implements Runnable
 {
+    private static final Logger logger = LoggerFactory.getLogger(Replay.class);
+
     @Arguments(usage = "<path1> [<path2>...<pathN>]", description = "Paths containing the full query logs to replay.", required = true)
     private List<String> arguments = new ArrayList<>();
 
@@ -60,6 +63,9 @@ public class Replay implements Runnable
 
     @Option(title = "store_queries", name = {"--store-queries"}, description = "Path to store the queries executed. Stores queries in the same order as the result sets are in the result files. Requires --results")
     private String queryStorePath;
+
+    @Option(title = "replay_ddl_statements", name = { "--replay-ddl-statements" }, description = "If specified, replays DDL statements as well, they are excluded from replaying by default.")
+    private boolean replayDDLStatements;
 
     @Override
     public void run()
@@ -83,7 +89,7 @@ public class Replay implements Runnable
                 System.err.println("You need to state at least one --target host to replay the query against");
                 System.exit(1);
             }
-            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath);
+            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements);
         }
         catch (Exception e)
         {
@@ -91,7 +97,7 @@ public class Replay implements Runnable
         }
     }
 
-    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath)
+    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements)
     {
         int readAhead = 200; // how many fql queries should we read in to memory to be able to sort them?
         List<ChronicleQueue> readQueues = null;
@@ -100,6 +106,16 @@ public class Replay implements Runnable
 
         if (keyspace != null)
             filters.add(fqlQuery -> fqlQuery.keyspace() == null || fqlQuery.keyspace().equals(keyspace));
+
+        if (!replayDDLStatements)
+            filters.add(fqlQuery -> {
+                boolean notDDLStatement = !fqlQuery.isDDLStatement();
+
+                if (!notDDLStatement)
+                    logger.info("Excluding DDL statement from replaying: {}", ((FQLQuery.Single) fqlQuery).query);
+
+                return notDDLStatement;
+            });
 
         try
         {

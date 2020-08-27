@@ -134,15 +134,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
 
-        RegularAndStaticColumns modifiedColumns = updatedColumnsBuilder.build();
-        // Compact tables have not row marker. So if we don't actually update any particular column,
-        // this means that we're only updating the PK, which we allow if only those were declared in
-        // the definition. In that case however, we do went to write the compactValueColumn (since again
-        // we can't use a "row marker") so add it automatically.
-        if (metadata.isCompactTable() && modifiedColumns.isEmpty() && updatesRegularRows())
-            modifiedColumns = metadata.regularAndStaticColumns();
-
-        this.updatedColumns = modifiedColumns;
+        this.updatedColumns = updatedColumnsBuilder.build();
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
     }
@@ -851,14 +843,14 @@ public abstract class ModificationStatement implements CQLStatement
     {
         protected final StatementType type;
         private final Attributes.Raw attrs;
-        private final List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions;
+        private final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions;
         private final boolean ifNotExists;
         private final boolean ifExists;
 
         protected Parsed(QualifiedName name,
                          StatementType type,
                          Attributes.Raw attrs,
-                         List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
+                         List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
                          boolean ifNotExists,
                          boolean ifExists)
         {
@@ -931,9 +923,9 @@ public abstract class ModificationStatement implements CQLStatement
 
             ColumnConditions.Builder builder = ColumnConditions.newBuilder();
 
-            for (Pair<ColumnMetadata.Raw, ColumnCondition.Raw> entry : conditions)
+            for (Pair<ColumnIdentifier, ColumnCondition.Raw> entry : conditions)
             {
-                ColumnMetadata def = entry.left.prepare(metadata);
+                ColumnMetadata def = metadata.getExistingColumn(entry.left);
                 ColumnCondition condition = entry.right.prepare(keyspace(), def, metadata);
                 condition.collectMarkerSpecification(bindVariables);
 
@@ -971,26 +963,9 @@ public abstract class ModificationStatement implements CQLStatement
             return new StatementRestrictions(type, metadata, where, boundNames, applyOnlyToStaticColumns, false, false);
         }
 
-        /**
-         * Retrieves the <code>ColumnMetadata</code> corresponding to the specified raw <code>ColumnIdentifier</code>.
-         *
-         * @param metadata the column family meta data
-         * @param rawId the raw <code>ColumnIdentifier</code>
-         * @return the <code>ColumnMetadata</code> corresponding to the specified raw <code>ColumnIdentifier</code>
-         */
-        protected static ColumnMetadata getColumnDefinition(TableMetadata metadata, ColumnMetadata.Raw rawId)
+        public List<Pair<ColumnIdentifier, ColumnCondition.Raw>> getConditions()
         {
-            return rawId.prepare(metadata);
-        }
-
-        public List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> getConditions()
-        {
-            ImmutableList.Builder<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> builder = ImmutableList.builderWithExpectedSize(conditions.size());
-
-            for (Pair<ColumnMetadata.Raw, ColumnCondition.Raw> condition : conditions)
-                builder.add(Pair.create(condition.left, condition.right));
-
-            return builder.build();
+            return conditions;
         }
     }
 }

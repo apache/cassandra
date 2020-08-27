@@ -25,6 +25,7 @@ import java.util.function.UnaryOperator;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -171,6 +172,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         return context.needShortReadProtection()
                ? ShortReadProtection.extend(context.replicas.get(i),
+                                            () -> responses.clearUnsafe(i),
                                             originalResponse,
                                             command,
                                             context.mergedResultCounter,
@@ -199,20 +201,20 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         // Protecting against inconsistent replica filtering (some replica returning a row that is outdated but that
         // wouldn't be removed by normal reconciliation because up-to-date replica have filtered the up-to-date version
-        // of that row) works in 3 steps:
-        //   1) we read the full response just to collect rows that may be outdated (the ones we got from some
-        //      replica but didn't got any response for other; it could be those other replica have filtered a more
-        //      up-to-date result). In doing so, we do not count any of such "potentially outdated" row towards the
-        //      query limit. This simulate the worst case scenario where all those "potentially outdated" rows are
-        //      indeed outdated, and thus make sure we are guaranteed to read enough results (thanks to short read
-        //      protection).
-        //   2) we query all the replica/rows we need to rule out whether those "potentially outdated" rows are outdated
-        //      or not.
-        //   3) we re-read cached copies of each replica response using the "normal" read path merge with read-repair,
-        //      but where for each replica we use their original response _plus_ the additional rows queried in the
-        //      previous step (and apply the command#rowFilter() on the full result). Since the first phase has
-        //      pessimistically collected enough results for the case where all potentially outdated results are indeed
-        //      outdated, we shouldn't need further short-read protection requests during this phase.
+        // of that row) involves 3 main elements:
+        //   1) We combine short-read protection and a merge listener that identifies potentially "out-of-date"
+        //      rows to create an iterator that is guaranteed to produce enough valid row results to satisfy the query
+        //      limit if enough actually exist. A row is considered out-of-date if its merged from is non-empty and we
+        //      receive not response from at least one replica. In this case, it is possible that filtering at the
+        //      "silent" replica has produced a more up-to-date result.
+        //   2) This iterator is passed to the standard resolution process with read-repair, but is first wrapped in a
+        //      response provider that lazily "completes" potentially out-of-date rows by directly querying them on the
+        //      replicas that were previously silent. As this iterator is consumed, it caches valid data for potentially
+        //      out-of-date rows, and this cached data is merged with the fetched data as rows are requested. If there
+        //      is no replica divergence, only rows in the partition being evalutated will be cached (then released
+        //      when the partition is consumed).
+        //   3) After a "complete" row is materialized, it must pass the row filter supplied by the original query
+        //      before it counts against the limit.
 
         // We need separate contexts, as each context has his own counter
         ResolveContext firstPhaseContext = new ResolveContext(replicas);
@@ -221,26 +223,22 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
                                                                              queryStartNanoTime,
-                                                                             firstPhaseContext.replicas);
+                                                                             firstPhaseContext.replicas,
+                                                                             DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
+                                                                             DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
+
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),
                                                                  i -> shortReadProtectedResponse(i, firstPhaseContext),
                                                                  UnaryOperator.identity());
 
-        // Consume the first phase partitions to populate the replica filtering protection with both those materialized
-        // partitions and the primary keys to be fetched.
-        PartitionIterators.consume(firstPhasePartitions);
-        firstPhasePartitions.close();
+        PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
+                                                                      i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
+                                                                      results -> command.rowFilter().filter(results, command.metadata(), command.nowInSec()),
+                                                                      repairedDataTracker);
 
-        // After reading the entire query results the protection helper should have cached all the partitions so we can
-        // clear the responses accumulator for the sake of memory usage, given that the second phase might take long if
-        // it needs to query replicas.
-        responses.clearUnsafe();
-
-        return resolveWithReadRepair(secondPhaseContext,
-                                     rfp::queryProtectedPartitions,
-                                     results -> command.rowFilter().filter(results, command.metadata(), command.nowInSec()),
-                                     repairedDataTracker);
+        // Ensure that the RFP instance has a chance to record metrics when the iterator closes.
+        return PartitionIterators.doOnClose(completedPartitions, firstPhasePartitions::close);
     }
 
     @SuppressWarnings("resource")
@@ -269,7 +267,8 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          */
 
         UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(results, mergeListener);
-        FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
+        Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
+        FilteredPartitions filtered = FilteredPartitions.filter(merged, filter);
         PartitionIterator counted = Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
         return Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }

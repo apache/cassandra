@@ -20,8 +20,6 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.github.benmanes.caffeine.cache.stats.StatsCounter;
@@ -81,12 +79,5 @@ public class ChunkCacheMetrics extends CacheMetrics implements StatsCounter
     public CacheStats snapshot()
     {
         return new CacheStats(hits.getCount(), misses.getCount(), missLatency.getCount(), 0L, missLatency.getCount(), 0L, 0L);
-    }
-
-    @VisibleForTesting
-    public void reset()
-    {
-        hits.mark(-hits.getCount());
-        misses.mark(-misses.getCount());
     }
 }

@@ -422,9 +422,13 @@ public class CompressionMetadata
                 out.flush();
                 SyncUtil.sync(fos);
             }
+            catch (FileNotFoundException fnfe)
+            {
+                throw Throwables.propagate(fnfe);
+            }
             catch (IOException e)
             {
-                throw Throwables.propagate(e);
+                throw new FSWriteError(e, filePath);
             }
         }
 

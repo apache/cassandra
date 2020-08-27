@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -37,6 +40,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 
 /**
  * A user defined type.
@@ -45,6 +49,10 @@ import static com.google.common.collect.Iterables.transform;
  */
 public class UserType extends TupleType implements SchemaElement
 {
+    private static final Logger logger = LoggerFactory.getLogger(UserType.class);
+
+    private static final ConflictBehavior CONFLICT_BEHAVIOR = ConflictBehavior.get();
+
     public final String keyspace;
     public final ByteBuffer name;
     private final List<FieldIdentifier> fieldNames;
@@ -67,7 +75,9 @@ public class UserType extends TupleType implements SchemaElement
         {
             String stringFieldName = fieldNames.get(i).toString();
             stringFieldNames.add(stringFieldName);
-            fieldSerializers.put(stringFieldName, fieldTypes.get(i).getSerializer());
+            TypeSerializer<?> existing = fieldSerializers.put(stringFieldName, fieldTypes.get(i).getSerializer());
+            if (existing != null)
+                CONFLICT_BEHAVIOR.onConflict(keyspace, getNameAsString(), stringFieldName);
         }
         this.serializer = new UserTypeSerializer(fieldSerializers);
     }
@@ -434,7 +444,7 @@ public class UserType extends TupleType implements SchemaElement
 
     public String getCqlTypeName()
     {
-        return String.format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), ColumnIdentifier.maybeQuote(getNameAsString()));
+        return String.format("%s.%s", maybeQuote(keyspace), maybeQuote(getNameAsString()));
     }
 
     @Override
@@ -489,5 +499,36 @@ public class UserType extends TupleType implements SchemaElement
                .append(");");
 
         return builder.toString();
+    }
+
+    private enum ConflictBehavior
+    {
+        LOG {
+            void onConflict(String keyspace, String name, String fieldName)
+            {
+                logger.error("Duplicate names found in UDT {}.{} for column {}",
+                             maybeQuote(keyspace), maybeQuote(name), maybeQuote(fieldName));
+            }
+        },
+        REJECT {
+            @Override
+            void onConflict(String keyspace, String name, String fieldName)
+            {
+
+                throw new AssertionError(String.format("Duplicate names found in UDT %s.%s for column %s; " +
+                                                       "to resolve set -D" + UDT_CONFLICT_BEHAVIOR + "=LOG on startup and remove the type",
+                                                       maybeQuote(keyspace), maybeQuote(name), maybeQuote(fieldName)));
+            }
+        };
+
+        private static final String UDT_CONFLICT_BEHAVIOR = "cassandra.type.udt.conflict_behavior";
+
+        abstract void onConflict(String keyspace, String name, String fieldName);
+
+        static ConflictBehavior get()
+        {
+            String value = System.getProperty(UDT_CONFLICT_BEHAVIOR, REJECT.name());
+            return ConflictBehavior.valueOf(value);
+        }
     }
 }
