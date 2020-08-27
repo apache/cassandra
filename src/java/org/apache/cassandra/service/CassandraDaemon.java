@@ -104,8 +104,10 @@ public class CassandraDaemon
                 try
                 {
                     RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
-                    Map<String, ?> env = Collections.singletonMap(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
-
+                    Map<String, Object> env = new HashMap<>();
+                    env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
+                    env.put("jmx.remote.rmi.server.credential.types",
+                        new String[] { String[].class.getName(), String.class.getName() });
                     Registry registry = new JmxRegistry(Integer.valueOf(jmxPort), null, serverFactory, "jmxrmi");
                     JMXServiceURL url = new JMXServiceURL(String.format("service:jmx:rmi://localhost/jndi/rmi://localhost:%s/jmxrmi", jmxPort));
                     @SuppressWarnings("resource")
