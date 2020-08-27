@@ -256,7 +256,8 @@ The ``fqltool`` command is used to view (dump), replay, or compare logs.
 
 ``fqltool replay`` (`CASSANDRA-14618 <https://issues.apache.org/jira/browse/CASSANDRA-14618>`_) enables replay of logs. 
 The command can run from a different machine or cluster for testing, debugging, or performance benchmarking. 
-The command can also be used to recreate a dropped database object.
+The command can also be used to recreate a dropped database object (keyspace, table), usually in a different cluster.
+The ``fqltool replay`` command does not replay DDL statements automatically; explicitly enable it with the ``--replay-ddl-statements`` flag.
 Use ``fqltool replay`` to record and compare different runs of production traffic against different versions/configurations of Cassandra or different clusters.
 Another use is to gather logs from several machines and replay them in “order” by the timestamps recorded.
 
@@ -264,14 +265,18 @@ The syntax of ``fqltool replay`` is:
 
 ::
 
-  fqltool replay [--keyspace <keyspace>] [--results <results>]
- [--store-queries <store_queries>] --target <target>... [--] <path1>
- [<path2>...<pathN>]
+  fqltool replay [--keyspace <keyspace>] [--replay-ddl-statements]
+  [--results <results>] [--store-queries <store_queries>] 
+  --target <target>... [--] <path1> [<path2>...<pathN>]
 
  OPTIONS
    --keyspace <keyspace>
   Only replay queries against this keyspace and queries without
   keyspace set.
+
+   --replay-ddl-statements
+   If specified, replays DDL statements as well, they are excluded from
+   replaying by default.
 
    --results <results>
   Where to store the results of the queries, this should be a
@@ -558,25 +563,27 @@ This command will return a readable version of the log. Here is a partial sample
       Query: SELECT * FROM t;
       Values:
 
-5. To demonstrate ``fqltool replay``, first drop the keyspace.
+5. This example will demonstrate ``fqltool replay`` in a single cluster. However, the most common method of using ``replay`` is between clusters. 
+To demonstrate in the same cluster, first drop the keyspace.
 
 ::
 
  cqlsh:querylogkeyspace> DROP KEYSPACE querylogkeyspace;
 
 6. Now run ``fqltool replay`` specifying the directories in which to store the results of the queries and 
-the list of queries run, respectively, in `--results` and `--store-queries`:
+the list of queries run, respectively, in `--results` and `--store-queries`, and specifiying that the DDL statements to create the keyspace and tables will be executed:
 
 ::
 
  $ fqltool replay \
- --keyspace querylogkeyspace --results /cassandra/fql/logs/results/replay \
+ --keyspace querylogkeyspace --replay-ddl-statements --results /cassandra/fql/logs/results/replay \
  --store-queries /cassandra/fql/logs/queries/replay \
  -- target 3.91.56.164 \
  /tmp/cassandrafullquerylog
 
 The ``--results`` and ``--store-queries`` directories are optional, but if ``--store-queries`` is set, then ``--results`` must also be set.
 The ``--target`` specifies the node on which to replay to logs.
+If ``--replay-ddl-statements`` is not specified, the keyspace and any tables must be created prior to the ``replay``.
 
 7. Check that the keyspace was replayed and exists again using the ``DESCRIBE KEYSPACES`` command:
 
