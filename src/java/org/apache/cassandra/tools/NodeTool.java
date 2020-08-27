@@ -153,7 +153,6 @@ public class NodeTool
                 ReloadSeeds.class,
                 ResetFullQueryLog.class,
                 Repair.class,
-                RepairAdmin.class,
                 ReplayBatchlog.class,
                 SetCacheCapacity.class,
                 SetConcurrency.class,
@@ -223,6 +222,15 @@ public class NodeTool
                 .withDescription("Monitor/manage node's bootstrap process")
                 .withDefaultCommand(CassHelp.class)
                 .withCommand(BootstrapResume.class);
+
+        builder.withGroup("repair_admin")
+               .withDescription("list and fail incremental repair sessions")
+               .withDefaultCommand(RepairAdmin.ListCmd.class)
+               .withCommand(RepairAdmin.ListCmd.class)
+               .withCommand(RepairAdmin.CancelCmd.class)
+               .withCommand(RepairAdmin.CleanupDataCmd.class)
+               .withCommand(RepairAdmin.SummarizePendingCmd.class)
+               .withCommand(RepairAdmin.SummarizeRepairedCmd.class);
 
         Cli<Consumer<INodeProbeFactory>> parser = builder.build();
 

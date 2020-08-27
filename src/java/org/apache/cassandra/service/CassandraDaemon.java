@@ -73,6 +73,13 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -119,7 +126,7 @@ public class CassandraDaemon
         // on it, so log a warning and skip setting up the server with the settings
         // as configured in cassandra-env.(sh|ps1)
         // See: CASSANDRA-11540 & CASSANDRA-11725
-        if (System.getProperty("com.sun.management.jmxremote.port") != null)
+        if (COM_SUN_MANAGEMENT_JMXREMOTE_PORT.isPresent())
         {
             logger.warn("JMX settings in cassandra-env.sh have been bypassed as the JMX connector server is " +
                         "already initialized. Please refer to cassandra-env.(sh|ps1) for JMX configuration info");
@@ -137,7 +144,7 @@ public class CassandraDaemon
         // If neither is remote nor local port is set in cassandra-env.(sh|ps)
         // then JMX is effectively  disabled.
         boolean localOnly = false;
-        String jmxPort = System.getProperty("cassandra.jmx.remote.port");
+        String jmxPort = CASSANDRA_JMX_REMOTE_PORT.getString();
 
         if (jmxPort == null)
         {
@@ -453,26 +460,15 @@ public class CassandraDaemon
     public static void uncaughtException(Thread t, Throwable e)
     {
         StorageMetrics.uncaughtExceptions.inc();
-        logger.error("Exception in thread " + t, e);
+        logger.error("Exception in thread {}", t, e);
         Tracing.trace("Exception in thread {}", t, e);
         for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
         {
-            JVMStabilityInspector.inspectThrowable(e2);
-
-            if (e2 instanceof FSError)
-            {
-                if (e2 != e) // make sure FSError gets logged exactly once.
-                    logger.error("Exception in thread " + t, e2);
-                FileUtils.handleFSError((FSError) e2);
-            }
-
-            if (e2 instanceof CorruptSSTableException)
-            {
-                if (e2 != e)
-                    logger.error("Exception in thread " + t, e2);
-                FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
-            }
+            // make sure error gets logged exactly once.
+            if (e2 != e && (e2 instanceof FSError || e2 instanceof CorruptSSTableException))
+                logger.error("Exception in thread {}", t, e2);
         }
+        JVMStabilityInspector.inspectThrowable(e);
     }
 
     /*
@@ -515,7 +511,7 @@ public class CassandraDaemon
 	            logger.info("Could not resolve local host");
 	        }
 
-	        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version"));
+	        logger.info("JVM vendor/version: {}/{}", JAVA_VM_NAME.getString(), JAVA_VERSION.getString());
 	        logger.info("Heap size: {}/{}",
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().totalMemory()),
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
@@ -523,7 +519,7 @@ public class CassandraDaemon
 	        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
 	            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
 
-	        logger.info("Classpath: {}", System.getProperty("java.class.path"));
+	        logger.info("Classpath: {}", JAVA_CLASS_PATH.getString());
 
             logger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
     	}
@@ -660,14 +656,14 @@ public class CassandraDaemon
 
             setup();
 
-            String pidFile = System.getProperty("cassandra-pidfile");
+            String pidFile = CASSANDRA_PID_FILE.getString();
 
             if (pidFile != null)
             {
                 new File(pidFile).deleteOnExit();
             }
 
-            if (System.getProperty("cassandra-foreground") == null)
+            if (CASSANDRA_FOREGROUND.getString() == null)
             {
                 System.out.close();
                 System.err.close();

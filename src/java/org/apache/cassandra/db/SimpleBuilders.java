@@ -341,8 +341,8 @@ public abstract class SimpleBuilders
             if (initiated)
                 return;
 
-            // If a CQL table, add the "row marker"
-            if (metadata.isCQLTable() && !noPrimaryKeyLivenessInfo)
+            // Adds the row liveness
+            if (!noPrimaryKeyLivenessInfo)
                 builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
 
             initiated = true;
@@ -364,7 +364,7 @@ public abstract class SimpleBuilders
             ColumnMetadata column = getColumn(columnName);
 
             if (!overwriteForCollection && !(column.type.isMultiCell() && column.type.isCollection()))
-                throw new IllegalArgumentException("appendAll() can only be called on non-frozen colletions");
+                throw new IllegalArgumentException("appendAll() can only be called on non-frozen collections");
 
             columns.add(column);
 

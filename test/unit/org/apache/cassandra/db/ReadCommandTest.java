@@ -172,7 +172,7 @@ public class ReadCommandTest
 
         TableMetadata.Builder metadata7 =
         TableMetadata.builder(KEYSPACE, CF7)
-                     .flags(EnumSet.of(TableMetadata.Flag.COUNTER))
+                     .flags(EnumSet.of(TableMetadata.Flag.COUNTER, TableMetadata.Flag.COMPOUND))
                      .addPartitionKeyColumn("key", BytesType.instance)
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("c", CounterColumnType.instance);

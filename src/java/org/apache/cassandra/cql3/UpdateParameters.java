@@ -82,16 +82,6 @@ public class UpdateParameters
 
     public void newRow(Clustering clustering) throws InvalidRequestException
     {
-        if (metadata.isDense() && !metadata.isCompound())
-        {
-            // If it's a COMPACT STORAGE table with a single clustering column and for backward compatibility we
-            // don't want to allow that to be empty (even though this would be fine for the storage engine).
-            assert clustering.size() == 1;
-            ByteBuffer value = clustering.get(0);
-            if (value == null || !value.hasRemaining())
-                throw new InvalidRequestException("Invalid empty or null value for column " + metadata.clusteringColumns().get(0).name);
-        }
-
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
             if (staticBuilder == null)
@@ -120,13 +110,7 @@ public class UpdateParameters
 
     public void addRowDeletion()
     {
-        // For compact tables, at the exclusion of the static row (of static compact tables), each row ever has a single column,
-        // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later
-        // for backward compatibility (thought it doesn't truly matter anymore).
-        if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
-            addTombstone(metadata.compactValueColumn);
-        else
-            builder.addRowDeletion(Row.Deletion.regular(deletionTime));
+        builder.addRowDeletion(Row.Deletion.regular(deletionTime));
     }
 
     public void addTombstone(ColumnMetadata column) throws InvalidRequestException

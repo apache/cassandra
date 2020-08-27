@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.*;
-
 import org.apache.cassandra.locator.Replica;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +39,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
 /**
@@ -384,7 +384,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             ArrivalWindow hWnd = arrivalSamples.get(ep);
             sb.append(ep).append(" : ");
             sb.append(hWnd);
-            sb.append(System.getProperty("line.separator"));
+            sb.append(LINE_SEPARATOR.getString());
         }
         sb.append("-----------------------------------------------------------------------");
         return sb.toString();

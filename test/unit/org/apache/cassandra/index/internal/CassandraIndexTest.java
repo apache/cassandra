@@ -793,9 +793,7 @@ public class CassandraIndexTest extends CQLTester
         {
             assertFalse(resultSet.isEmpty());
             TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
-            int columnCount = cfm.partitionKeyColumns().size();
-            if (cfm.isCompound())
-                columnCount += cfm.clusteringColumns().size();
+            int columnCount = cfm.partitionKeyColumns().size() + cfm.clusteringColumns().size();
             Object[] expected = copyValuesFromRow(row, columnCount);
             assertArrayEquals(expected, copyValuesFromRow(getRows(resultSet)[0], columnCount));
         }
@@ -835,17 +833,12 @@ public class CassandraIndexTest extends CQLTester
         private Stream<ColumnMetadata> getPrimaryKeyColumns()
         {
             TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
-            if (cfm.isCompactTable())
-                return cfm.partitionKeyColumns().stream();
-            else
-                return Stream.concat(cfm.partitionKeyColumns().stream(), cfm.clusteringColumns().stream());
+            return Stream.concat(cfm.partitionKeyColumns().stream(), cfm.clusteringColumns().stream());
         }
 
         private Object[] getPrimaryKeyValues(Object[] row)
         {
             TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
-            if (cfm.isCompactTable())
-                return getPartitionKeyValues(row);
 
             return copyValuesFromRow(row, cfm.partitionKeyColumns().size() + cfm.clusteringColumns().size());
         }

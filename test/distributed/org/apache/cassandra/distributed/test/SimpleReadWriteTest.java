@@ -238,8 +238,8 @@ public class SimpleReadWriteTest extends TestBaseImpl
                 // I suppose it has to do with some classloader manipulation going on
                 Assert.assertTrue(e.getClass().toString().contains("WriteFailureException"));
                 // we may see 1 or 2 failures in here, because of the fail-fast behavior of AbstractWriteResponseHandler
-                Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
-                                  || e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
+                Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from ") &&
+                                  (e.getMessage().contains("/127.0.0.2") || e.getMessage().contains("/127.0.0.3")));
 
             }
         }
@@ -270,8 +270,8 @@ public class SimpleReadWriteTest extends TestBaseImpl
                 // I suppose it has to do with some classloader manipulation going on
                 Assert.assertTrue(e.getClass().toString().contains("ReadFailureException"));
                 // we may see 1 or 2 failures in here, because of the fail-fast behavior of ReadCallback
-                Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.2")
-                                  || e.getMessage().contains("INCOMPATIBLE_SCHEMA from 127.0.0.3"));
+                Assert.assertTrue(e.getMessage().contains("INCOMPATIBLE_SCHEMA from ") &&
+                                  (e.getMessage().contains("/127.0.0.2") || e.getMessage().contains("/127.0.0.3")));
             }
 
         }

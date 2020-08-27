@@ -27,6 +27,9 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.Config;
@@ -47,6 +50,8 @@ import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
  */
 public class OutboundConnections
 {
+    private static final Logger logger = LoggerFactory.getLogger(OutboundConnections.class);
+
     @VisibleForTesting
     public static final int LARGE_MESSAGE_THRESHOLD = Integer.getInteger(Config.PROPERTY_PREFIX + "otcp_large_message_threshold", 1024 * 64)
     - Math.max(Math.max(LegacyLZ4Constants.HEADER_LENGTH, FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH), FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
@@ -281,6 +286,8 @@ public class OutboundConnections
                 if (cur.small == prev.small && cur.large == prev.large && cur.urgent == prev.urgent
                     && !Gossiper.instance.isKnownEndpoint(connections.template.to))
                 {
+                    logger.info("Closing outbound connections to {}, as inactive and not known by Gossiper",
+                                connections.template.to);
                     // close entirely if no traffic and the endpoint is unknown
                     messagingService.closeOutboundNow(connections);
                     continue;

@@ -95,7 +95,7 @@ public final class GossiperEvent extends DiagnosticEvent
     {
         // be extra defensive against nulls and bugs
         HashMap<String, Serializable> ret = new HashMap<>();
-        if (endpoint != null) ret.put("endpoint", endpoint.getHostAddress(true));
+        if (endpoint != null) ret.put("endpoint", endpoint.getHostAddressAndPort());
         ret.put("quarantineExpiration", quarantineExpiration);
         ret.put("localState", String.valueOf(localState));
         ret.put("endpointStateMap", String.valueOf(endpointStateMap));

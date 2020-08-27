@@ -26,9 +26,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -38,6 +35,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
@@ -52,27 +50,35 @@ import static org.apache.cassandra.schema.IndexMetadata.isNameValid;
 @Unmetered
 public final class TableMetadata implements SchemaElement
 {
-    private static final Logger logger = LoggerFactory.getLogger(TableMetadata.class);
-    private static final ImmutableSet<Flag> DEFAULT_CQL_FLAGS = ImmutableSet.of(Flag.COMPOUND);
-    private static final ImmutableSet<Flag> DEPRECATED_CS_FLAGS = ImmutableSet.of(Flag.DENSE, Flag.SUPER);
-
     public static final String COMPACT_STORAGE_HALT_MESSAGE =
-             "Compact Tables are not allowed in Cassandra starting with 4.0 version. " +
-             "Use `ALTER ... DROP COMPACT STORAGE` command supplied in 3.x/3.11 Cassandra " +
-             "in order to migrate off Compact Storage.";
+            "Detected table %s.%s with COMPACT STORAGE flags (%s). " +
+            "Compact Tables are not supported in Cassandra starting with version 4.0. " +
+            "Use the `ALTER ... DROP COMPACT STORAGE` command supplied in 3.x/3.11 Cassandra " +
+            "in order to migrate off Compact Storage before upgrading.";
 
-    private static final String COMPACT_STORAGE_DEPRECATION_MESSAGE =
-             "Incorrect set of flags is was detected in table {}.{}: '{}'. \n" +
-             "Starting with version 4.0, '{}' flags are deprecated and every table has to have COMPOUND flag. \n" +
-             "Forcing the following set of flags: '{}'";
-
+    // Please note that currently the only one truly useful flag is COUNTER, as the rest of the flags were about
+    // differencing between CQL tables and the various types of COMPACT STORAGE tables (pre-4.0). As those "compact"
+    // tables are not supported anymore, no tables should be either SUPER or DENSE, and they should all be COMPOUND.
     public enum Flag
     {
-        SUPER, COUNTER, DENSE, COMPOUND;
+        // As mentioned above, all tables on 4.0+ will have the COMPOUND flag, making the flag of little value. However,
+        // on upgrade from pre-4.0, we want to detect if a tables does _not_ have this flag, in which case this would
+        // be a compact table on which DROP COMPACT STORAGE has _not_ be used and fail startup. This is also why we
+        // still write this flag for all tables. Once we drop support for upgrading from pre-4.0 versions (and so are
+        // sure all tables do have the flag), we can stop writing this flag and ignore it when present (deprecate it).
+        // Later, we'll be able to drop the flag from this enum completely.
+        COMPOUND,
+        COUNTER,
+        // The only reason we still have those is that on the first startup after an upgrade from pre-4.0, we cannot
+        // guarantee some tables won't have those flags (users having forgotten to use DROP COMPACT STORAGE before
+        // upgrading). So we still "deserialize" those flags correctly, but otherwise prevent startup if any table
+        // have them. Once we drop support for upgrading from pre-4.0, we can remove those values.
+        @Deprecated SUPER,
+        @Deprecated DENSE;
 
-        public static boolean isCQLCompatible(Set<Flag> flags)
+        static boolean isLegacyCompactTable(Set<Flag> flags)
         {
-            return !flags.contains(Flag.DENSE) && !flags.contains(Flag.SUPER) && flags.contains(Flag.COMPOUND);
+            return flags.contains(Flag.DENSE) || flags.contains(Flag.SUPER) || !flags.contains(Flag.COMPOUND);
         }
 
         public static Set<Flag> fromStringSet(Set<String> strings)
@@ -123,27 +129,18 @@ public final class TableMetadata implements SchemaElement
     public final AbstractType<?> partitionKeyType;
     public final ClusteringComparator comparator;
 
-    /*
-     * For dense tables, this alias the single non-PK column the table contains (since it can only have one). We keep
-     * that as convenience to access that column more easily (but we could replace calls by regularAndStaticColumns().iterator().next()
-     * for those tables in practice).
-     */
-    public final ColumnMetadata compactValueColumn;
-
     // performance hacks; TODO see if all are really necessary
     public final DataResource resource;
 
     private TableMetadata(Builder builder)
     {
-        if (!Flag.isCQLCompatible(builder.flags))
-        {
-            flags = ImmutableSet.copyOf(Sets.union(Sets.difference(builder.flags, DEPRECATED_CS_FLAGS), DEFAULT_CQL_FLAGS));
-            logger.warn(COMPACT_STORAGE_DEPRECATION_MESSAGE, builder.keyspace, builder.name,  builder.flags, DEPRECATED_CS_FLAGS, flags);
-        }
-        else
-        {
-            flags = Sets.immutableEnumSet(builder.flags);
-        }
+        if (Flag.isLegacyCompactTable(builder.flags))
+            throw new IllegalStateException(format(COMPACT_STORAGE_HALT_MESSAGE,
+                                                   builder.keyspace,
+                                                   builder.name,
+                                                   builder.flags));
+
+        flags = Sets.immutableEnumSet(builder.flags);
         keyspace = builder.keyspace;
         name = builder.name;
         id = builder.id;
@@ -170,10 +167,6 @@ public final class TableMetadata implements SchemaElement
                          : CompositeType.getInstance(transform(partitionKeyColumns, t -> t.type));
 
         comparator = new ClusteringComparator(transform(clusteringColumns, c -> c.type));
-
-        compactValueColumn = isCompactTable()
-                           ? CompactTables.getCompactValueColumn(regularAndStaticColumns, isSuper())
-                           : null;
 
         resource = DataResource.table(keyspace, name);
     }
@@ -236,44 +229,9 @@ public final class TableMetadata implements SchemaElement
         return Optional.ofNullable(indexName);
     }
 
-    /*
-     *  We call dense a CF for which each component of the comparator is a clustering column, i.e. no
-     * component is used to store a regular column names. In other words, non-composite static "thrift"
-     * and CQL3 CF are *not* dense.
-     */
-    public boolean isDense()
-    {
-        return flags.contains(Flag.DENSE);
-    }
-
-    public boolean isCompound()
-    {
-        return flags.contains(Flag.COMPOUND);
-    }
-
-    public boolean isSuper()
-    {
-        return flags.contains(Flag.SUPER);
-    }
-
     public boolean isCounter()
     {
         return flags.contains(Flag.COUNTER);
-    }
-
-    public boolean isCQLTable()
-    {
-        return !isSuper() && !isDense() && isCompound();
-    }
-
-    public boolean isCompactTable()
-    {
-        return !isCQLTable();
-    }
-
-    public boolean isStaticCompactTable()
-    {
-        return !isSuper() && !isDense() && !isCompound();
     }
 
     public ImmutableCollection<ColumnMetadata> columns()
@@ -296,11 +254,6 @@ public final class TableMetadata implements SchemaElement
         return clusteringColumns;
     }
 
-    public ImmutableList<ColumnMetadata> createStatementClusteringColumns()
-    {
-        return isStaticCompactTable() ? ImmutableList.of() : clusteringColumns;
-    }
-
     public RegularAndStaticColumns regularAndStaticColumns()
     {
         return regularAndStaticColumns;
@@ -318,22 +271,12 @@ public final class TableMetadata implements SchemaElement
 
     /*
      * An iterator over all column definitions but that respect the order of a SELECT *.
-     * This also "hide" the clustering/regular columns for a non-CQL3 non-dense table for backward compatibility
-     * sake.
      */
     public Iterator<ColumnMetadata> allColumnsInSelectOrder()
     {
-        boolean isStaticCompactTable = isStaticCompactTable();
-        boolean noNonPkColumns = isCompactTable() && CompactTables.hasEmptyCompactValue(this);
-
         Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
-        Iterator<ColumnMetadata> clusteringIter =
-                isStaticCompactTable ? Collections.emptyIterator() : clusteringColumns.iterator();
-        Iterator<ColumnMetadata> otherColumns =
-                noNonPkColumns
-                      ? Collections.emptyIterator()
-                      : (isStaticCompactTable ? staticColumns().selectOrderIterator()
-                                              : regularAndStaticColumns.selectOrderIterator());
+        Iterator<ColumnMetadata> clusteringIter = clusteringColumns.iterator();
+        Iterator<ColumnMetadata> otherColumns = regularAndStaticColumns.selectOrderIterator();
 
         return columnsIterator(partitionKeyIter, clusteringIter, otherColumns);
     }
@@ -343,16 +286,9 @@ public final class TableMetadata implements SchemaElement
      */
     public Iterator<ColumnMetadata> allColumnsInCreateOrder()
     {
-        boolean isStaticCompactTable = isStaticCompactTable();
-        boolean noNonPkColumns = isCompactTable() && CompactTables.hasEmptyCompactValue(this);
-
         Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
-        Iterator<ColumnMetadata> clusteringIter = createStatementClusteringColumns().iterator();
-        Iterator<ColumnMetadata> otherColumns =
-                noNonPkColumns
-                      ? Collections.emptyIterator()
-                      : (isStaticCompactTable ? staticColumns().iterator()
-                                              : regularAndStaticColumns.iterator());
+        Iterator<ColumnMetadata> clusteringIter = clusteringColumns.iterator();
+        Iterator<ColumnMetadata> otherColumns = regularAndStaticColumns.iterator();
 
         return columnsIterator(partitionKeyIter, clusteringIter, otherColumns);
     }
@@ -383,7 +319,25 @@ public final class TableMetadata implements SchemaElement
     {
         return columns.get(name.bytes);
     }
-
+    /**
+     * Returns the column of the provided name if it exists, but throws a user-visible exception if that column doesn't
+     * exist.
+     *
+     * <p>This method is for finding columns from a name provided by the user, and as such it does _not_ returne hidden
+     * columns (throwing that the column is unknown instead).
+     *
+     * @param name the name of an existing non-hidden column of this table.
+     * @return the column metadata corresponding to {@code name}.
+     *
+     * @throws InvalidRequestException if there is no non-hidden column named {@code name} in this table.
+     */
+    public ColumnMetadata getExistingColumn(ColumnIdentifier name)
+    {
+        ColumnMetadata def = getColumn(name);
+        if (def == null)
+            throw new InvalidRequestException(format("Undefined column name %s in table %s", name.toCQLString(), this));
+        return def;
+    }
     /*
      * In general it is preferable to work with ColumnIdentifier to make it
      * clear that we are talking about a CQL column, not a cell name, but there
@@ -442,7 +396,7 @@ public final class TableMetadata implements SchemaElement
         if (isCounter())
         {
             for (ColumnMetadata column : regularAndStaticColumns)
-                if (!(column.type.isCounter()) && !CompactTables.isSuperColumnMapColumn(column))
+                if (!(column.type.isCounter()) && !isSuperColumnMapColumnName(column.name))
                     except("Cannot have a non counter column (\"%s\") in a counter table", column.name);
         }
         else
@@ -456,14 +410,28 @@ public final class TableMetadata implements SchemaElement
         if (partitionKeyColumns.isEmpty())
             except("Missing partition keys for table %s", toString());
 
-        // A compact table should always have a clustering
-        if (isCompactTable() && clusteringColumns.isEmpty())
-            except("For table %s, isDense=%b, isCompound=%b, clustering=%s", toString(), isDense(), isCompound(), clusteringColumns);
-
-        if (!indexes.isEmpty() && isSuper())
-            except("Secondary indexes are not supported on super column families");
-
         indexes.validate(this);
+    }
+
+    /**
+     * To support backward compatibility with thrift super columns in the C* 3.0+ storage engine, we encode said super
+     * columns as a CQL {@code map<blob, blob>}. To ensure the name of this map did not conflict with any other user
+     * defined columns, we used the empty name (which is otherwise not allowed for user created columns).
+     * <p>
+     * While all thrift-based tables must have been converted to "CQL" ones with "DROP COMPACT STORAGE" (before
+     * upgrading to C* 4.0, which stop supporting non-CQL tables completely), a converted super-column table will still
+     * have this map with an empty name. And the reason we need to recognize it still, is that for backward
+     * compatibility we need to support counters in values of this map while it's not supported in any other map.
+     *
+     * TODO: it's probably worth lifting the limitation of not allowing counters as map values. It works fully
+     *   internally (since we had to support it for this special map) and doesn't feel particularly dangerous to
+     *   support. Doing so would remove this special case, but would also let user that do have an upgraded super-column
+     *   table with counters to rename that weirdly name map to something more meaningful (it's not possible today
+     *   as after renaming the validation in {@link #validate)} would trigger).
+     */
+    private static boolean isSuperColumnMapColumnName(ColumnIdentifier columnName)
+    {
+        return !columnName.bytes.hasRemaining();
     }
 
     void validateCompatibility(TableMetadata previous)
@@ -528,35 +496,6 @@ public final class TableMetadata implements SchemaElement
     public ClusteringComparator partitionKeyAsClusteringComparator()
     {
         return new ClusteringComparator(partitionKeyColumns.stream().map(c -> c.type).collect(toList()));
-    }
-
-    /**
-     * The type to use to compare column names in "static compact"
-     * tables or superColum ones.
-     * <p>
-     * This exists because for historical reasons, "static compact" tables as
-     * well as super column ones can have non-UTF8 column names.
-     * <p>
-     * This method should only be called for superColumn tables and "static
-     * compact" ones. For any other table, all column names are UTF8.
-     */
-    AbstractType<?> staticCompactOrSuperTableColumnNameType()
-    {
-        if (isSuper())
-        {
-            assert compactValueColumn != null && compactValueColumn.type instanceof MapType;
-            return ((MapType) compactValueColumn.type).nameComparator();
-        }
-
-        assert isStaticCompactTable();
-        return clusteringColumns.get(0).type;
-    }
-
-    public AbstractType<?> columnDefinitionNameComparator(ColumnMetadata.Kind kind)
-    {
-        return (isSuper() && kind == ColumnMetadata.Kind.REGULAR) || (isStaticCompactTable() && kind == ColumnMetadata.Kind.STATIC)
-             ? staticCompactOrSuperTableColumnNameType()
-             : UTF8Type.instance;
     }
 
     /**
@@ -704,7 +643,7 @@ public final class TableMetadata implements SchemaElement
     @Override
     public String toString()
     {
-        return String.format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), ColumnIdentifier.maybeQuote(name));
+        return format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), ColumnIdentifier.maybeQuote(name));
     }
 
     public String toDebugString()
@@ -735,7 +674,7 @@ public final class TableMetadata implements SchemaElement
         private Kind kind = Kind.REGULAR;
         private TableParams.Builder params = TableParams.builder();
 
-        // Setting compound as default as "normal" CQL tables are compound and that's what we want by default
+        // See the comment on Flag.COMPOUND definition for why we (still) inconditionally add this flag.
         private Set<Flag> flags = EnumSet.of(Flag.COMPOUND);
         private Triggers triggers = Triggers.none();
         private Indexes indexes = Indexes.none();
@@ -884,24 +823,9 @@ public final class TableMetadata implements SchemaElement
             return this;
         }
 
-        public Builder isSuper(boolean val)
-        {
-            return flag(Flag.SUPER, val);
-        }
-
         public Builder isCounter(boolean val)
         {
             return flag(Flag.COUNTER, val);
-        }
-
-        public Builder isDense(boolean val)
-        {
-            return flag(Flag.DENSE, val);
-        }
-
-        public Builder isCompound(boolean val)
-        {
-            return flag(Flag.COMPOUND, val);
         }
 
         private Builder flag(Flag flag, boolean set)
@@ -987,7 +911,7 @@ public final class TableMetadata implements SchemaElement
             return this;
         }
 
-        Builder addColumns(Iterable<ColumnMetadata> columns)
+        public Builder addColumns(Iterable<ColumnMetadata> columns)
         {
             columns.forEach(this::addColumn);
             return this;
@@ -1195,21 +1119,7 @@ public final class TableMetadata implements SchemaElement
         assert !isView();
 
         String createKeyword = "CREATE";
-        if (!isCQLTable())
-        {
-            builder.append("/*")
-                   .newLine()
-                   .append("Warning: Table ")
-                   .append(toString())
-                   .append(" omitted because it has constructs not compatible with CQL (was created via legacy API).")
-                   .newLine()
-                   .append("Approximate structure, for reference:")
-                   .newLine()
-                   .append("(this should not be used to reproduce this schema)")
-                   .newLine()
-                   .newLine();
-        }
-        else if (isVirtual())
+        if (isVirtual())
         {
             builder.append(String.format("/*\n" +
                     "Warning: Table %s is a virtual table and cannot be recreated with CQL.\n" +
@@ -1243,7 +1153,7 @@ public final class TableMetadata implements SchemaElement
 
         builder.decreaseIndent();
 
-        if (!isCQLTable() || isVirtual())
+        if (isVirtual())
         {
             builder.newLine()
                    .append("*/");
@@ -1268,7 +1178,7 @@ public final class TableMetadata implements SchemaElement
             if (includeDroppedColumns && droppedColumns.containsKey(column.name.bytes))
                 continue;
 
-            column.appendCqlTo(builder, isStaticCompactTable());
+            column.appendCqlTo(builder);
 
             if (hasSingleColumnPrimaryKey && column.isPartitionKey())
                 builder.append(" PRIMARY KEY");
@@ -1285,7 +1195,7 @@ public final class TableMetadata implements SchemaElement
             while (iterDropped.hasNext())
             {
                 DroppedColumn dropped = iterDropped.next();
-                dropped.column.appendCqlTo(builder, isStaticCompactTable());
+                dropped.column.appendCqlTo(builder);
 
                 if (!hasSingleColumnPrimaryKey || iter.hasNext())
                     builder.append(',');
@@ -1298,7 +1208,7 @@ public final class TableMetadata implements SchemaElement
     void appendPrimaryKey(CqlBuilder builder)
     {
         List<ColumnMetadata> partitionKeyColumns = partitionKeyColumns();
-        List<ColumnMetadata> clusteringColumns = createStatementClusteringColumns();
+        List<ColumnMetadata> clusteringColumns = clusteringColumns();
 
         builder.append("PRIMARY KEY (");
         if (partitionKeyColumns.size() > 1)
@@ -1331,12 +1241,7 @@ public final class TableMetadata implements SchemaElement
                    .newLine()
                    .append("AND ");
 
-        if (isCompactTable())
-            builder.append("COMPACT STORAGE")
-                   .newLine()
-                   .append("AND ");
-
-        List<ColumnMetadata> clusteringColumns = createStatementClusteringColumns();
+        List<ColumnMetadata> clusteringColumns = clusteringColumns();
         if (!clusteringColumns.isEmpty())
         {
             builder.append("CLUSTERING ORDER BY (")
@@ -1380,7 +1285,7 @@ public final class TableMetadata implements SchemaElement
                        .append(toString())
                        .append(" ADD ");
 
-                column.appendCqlTo(builder, false);
+                column.appendCqlTo(builder);
 
                 builder.append(';');
             }

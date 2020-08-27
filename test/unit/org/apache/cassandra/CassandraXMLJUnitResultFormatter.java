@@ -154,8 +154,8 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
         doc = getDocumentBuilder().newDocument();
         rootElement = doc.createElement(TESTSUITE);
         String n = suite.getName();
-//        if (n != null && !tag.isEmpty())
-//            n = n + "-" + tag;
+        if (n != null && !tag.isEmpty())
+            n = n + "-" + tag;
         rootElement.setAttribute(ATTR_NAME, n == null ? UNKNOWN : n);
 
         //add the timestamp

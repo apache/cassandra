@@ -62,7 +62,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -211,7 +210,6 @@ public class StorageProxy implements StorageProxyMBean
     {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
         HintsService.instance.registerMBean();
-        HintedHandOffManager.instance.registerMBean();
 
         standardWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
@@ -2815,7 +2813,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public String getIdealConsistencyLevel()
     {
-        return DatabaseDescriptor.getIdealConsistencyLevel().toString();
+        return Objects.toString(DatabaseDescriptor.getIdealConsistencyLevel(), "");
     }
 
     public String setIdealConsistencyLevel(String cl)

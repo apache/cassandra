@@ -71,6 +71,11 @@ public abstract class AbstractRepairTest
         return DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(v));
     }
 
+    protected static Range<Token> r(int l, int r)
+    {
+        return new Range<>(t(l), t(r));
+    }
+
     protected static final Range<Token> RANGE1 = new Range<>(t(1), t(2));
     protected static final Range<Token> RANGE2 = new Range<>(t(2), t(3));
     protected static final Range<Token> RANGE3 = new Range<>(t(4), t(5));

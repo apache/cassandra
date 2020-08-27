@@ -22,6 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 
 import com.datastax.driver.core.BatchStatement;
@@ -98,8 +101,12 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                '}';
     }
 
+    public abstract boolean isDDLStatement();
+
     public static class Single extends FQLQuery
     {
+        private static final Set<String> DDL_STATEMENTS = Sets.newHashSet("CREATE", "ALTER", "DROP");
+
         public final String query;
         public final List<ByteBuffer> values;
 
@@ -117,6 +124,18 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                                  super.toString(),
                                  query,
                                  values.size());
+        }
+
+        public boolean isDDLStatement()
+        {
+            for (final String ddlStmt : DDL_STATEMENTS)
+            {
+                if (this.query.startsWith(ddlStmt))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public Statement toStatement()
@@ -241,6 +260,11 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
                 sb.append(q.toString()).append(',');
             sb.append("end batch");
             return sb.toString();
+        }
+
+        public boolean isDDLStatement()
+        {
+            return false;
         }
 
         public boolean equals(Object o)
