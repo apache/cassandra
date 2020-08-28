@@ -14,7 +14,8 @@ Merged from 3.0:
  * Handle difference in timestamp precision between java8 and java11 in LogFIle.java (CASSANDRA-16050)
 Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
-
+Merged from 2.1:
+ * Only allow strings to be passed to JMX authentication (CASSANDRA-16077)
 
 3.11.7
  * Fix cqlsh output when fetching all rows in batch mode (CASSANDRA-15905)
