@@ -5,12 +5,16 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.management.InstanceNotFoundException;
@@ -47,6 +51,15 @@ import org.yaml.snakeyaml.representer.Representer;
 
 public class JMXTool
 {
+    private static final List<String> METRIC_PACKAGES = Arrays.asList("org.apache.cassandra.metrics",
+                                                                      "org.apache.cassandra.db",
+                                                                      "org.apache.cassandra.hints",
+                                                                      "org.apache.cassandra.internal",
+                                                                      "org.apache.cassandra.net",
+                                                                      "org.apache.cassandra.request",
+                                                                      "org.apache.cassandra.service"
+    );
+
     private static final Comparator<MBeanOperationInfo> OPERATOR_COMPARATOR = (a, b) -> {
         int rc = a.getName().compareTo(b.getName());
         if (rc != 0)
@@ -137,10 +150,10 @@ public class JMXTool
         @Option(title = "format", name = { "-f", "--format" }, description = "What format the files are in")
         private Format format = Format.yaml;
 
-        @Option(title = "ignore left", name = { "--ignore-left" }, description = "Ignore results missing on the left")
+        @Option(title = "ignore left", name = { "--ignore-missing-on-left" }, description = "Ignore results missing on the left")
         private boolean ignoreMissingLeft;
 
-        @Option(title = "ignore right", name = { "--ignore-right" }, description = "Ignore results missing on the right")
+        @Option(title = "ignore right", name = { "--ignore-missing-on-right" }, description = "Ignore results missing on the right")
         private boolean ignoreMissingRight;
 
         public Void call() throws Exception
@@ -150,59 +163,92 @@ public class JMXTool
             Map<String, Info> left = format.load(files.get(0));
             Map<String, Info> right = format.load(files.get(1));
 
-            DiffResult<String> keys = diff(left.keySet(), right.keySet());
+            DiffResult<String> objectNames = diff(left.keySet(), right.keySet());
 
-            if (!ignoreMissingRight && !keys.notInRight.isEmpty())
+            if (!ignoreMissingRight && !objectNames.notInRight.isEmpty())
             {
-                System.out.println("Keys not in right:");
-                printSet(0, keys.notInRight);
+                System.out.println("Objects not in right:");
+                printSet(0, objectNames.notInRight);
             }
-            if (!ignoreMissingLeft && !keys.notInLeft.isEmpty())
+            if (!ignoreMissingLeft && !objectNames.notInLeft.isEmpty())
             {
-                System.out.println("Keys not in left: ");
-                printSet(0, keys.notInLeft);
+                System.out.println("Objects not in left: ");
+                printSet(0, objectNames.notInLeft);
             }
-            for (String key : keys.shared)
+            Runnable printHeader = new Runnable()
+            {
+                boolean printedHeader = false;
+
+                public void run()
+                {
+                    if (!printedHeader)
+                    {
+                        System.out.println("Difference found in attribute or operation");
+                        printedHeader = true;
+                    }
+                }
+            };
+
+            for (String key : objectNames.shared)
             {
                 Info leftInfo = left.get(key);
                 Info rightInfo = right.get(key);
-                DiffResult<String> attributes = diff(leftInfo.attributeNames(), rightInfo.attributeNames());
+                DiffResult<Attribute> attributes = diff(leftInfo.attributeSet(), rightInfo.attributeSet());
                 if (!ignoreMissingRight && !attributes.notInRight.isEmpty())
                 {
+                    printHeader.run();
                     System.out.println(key + "\tattribute not in right:");
                     printSet(1, attributes.notInRight);
                 }
                 if (!ignoreMissingLeft && !attributes.notInLeft.isEmpty())
                 {
+                    printHeader.run();
                     System.out.println(key + "\tattribute not in left:");
                     printSet(1, attributes.notInLeft);
                 }
-                //TODO check type
 
-                DiffResult<String> operations = diff(leftInfo.operationNames(), rightInfo.operationNames());
+                DiffResult<Operation> operations = diff(leftInfo.operationSet(), rightInfo.operationSet());
                 if (!ignoreMissingRight && !operations.notInRight.isEmpty())
                 {
+                    printHeader.run();
                     System.out.println(key + "\toperation not in right:");
-                    printSet(1, operations.notInRight);
+                    printSet(1, operations.notInRight, (sb, o) -> {
+                        Optional<Operation> opt = rightInfo.getOperation(o.name);
+                        opt.ifPresent(match -> {
+                            sb.append("\t").append("similar in right: ").append(match);
+                        });
+                    });
                 }
                 if (!ignoreMissingLeft && !operations.notInLeft.isEmpty())
                 {
+                    printHeader.run();
                     System.out.println(key + "\toperation not in left:");
-                    printSet(1, operations.notInLeft);
+                    printSet(1, operations.notInLeft, (sb, o) -> {
+                        Optional<Operation> opt = leftInfo.getOperation(o.name);
+                        opt.ifPresent(match -> {
+                            sb.append("\t").append("similar in left: ").append(match);
+                        });
+                    });
                 }
             }
             return null;
         }
 
-        private static void printSet(int indent, Set<String> set)
+        private static <T extends Comparable<T>> void printSet(int indent, Set<T> set)
+        {
+            printSet(indent, set, (i1, i2) -> {});
+        }
+
+        private static <T extends Comparable<T>> void printSet(int indent, Set<T> set, BiConsumer<StringBuilder, T> fn)
         {
             StringBuilder sb = new StringBuilder();
-            for (String s : set)
+            for (T t : new TreeSet<>(set))
             {
                 sb.setLength(0);
                 for (int i = 0; i < indent; i++)
                     sb.append('\t');
-                sb.append(s);
+                sb.append(t);
+                fn.accept(sb, t);
                 System.out.println(sb);
             }
         }
@@ -290,7 +336,7 @@ public class JMXTool
         MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
 
         Map<String, Info> map = new TreeMap<>();
-        for (String pkg : new TreeSet<>(Arrays.asList("org.apache.cassandra.metrics", "org.apache.cassandra.db")))
+        for (String pkg : new TreeSet<>(METRIC_PACKAGES))
         {
             Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(new ObjectName(pkg + ":*"), null));
             for (ObjectName name : metricNames)
@@ -403,6 +449,11 @@ public class JMXTool
             return Stream.of(attributes).map(a -> a.name).collect(Collectors.toSet());
         }
 
+        public Set<Attribute> attributeSet()
+        {
+            return new HashSet<>(Arrays.asList(attributes));
+        }
+
         public Operation[] getOperations()
         {
             return operations;
@@ -417,9 +468,34 @@ public class JMXTool
         {
             return Stream.of(operations).map(o -> o.name).collect(Collectors.toSet());
         }
+
+        public Set<Operation> operationSet()
+        {
+            return new HashSet<>(Arrays.asList(operations));
+        }
+
+        public Optional<Attribute> getAttribute(String name)
+        {
+            return Stream.of(attributes).filter(a -> a.name.equals(name)).findFirst();
+        }
+
+        public Attribute getAttributePresent(String name)
+        {
+            return getAttribute(name).orElseThrow(AssertionError::new);
+        }
+
+        public Optional<Operation> getOperation(String name)
+        {
+            return Stream.of(operations).filter(o -> o.name.equals(name)).findFirst();
+        }
+
+        public Operation getOperationPresent(String name)
+        {
+            return getOperation(name).orElseThrow(AssertionError::new);
+        }
     }
 
-    public static final class Attribute
+    public static final class Attribute implements Comparable<Attribute>
     {
         private String name;
         private String type;
@@ -470,9 +546,36 @@ public class JMXTool
         {
             this.access = access;
         }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Attribute attribute = (Attribute) o;
+            return Objects.equals(name, attribute.name) &&
+                   Objects.equals(type, attribute.type);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(name, type);
+        }
+
+        public String toString()
+        {
+            return name + ": " + type;
+        }
+
+        public int compareTo(Attribute o)
+        {
+            int rc = name.compareTo(o.name);
+            if (rc != 0)
+                return rc;
+            return type.compareTo(o.type);
+        }
     }
 
-    public static final class Operation
+    public static final class Operation implements Comparable<Operation>
     {
         private String name;
         private Parameter[] parameters;
@@ -515,6 +618,11 @@ public class JMXTool
             this.parameters = parameters;
         }
 
+        public List<String> parameterTypes()
+        {
+            return Stream.of(parameters).map(p -> p.type).collect(Collectors.toList());
+        }
+
         public String getReturnType()
         {
             return returnType;
@@ -523,6 +631,45 @@ public class JMXTool
         public void setReturnType(String returnType)
         {
             this.returnType = returnType;
+        }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Operation operation = (Operation) o;
+            return Objects.equals(name, operation.name) &&
+                   Arrays.equals(parameters, operation.parameters) &&
+                   Objects.equals(returnType, operation.returnType);
+        }
+
+        public int hashCode()
+        {
+            int result = Objects.hash(name, returnType);
+            result = 31 * result + Arrays.hashCode(parameters);
+            return result;
+        }
+
+        public String toString()
+        {
+            return name + Stream.of(parameters).map(Parameter::toString).collect(Collectors.joining(", ", "(", ")")) + ": " + returnType;
+        }
+
+        public int compareTo(Operation o)
+        {
+            int rc = name.compareTo(o.name);
+            if (rc != 0)
+                return rc;
+            rc = Integer.compare(parameters.length, o.parameters.length);
+            if (rc != 0)
+                return rc;
+            for (int i = 0; i < parameters.length; i++)
+            {
+                rc = parameters[i].type.compareTo(o.parameters[i].type);
+                if (rc != 0)
+                    return rc;
+            }
+            return returnType.compareTo(o.returnType);
         }
     }
 
@@ -564,6 +711,24 @@ public class JMXTool
         public void setType(String type)
         {
             this.type = type;
+        }
+
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Parameter parameter = (Parameter) o;
+            return Objects.equals(type, parameter.type);
+        }
+
+        public int hashCode()
+        {
+            return Objects.hash(type);
+        }
+
+        public String toString()
+        {
+            return name + ": " + type;
         }
     }
 
