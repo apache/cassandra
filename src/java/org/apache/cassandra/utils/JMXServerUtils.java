@@ -164,7 +164,8 @@ public class JMXServerUtils
 
             env.put(JMXConnectorServer.AUTHENTICATOR, new JMXPluggableAuthenticatorWrapper(env));
         }
-
+        env.put("jmx.remote.rmi.server.credential.types",
+            new String[] { String[].class.getName(), String.class.getName() });
         return env;
     }
 
