@@ -132,6 +132,13 @@ public final class CompactionInfo
         StringBuilder buff = new StringBuilder();
         buff.append(getTaskType());
 
+        if (getTaskId() != null)
+        {
+            buff.append('(')
+                .append(getTaskId())
+                .append(')');
+        }
+
         if (metadata != null)
         {
             buff.append('@').append(metadata.id).append('(');
