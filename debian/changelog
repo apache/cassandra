@@ -1,8 +1,14 @@
-cassandra (2.1.21) unstable; urgency=medium
+cassandra (2.1.22) unstable; urgency=medium
 
   * New release
 
- -- Michael Shuler <mshuler@apache.org>  Fri, 01 Feb 2019 12:28:58 -0600
+ -- Mick Semb Wever <mck@apache.org>  Fri, 28 Aug 2020 12:36:32 +0200
+
+ cassandra (2.1.21) unstable; urgency=medium
+
+   * New release
+
+ -- Michael Shuler <michael@pbandjelly.org>  Mon, 11 Feb 2019 18:20:00 -0500
 
 cassandra (2.1.20) unstable; urgency=medium
 
