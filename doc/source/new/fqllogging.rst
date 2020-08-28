@@ -171,6 +171,25 @@ For example: ``max_archive_retries: 10``
 
 FQL can also be configured using ``nodetool`` when enabling the feature, and will override any values set in the `cassandra.yaml` file, as discussed in the next section.
 
+Querying the state of FQL
+---------------------
+
+In order to know what state FQL is in, you may use nodetool command ``getfullquerylog``. It will print out whether FQL is enabled
+and with what configuration options; if you reset or stop FQL, the configuration displayed will be taken from
+configuration in ``cassandra.yaml``.
+
+::
+
+ $ nodetool getfullquerylog
+ enabled             true
+ log_dir             /path/to/fql/log/dir
+ archive_command     /usr/local/bin/archiveit.sh %path
+ roll_cycle          HOURLY
+ block               true
+ max_log_size        17179869184
+ max_queue_weight    268435456
+ max_archive_retries 10
+
 Enabling FQL
 ------------
 

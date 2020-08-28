@@ -51,6 +51,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 
@@ -5624,5 +5625,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void stopFullQueryLogger()
     {
         FullQueryLogger.instance.stop();
+    }
+
+    @Override
+    public boolean isFullQueryLogEnabled()
+    {
+        return FullQueryLogger.instance.isEnabled();
+    }
+
+    @Override
+    public CompositeData getFullQueryLoggerOptions()
+    {
+        return FullQueryLoggerOptionsCompositeData.toCompositeData(FullQueryLogger.instance.getFullQueryLoggerOptions());
     }
 }

@@ -1,4 +1,5 @@
 4.0-beta3
+ * Add nodetool getfullquerylog (CASSANDRA-15988)
 
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
