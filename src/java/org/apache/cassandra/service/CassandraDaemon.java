@@ -33,6 +33,7 @@ import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -132,7 +133,10 @@ public class CassandraDaemon
 
         System.setProperty("java.rmi.server.hostname", InetAddress.getLoopbackAddress().getHostAddress());
         RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
-        Map<String, ?> env = Collections.singletonMap(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
+        Map<String, Object> env = new HashMap<>();
+        env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
+        env.put("jmx.remote.rmi.server.credential.types",
+            new String[] { String[].class.getName(), String.class.getName() });
         try
         {
             Registry registry = new JmxRegistry(Integer.valueOf(jmxPort), null, serverFactory, "jmxrmi");
