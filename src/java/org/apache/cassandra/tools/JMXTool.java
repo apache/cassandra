@@ -212,23 +212,17 @@ public class JMXTool
                 {
                     printHeader.run();
                     System.out.println(key + "\toperation not in right:");
-                    printSet(1, operations.notInRight, (sb, o) -> {
-                        Optional<Operation> opt = rightInfo.getOperation(o.name);
-                        opt.ifPresent(match -> {
-                            sb.append("\t").append("similar in right: ").append(match);
-                        });
-                    });
+                    printSet(1, operations.notInRight, (sb, o) ->
+                                                       rightInfo.getOperation(o.name).ifPresent(match ->
+                                                                                                sb.append("\t").append("similar in right: ").append(match)));
                 }
                 if (!ignoreMissingLeft && !operations.notInLeft.isEmpty())
                 {
                     printHeader.run();
                     System.out.println(key + "\toperation not in left:");
-                    printSet(1, operations.notInLeft, (sb, o) -> {
-                        Optional<Operation> opt = leftInfo.getOperation(o.name);
-                        opt.ifPresent(match -> {
-                            sb.append("\t").append("similar in left: ").append(match);
-                        });
-                    });
+                    printSet(1, operations.notInLeft, (sb, o) ->
+                                                      leftInfo.getOperation(o.name).ifPresent(match ->
+                                                                                              sb.append("\t").append("similar in left: ").append(match)));
                 }
             }
             return null;
