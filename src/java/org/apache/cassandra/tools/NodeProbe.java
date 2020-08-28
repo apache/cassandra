@@ -62,6 +62,8 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
@@ -1815,6 +1817,11 @@ public class NodeProbe implements AutoCloseable
     public void resetFullQueryLogger()
     {
         ssProxy.resetFullQueryLogger();
+    }
+
+    public FullQueryLoggerOptions getFullQueryLoggerOptions()
+    {
+        return FullQueryLoggerOptionsCompositeData.fromCompositeData(ssProxy.getFullQueryLoggerOptions());
     }
 }
 

@@ -34,7 +34,6 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Pair;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -785,6 +784,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Stop logging queries but leave any generated files on disk.
      */
     public void stopFullQueryLogger();
+
+    public boolean isFullQueryLogEnabled();
+
+    /**
+     * Returns the current state of FQL.
+     */
+    CompositeData getFullQueryLoggerOptions();
 
     /** Sets the initial allocation size of backing arrays for new RangeTombstoneList objects */
     public void setInitialRangeTombstoneListAllocationSize(int size);

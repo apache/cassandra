@@ -127,6 +127,7 @@ public class NodeTool
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetConcurrency.class,
+                GetFullQueryLog.class,
                 GetTimeout.class,
                 GetStreamThroughput.class,
                 GetTraceProbability.class,
