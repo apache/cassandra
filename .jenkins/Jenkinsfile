@@ -43,6 +43,7 @@ pipeline {
               script {
                 jvm_dtest = build job: "${env.JOB_NAME}-jvm-dtest", propagate: false
                 if (jvm_dtest.result != 'SUCCESS') unstable('jvm-dtest failures')
+                if (jvm_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -60,6 +61,7 @@ pipeline {
               script {
                 test = build job: "${env.JOB_NAME}-test", propagate: false
                 if (test.result != 'SUCCESS') unstable('unit test failures')
+                if (test.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -77,6 +79,7 @@ pipeline {
               script {
                 long_test = build job: "${env.JOB_NAME}-long-test", propagate: false
                 if (long_test.result != 'SUCCESS') unstable('long unit test failures')
+                if (long_test.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -94,6 +97,7 @@ pipeline {
               script {
                 burn = build job: "${env.JOB_NAME}-test-burn", propagate: false
                 if (burn.result != 'SUCCESS') unstable('burn test failures')
+                if (burn.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -111,6 +115,7 @@ pipeline {
               script {
                 compression = build job: "${env.JOB_NAME}-test-compression", propagate: false
                 if (compression.result != 'SUCCESS') unstable('compression failures')
+                if (compression.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -132,6 +137,7 @@ pipeline {
               script {
                 dtest = build job: "${env.JOB_NAME}-dtest", propagate: false
                 if (dtest.result != 'SUCCESS') unstable('dtest failures')
+                if (dtest.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -149,6 +155,7 @@ pipeline {
               script {
                 dtest_large = build job: "${env.JOB_NAME}-dtest-large", propagate: false
                 if (dtest_large.result != 'SUCCESS') unstable('dtest-large failures')
+                if (dtest_large.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -166,6 +173,7 @@ pipeline {
               script {
                 dtest_novnode = build job: "${env.JOB_NAME}-dtest-novnode", propagate: false
                 if (dtest_novnode.result != 'SUCCESS') unstable('dtest-novnode failures')
+                if (dtest_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -183,6 +191,7 @@ pipeline {
               script {
                 dtest_offheap = build job: "${env.JOB_NAME}-dtest-offheap", propagate: false
                 if (dtest_offheap.result != 'SUCCESS') unstable('dtest-offheap failures')
+                if (dtest_offheap.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -226,10 +235,14 @@ ${FAILED_TESTS,maxTests=500,showMessage=false,showStack=false}
 ${FILE,path="cassandra-test-report.txt"}
 '''
           }
+          sh "echo \"cassandra-builds at: `git -C cassandra-builds log -1 --pretty=format:'%h %an %ad %s'`\" > builds.head"
+          sh "find . -type f -name \\*.head -exec cat {} \\;"
+          sh "xz cassandra-test-report.txt TESTS-TestSuites.xml"
       }
       post {
           always {
-              archiveArtifacts artifacts: 'cassandra-test-report.txt', fingerprint: true
+              archiveArtifacts artifacts: 'cassandra-test-report.txt.xz', fingerprint: true
+              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'cassandra-test-report.txt.xz, TESTS-TestSuites.xml.xz')])])
           }
       }
     }

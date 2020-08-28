@@ -1726,12 +1726,6 @@
                        testtag="@{testtag}" showoutput="false" >
           <optjvmargs/>
       </testmacrohelper>
-      <junitreport todir="${build.test.dir}">
-        <fileset dir="${build.test.dir}/output">
-          <include name="**/TEST-*.xml"/>
-        </fileset>
-        <report format="frames" todir="${build.test.dir}/junitreport"/>
-      </junitreport>
       <fail message="Some test(s) failed.">
         <condition>
             <and>
@@ -1750,12 +1744,6 @@
     <attribute name="testdelegate"/>
     <sequential>
       <testparallelhelper testdelegate="@{testdelegate}"/>
-      <junitreport todir="${build.test.dir}">
-        <fileset dir="${build.test.dir}/output">
-          <include name="**/TEST-*.xml"/>
-        </fileset>
-        <report format="frames" todir="${build.test.dir}/junitreport"/>
-      </junitreport>
       <fail message="Some test(s) failed.">
         <condition>
             <and>
@@ -1808,6 +1796,15 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>
+  </target>
+
+  <target name="generate-test-report" description="Generates JUnit's HTML report from results already in build/output">
+      <junitreport todir="${build.test.dir}">
+        <fileset dir="${build.test.dir}/output">
+          <include name="**/TEST-*.xml"/>
+        </fileset>
+        <report format="frames" todir="${build.test.dir}/junitreport"/>
+      </junitreport>
   </target>
 
   <!-- run a list of tests as provided in -Dtest.classlistfile (or default of 'testnames.txt')
