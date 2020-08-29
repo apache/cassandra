@@ -185,8 +185,6 @@ public class JMXTool
             Map<String, Info> left = format.load(files.get(0));
             Map<String, Info> right = format.load(files.get(1));
 
-
-
             DiffResult<String> objectNames = diff(left.keySet(), right.keySet(), name -> {
                 for (CliPattern p : excludeObjects)
                 {
