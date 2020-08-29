@@ -3,7 +3,9 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -15,8 +17,10 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.inject.Inject;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
@@ -32,6 +36,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
@@ -40,6 +45,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
+import io.airlift.airline.Help;
+import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -81,6 +88,9 @@ public class JMXTool
     @Command(name = "dump", description = "Dump the Apache Cassandra JMX objects and metadata.")
     public static final class Dump implements Callable<Void>
     {
+        @Inject
+        private HelpOption helpOption;
+
         @Option(title = "url", name = { "-u", "--url" }, description = "JMX url to target")
         private String targetUrl = "service:jmx:rmi:///jndi/rmi://localhost:7199/jmxrmi";
 
@@ -144,6 +154,9 @@ public class JMXTool
     @Command(name = "diff", description = "Diff two jmx dump files and report their differences")
     public static final class Diff implements Callable<Void>
     {
+        @Inject
+        private HelpOption helpOption;
+
         @Arguments(title = "files", usage = "<left> <right>", description = "Files to diff")
         private List<File> files;
 
@@ -156,6 +169,15 @@ public class JMXTool
         @Option(title = "ignore right", name = { "--ignore-missing-on-right" }, description = "Ignore results missing on the right")
         private boolean ignoreMissingRight;
 
+        @Option(title = "exclude objects", name = "--exclude-object", description = "Ignores processing specific objects")
+        private List<CliPattern> excludeObjects = new ArrayList<>();
+
+        @Option(title = "exclude attributes", name = "--exclude-attribute", description = "Ignores processing specific attributes")
+        private List<CliPattern> excludeAttributes = new ArrayList<>();
+
+        @Option(title = "exclude operations", name = "--exclude-operation", description = "Ignores processing specific operations")
+        private List<CliPattern> excludeOperations = new ArrayList<>();
+
         public Void call() throws Exception
         {
             if (files.size() != 2)
@@ -163,7 +185,16 @@ public class JMXTool
             Map<String, Info> left = format.load(files.get(0));
             Map<String, Info> right = format.load(files.get(1));
 
-            DiffResult<String> objectNames = diff(left.keySet(), right.keySet());
+
+
+            DiffResult<String> objectNames = diff(left.keySet(), right.keySet(), name -> {
+                for (CliPattern p : excludeObjects)
+                {
+                    if (p.pattern.matcher(name).matches())
+                        return false;
+                }
+                return true;
+            });
 
             if (!ignoreMissingRight && !objectNames.notInRight.isEmpty())
             {
@@ -193,7 +224,14 @@ public class JMXTool
             {
                 Info leftInfo = left.get(key);
                 Info rightInfo = right.get(key);
-                DiffResult<Attribute> attributes = diff(leftInfo.attributeSet(), rightInfo.attributeSet());
+                DiffResult<Attribute> attributes = diff(leftInfo.attributeSet(), rightInfo.attributeSet(), attribute -> {
+                    for (CliPattern p : excludeAttributes)
+                    {
+                        if (p.pattern.matcher(attribute.name).matches())
+                            return false;
+                    }
+                    return true;
+                });
                 if (!ignoreMissingRight && !attributes.notInRight.isEmpty())
                 {
                     printHeader.run();
@@ -207,7 +245,14 @@ public class JMXTool
                     printSet(1, attributes.notInLeft);
                 }
 
-                DiffResult<Operation> operations = diff(leftInfo.operationSet(), rightInfo.operationSet());
+                DiffResult<Operation> operations = diff(leftInfo.operationSet(), rightInfo.operationSet(), operation -> {
+                    for (CliPattern p : excludeOperations)
+                    {
+                        if (p.pattern.matcher(operation.name).matches())
+                            return false;
+                    }
+                    return true;
+                });
                 if (!ignoreMissingRight && !operations.notInRight.isEmpty())
                 {
                     printHeader.run();
@@ -247,8 +292,10 @@ public class JMXTool
             }
         }
 
-        private static <T> DiffResult<T> diff(Set<T> left, Set<T> right)
+        private static <T> DiffResult<T> diff(Set<T> left, Set<T> right, Predicate<T> fn)
         {
+            left = Sets.filter(left, fn);
+            right = Sets.filter(right, fn);
             return new DiffResult<>(Sets.difference(left, right), Sets.difference(right, left), Sets.intersection(left, right));
         }
 
@@ -726,12 +773,21 @@ public class JMXTool
         }
     }
 
+    public static final class CliPattern
+    {
+        private final Pattern pattern;
+
+        public CliPattern(String pattern)
+        {
+            this.pattern = Pattern.compile(pattern);
+        }
+    }
+
     public static void main(String[] args) throws Exception
     {
         Cli.CliBuilder<Callable<Void>> builder = Cli.builder("jmxtool");
-        builder.withDefaultCommand(Dump.class);
-        builder.withCommand(Dump.class);
-        builder.withCommand(Diff.class);
+        builder.withDefaultCommand(Help.class);
+        builder.withCommands(Help.class, Dump.class, Diff.class);
 
         Cli<Callable<Void>> parser = builder.build();
         Callable<Void> command = parser.parse(args);
