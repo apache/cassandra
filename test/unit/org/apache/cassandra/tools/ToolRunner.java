@@ -32,10 +32,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.Futures;
 
 import org.apache.commons.io.IOUtils;
@@ -45,7 +47,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.OfflineToolUtils.SystemExitException;
+import org.apache.cassandra.utils.FailingConsumer;
 
+import static org.apache.cassandra.utils.FailingConsumer.orFail;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -59,8 +63,9 @@ public class ToolRunner implements AutoCloseable
     private Process process;
     private final CompletableFuture<ByteArrayOutputStream> errBufferFuture = new CompletableFuture<>();
     private final CompletableFuture<ByteArrayOutputStream> outBufferFuture = new CompletableFuture<>();
-    private Thread ioWatcherStdErr;
-    private Thread ioWatcherStdOut;
+    private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
+    private InputStream stdin;
+    private Thread[] ioWatchers;
     private Map<String, String> envs;
     private boolean runOutOfProcess = true;
 
@@ -73,6 +78,12 @@ public class ToolRunner implements AutoCloseable
     {
         this.allArgs.addAll(args);
         this.runOutOfProcess = runOutOfProcess;
+    }
+
+    public ToolRunner withStdin(InputStream stdin)
+    {
+        this.stdin = stdin;
+        return this;
     }
 
     public ToolRunner withEnvs(Map<String, String> envs)
@@ -166,15 +177,35 @@ public class ToolRunner implements AutoCloseable
             // each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
             // might block on an idle stream, not consuming the other stream which is blocked in the other process
             // as nothing is consuming
-            ioWatcherStdErr = new Thread(new StreamGobbler(process.getErrorStream(), errBufferFuture));
-            ioWatcherStdErr.setDaemon(true);
-            ioWatcherStdErr.setName("IO Watcher stderr for " + allArgs);
-            ioWatcherStdErr.start();
+            ioWatchers = new Thread[stdin == null ? 2 : 3];
+            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), new ByteArrayOutputStream(), errBufferFuture::complete));
+            ioWatchers[0].setDaemon(true);
+            ioWatchers[0].setName("IO Watcher stderr for " + allArgs);
+            ioWatchers[0].start();
 
-            ioWatcherStdOut = new Thread(new StreamGobbler(process.getInputStream(), outBufferFuture));
-            ioWatcherStdOut.setDaemon(true);
-            ioWatcherStdOut.setName("IO Watcher stdout for " + allArgs);
-            ioWatcherStdOut.start();
+            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), new ByteArrayOutputStream(), outBufferFuture::complete));
+            ioWatchers[1].setDaemon(true);
+            ioWatchers[1].setName("IO Watcher stdout for " + allArgs);
+            ioWatchers[1].start();
+
+            if (stdin != null)
+            {
+                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream(), i -> {}));
+                ioWatchers[2].setDaemon(true);
+                ioWatchers[2].setName("IO Watcher stdin for " + allArgs);
+                ioWatchers[2].start();
+                // since stdin might not close the thread would block, so add logic to try to close stdin when the process exits
+                onComplete.whenComplete((i1, i2) -> {
+                    try
+                    {
+                        stdin.close();
+                    }
+                    catch (IOException e)
+                    {
+                        logger.warn("Error closing stdin for {}", allArgs, e);
+                    }
+                });
+            }
         }
         catch (IOException e)
         {
@@ -250,8 +281,9 @@ public class ToolRunner implements AutoCloseable
         try
         {
             process.waitFor();
-            ioWatcherStdOut.join();
-            ioWatcherStdErr.join();
+            onComplete.complete(null); // safe to call multiple times as it will just start returning false
+            for (Thread t : ioWatchers)
+                t.join();
             return true;
         }
         catch (InterruptedException e)
@@ -362,17 +394,18 @@ public class ToolRunner implements AutoCloseable
         forceKill();
     }
 
-    private static final class StreamGobbler implements Runnable
+    private static final class StreamGobbler<T extends OutputStream> implements Runnable
     {
         private static final int BUFFER_SIZE = 8_192;
 
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
         private final InputStream input;
-        private final CompletableFuture<ByteArrayOutputStream> whenComplete;
+        private final T out;
+        private final Consumer<T> whenComplete;
 
-        private StreamGobbler(InputStream input, CompletableFuture<ByteArrayOutputStream> whenComplete)
+        private StreamGobbler(InputStream input, T out, Consumer<T> whenComplete)
         {
             this.input = input;
+            this.out = out;
             this.whenComplete = whenComplete;
         }
 
@@ -386,7 +419,7 @@ public class ToolRunner implements AutoCloseable
                     int read = input.read(buffer);
                     if (read == -1)
                     {
-                        whenComplete.complete(out);
+                        whenComplete.accept(out);
                         return;
                     }
                     out.write(buffer, 0, read);
@@ -394,12 +427,12 @@ public class ToolRunner implements AutoCloseable
                 catch (IOException e)
                 {
                     logger.error("Unexpected IO Error while reading stream", e);
-                    whenComplete.complete(out);
+                    whenComplete.accept(out);
                     return;
                 }
                 catch (Throwable t)
                 {
-                    whenComplete.complete(out);
+                    whenComplete.accept(out);
                     throw t;
                 }
             }
