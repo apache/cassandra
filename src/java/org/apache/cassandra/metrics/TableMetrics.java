@@ -315,7 +315,7 @@ public class TableMetrics
     public final Meter replicaFilteringProtectionRequests;
     
     /**
-     * This histogram records the maximum number of rows {@code ReplicaFilteringProtection}
+     * This histogram records the maximum number of rows {@link org.apache.cassandra.service.reads.ReplicaFilteringProtection}
      * caches at a point in time per query. With no replica divergence, this is equivalent to the maximum number of
      * cached rows in a single partition during a query. It can be helpful when choosing appropriate values for the
      * replica_filtering_protection thresholds in cassandra.yaml.
