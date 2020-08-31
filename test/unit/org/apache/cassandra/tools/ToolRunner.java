@@ -59,8 +59,6 @@ public class ToolRunner implements AutoCloseable
     private Process process;
     private final CompletableFuture<ByteArrayOutputStream> errBufferFuture = new CompletableFuture<>();
     private final CompletableFuture<ByteArrayOutputStream> outBufferFuture = new CompletableFuture<>();
-    private boolean stdinAutoClose;
-    private long defaultTimeoutMillis = TimeUnit.SECONDS.toMillis(30);
     private Thread ioWatcherStdErr;
     private Thread ioWatcherStdOut;
     private Map<String, String> envs;
