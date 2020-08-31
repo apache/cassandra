@@ -69,7 +69,7 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.metrics:type=DroppedMessage.*",
                                                     "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
                                                     "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients",
-                                                    "org.apache.cassandra.request:type=ReadRepairStage",
+                                                    "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager",
 
                                                     // Cas*Latency metrics missing
@@ -108,7 +108,7 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.metrics:type=DroppedMessage.*",
                                                     "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
                                                     "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients",
-                                                    "org.apache.cassandra.request:type=ReadRepairStage",
+                                                    "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager",
 
                                                     // Cas*Latency metrics missing
