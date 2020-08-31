@@ -1,3 +1,5 @@
+3.11.9
+
 3.11.8
  * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)
  * Fix short read protection for GROUP BY queries (CASSANDRA-15459)
