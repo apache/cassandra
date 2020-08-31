@@ -366,6 +366,8 @@ public class ToolRunner implements AutoCloseable
 
     private static final class StreamGobbler implements Runnable
     {
+        private static final int BUFFER_SIZE = 8_192;
+
         private final ByteArrayOutputStream out = new ByteArrayOutputStream();
         private final InputStream input;
         private final CompletableFuture<ByteArrayOutputStream> whenComplete;
@@ -378,7 +380,7 @@ public class ToolRunner implements AutoCloseable
 
         public void run()
         {
-            byte[] buffer = new byte[1 << 13];
+            byte[] buffer = new byte[BUFFER_SIZE];
             while (true)
             {
                 try
