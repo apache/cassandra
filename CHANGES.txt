@@ -1,3 +1,5 @@
+3.0.23:
+
 3.0.22:
  * Fix gossip shutdown order (CASSANDRA-15816)
  * Remove broken 'defrag-on-read' optimization (CASSANDRA-15432)
