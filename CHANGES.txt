@@ -1,3 +1,5 @@
+2.2.19
+
 2.2.18
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
 Merged from 2.1:
