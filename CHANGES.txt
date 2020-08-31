@@ -1,3 +1,5 @@
+2.1.23
+
 2.1.22
  * Only allow strings to be passed to JMX authentication (CASSANDRA-16077)
  * Disable JMX rebinding (CASSANDRA-15653, CASSANDRA-16075)
