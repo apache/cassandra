@@ -370,24 +370,25 @@ public class JMXTool
 
     private static Map<String, Info> load(JMXServiceURL url) throws IOException, MalformedObjectNameException, IntrospectionException, InstanceNotFoundException, ReflectionException
     {
-        JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
-
-        MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-
-        Map<String, Info> map = new TreeMap<>();
-        for (String pkg : new TreeSet<>(METRIC_PACKAGES))
+        try (JMXConnector jmxc = JMXConnectorFactory.connect(url, null))
         {
-            Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(new ObjectName(pkg + ":*"), null));
-            for (ObjectName name : metricNames)
+            MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+
+            Map<String, Info> map = new TreeMap<>();
+            for (String pkg : new TreeSet<>(METRIC_PACKAGES))
             {
-                if (mbsc.isRegistered(name))
+                Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(new ObjectName(pkg + ":*"), null));
+                for (ObjectName name : metricNames)
                 {
-                    MBeanInfo info = mbsc.getMBeanInfo(name);
-                    map.put(name.toString(), Info.from(info));
+                    if (mbsc.isRegistered(name))
+                    {
+                        MBeanInfo info = mbsc.getMBeanInfo(name);
+                        map.put(name.toString(), Info.from(info));
+                    }
                 }
             }
+            return map;
         }
-        return map;
     }
 
     private static String getAccess(MBeanAttributeInfo a)
