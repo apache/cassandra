@@ -1,3 +1,5 @@
+4.0-beta3
+
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
  * Always access system properties and environment variables via the new CassandraRelevantProperties and CassandraRelevantEnv classes (CASSANDRA-15876)
