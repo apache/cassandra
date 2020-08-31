@@ -94,7 +94,7 @@ public final class ClientMetrics
         authFailure = registerMeter("AuthFailure");
 
         pausedConnections = new AtomicInteger();
-        pausedConnectionsGauge = registerGauge("PausedConnections", null, pausedConnections::get);
+        pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
         requestDiscarded = registerMeter("RequestDiscarded");
 
         initialized = true;
@@ -147,12 +147,15 @@ public final class ClientMetrics
         return stats;
     }
 
-    private <T> Gauge<T> registerGauge(String name, String deprecated, Gauge<T> gauge)
+    private <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
     {
-        Gauge<T> registeredGauge = Metrics.register(factory.createMetricName(name), gauge);
-        if (deprecated != null)
-            Metrics.registerMBean(registeredGauge, factory.createMetricName(deprecated).getMBeanName());
-        return registeredGauge;
+        return Metrics.register(factory.createMetricName(name), gauge);
+    }
+    
+    private void registerGauge(String name, String deprecated, Gauge<?> gauge)
+    {
+        Gauge<?> registeredGauge = registerGauge(name, gauge);
+        Metrics.registerMBean(registeredGauge, factory.createMetricName(deprecated).getMBeanName());
     }
 
     private Meter registerMeter(String name)
