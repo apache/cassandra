@@ -72,11 +72,11 @@ public final class AbstractTypeGenerators
               TypeSupport.of(LongType.instance, SourceDSL.longs().all()),
               TypeSupport.of(FloatType.instance, SourceDSL.floats().any()),
               TypeSupport.of(DoubleType.instance, SourceDSL.doubles().any()),
-              TypeSupport.of(BytesType.instance, Generators.bytes(0, 1024)),
+              TypeSupport.of(BytesType.instance, Generators.bytes(1, 1024)),
               TypeSupport.of(UUIDType.instance, Generators.UUID_RANDOM_GEN),
               TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN), // serialization strips the hostname, only keeps the address
-              TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(0, 1024)),
-              TypeSupport.of(UTF8Type.instance, Generators.utf8(0, 1024)),
+              TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024)),
+              TypeSupport.of(UTF8Type.instance, Generators.utf8(1, 1024)),
               TypeSupport.of(TimestampType.instance, Generators.DATE_GEN),
               // null is desired here as #decompose will call org.apache.cassandra.serializers.EmptySerializer.serialize which ignores the input and returns empty bytes
               TypeSupport.of(EmptyType.instance, rnd -> null)
