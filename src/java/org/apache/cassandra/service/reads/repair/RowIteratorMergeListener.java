@@ -238,6 +238,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
         for (int i = 0; i < versions.length; i++)
         {
+            // we are not collecting a mutation for this version/source, skip;
+            if (!writeBackTo.get(i))
+                continue;
             RangeTombstoneMarker marker = versions[i];
 
             // Update what the source now thinks is the current deletion
