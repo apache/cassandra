@@ -872,7 +872,7 @@ public class TableMetrics
 
         anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
         validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);
-        repairSyncTime = createTableTimer("RepairSyncTime", "RepairSyncTime", "SyncTime", cfs.keyspace.metric.repairSyncTime);
+        repairSyncTime = createTableTimer("RepairSyncTime", cfs.keyspace.metric.repairSyncTime);
 
         bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
@@ -1093,26 +1093,9 @@ public class TableMetrics
 
     protected TableTimer createTableTimer(String name, Timer keyspaceTimer)
     {
-        return createTableTimer(name, name, keyspaceTimer);
-    }
-
-    protected TableTimer createTableTimer(String name, String alias, Timer keyspaceTimer)
-    {
-        return createTableTimer(name, alias, null, keyspaceTimer);
-    }
-
-    protected TableTimer createTableTimer(String name, String alias, String deprecated, Timer keyspaceTimer)
-    {
-        Timer cfTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(alias));
-        register(name, alias, deprecated, keyspaceTimer);
-        Timer global = Metrics.timer(globalFactory.createMetricName(name),
-                                     globalAliasFactory.createMetricName(alias));
-
-        if (deprecated != null)
-        {
-            Metrics.registerMBean(global, globalFactory.createMetricName(deprecated).getMBeanName());
-            Metrics.registerMBean(global, globalAliasFactory.createMetricName(deprecated).getMBeanName());
-        }
+        Timer cfTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(name));
+        register(name, name, keyspaceTimer);
+        Timer global = Metrics.timer(globalFactory.createMetricName(name), globalAliasFactory.createMetricName(name));
 
         return new TableTimer(cfTimer, keyspaceTimer, global);
     }
