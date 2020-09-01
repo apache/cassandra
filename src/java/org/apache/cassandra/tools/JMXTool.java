@@ -64,8 +64,7 @@ public class JMXTool
                                                                       "org.apache.cassandra.internal",
                                                                       "org.apache.cassandra.net",
                                                                       "org.apache.cassandra.request",
-                                                                      "org.apache.cassandra.service"
-    );
+                                                                      "org.apache.cassandra.service");
 
     private static final Comparator<MBeanOperationInfo> OPERATOR_COMPARATOR = (a, b) -> {
         int rc = a.getName().compareTo(b.getName());
