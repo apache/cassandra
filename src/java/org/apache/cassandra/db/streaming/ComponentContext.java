@@ -30,7 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -55,7 +55,7 @@ public class ComponentContext implements AutoCloseable
 
     public static ComponentContext create(Descriptor descriptor)
     {
-        LinkedHashMap<Component, File> hardLinks = new LinkedHashMap<>(1);
+        Map<Component, File> hardLinks = new HashMap<>(1);
 
         for (Component component : MUTABLE_COMPONENTS)
         {
@@ -100,6 +100,6 @@ public class ComponentContext implements AutoCloseable
         hardLinks.clear();
 
         if (accumulate != null)
-            logger.warn("Failed to remove hard link files: {}", accumulate.getMessage());
+            logger.warn("Failed to remove hard link files", accumulate);
     }
 }

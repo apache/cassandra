@@ -151,7 +151,7 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         if (streamEntirely)
         {
-            // Acquire lock to avoid concurrent sstable component mutation becaue of stats update or index summary
+            // Acquire lock to avoid concurrent sstable component mutation because of stats update or index summary
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
             // file sizes. (Note: Windows doesn't support atomic replace and index summary redistribution deletes
             // existing file first)
