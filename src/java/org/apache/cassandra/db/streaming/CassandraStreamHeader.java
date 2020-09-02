@@ -107,7 +107,8 @@ public class CassandraStreamHeader
         return size;
     }
 
-    private long calculateSize()
+    @VisibleForTesting
+    public long calculateSize()
     {
         if (isEntireSSTable)
             return componentManifest.totalSize();
