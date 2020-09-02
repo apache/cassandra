@@ -1196,7 +1196,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             for (SSTableReader sstable: sstables)
             {
-                sstable.mutateAndReloadStats(repairedAt, pendingRepair, isTransient);
+                sstable.mutateRepairedAndReload(repairedAt, pendingRepair, isTransient);
                 verifyMetadata(sstable, repairedAt, pendingRepair, isTransient);
                 changed.add(sstable);
             }

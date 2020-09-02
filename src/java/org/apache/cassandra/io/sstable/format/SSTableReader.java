@@ -1813,7 +1813,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * Mutate sstable level with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
      */
-    public void mutateAndReloadStats(int newLevel) throws IOException
+    public void mutateLevelAndReload(int newLevel) throws IOException
     {
         synchronized (tidy.global)
         {
@@ -1825,7 +1825,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * Mutate sstable repair metadata with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
      */
-    public void mutateAndReloadStats(long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairedAndReload(long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
     {
         synchronized (tidy.global)
         {

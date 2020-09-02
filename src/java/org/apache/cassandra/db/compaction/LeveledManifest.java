@@ -164,7 +164,7 @@ public class LeveledManifest
             try
             {
                 logger.debug("Could not add sstable {} in level {} - dropping to 0", reader, reader.getSSTableLevel());
-                reader.mutateAndReloadStats(0);
+                reader.mutateLevelAndReload(0);
             }
             catch (IOException e)
             {
@@ -280,7 +280,7 @@ public class LeveledManifest
         remove(sstable);
         try
         {
-            sstable.mutateAndReloadStats(0);
+            sstable.mutateLevelAndReload(0);
             add(sstable);
         }
         catch (IOException e)

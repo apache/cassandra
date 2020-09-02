@@ -77,7 +77,7 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
             try
             {
                 logger.info("Changing level on {} from {} to {}", sstable, metadataBefore.sstableLevel, level);
-                sstable.mutateAndReloadStats(level);
+                sstable.mutateLevelAndReload(level);
             }
             catch (Throwable t)
             {
