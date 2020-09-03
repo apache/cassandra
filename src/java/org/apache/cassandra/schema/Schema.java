@@ -22,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Sets;
@@ -36,7 +37,6 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -362,6 +362,13 @@ public final class Schema implements TableMetadataProvider
         return tm == null
              ? null
              : metadataRefs.get(tm.id);
+    }
+    
+    @VisibleForTesting
+    public void removeTableMetadataRef(String keyspace, String table)
+    {
+        TableMetadata tm = getTableMetadata(keyspace, table);
+        metadataRefs.remove(tm.id);
     }
 
     public TableMetadataRef getIndexTableMetadataRef(String keyspace, String index)

@@ -337,7 +337,19 @@ public class Keyspace
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
-            initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
+            TableMetadataRef tableMetadataRef = Schema.instance.getTableMetadataRef(cfm.id);
+            
+            if (tableMetadataRef == null)
+            {
+                logger.info("Failed to initialize {}.{}, as no table metadata was available. This " +
+                            "has likely occurred because the keyspace metadata for {} has not yet " +
+                            "been updated to reflect the table being dropped.", 
+                            getName(), cfm.name, getName());
+            }
+            else
+            {
+                initCf(tableMetadataRef, loadSSTables);
+            }
         }
         this.viewManager.reload(false);
 
