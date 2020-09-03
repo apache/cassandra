@@ -737,7 +737,7 @@ class TestCqlshOutput(BaseTestCase):
         ringinfo_re = r'''
             Range[ ]ownership: \n
             (
-              [ ] .*? [ ][ ] \[ ( \d+ \. ){3} \d+ : \d+ \] \n
+              [ ] .*? [ ][ ] \[ / ( \d+ \. ){3} \d+ : \d+ \] \n
             )+
             \n
         '''
