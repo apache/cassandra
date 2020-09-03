@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.*;
 import org.junit.BeforeClass;
@@ -426,14 +427,11 @@ public class PendingRangesTest
                 throw new IllegalStateException("Number of movements should not exceed total nodes in the cluster");
 
             // we want to ensure that any given node is only marked as moving once.
-            while (true)
-            {
-                InetAddressAndPort node = nodes.get(random.nextInt(nodes.size()));
-                if (tm.isMoving(node))
-                    continue;
-                tm.addMovingEndpoint(token(random.nextLong()), node);
-                return;
-            }
+            List<InetAddressAndPort> moveCandidates = nodes.stream()
+                                                           .filter(node -> !tm.isMoving(node))
+                                                           .collect(Collectors.toList());
+            InetAddressAndPort node = moveCandidates.get(random.nextInt(moveCandidates.size()));
+            tm.addMovingEndpoint(token(random.nextLong()), node);
         }
 
         private Collection<Token> tokens()
