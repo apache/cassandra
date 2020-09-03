@@ -44,6 +44,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
@@ -200,8 +201,7 @@ public class JMXTool
 
         public Void call() throws Exception
         {
-            if (files.size() != 2)
-                throw new IllegalArgumentException("files requires 2 arguments but given " + files);
+            Preconditions.checkArgument(files.size() == 2, "files requires 2 arguments but given %s", files);
             Map<String, Info> left;
             Map<String, Info> right;
             try (FileInputStream leftStream = new FileInputStream(files.get(0));
