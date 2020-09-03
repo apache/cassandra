@@ -3,6 +3,14 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintStream;
+import java.io.Reader;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -99,7 +107,7 @@ public class JMXTool
         public Void call() throws Exception
         {
             Map<String, Info> map = load(new JMXServiceURL(targetUrl));
-            format.dump(map);
+            format.dump(System.out, map);
             return null;
         }
 
@@ -107,46 +115,59 @@ public class JMXTool
         {
             console
             {
-                void dump(Map<String, Info> map)
+                void dump(OutputStream output, Map<String, Info> map)
                 {
+                    PrintStream out = toPrintStream(output);
                     for (Map.Entry<String, Info> e : map.entrySet())
                     {
                         String name = e.getKey();
                         Info info = e.getValue();
 
-                        System.out.println(name);
-                        System.out.println("\tAttributes");
-                        Stream.of(info.attributes).forEach(a -> printRow(a.name, a.type, a.access));
-                        System.out.println("\tOperations");
+                        out.println(name);
+                        out.println("\tAttributes");
+                        Stream.of(info.attributes).forEach(a -> printRow(out, a.name, a.type, a.access));
+                        out.println("\tOperations");
                         Stream.of(info.operations).forEach(o -> {
                             String args = Stream.of(o.parameters)
                                                 .map(i -> i.name + ": " + i.type)
                                                 .collect(Collectors.joining(",", "(", ")"));
-                            printRow(o.name, o.returnType, args);
+                            printRow(out, o.name, o.returnType, args);
                         });
                     }
                 }
             },
             json
             {
-                void dump(Map<String, Info> map) throws IOException
+                void dump(OutputStream output, Map<String, Info> map) throws IOException
                 {
                     ObjectMapper mapper = new ObjectMapper();
-                    System.out.println(mapper.writeValueAsString(map));
+                    mapper.writeValue(output, map);
                 }
             },
             yaml
             {
-                void dump(Map<String, Info> map) throws IOException
+                void dump(OutputStream output, Map<String, Info> map) throws IOException
                 {
                     Representer representer = new Representer();
                     representer.addClassTag(Info.class, Tag.MAP); // avoid the auto added tag
                     Yaml yaml = new Yaml(representer);
-                    System.out.println(yaml.dump(map));
+                    yaml.dump(map, new OutputStreamWriter(output));
                 }
             };
 
-            abstract void dump(Map<String, Info> map) throws IOException;
+            private static PrintStream toPrintStream(OutputStream output)
+            {
+                try
+                {
+                    return output instanceof PrintStream ? (PrintStream) output : new PrintStream(output, true, "UTF-8");
+                }
+                catch (UnsupportedEncodingException e)
+                {
+                    throw new AssertionError(e); // utf-8 is a required charset for the JVM
+                }
+            }
+
+            abstract void dump(OutputStream output, Map<String, Info> map) throws IOException;
         }
     }
 
@@ -181,8 +202,14 @@ public class JMXTool
         {
             if (files.size() != 2)
                 throw new IllegalArgumentException("files requires 2 arguments but given " + files);
-            Map<String, Info> left = format.load(files.get(0));
-            Map<String, Info> right = format.load(files.get(1));
+            Map<String, Info> left;
+            Map<String, Info> right;
+            try (FileInputStream leftStream = new FileInputStream(files.get(0));
+                 FileInputStream rightStream = new FileInputStream(files.get(1)))
+            {
+                left = format.load(leftStream);
+                right = format.load(rightStream);
+            }
 
             DiffResult<String> objectNames = diff(left.keySet(), right.keySet(), name -> {
                 for (CliPattern p : excludeObjects)
@@ -314,25 +341,22 @@ public class JMXTool
         {
             json
             {
-                Map<String, Info> load(File f) throws IOException
+                Map<String, Info> load(InputStream input) throws IOException
                 {
                     ObjectMapper mapper = new ObjectMapper();
-                    return mapper.readValue(f, new TypeReference<Map<String, Info>>() {});
+                    return mapper.readValue(input, new TypeReference<Map<String, Info>>() {});
                 }
             },
             yaml
             {
-                Map<String, Info> load(File f) throws IOException
+                Map<String, Info> load(InputStream input) throws IOException
                 {
                     Yaml yaml = new Yaml(new CustomConstructor());
-                    try (FileInputStream input = new FileInputStream(f))
-                    {
-                        return (Map<String, Info>) yaml.load(input);
-                    }
+                    return (Map<String, Info>) yaml.load(input);
                 }
             };
 
-            abstract Map<String, Info> load(File f) throws IOException;
+            abstract Map<String, Info> load(InputStream input) throws IOException;
         }
 
         private static final class CustomConstructor extends Constructor
@@ -435,13 +459,13 @@ public class JMXTool
 
     private static final StringBuilder ROW_BUFFER = new StringBuilder();
 
-    private static void printRow(String... args)
+    private static void printRow(PrintStream out, String... args)
     {
         ROW_BUFFER.setLength(0);
         ROW_BUFFER.append("\t\t");
         for (String a : args)
             ROW_BUFFER.append(a).append("\t");
-        System.out.println(ROW_BUFFER);
+        out.println(ROW_BUFFER);
     }
 
     public static final class Info
@@ -531,6 +555,24 @@ public class JMXTool
         public Operation getOperationPresent(String name)
         {
             return getOperation(name).orElseThrow(AssertionError::new);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Info info = (Info) o;
+            return Arrays.equals(attributes, info.attributes) &&
+                   Arrays.equals(operations, info.operations);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            int result = Arrays.hashCode(attributes);
+            result = 31 * result + Arrays.hashCode(operations);
+            return result;
         }
     }
 
