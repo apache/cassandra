@@ -1,4 +1,5 @@
 4.0-beta3
+ * Avoid adding locahost when streaming trivial ranges (CASSANDRA-16099)
  * Add nodetool getfullquerylog (CASSANDRA-15988)
  * Fix yaml format and alignment in tpstats (CASSANDRA-11402)
  * Avoid trying to keep track of RTs for endpoints we won't write to during read repair (CASSANDRA-16084)
