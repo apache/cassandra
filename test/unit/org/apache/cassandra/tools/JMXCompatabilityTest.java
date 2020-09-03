@@ -68,9 +68,9 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.internal:.*",
                                                     "org.apache.cassandra.metrics:type=DroppedMessage.*",
                                                     "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
-                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients",
+                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
-                                                    "org.apache.cassandra.db:type=HintedHandoffManager",
+                                                    "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
                                                     // Cas*Latency metrics missing
                                                     ".*keyspace=system,scope=schema_aggregates,.*",
@@ -86,9 +86,9 @@ public class JMXCompatabilityTest extends CQLTester
                                                     ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=hints.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=batchlog.*");
-        List<String> excludeAttributes = Arrays.asList("RPCServerRunning",
+        List<String> excludeAttributes = Arrays.asList("RPCServerRunning", // removed in CASSANDRA-11115
                                                        "MaxNativeProtocolVersion");
-        List<String> excludeOperations = Arrays.asList("startRPCServer", "stopRPCServer",
+        List<String> excludeOperations = Arrays.asList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                        // nodetool apis that were changed,
                                                        "decommission", // -> decommission(boolean)
                                                        "forceRepairAsync", // -> repairAsync
@@ -107,9 +107,9 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.internal:.*",
                                                     "org.apache.cassandra.metrics:type=DroppedMessage.*",
                                                     "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
-                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients",
+                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
-                                                    "org.apache.cassandra.db:type=HintedHandoffManager",
+                                                    "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
                                                     // Cas*Latency metrics missing
                                                     ".*keyspace=system,scope=schema_aggregates,.*",
@@ -126,10 +126,10 @@ public class JMXCompatabilityTest extends CQLTester
                                                     ".*keyspace=system,(scope|table|columnfamily)=hints.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=batchlog.*"
         );
-        List<String> excludeAttributes = Arrays.asList("RPCServerRunning",
+        List<String> excludeAttributes = Arrays.asList("RPCServerRunning", // removed in CASSANDRA-11115
                                                        "MaxNativeProtocolVersion",
                                                        "StreamingSocketTimeout");
-        List<String> excludeOperations = Arrays.asList("startRPCServer", "stopRPCServer",
+        List<String> excludeOperations = Arrays.asList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                        // nodetool apis that were changed,
                                                        "decommission", // -> decommission(boolean)
                                                        "forceRepairAsync", // -> repairAsync
