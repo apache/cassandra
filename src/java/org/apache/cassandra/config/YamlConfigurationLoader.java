@@ -22,7 +22,9 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.net.URL;
+import java.util.Collections;
 import java.util.HashSet;
 
 import java.util.List;
@@ -146,23 +148,18 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         @Override
         protected List<Object> createDefaultList(int initSize)
         {
+
             return Lists.newCopyOnWriteArrayList();
         }
 
         @Override
-        protected Map<Object, Object> createDefaultMap()
+        protected Map<Object, Object> createDefaultMap(int initSize)
         {
             return Maps.newConcurrentMap();
         }
 
         @Override
         protected Set<Object> createDefaultSet(int initSize)
-        {
-            return Sets.newConcurrentHashSet();
-        }
-
-        @Override
-        protected Set<Object> createDefaultSet()
         {
             return Sets.newConcurrentHashSet();
         }
@@ -192,7 +189,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
 
         @Override
-        public Property getProperty(Class<? extends Object> type, String name) throws IntrospectionException
+        public Property getProperty(Class<? extends Object> type, String name)
         {
             final Property result = super.getProperty(type, name);
 
@@ -223,6 +220,16 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 public Object get(Object object)
                 {
                     return result.get(object);
+                }
+
+                public List<Annotation> getAnnotations()
+                {
+                    return Collections.EMPTY_LIST;
+                }
+
+                public <A extends Annotation> A getAnnotation(Class<A> aClass)
+                {
+                    return null;
                 }
             };
         }
