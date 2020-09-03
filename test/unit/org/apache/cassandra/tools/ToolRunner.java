@@ -119,6 +119,8 @@ public class ToolRunner implements AutoCloseable
                 ByteArrayOutputStream toolOut = new ByteArrayOutputStream();
                 ByteArrayOutputStream toolErr = new ByteArrayOutputStream();
 
+                System.setIn(stdin == null ? originalSysIn : stdin);
+
                 int exit = 0;
                 try (PrintStream newOut = new PrintStream(toolOut); PrintStream newErr = new PrintStream(toolErr);)
                 {
@@ -162,7 +164,20 @@ public class ToolRunner implements AutoCloseable
                     @Override
                     public OutputStream getOutputStream()
                     {
-                        return null;
+                        if (stdin == null)
+                            return null;
+
+                        ByteArrayOutputStream out;
+                        try
+                        {
+                            out = new ByteArrayOutputStream(stdin.available());
+                            IOUtils.copy(stdin, out);
+                        }
+                        catch(IOException e)
+                        {
+                            throw new RuntimeException("Failed to get stdin", e);
+                        }
+                        return out;
                     }
 
                     @Override
@@ -177,7 +192,12 @@ public class ToolRunner implements AutoCloseable
             // each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
             // might block on an idle stream, not consuming the other stream which is blocked in the other process
             // as nothing is consuming
-            ioWatchers = new Thread[stdin == null ? 2 : 3];
+            int numWatchers = 2;
+            // only need a stdin watcher when forking
+            boolean includeStdinWatcher = runOutOfProcess && stdin != null;
+            if (includeStdinWatcher)
+                numWatchers = 3;
+            ioWatchers = new Thread[numWatchers];
             ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), new ByteArrayOutputStream(), errBufferFuture::complete));
             ioWatchers[0].setDaemon(true);
             ioWatchers[0].setName("IO Watcher stderr for " + allArgs);
@@ -188,7 +208,7 @@ public class ToolRunner implements AutoCloseable
             ioWatchers[1].setName("IO Watcher stdout for " + allArgs);
             ioWatchers[1].start();
 
-            if (stdin != null)
+            if (includeStdinWatcher)
             {
                 ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream(), i -> {}));
                 ioWatchers[2].setDaemon(true);
