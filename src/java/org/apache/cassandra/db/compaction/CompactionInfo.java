@@ -127,32 +127,18 @@ public final class CompactionInfo
         return sstables;
     }
 
+    @Override
     public String toString()
     {
         StringBuilder buff = new StringBuilder();
-        buff.append(getTaskType());
 
-        if (getTaskId() != null)
-        {
-            buff.append('(')
-                .append(getTaskId())
-                .append(')');
-        }
+        String summery = String.format("%s(%s, %s / %s %s)", tasktype, compactionId, completed, total, unit);
+        buff.append(summery);
 
         if (metadata != null)
         {
-            buff.append('@').append(metadata.id).append('(');
-            buff.append(metadata.keyspace).append(", ").append(metadata.name).append(", ");
+            buff.append(String.format("@%s(%s, %s)", metadata.id, metadata.keyspace, metadata.name));
         }
-        else
-        {
-            buff.append('(');
-        }
-        buff.append(getCompleted())
-            .append('/')
-            .append(getTotal())
-            .append(')')
-            .append(unit);
 
         return buff.toString();
     }

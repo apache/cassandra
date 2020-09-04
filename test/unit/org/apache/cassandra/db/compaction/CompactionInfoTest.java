@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -36,7 +37,21 @@ public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
         ColumnFamilyStore cfs = MockSchema.newCFS();
         UUID expectedTaskId = UUID.randomUUID();
         CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, expectedTaskId, new ArrayList<>());
-        String expectedTaskIdPart = "(" + expectedTaskId + ')';
-        Assert.assertTrue("CompactionInfo string should contain taskId", compactionInfo.toString().contains(expectedTaskIdPart));
+        String actual = compactionInfo.toString();
+        Assert.assertTrue("CompactionInfo string should contain taskId. Actual: " + actual, compactionInfo.toString().contains(expectedTaskId.toString()));
+    }
+
+    @Test
+    public void testCompactionInfoToStringFormat()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, UUID.randomUUID(), new ArrayList<>());
+        String uuidPattern = "([0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12})";
+        Pattern pattern = Pattern.compile("(\\w+)\\(" + uuidPattern + ", (\\d+) / (\\d+) (\\w+)\\)@" + uuidPattern + "\\((\\w+), (\\w+)\\)");
+        String actual = compactionInfo.toString();
+        Assert.assertTrue("CompactionInfo string should match pattern. Actual: " + actual +
+                          "\nPattern: " + pattern.pattern() +
+                          "\nFormat: " + "TaskType(TaskId, Progress Unit)@TableId(KeyspaceName, TableName)",
+                          pattern.matcher(compactionInfo.toString()).matches());
     }
 }
