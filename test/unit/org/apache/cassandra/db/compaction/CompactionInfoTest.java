@@ -28,6 +28,8 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.repair.AbstractPendingAntiCompactionTest;
 import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.schema.TableId;
+import org.assertj.core.api.Assertions;
 
 public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
 {
@@ -37,21 +39,18 @@ public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
         ColumnFamilyStore cfs = MockSchema.newCFS();
         UUID expectedTaskId = UUID.randomUUID();
         CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, expectedTaskId, new ArrayList<>());
-        String actual = compactionInfo.toString();
-        Assert.assertTrue("CompactionInfo string should contain taskId. Actual: " + actual, compactionInfo.toString().contains(expectedTaskId.toString()));
+        Assertions.assertThat(compactionInfo.toString())
+                  .contains(expectedTaskId.toString());
     }
 
     @Test
     public void testCompactionInfoToStringFormat()
     {
-        ColumnFamilyStore cfs = MockSchema.newCFS();
-        CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, UUID.randomUUID(), new ArrayList<>());
-        String uuidPattern = "([0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12})";
-        Pattern pattern = Pattern.compile("(\\w+)\\(" + uuidPattern + ", (\\d+) / (\\d+) (\\w+)\\)@" + uuidPattern + "\\((\\w+), (\\w+)\\)");
-        String actual = compactionInfo.toString();
-        Assert.assertTrue("CompactionInfo string should match pattern. Actual: " + actual +
-                          "\nPattern: " + pattern.pattern() +
-                          "\nFormat: " + "TaskType(TaskId, Progress Unit)@TableId(KeyspaceName, TableName)",
-                          pattern.matcher(compactionInfo.toString()).matches());
+        UUID tableId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+        ColumnFamilyStore cfs = MockSchema.newCFS(builder -> builder.id(TableId.fromUUID(tableId)));
+        CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, taskId, new ArrayList<>());
+        Assertions.assertThat(compactionInfo.toString())
+                  .isEqualTo("Compaction(%s, 0 / 1000 bytes)@%s(mockks, mockcf1)", taskId, tableId);
     }
 }

@@ -130,17 +130,17 @@ public final class CompactionInfo
     @Override
     public String toString()
     {
-        StringBuilder buff = new StringBuilder();
-
-        String summery = String.format("%s(%s, %s / %s %s)", tasktype, compactionId, completed, total, unit);
-        buff.append(summery);
-
         if (metadata != null)
         {
-            buff.append(String.format("@%s(%s, %s)", metadata.id, metadata.keyspace, metadata.name));
+            return String.format("%s(%s, %s / %s %s)@%s(%s, %s)",
+                                 tasktype, compactionId, completed, total, unit,
+                                 metadata.id, metadata.keyspace, metadata.name);
         }
-
-        return buff.toString();
+        else
+        {
+            return String.format("%s(%s, %s / %s %s)",
+                                 tasktype, compactionId, completed, total, unit);
+        }
     }
 
     public Map<String, String> asMap()
