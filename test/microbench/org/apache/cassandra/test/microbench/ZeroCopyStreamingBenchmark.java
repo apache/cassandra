@@ -151,22 +151,22 @@ public class ZeroCopyStreamingBenchmark
                                                                                                null), entireSSTableStreamHeader, session);
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
-            partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);
+            CassandraStreamHeader partialSSTableStreamHeader =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(sstable.descriptor.formatType)
+                                 .withSSTableVersion(sstable.descriptor.version)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(sstable.estimatedKeys())
+                                 .withSections(sstable.getPositionsForRanges(requestedRanges))
+                                 .withSerializationHeader(sstable.header.toComponent())
+                                 .withTableId(sstable.metadata().id)
+                                 .build();
+
+            partialStreamWriter = new CassandraStreamWriter(sstable, partialSSTableStreamHeader, session);
 
             CapturingNettyChannel partialStreamChannel = new CapturingNettyChannel(STREAM_SIZE);
             partialStreamWriter.write(new AsyncStreamingOutputPlus(partialStreamChannel));
             serializedPartialStream = partialStreamChannel.getSerializedStream();
-
-            CassandraStreamHeader partialSSTableStreamHeader =
-                CassandraStreamHeader.builder()
-                                     .withSSTableFormat(sstable.descriptor.formatType)
-                                     .withSSTableVersion(sstable.descriptor.version)
-                                     .withSSTableLevel(0)
-                                     .withEstimatedKeys(sstable.estimatedKeys())
-                                     .withSections(sstable.getPositionsForRanges(requestedRanges))
-                                     .withSerializationHeader(sstable.header.toComponent())
-                                     .withTableId(sstable.metadata().id)
-                                     .build();
 
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                     peer, session.planId(), false,

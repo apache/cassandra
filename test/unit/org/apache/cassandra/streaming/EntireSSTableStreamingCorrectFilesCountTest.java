@@ -123,7 +123,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                                                                     PreviewKind.NONE);
 
         session.addTransferStreams(outgoingStreams);
-        DataOutputStreamPlus out = constructDataOutputStream();
+        AsyncStreamingOutputPlus out = constructDataOutputStream();
 
         for (OutgoingStream outgoingStream : outgoingStreams)
         {
@@ -139,7 +139,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
         assertEquals(streamEventHandler.fileNames.size(), totalNumberOfFiles);
     }
 
-    private DataOutputStreamPlus constructDataOutputStream()
+    private AsyncStreamingOutputPlus constructDataOutputStream()
     {
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);

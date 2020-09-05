@@ -146,10 +146,12 @@ public class CassandraOutgoingFile implements OutgoingStream
     @Override
     public void write(StreamSession session, DataOutputStreamPlus out, int version) throws IOException
     {
-        boolean streamEntirely = shouldStreamEntireSSTable && out instanceof AsyncStreamingOutputPlus;
+        // FileStreamTask uses AsyncStreamingOutputPlus for streaming.
+        assert out instanceof AsyncStreamingOutputPlus : "Unexpected DataOutputStreamPlus " + out.getClass();
+
         SSTableReader sstable = ref.get();
 
-        if (streamEntirely)
+        if (shouldStreamEntireSSTable)
         {
             // Acquire lock to avoid concurrent sstable component mutation because of stats update or index summary
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
@@ -173,8 +175,8 @@ public class CassandraOutgoingFile implements OutgoingStream
             out.flush();
 
             CassandraStreamWriter writer = (header.compressionInfo == null) ?
-                                           new CassandraStreamWriter(sstable, header.sections, session) :
-                                           new CassandraCompressedStreamWriter(sstable, header.sections, header.compressionInfo, session);
+                                           new CassandraStreamWriter(sstable, header, session) :
+                                           new CassandraCompressedStreamWriter(sstable, header, session);
             writer.write(out);
         }
     }

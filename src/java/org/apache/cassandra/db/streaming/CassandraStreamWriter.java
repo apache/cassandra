@@ -59,13 +59,15 @@ public class CassandraStreamWriter
     protected final Collection<SSTableReader.PartitionPositionBounds> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
+    private final long totalSize;
 
-    public CassandraStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, StreamSession session)
+    public CassandraStreamWriter(SSTableReader sstable, CassandraStreamHeader header, StreamSession session)
     {
         this.session = session;
         this.sstable = sstable;
-        this.sections = sections;
+        this.sections = header.sections;
         this.limiter =  StreamManager.getRateLimiter(session.peer);
+        this.totalSize = header.size();
     }
 
     /**
@@ -127,10 +129,7 @@ public class CassandraStreamWriter
 
     protected long totalSize()
     {
-        long size = 0;
-        for (SSTableReader.PartitionPositionBounds section : sections)
-            size += section.upperPosition - section.lowerPosition;
-        return size;
+        return totalSize;
     }
 
     /**
