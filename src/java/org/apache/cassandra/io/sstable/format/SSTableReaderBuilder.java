@@ -114,10 +114,10 @@ public abstract class SSTableReaderBuilder
     }
 
     /**
-     * Load index summary from Summary.db file if it exists.
+     * Load index summary, first key and last key from Summary.db file if it exists.
      *
      * if loaded index summary has different index interval from current value stored in schema,
-     * then Summary.db file will be deleted and this returns false to rebuild summary.
+     * then Summary.db file will be deleted and need to be rebuilt.
      */
     void loadSummary()
     {
@@ -157,15 +157,16 @@ public abstract class SSTableReaderBuilder
     }
 
     /**
-     * Build index summary(and optionally bloom filter) by reading through Index.db file.
+     * Build index summary, first key, last key if {@code summaryLoaded} is false and recreate bloom filter if
+     * {@code recreteBloomFilter} is true by reading through Index.db file.
      *
      * @param recreateBloomFilter true if recreate bloom filter
-     * @param summaryLoaded true if index summary is already loaded and not need to build again
+     * @param summaryLoaded true if index summary, first key and last key are already loaded and not need to build again
      */
-    void buildSummary(boolean recreateBloomFilter,
-                      boolean summaryLoaded,
-                      Set<Component> components,
-                      StatsMetadata statsMetadata) throws IOException
+    void buildSummaryAndBloomFilter(boolean recreateBloomFilter,
+                                    boolean summaryLoaded,
+                                    Set<Component> components,
+                                    StatsMetadata statsMetadata) throws IOException
     {
         if (!components.contains(Component.PRIMARY_INDEX))
             return;
@@ -195,9 +196,13 @@ public abstract class SSTableReaderBuilder
                     ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
                     RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
                     DecoratedKey decoratedKey = metadata.partitioner.decorateKey(key);
-                    if (first == null)
-                        first = decoratedKey;
-                    last = decoratedKey;
+
+                    if (!summaryLoaded)
+                    {
+                        if (first == null)
+                            first = decoratedKey;
+                        last = decoratedKey;
+                    }
 
                     if (recreateBloomFilter)
                         bf.add(decoratedKey);
@@ -214,8 +219,11 @@ public abstract class SSTableReaderBuilder
             }
         }
 
-        first = SSTable.getMinimalKey(first);
-        last = SSTable.getMinimalKey(last);
+        if (!summaryLoaded)
+        {
+            first = SSTable.getMinimalKey(first);
+            last = SSTable.getMinimalKey(last);
+        }
     }
 
     /**
@@ -307,7 +315,7 @@ public abstract class SSTableReaderBuilder
             {
                 try
                 {
-                    buildSummary(false, false, components, statsMetadata);
+                    buildSummaryAndBloomFilter(false, false, components, statsMetadata);
                 }
                 catch (IOException e)
                 {
@@ -422,7 +430,7 @@ public abstract class SSTableReaderBuilder
                 loadSummary();
                 boolean buildSummary = summary == null || recreateBloomFilter;
                 if (buildSummary)
-                    buildSummary(recreateBloomFilter, summary != null, components, statsMetadata);
+                    buildSummaryAndBloomFilter(recreateBloomFilter, summary != null, components, statsMetadata);
 
                 int dataBufferSize = optimizationStrategy.bufferSize(statsMetadata.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
 
