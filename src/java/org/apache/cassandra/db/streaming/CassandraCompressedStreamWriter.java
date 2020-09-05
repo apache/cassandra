@@ -52,7 +52,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     public CassandraCompressedStreamWriter(SSTableReader sstable, CassandraStreamHeader header, StreamSession session)
     {
         super(sstable, header, session);
-        this.compressionInfo = header.compressionInfo;
+        this.compressionInfo = header.getOrInitCompressionInfo();
         this.totalSize = header.size();
     }
 

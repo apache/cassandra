@@ -58,7 +58,7 @@ public class CassandraStreamHeader
      * Use compressionMetadata instead.
      */
     private final CompressionMetadata compressionMetadata;
-    public volatile CompressionInfo compressionInfo;
+    private volatile CompressionInfo compressionInfo;
     public final int sstableLevel;
     public final SerializationHeader.Component serializationHeader;
 
@@ -96,7 +96,21 @@ public class CassandraStreamHeader
 
     public boolean isCompressed()
     {
-        return compressionInfo != null;
+        return compressionInfo != null || compressionMetadata != null;
+    }
+
+    public synchronized CompressionInfo getOrInitCompressionInfo()
+    {
+        if (compressionMetadata != null && compressionInfo == null)
+            compressionInfo = CompressionInfo.fromCompressionMetadata(compressionMetadata, sections);
+
+        return compressionInfo;
+    }
+
+    @VisibleForTesting
+    public CompressionInfo compressionInfoForTest()
+    {
+        return compressionInfo;
     }
 
     /**
@@ -133,12 +147,6 @@ public class CassandraStreamHeader
         return transferSize;
     }
 
-    public synchronized void calculateCompressionInfo()
-    {
-        if (compressionMetadata != null && compressionInfo == null)
-            compressionInfo = CompressionInfo.fromCompressionMetadata(compressionMetadata, sections);
-    }
-
     @Override
     public String toString()
     {
@@ -155,6 +163,7 @@ public class CassandraStreamHeader
                '}';
     }
 
+    @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;
@@ -166,16 +175,17 @@ public class CassandraStreamHeader
                Objects.equals(version, that.version) &&
                format == that.format &&
                Objects.equals(sections, that.sections) &&
-               Objects.equals(compressionInfo, that.compressionInfo) &&
+               Objects.equals(getOrInitCompressionInfo(), that.getOrInitCompressionInfo()) &&
                Objects.equals(serializationHeader, that.serializationHeader) &&
                Objects.equals(componentManifest, that.componentManifest) &&
                Objects.equals(firstKey, that.firstKey) &&
                Objects.equals(tableId, that.tableId);
     }
 
+    @Override
     public int hashCode()
     {
-        return Objects.hash(version, format, estimatedKeys, sections, compressionInfo, sstableLevel, serializationHeader, componentManifest,
+        return Objects.hash(version, format, estimatedKeys, sections, getOrInitCompressionInfo(), sstableLevel, serializationHeader, componentManifest,
                             isEntireSSTable, firstKey, tableId);
     }
 
@@ -195,8 +205,7 @@ public class CassandraStreamHeader
                 out.writeLong(section.lowerPosition);
                 out.writeLong(section.upperPosition);
             }
-            header.calculateCompressionInfo();
-            CompressionInfo.serializer.serialize(header.compressionInfo, out, version);
+            CompressionInfo.serializer.serialize(header.getOrInitCompressionInfo(), out, version);
             out.writeInt(header.sstableLevel);
 
             SerializationHeader.serializer.serialize(header.version, header.serializationHeader, out);
@@ -281,8 +290,7 @@ public class CassandraStreamHeader
                 size += TypeSizes.sizeof(section.upperPosition);
             }
 
-            header.calculateCompressionInfo();
-            size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
+            size += CompressionInfo.serializer.serializedSize(header.getOrInitCompressionInfo(), version);
             size += TypeSizes.sizeof(header.sstableLevel);
 
             size += SerializationHeader.serializer.serializedSize(header.version, header.serializationHeader);

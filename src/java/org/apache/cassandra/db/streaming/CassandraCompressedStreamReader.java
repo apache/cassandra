@@ -49,7 +49,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
     public CassandraCompressedStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
         super(header, streamHeader, session);
-        this.compressionInfo = streamHeader.compressionInfo;
+        this.compressionInfo = streamHeader.getOrInitCompressionInfo();
     }
 
     /**

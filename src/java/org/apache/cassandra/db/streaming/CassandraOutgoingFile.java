@@ -174,7 +174,7 @@ public class CassandraOutgoingFile implements OutgoingStream
             CassandraStreamHeader.serializer.serialize(header, out, version);
             out.flush();
 
-            CassandraStreamWriter writer = (header.compressionInfo == null) ?
+            CassandraStreamWriter writer = (header.getOrInitCompressionInfo() == null) ?
                                            new CassandraStreamWriter(sstable, header, session) :
                                            new CassandraCompressedStreamWriter(sstable, header, session);
             writer.write(out);

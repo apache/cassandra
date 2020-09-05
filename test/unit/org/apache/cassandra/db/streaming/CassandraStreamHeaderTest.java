@@ -94,12 +94,11 @@ public class CassandraStreamHeaderTest
         // compression info is lazily initialized to reduce GC, compute size based on compressionMetadata
         CassandraStreamHeader header = header(false, true);
         long transferedSize = header.size();
-        assertNull(header.compressionInfo);
+        assertNull(header.compressionInfoForTest());
         assertEquals(transferedSize, header.calculateSize());
 
         // init compression info before sending over network, and verify size is the same based on compression info
-        header.calculateCompressionInfo();
-        assertNotNull(header.compressionInfo);
+        assertNotNull(header.getOrInitCompressionInfo());
         assertEquals(transferedSize, header.calculateSize());
     }
 
@@ -109,13 +108,12 @@ public class CassandraStreamHeaderTest
         // verify all component on-disk length is used for ZCS
         CassandraStreamHeader header = header(true, true);
         long transferedSize = header.size();
-        assertNull(header.compressionInfo);
+        assertNull(header.compressionInfoForTest());
         assertEquals(ComponentManifest.create(sstable.descriptor).totalSize(), transferedSize);
         assertEquals(transferedSize, header.calculateSize());
 
         // verify compression info doesn't change transferred size for ZCS
-        header.calculateCompressionInfo();
-        assertNotNull(header.compressionInfo);
+        assertNotNull(header.getOrInitCompressionInfo());
         assertEquals(transferedSize, header.calculateSize());
     }
 
@@ -125,13 +123,12 @@ public class CassandraStreamHeaderTest
         // verify section size is used as transferred size
         CassandraStreamHeader header = header(false, false);
         long transferedSize = header.size();
-        assertNull(header.compressionInfo);
+        assertNull(header.compressionInfoForTest());
         assertEquals(sstable.uncompressedLength(), transferedSize);
         assertEquals(transferedSize, header.calculateSize());
 
         // no compression info is init
-        header.calculateCompressionInfo();
-        assertNull(header.compressionInfo);
+        assertNull(header.getOrInitCompressionInfo());
         assertEquals(transferedSize, header.calculateSize());
     }
 
