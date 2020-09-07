@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -49,22 +50,23 @@ public class ActiveCompactions implements ActiveCompactionsTracker
     }
 
     /**
-     * Iterates over the active compactions and tries to find the CompactionInfo for the given sstable
+     * Iterates over the active compactions and tries to find CompactionInfos with the given compactionType for the given sstable
      *
      * Number of entries in compactions should be small (< 10) but avoid calling in any time-sensitive context
      */
-    public CompactionInfo getCompactionForSSTable(SSTableReader sstable)
+    public Collection<CompactionInfo> getCompactionsForSSTable(SSTableReader sstable, OperationType compactionType)
     {
-        CompactionInfo toReturn = null;
+        List<CompactionInfo> toReturn = null;
         synchronized (compactions)
         {
             for (CompactionInfo.Holder holder : compactions)
             {
-                if (holder.getCompactionInfo().getSSTables().contains(sstable))
+                CompactionInfo compactionInfo = holder.getCompactionInfo();
+                if (compactionInfo.getSSTables().contains(sstable) && compactionInfo.getTaskType() == compactionType)
                 {
-                    if (toReturn != null)
-                        throw new IllegalStateException("SSTable " + sstable + " involved in several compactions");
-                    toReturn = holder.getCompactionInfo();
+                    if (toReturn == null)
+                        toReturn = new ArrayList<>();
+                    toReturn.add(compactionInfo);
                 }
             }
         }
