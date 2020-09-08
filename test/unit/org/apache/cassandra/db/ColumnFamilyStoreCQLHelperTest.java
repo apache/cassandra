@@ -98,9 +98,9 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a(a1 varint, a2 varint, a3 varint);",
-                                      "CREATE TYPE cql_test_keyspace_user_types.b(b1 frozen<a>, b2 frozen<a>, b3 frozen<a>);",
-                                      "CREATE TYPE cql_test_keyspace_user_types.c(c1 frozen<b>, c2 frozen<b>, c3 frozen<b>);"),
+        assertEquals(ImmutableList.of("CREATE TYPE IF NOT EXISTS cql_test_keyspace_user_types.a(a1 varint, a2 varint, a3 varint);",
+                                      "CREATE TYPE IF NOT EXISTS cql_test_keyspace_user_types.b(b1 frozen<a>, b2 frozen<a>, b3 frozen<a>);",
+                                      "CREATE TYPE IF NOT EXISTS cql_test_keyspace_user_types.c(c1 frozen<b>, c2 frozen<b>, c3 frozen<b>);"),
                      ColumnFamilyStoreCQLHelper.getUserTypesAsCQL(cfs.metadata));
     }
 
@@ -397,9 +397,9 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertEquals(ImmutableList.of("CREATE INDEX \"indexName\" ON cql_test_keyspace_3.test_table_3 (reg1);",
-                                      "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (reg1);",
-                                      "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (reg1);"),
+        assertEquals(ImmutableList.of("CREATE INDEX IF NOT EXISTS \"indexName\" ON cql_test_keyspace_3.test_table_3 (reg1);",
+                                      "CREATE INDEX IF NOT EXISTS \"indexName2\" ON cql_test_keyspace_3.test_table_3 (reg1);",
+                                      "CREATE INDEX IF NOT EXISTS \"indexName3\" ON cql_test_keyspace_3.test_table_3 (reg1);"),
                      ColumnFamilyStoreCQLHelper.getIndexesAsCQL(cfs.metadata));
     }
 
@@ -433,10 +433,10 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         cfs.snapshot(SNAPSHOT);
 
         String schema = Files.toString(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT), Charset.defaultCharset());
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(b1 frozen<%s>, b2 frozen<%s>, b3 frozen<%s>);", keyspace(), typeB, typeA, typeA, typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(c1 frozen<%s>, c2 frozen<%s>, c3 frozen<%s>);", keyspace(), typeC, typeB, typeB, typeB)));
+        assertTrue(schema.contains(String.format("CREATE TYPE IF NOT EXISTS %s.%s(a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE IF NOT EXISTS %s.%s(a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE IF NOT EXISTS %s.%s(b1 frozen<%s>, b2 frozen<%s>, b3 frozen<%s>);", keyspace(), typeB, typeA, typeA, typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE IF NOT EXISTS %s.%s(c1 frozen<%s>, c2 frozen<%s>, c3 frozen<%s>);", keyspace(), typeC, typeB, typeB, typeB)));
 
         schema = schema.substring(schema.indexOf("CREATE TABLE")); // trim to ensure order
 
