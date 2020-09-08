@@ -1256,6 +1256,7 @@ public abstract class ReadCommand implements ReadQuery
             long size = 1;  // message type (single byte)
             size += TypeSizes.sizeof(command.isDigestQuery());
             size += TypeSizes.sizeof(metadata.ksName);
+            size += TypeSizes.sizeof(metadata.cfName);
             size += TypeSizes.sizeof((short) keySize) + keySize;
             size += TypeSizes.sizeof((long) command.nowInSec());
 
