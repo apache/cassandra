@@ -290,9 +290,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             messageOut.serialize(out, version);
             byte[] bytes = out.toByteArray();
             if (messageOut.serializedSize(version) + 12 != bytes.length)
-                throw new IllegalStateException(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
-                                                              "expected %s, actual %s, contents %s", version, version, messageOut.verb, messageOut.serializer.getClass(),
-                                                              messageOut.serializedSize(version) + 12, bytes.length, Arrays.toString(bytes)));
+                throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
+                                                       "expected %s, actual %s", version, version, messageOut.verb, messageOut.serializer.getClass(),
+                                                       messageOut.serializedSize(version) + 12, bytes.length));
             return new MessageImpl(messageOut.verb.ordinal(), bytes, id, version, from);
         }
         catch (IOException e)
