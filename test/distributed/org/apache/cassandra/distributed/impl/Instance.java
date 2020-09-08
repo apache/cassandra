@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -287,7 +288,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             long timestamp = System.currentTimeMillis();
             out.writeInt((int) timestamp);
             messageOut.serialize(out, version);
-            return new MessageImpl(messageOut.verb.ordinal(), out.toByteArray(), id, version, from);
+            byte[] bytes = out.toByteArray();
+            if (messageOut.serializedSize(version) + 12 != bytes.length)
+                throw new IllegalStateException(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
+                                                              "expected %s, actual %s, contents %s", version, version, messageOut.verb, messageOut.serializer.getClass(),
+                                                              messageOut.serializedSize(version) + 12, bytes.length, Arrays.toString(bytes)));
+            return new MessageImpl(messageOut.verb.ordinal(), bytes, id, version, from);
         }
         catch (IOException e)
         {
@@ -429,7 +435,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
         catch (IOException e)
         {
-            throw new RuntimeException();
+            throw new RuntimeException(e);
         }
     }
 
