@@ -55,9 +55,9 @@ public class ToolRunner implements AutoCloseable
     private final List<String> allArgs = new ArrayList<>();
     private Process process;
     @SuppressWarnings("resource")
-    private final ByteArrayOutputStream err = new ByteArrayOutputStream();
+    private final ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
     @SuppressWarnings("resource")
-    private final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    private final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
     private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
     private InputStream stdin;
     private Thread[] ioWatchers;
@@ -193,12 +193,12 @@ public class ToolRunner implements AutoCloseable
             if (includeStdinWatcher)
                 numWatchers = 3;
             ioWatchers = new Thread[numWatchers];
-            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err));
+            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), errBuffer));
             ioWatchers[0].setDaemon(true);
             ioWatchers[0].setName("IO Watcher stderr for " + allArgs);
             ioWatchers[0].start();
 
-            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out));
+            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), outBuffer));
             ioWatchers[1].setDaemon(true);
             ioWatchers[1].setName("IO Watcher stdout for " + allArgs);
             ioWatchers[1].start();
@@ -291,15 +291,16 @@ public class ToolRunner implements AutoCloseable
         return process != null && process.isAlive();
     }
 
-    public boolean waitFor()
+    public int waitFor()
     {
         try
         {
-            process.waitFor();
-            onComplete.complete(null); // safe to call multiple times as it will just start returning false
+            int rc = process.waitFor();
+            // must call first in order to make sure the stdin ioWatcher will exit
+            onComplete();
             for (Thread t : ioWatchers)
                 t.join();
-            return true;
+            return rc;
         }
         catch (InterruptedException e)
         {
@@ -309,10 +310,8 @@ public class ToolRunner implements AutoCloseable
 
     public ToolRunner waitAndAssertOnExitCode()
     {
-        assertTrue(String.format("Tool %s didn't terminate",
-                           argsToLogString()),
-                   waitFor());
-        return assertOnExitCode();
+        assertExitCode(waitFor());
+        return this;
     }
     
     public ToolRunner waitAndAssertOnCleanExit()
@@ -334,14 +333,18 @@ public class ToolRunner implements AutoCloseable
 
     public ToolRunner assertOnExitCode()
     {
-        int code = getExitCode();
+        assertExitCode(getExitCode());
+        return this;
+    }
+
+    private void assertExitCode(int code)
+    {
         if (code != 0)
             fail(String.format("%s%nexited with code %d%nstderr:%n%s%nstdout:%n%s",
                                argsToLogString(),
                                code,
                                getStderr(),
                                getStdout()));
-        return this;
     }
 
     public String argsToLogString()
@@ -356,12 +359,12 @@ public class ToolRunner implements AutoCloseable
 
     public String getStdout()
     {
-        return out.toString();
+        return outBuffer.toString();
     }
 
     public String getStderr()
     {
-        return err.toString();
+        return errBuffer.toString();
     }
 
     /**
@@ -407,6 +410,12 @@ public class ToolRunner implements AutoCloseable
     public void close()
     {
         forceKill();
+        onComplete();
+    }
+
+    private void onComplete()
+    {
+        onComplete.complete(null); // safe to call multiple times as it will just start returning false
     }
 
     private static final class StreamGobbler<T extends OutputStream> implements Runnable
