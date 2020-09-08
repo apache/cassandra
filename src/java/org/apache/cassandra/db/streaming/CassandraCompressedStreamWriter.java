@@ -52,7 +52,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     public CassandraCompressedStreamWriter(SSTableReader sstable, CassandraStreamHeader header, StreamSession session)
     {
         super(sstable, header, session);
-        this.compressionInfo = header.getOrInitCompressionInfo();
+        this.compressionInfo = header.compressionInfo;
         this.totalSize = header.size();
     }
 
@@ -68,7 +68,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
             long progress = 0L;
 
             // we want to send continuous chunks together to minimise reads from disk and network writes
-            List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks);
+            List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks());
 
             int sectionIdx = 0;
 

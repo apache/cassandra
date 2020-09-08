@@ -79,13 +79,17 @@ public class CassandraOutgoingFile implements OutgoingStream
     {
         boolean keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
 
+        CompressionInfo compressionInfo = sstable.compression
+                ? CompressionInfo.newLazyInstance(sstable.getCompressionMetadata(), sections)
+                : null;
+
         return CassandraStreamHeader.builder()
                                     .withSSTableFormat(sstable.descriptor.formatType)
                                     .withSSTableVersion(sstable.descriptor.version)
                                     .withSSTableLevel(keepSSTableLevel ? sstable.getSSTableLevel() : 0)
                                     .withEstimatedKeys(estimatedKeys)
                                     .withSections(sections)
-                                    .withCompressionMetadata(sstable.compression ? sstable.getCompressionMetadata() : null)
+                                    .withCompressionInfo(compressionInfo)
                                     .withSerializationHeader(sstable.header.toComponent())
                                     .isEntireSSTable(shouldStreamEntireSSTable)
                                     .withComponentManifest(manifest)
@@ -174,9 +178,9 @@ public class CassandraOutgoingFile implements OutgoingStream
             CassandraStreamHeader.serializer.serialize(header, out, version);
             out.flush();
 
-            CassandraStreamWriter writer = (header.getOrInitCompressionInfo() == null) ?
-                                           new CassandraStreamWriter(sstable, header, session) :
-                                           new CassandraCompressedStreamWriter(sstable, header, session);
+            CassandraStreamWriter writer = header.isCompressed() ?
+                                           new CassandraCompressedStreamWriter(sstable, header, session) :
+                                           new CassandraStreamWriter(sstable, header, session);
             writer.write(out);
         }
     }

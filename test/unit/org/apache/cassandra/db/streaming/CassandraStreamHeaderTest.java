@@ -37,7 +37,6 @@ import org.apache.cassandra.db.streaming.CassandraStreamHeader.CassandraStreamHe
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -50,7 +49,6 @@ import org.apache.cassandra.serializers.SerializationUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class CassandraStreamHeaderTest
@@ -94,11 +92,10 @@ public class CassandraStreamHeaderTest
         // compression info is lazily initialized to reduce GC, compute size based on compressionMetadata
         CassandraStreamHeader header = header(false, true);
         long transferedSize = header.size();
-        assertNull(header.compressionInfoForTest());
         assertEquals(transferedSize, header.calculateSize());
 
-        // init compression info before sending over network, and verify size is the same based on compression info
-        assertNotNull(header.getOrInitCompressionInfo());
+        // computing file chunks before sending over network, and verify size is the same
+        header.compressionInfo.chunks();
         assertEquals(transferedSize, header.calculateSize());
     }
 
@@ -108,12 +105,11 @@ public class CassandraStreamHeaderTest
         // verify all component on-disk length is used for ZCS
         CassandraStreamHeader header = header(true, true);
         long transferedSize = header.size();
-        assertNull(header.compressionInfoForTest());
         assertEquals(ComponentManifest.create(sstable.descriptor).totalSize(), transferedSize);
         assertEquals(transferedSize, header.calculateSize());
 
-        // verify compression info doesn't change transferred size for ZCS
-        assertNotNull(header.getOrInitCompressionInfo());
+        // verify that computing file chunks doesn't change transferred size for ZCS
+        header.compressionInfo.chunks();
         assertEquals(transferedSize, header.calculateSize());
     }
 
@@ -123,12 +119,8 @@ public class CassandraStreamHeaderTest
         // verify section size is used as transferred size
         CassandraStreamHeader header = header(false, false);
         long transferedSize = header.size();
-        assertNull(header.compressionInfoForTest());
+        assertNull(header.compressionInfo);
         assertEquals(sstable.uncompressedLength(), transferedSize);
-        assertEquals(transferedSize, header.calculateSize());
-
-        // no compression info is init
-        assertNull(header.getOrInitCompressionInfo());
         assertEquals(transferedSize, header.calculateSize());
     }
 
@@ -138,7 +130,8 @@ public class CassandraStreamHeaderTest
         requestedRanges = Range.normalize(requestedRanges);
 
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
-        CompressionMetadata compressionMetadata = compressed ? sstable.getCompressionMetadata() : null;
+        CompressionInfo compressionInfo = compressed ? CompressionInfo.newLazyInstance(sstable.getCompressionMetadata(), sections)
+                                                     : null;
 
         TableMetadata metadata = store.metadata();
         SerializationHeader.Component serializationHeader = SerializationHeader.makeWithoutStats(metadata).toComponent();
@@ -149,7 +142,7 @@ public class CassandraStreamHeaderTest
                                     .withSSTableVersion(BigFormat.latestVersion)
                                     .withSSTableLevel(0)
                                     .withEstimatedKeys(10)
-                                    .withCompressionMetadata(compressionMetadata)
+                                    .withCompressionInfo(compressionInfo)
                                     .withSections(sections)
                                     .isEntireSSTable(entireSSTable)
                                     .withComponentManifest(componentManifest)
