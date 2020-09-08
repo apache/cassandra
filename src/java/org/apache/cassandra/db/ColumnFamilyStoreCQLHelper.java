@@ -269,7 +269,7 @@ public class ColumnFamilyStoreCQLHelper
                     options.put(k, v);
             });
 
-            return String.format("CREATE CUSTOM INDEX %s ON %s.%s (%s) USING '%s'%s;",
+            return String.format("CREATE CUSTOM INDEX IF NOT EXISTS %s ON %s.%s (%s) USING '%s'%s;",
                                  quoteIdentifier(indexMetadata.name),
                                  quoteIdentifier(keyspace),
                                  quoteIdentifier(cf),
@@ -279,7 +279,7 @@ public class ColumnFamilyStoreCQLHelper
         }
         else
         {
-            return String.format("CREATE INDEX %s ON %s.%s (%s);",
+            return String.format("CREATE INDEX IF NOT EXISTS %s ON %s.%s (%s);",
                                  quoteIdentifier(indexMetadata.name),
                                  quoteIdentifier(keyspace),
                                  quoteIdentifier(cf),
@@ -289,7 +289,7 @@ public class ColumnFamilyStoreCQLHelper
     private static String toCQL(UserType userType)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("CREATE TYPE %s.%s(",
+        sb.append(String.format("CREATE TYPE IF NOT EXISTS %s.%s(",
                                 quoteIdentifier(userType.keyspace),
                                 quoteIdentifier(userType.getNameAsString())));
 
