@@ -28,20 +28,14 @@ import java.lang.reflect.InvocationTargetException;
 import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-
 import org.apache.commons.io.IOUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,10 +50,13 @@ public class ToolRunner implements AutoCloseable
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
     private static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R");
-    
+    private static final String[] EMPTY_STRING_ARRAY = new String[0];
+
     private final List<String> allArgs = new ArrayList<>();
     private Process process;
+    @SuppressWarnings("resource")
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
+    @SuppressWarnings("resource")
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
     private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
     private InputStream stdin;
@@ -119,13 +116,13 @@ public class ToolRunner implements AutoCloseable
 
                 System.setIn(stdin == null ? originalSysIn : stdin);
 
-                int exit = 0;
-                try (PrintStream newOut = new PrintStream(toolOut); PrintStream newErr = new PrintStream(toolErr);)
+                int exit;
+                try (PrintStream newOut = new PrintStream(toolOut); PrintStream newErr = new PrintStream(toolErr))
                 {
                     System.setOut(newOut);
                     System.setErr(newErr);
                     String clazz = allArgs.get(0);
-                    String[] clazzArgs = allArgs.subList(1, allArgs.size()).toArray(new String[0]);
+                    String[] clazzArgs = allArgs.subList(1, allArgs.size()).toArray(EMPTY_STRING_ARRAY);
                     exit = runClassAsTool(clazz, clazzArgs);
                 }
                 
@@ -179,7 +176,7 @@ public class ToolRunner implements AutoCloseable
                     }
 
                     @Override
-                    public int waitFor() throws InterruptedException
+                    public int waitFor()
                     {
                         return exitValue();
                     }
@@ -444,10 +441,6 @@ public class ToolRunner implements AutoCloseable
                     logger.error("Unexpected IO Error while reading stream", e);
                     return;
                 }
-                catch (Throwable t)
-                {
-                    throw t;
-                }
             }
         }
     }
@@ -491,298 +484,11 @@ public class ToolRunner implements AutoCloseable
 
         public static ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
         {
-            ToolRunner runner = new ToolRunner(args, runOutOfProcess);
-            runner.start().waitFor();
-            return runner;
-        }
-    }
-
-    public static ToolResult invoke(String... args) throws InterruptedException
-    {
-        try (ObservableTool tool = invokeAsync(args))
-        {
-            return tool.waitComplete();
-        }
-    }
-
-    public static ObservableTool invokeAsync(String... args)
-    {
-        return invokeAsync(Collections.emptyMap(), null, Arrays.asList(args));
-    }
-
-    public static ToolResult invoke(Map<String, String> env, InputStream stdin, List<String> args) throws InterruptedException
-    {
-        try (ObservableTool tool = invokeAsync(env, stdin, args))
-        {
-            return tool.waitComplete();
-        }
-    }
-
-    public static ObservableTool invokeAsync(Map<String, String> env, InputStream stdin, List<String> args)
-    {
-        ProcessBuilder pb = new ProcessBuilder(args);
-        if (env != null && !env.isEmpty())
-            pb.environment().putAll(env);
-        try
-        {
-            return new ForkedObservableTool(pb.start(), stdin);
-        }
-        catch (IOException e)
-        {
-            return new FailedObservableTool(e);
-        }
-    }
-
-    public static ToolResult invokeClass(Class<?> klass, InputStream stdin, String... args)
-    {
-        PrintStream originalSysOut = System.out;
-        PrintStream originalSysErr = System.err;
-        InputStream originalSysIn = System.in;
-        originalSysOut.flush();
-        originalSysErr.flush();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ByteArrayOutputStream err = new ByteArrayOutputStream();
-
-        System.setIn(stdin == null ? originalSysIn : stdin);
-
-        try (PrintStream newOut = new PrintStream(out);
-             PrintStream newErr = new PrintStream(err))
-        {
-            System.setOut(newOut);
-            System.setErr(newErr);
-            int rc = runClassAsTool(klass.getName(), args);
-            return new ToolResult(rc, out.toString(), err.toString());
-        }
-        catch (Exception e)
-        {
-            return new ToolResult(-1, "", Throwables.getStackTraceAsString(e));
-        }
-        finally
-        {
-            System.setOut(originalSysOut);
-            System.setErr(originalSysErr);
-            System.setIn(originalSysIn);
-        }
-    }
-
-    public static Builder builder(List<String> args)
-    {
-        return new Builder(args);
-    }
-
-    public static final class ToolResult
-    {
-        private final int exitCode;
-        private final String stdout;
-        private final String stderr;
-
-        private ToolResult(int exitCode, String stdout, String stderr)
-        {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-        }
-
-        public int getExitCode()
-        {
-            return exitCode;
-        }
-
-        public String getStdout()
-        {
-            return stdout;
-        }
-
-        public String getStderr()
-        {
-            return stderr;
-        }
-    }
-
-    public interface ObservableTool extends AutoCloseable
-    {
-        String getPartialStdout();
-
-        String getPartialStderr();
-
-        boolean isDone();
-
-        ToolResult waitComplete() throws InterruptedException;
-
-        @Override
-        void close();
-    }
-
-    private static final class FailedObservableTool implements ObservableTool
-    {
-        private final IOException error;
-
-        private FailedObservableTool(IOException error)
-        {
-            this.error = error;
-        }
-
-        @Override
-        public String getPartialStdout()
-        {
-            return "";
-        }
-
-        @Override
-        public String getPartialStderr()
-        {
-            return error.getMessage();
-        }
-
-        @Override
-        public boolean isDone()
-        {
-            return true;
-        }
-
-        @Override
-        public ToolResult waitComplete() throws InterruptedException
-        {
-            return new ToolResult(-1, getPartialStdout(), getPartialStderr());
-        }
-
-        @Override
-        public void close()
-        {
-
-        }
-    }
-
-    private static final class ForkedObservableTool implements ObservableTool
-    {
-        private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
-        private final ByteArrayOutputStream err = new ByteArrayOutputStream();
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        private final Process process;
-        private final Thread[] ioWatchers;
-
-        private ForkedObservableTool(Process process, InputStream stdin)
-        {
-            this.process = process;
-
-            // each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
-            // might block on an idle stream, not consuming the other stream which is blocked in the other process
-            // as nothing is consuming
-            int numWatchers = 2;
-            // only need a stdin watcher when forking
-            boolean includeStdinWatcher = stdin != null;
-            if (includeStdinWatcher)
-                numWatchers = 3;
-            ioWatchers = new Thread[numWatchers];
-            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err));
-            ioWatchers[0].setDaemon(true);
-            ioWatchers[0].setName("IO Watcher stderr");
-            ioWatchers[0].start();
-
-            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out));
-            ioWatchers[1].setDaemon(true);
-            ioWatchers[1].setName("IO Watcher stdout");
-            ioWatchers[1].start();
-
-            if (includeStdinWatcher)
+            try (ToolRunner runner = new ToolRunner(args, runOutOfProcess).start())
             {
-                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream()));
-                ioWatchers[2].setDaemon(true);
-                ioWatchers[2].setName("IO Watcher stdin");
-                ioWatchers[2].start();
-                // since stdin might not close the thread would block, so add logic to try to close stdin when the process exits
-                onComplete.whenComplete((i1, i2) -> {
-                    try
-                    {
-                        stdin.close();
-                    }
-                    catch (IOException e)
-                    {
-                        logger.warn("Error closing stdin", e);
-                    }
-                });
+                runner.waitFor();
+                return runner;
             }
-        }
-
-        @Override
-        public String getPartialStdout()
-        {
-            return out.toString();
-        }
-
-        @Override
-        public String getPartialStderr()
-        {
-            return err.toString();
-        }
-
-        @Override
-        public boolean isDone()
-        {
-            return !process.isAlive();
-        }
-
-        @Override
-        public ToolResult waitComplete() throws InterruptedException
-        {
-            int rc = process.waitFor();
-            onComplete();
-            return new ToolResult(rc, out.toString(), err.toString());
-        }
-
-        private void onComplete() throws InterruptedException
-        {
-            onComplete.complete(null);
-            for (Thread t : ioWatchers)
-                t.join();
-        }
-
-        @Override
-        public void close()
-        {
-            if (!process.isAlive())
-                return;
-            process.destroyForcibly();
-        }
-    }
-
-    public static final class Builder
-    {
-        private final Map<String, String> env = new HashMap<>();
-        private final List<String> args;
-        private InputStream stdin;
-
-        public Builder(List<String> args)
-        {
-            this.args = Objects.requireNonNull(args);
-        }
-
-        public Builder withEnv(String key, String value)
-        {
-            env.put(key, value);
-            return this;
-        }
-
-        public Builder withEnvs(Map<String, String> map)
-        {
-            env.putAll(map);
-            return this;
-        }
-
-        public Builder withStdin(InputStream input)
-        {
-            this.stdin = input;
-            return this;
-        }
-
-        public ObservableTool invokeAsync()
-        {
-            return ToolRunner.invokeAsync(env, stdin, args);
-        }
-
-        public ToolResult invoke() throws InterruptedException
-        {
-            return ToolRunner.invoke(env, stdin, args);
         }
     }
 }
