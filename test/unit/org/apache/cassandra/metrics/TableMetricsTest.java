@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -45,14 +46,13 @@ import static org.junit.Assert.assertTrue;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class TableMetricsTest extends SchemaLoader
 {
-
     private static Session session;
 
     private static final String KEYSPACE = "junit";
     private static final String TABLE = "tablemetricstest";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
 
-    @BeforeClass()
+    @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
         Schema.instance.clear();
@@ -277,5 +277,11 @@ public class TableMetricsTest extends SchemaLoader
         session.execute(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s;", KEYSPACE, viewName));
         // no metrics after drop
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+
+    @AfterClass
+    public static void teardown()
+    {
+        session.close();
     }
 }
