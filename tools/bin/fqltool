@@ -69,7 +69,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
 fi
 
 "$JAVA" $JAVA_AGENT -ea -da:net.openhft... -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
-        -Dlog4j.configurationFile=log4j2-tools.xml \
+        -Dlogback.configurationFile=logback-tools.xml \
         $JVM_ARGS \
         org.apache.cassandra.fqltool.FullQueryLogTool $ARGS
 
