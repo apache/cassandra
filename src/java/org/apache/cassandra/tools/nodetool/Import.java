@@ -23,6 +23,8 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 
 import io.airlift.airline.Option;
+
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -80,7 +82,7 @@ public class Import extends NodeToolCmd
 
         if (quick)
         {
-            System.out.println("Doing a quick import - skipping sstable verification and row cache invalidation");
+            probe.output().out.println("Doing a quick import - skipping sstable verification and row cache invalidation");
             noVerifyTokens = true;
             noInvalidateCaches = true;
             noVerify = true;
@@ -90,9 +92,10 @@ public class Import extends NodeToolCmd
         List<String> failedDirs = probe.importNewSSTables(args.get(0), args.get(1), new HashSet<>(srcPaths), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, extendedVerify);
         if (!failedDirs.isEmpty())
         {
-            System.err.println("Some directories failed to import, check server logs for details:");
+            PrintStream err = probe.output().err;
+            err.println("Some directories failed to import, check server logs for details:");
             for (String directory : failedDirs)
-                System.err.println(directory);
+                err.println(directory);
             System.exit(1);
         }
     }

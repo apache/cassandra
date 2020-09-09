@@ -3,6 +3,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -54,9 +55,10 @@ public class Sjk extends NodeToolCmd
 
     private final Wrapper wrapper = new Wrapper();
 
-    public void run()
+    @Override
+    public void runInternal()
     {
-        wrapper.prepare(args != null ? args.toArray(new String[0]) : new String[]{"help"});
+        wrapper.prepare(args != null ? args.toArray(new String[0]) : new String[]{"help"}, output.out, output.err);
 
         if (!wrapper.requiresMbeanServerConn())
         {
@@ -66,13 +68,13 @@ public class Sjk extends NodeToolCmd
         else
         {
             // invoke common nodetool handling to establish MBeanServerConnection
-            super.run();
+            super.runInternal();
         }
     }
 
     public void sequenceRun(NodeProbe probe)
     {
-        wrapper.prepare(args != null ? args.toArray(new String[0]) : new String[]{"help"});
+        wrapper.prepare(args != null ? args.toArray(new String[0]) : new String[]{"help"}, probe.output().out, probe.output().err);
         if (!wrapper.run(probe))
             probe.failed();
     }
@@ -107,7 +109,7 @@ public class Sjk extends NodeToolCmd
             throw new UnsupportedOperationException();
         }
 
-        public void prepare(String[] args)
+        public void prepare(String[] args, PrintStream out, PrintStream err)
         {
             try
             {
@@ -143,7 +145,7 @@ public class Sjk extends NodeToolCmd
                 {
                     for (String cmd : commands.keySet())
                     {
-                        System.out.println(String.format("%8s - %s", cmd, parser.getCommandDescription(cmd)));
+                        out.println(String.format("%8s - %s", cmd, parser.getCommandDescription(cmd)));
                     }
                 }
                 else
@@ -161,32 +163,37 @@ public class Sjk extends NodeToolCmd
             {
                 for (String m : error.messages)
                 {
-                    logError(m);
+                    err.println(m);
                 }
                 if (isVerbose() && error.getCause() != null)
                 {
-                    logTrace(error.getCause());
+                    error.getCause().printStackTrace(err);
                 }
                 if (error.printUsage && parser != null)
                 {
-                    if (parser.getParsedCommand() != null)
-                    {
-                        parser.usage(parser.getParsedCommand());
-                    }
-                    else
-                    {
-                        parser.usage();
-                    }
+                    printUsage(parser, out, parser.getParsedCommand());
                 }
             }
             catch (Throwable e)
             {
-                e.printStackTrace();
+                e.printStackTrace(err);
             }
+        }
+
+        void printUsage(JCommander parser, PrintStream out, String optionalCommand)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (optionalCommand != null)
+                parser.usage(sb, optionalCommand);
+            else
+                parser.usage(sb);
+            out.println(sb.toString());
         }
 
         public boolean run(final NodeProbe probe)
         {
+            PrintStream out = probe.output().out;
+            PrintStream err = probe.output().err;
             try
             {
                 setJmxConnInfo(probe);
@@ -200,28 +207,21 @@ public class Sjk extends NodeToolCmd
             {
                 for (String m : error.messages)
                 {
-                    logError(m);
+                    err.println(m);
                 }
                 if (isVerbose() && error.getCause() != null)
                 {
-                    logTrace(error.getCause());
+                    error.getCause().printStackTrace(err);
                 }
                 if (error.printUsage && parser != null)
                 {
-                    if (parser.getParsedCommand() != null)
-                    {
-                        parser.usage(parser.getParsedCommand());
-                    }
-                    else
-                    {
-                        parser.usage();
-                    }
+                    printUsage(parser, out, parser.getParsedCommand());
                 }
                 return true;
             }
             catch (Throwable e)
             {
-                e.printStackTrace();
+                e.printStackTrace(err);
             }
 
             // abnormal termination

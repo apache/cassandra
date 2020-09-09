@@ -66,9 +66,9 @@ public class TpStatsPrinter
                                  data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "TotalBlockedTasks").toString());
             }
 
-            poolBuilder.printTo(System.out);
+            poolBuilder.printTo(out);
 
-            System.out.println("\nLatencies waiting in queue (micros) per dropped message types");
+            out.println("\nLatencies waiting in queue (micros) per dropped message types");
 
             final TableBuilder droppedBuilder = new TableBuilder();
             droppedBuilder.add("Message type", "Dropped    ", "50%     ", "95%     ", "99%     ", "Max");
@@ -109,7 +109,7 @@ public class TpStatsPrinter
                 droppedBuilder.add(columns.toArray(new String[0]));
             }
 
-            droppedBuilder.printTo(System.out);
+            droppedBuilder.printTo(out);
         }
     }
 }
