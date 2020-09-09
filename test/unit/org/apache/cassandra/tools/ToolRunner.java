@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
@@ -58,7 +57,6 @@ public class ToolRunner implements AutoCloseable
     private final ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
     @SuppressWarnings("resource")
     private final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-    private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
     private InputStream stdin;
     private Thread[] ioWatchers;
     private Map<String, String> envs;
@@ -209,17 +207,6 @@ public class ToolRunner implements AutoCloseable
                 ioWatchers[2].setDaemon(true);
                 ioWatchers[2].setName("IO Watcher stdin for " + allArgs);
                 ioWatchers[2].start();
-                // since stdin might not close the thread would block, so add logic to try to close stdin when the process exits
-                onComplete.whenComplete((i1, i2) -> {
-                    try
-                    {
-                        stdin.close();
-                    }
-                    catch (IOException e)
-                    {
-                        logger.warn("Error closing stdin for {}", allArgs, e);
-                    }
-                });
             }
         }
         catch (IOException e)
@@ -415,7 +402,17 @@ public class ToolRunner implements AutoCloseable
 
     private void onComplete()
     {
-        onComplete.complete(null); // safe to call multiple times as it will just start returning false
+        if (stdin != null)
+        {
+            try
+            {
+                stdin.close();
+            }
+            catch (IOException e)
+            {
+                logger.warn("Error closing stdin for {}", allArgs, e);
+            }
+        }
     }
 
     private static final class StreamGobbler<T extends OutputStream> implements Runnable
