@@ -31,6 +31,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,7 +43,7 @@ public class KeyspaceMetricsTest extends SchemaLoader
 {
     private static Session session;
 
-    @BeforeClass()
+    @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
         Schema.instance.clear();
@@ -70,5 +72,11 @@ public class KeyspaceMetricsTest extends SchemaLoader
         session.execute(String.format("DROP KEYSPACE %s;", keyspace));
         // no metrics after drop
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+    
+    @AfterClass
+    public static void teardown()
+    {
+        session.close();
     }
 }
