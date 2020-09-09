@@ -179,7 +179,7 @@ public class JMXTool
         @Arguments(title = "files", usage = "<left> <right>", description = "Files to diff")
         private List<File> files;
 
-        @Option(title = "format", name = { "-f", "--format" }, description = "What format the files are in")
+        @Option(title = "format", name = { "-f", "--format" }, description = "What format the files are in; only support json and yaml as format")
         private Format format = Format.yaml;
 
         @Option(title = "ignore left", name = { "--ignore-missing-on-left" }, description = "Ignore results missing on the left")

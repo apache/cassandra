@@ -70,16 +70,19 @@ public class JMXToolTest
                              "\n" +
                              "OPTIONS\n" +
                              "        --exclude-attribute <exclude attributes>\n" +
-                             "            Ignores processing specific attributes\n" +
+                             "            Ignores processing specific attributes. Each usage should take a\n" +
+                             "            single attribute, but can use this flag multiple times.\n" +
                              "\n" +
                              "        --exclude-object <exclude objects>\n" +
-                             "            Ignores processing specific objects\n" +
+                             "            Ignores processing specific objects. Each usage should take a single\n" +
+                             "            object, but can use this flag multiple times.\n" +
                              "\n" +
                              "        --exclude-operation <exclude operations>\n" +
-                             "            Ignores processing specific operations\n" +
+                             "            Ignores processing specific operations. Each usage should take a\n" +
+                             "            single operation, but can use this flag multiple times.\n" +
                              "\n" +
                              "        -f <format>, --format <format>\n" +
-                             "            What format the files are in\n" +
+                             "            What format the files are in; only support json and yaml as format\n" +
                              "\n" +
                              "        -h, --help\n" +
                              "            Display help information\n" +
@@ -117,7 +120,8 @@ public class JMXToolTest
                              "\n" +
                              "OPTIONS\n" +
                              "        -f <format>, --format <format>\n" +
-                             "            What format to dump content as\n" +
+                             "            What format to dump content as; supported values are console\n" +
+                             "            (default), json, and yaml\n" +
                              "\n" +
                              "        -h, --help\n" +
                              "            Display help information\n" +
