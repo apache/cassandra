@@ -315,7 +315,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
                                              boolean pullRepair,
-                                             boolean force,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
                                              ListeningExecutorService executor,
@@ -328,7 +327,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return null;
 
         final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
-                                                        parallelismDegree, isIncremental, pullRepair, force,
+                                                        parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, cfnames);
 
         sessions.put(session.getId(), session);
