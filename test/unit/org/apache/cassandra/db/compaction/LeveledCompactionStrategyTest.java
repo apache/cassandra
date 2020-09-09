@@ -22,10 +22,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import junit.framework.Assert;
 import org.junit.After;
@@ -37,6 +41,7 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -157,7 +162,6 @@ public class LeveledCompactionStrategyTest
                 assert groupLevel == tableLevel;
             }
         }
-
     }
 
     /*
@@ -296,7 +300,7 @@ public class LeveledCompactionStrategyTest
             strategy.manifest.remove(s);
             s.descriptor.getMetadataSerializer().mutateLevel(s.descriptor, 6);
             s.reloadSSTableMetadata();
-            strategy.manifest.add(s);
+            strategy.manifest.addSSTables(Collections.singleton(s));
         }
         // verify that all sstables in the changed set is level 6
         for (SSTableReader s : cfs.getLiveSSTables())
@@ -345,14 +349,12 @@ public class LeveledCompactionStrategyTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
             assertFalse(sstable.isRepaired());
 
-        int sstableCount = 0;
-        for (List<SSTableReader> level : unrepaired.manifest.generations)
-            sstableCount += level.size();
+        int sstableCount = unrepaired.manifest.getSSTables().size();
         // we only have unrepaired sstables:
         assertEquals(sstableCount, cfs.getLiveSSTables().size());
 
-        SSTableReader sstable1 = unrepaired.manifest.generations[2].get(0);
-        SSTableReader sstable2 = unrepaired.manifest.generations[1].get(0);
+        SSTableReader sstable1 = unrepaired.manifest.getLevel(2).iterator().next();
+        SSTableReader sstable2 = unrepaired.manifest.getLevel(1).iterator().next();
 
         sstable1.descriptor.getMetadataSerializer().mutateRepairedAt(sstable1.descriptor, System.currentTimeMillis());
         sstable1.reloadSSTableMetadata();
@@ -360,14 +362,12 @@ public class LeveledCompactionStrategyTest
 
         manager.handleNotification(new SSTableRepairStatusChanged(Arrays.asList(sstable1)), this);
 
-        int repairedSSTableCount = 0;
-        for (List<SSTableReader> level : repaired.manifest.generations)
-            repairedSSTableCount += level.size();
+        int repairedSSTableCount = repaired.manifest.getSSTables().size();
         assertEquals(1, repairedSSTableCount);
         // make sure the repaired sstable ends up in the same level in the repaired manifest:
-        assertTrue(repaired.manifest.generations[2].contains(sstable1));
+        assertTrue(repaired.manifest.getLevel(2).contains(sstable1));
         // and that it is gone from unrepaired
-        assertFalse(unrepaired.manifest.generations[2].contains(sstable1));
+        assertFalse(unrepaired.manifest.getLevel(2).contains(sstable1));
 
         unrepaired.removeSSTable(sstable2);
         manager.handleNotification(new SSTableAddedNotification(singleton(sstable2)), this);
@@ -479,5 +479,219 @@ public class LeveledCompactionStrategyTest
                        sstable.getMaxTimestamp() > lastMaxTimeStamp);
             lastMaxTimeStamp = sstable.getMaxTimestamp();
         }
+    }
+
+    @Test
+    public void testAddingOverlapping()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
+        List<SSTableReader> currentLevel = new ArrayList<>();
+        int gen = 1;
+        currentLevel.add(MockSchema.sstableWithLevel(gen++, 10, 20, 1, cfs));
+        currentLevel.add(MockSchema.sstableWithLevel(gen++, 21, 30, 1, cfs));
+        currentLevel.add(MockSchema.sstableWithLevel(gen++, 51, 100, 1, cfs));
+        currentLevel.add(MockSchema.sstableWithLevel(gen++, 80, 120, 1, cfs));
+        currentLevel.add(MockSchema.sstableWithLevel(gen++, 90, 150, 1, cfs));
+
+        lm.addSSTables(currentLevel);
+        assertLevelsEqual(lm.getLevel(1), currentLevel.subList(0, 3));
+        assertLevelsEqual(lm.getLevel(0), currentLevel.subList(3, 5));
+
+        List<SSTableReader> newSSTables = new ArrayList<>();
+        // this sstable last token is the same as the first token of L1 above, should get sent to L0:
+        newSSTables.add(MockSchema.sstableWithLevel(gen++, 5, 10, 1, cfs));
+        lm.addSSTables(newSSTables);
+        assertLevelsEqual(lm.getLevel(1), currentLevel.subList(0, 3));
+        assertEquals(0, newSSTables.get(0).getSSTableLevel());
+        assertTrue(lm.getLevel(0).containsAll(newSSTables));
+
+        newSSTables.clear();
+        newSSTables.add(MockSchema.sstableWithLevel(gen++, 30, 40, 1, cfs));
+        lm.addSSTables(newSSTables);
+        assertLevelsEqual(lm.getLevel(1), currentLevel.subList(0, 3));
+        assertEquals(0, newSSTables.get(0).getSSTableLevel());
+        assertTrue(lm.getLevel(0).containsAll(newSSTables));
+
+        newSSTables.clear();
+        newSSTables.add(MockSchema.sstableWithLevel(gen++, 100, 140, 1, cfs));
+        lm.addSSTables(newSSTables);
+        assertLevelsEqual(lm.getLevel(1), currentLevel.subList(0, 3));
+        assertEquals(0, newSSTables.get(0).getSSTableLevel());
+        assertTrue(lm.getLevel(0).containsAll(newSSTables));
+
+        newSSTables.clear();
+        newSSTables.add(MockSchema.sstableWithLevel(gen++, 100, 140, 1, cfs));
+        newSSTables.add(MockSchema.sstableWithLevel(gen++, 120, 140, 1, cfs));
+        lm.addSSTables(newSSTables);
+        List<SSTableReader> newL1 = new ArrayList<>(currentLevel.subList(0, 3));
+        newL1.add(newSSTables.get(1));
+        assertLevelsEqual(lm.getLevel(1), newL1);
+        newSSTables.remove(1);
+        assertTrue(newSSTables.stream().allMatch(s -> s.getSSTableLevel() == 0));
+        assertTrue(lm.getLevel(0).containsAll(newSSTables));
+    }
+
+    @Test
+    public void singleTokenSSTableTest()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
+        List<SSTableReader> expectedL1 = new ArrayList<>();
+
+        int gen = 1;
+        // single sstable, single token (100)
+        expectedL1.add(MockSchema.sstableWithLevel(gen++, 100, 100, 1, cfs));
+        lm.addSSTables(expectedL1);
+
+        List<SSTableReader> expectedL0 = new ArrayList<>();
+
+        // should get moved to L0:
+        expectedL0.add(MockSchema.sstableWithLevel(gen++, 99, 101, 1, cfs));
+        expectedL0.add(MockSchema.sstableWithLevel(gen++, 100, 101, 1, cfs));
+        expectedL0.add(MockSchema.sstableWithLevel(gen++, 99, 100, 1, cfs));
+        expectedL0.add(MockSchema.sstableWithLevel(gen++, 100, 100, 1, cfs));
+        lm.addSSTables(expectedL0);
+
+        assertLevelsEqual(expectedL0, lm.getLevel(0));
+        assertTrue(expectedL0.stream().allMatch(s -> s.getSSTableLevel() == 0));
+        assertLevelsEqual(expectedL1, lm.getLevel(1));
+        assertTrue(expectedL1.stream().allMatch(s -> s.getSSTableLevel() == 1));
+
+        // should work:
+        expectedL1.add(MockSchema.sstableWithLevel(gen++, 98, 99, 1, cfs));
+        expectedL1.add(MockSchema.sstableWithLevel(gen++, 101, 101, 1, cfs));
+        lm.addSSTables(expectedL1.subList(1, expectedL1.size()));
+        assertLevelsEqual(expectedL1, lm.getLevel(1));
+    }
+
+    @Test
+    public void randomMultiLevelAddTest()
+    {
+        int iterations = 100;
+        int levelCount = 8;
+
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
+        long seed = System.currentTimeMillis();
+        Random r = new Random(seed);
+        List<SSTableReader> newLevels = generateNewRandomLevels(cfs, 40, levelCount, 0, r);
+
+        int sstableCount = newLevels.size();
+        lm.addSSTables(newLevels);
+
+        int [] expectedLevelSizes = lm.getAllLevelSize();
+
+        for (int j = 0; j < iterations; j++)
+        {
+            newLevels = generateNewRandomLevels(cfs, 20, levelCount, sstableCount, r);
+            sstableCount += newLevels.size();
+
+            int[] canAdd = canAdd(lm, newLevels, levelCount);
+            for (int i = 0; i < levelCount; i++)
+                expectedLevelSizes[i] += canAdd[i];
+            lm.addSSTables(newLevels);
+        }
+
+        // and verify no levels overlap
+        int actualSSTableCount = 0;
+        for (int i = 0; i < levelCount; i++)
+        {
+            actualSSTableCount += lm.getLevelSize(i);
+            List<SSTableReader> level = new ArrayList<>(lm.getLevel(i));
+            int lvl = i;
+            assertTrue(level.stream().allMatch(s -> s.getSSTableLevel() == lvl));
+            if (i > 0)
+            {
+                level.sort(SSTableReader.sstableComparator);
+                SSTableReader prev = null;
+                for (SSTableReader sstable : level)
+                {
+                    if (prev != null && sstable.first.compareTo(prev.last) <= 0)
+                    {
+                        String levelStr = level.stream().map(s -> String.format("[%s, %s]", s.first, s.last)).collect(Collectors.joining(", "));
+                        String overlap = String.format("sstable [%s, %s] overlaps with [%s, %s] in level %d (%s) ", sstable.first, sstable.last, prev.first, prev.last, i, levelStr);
+                        Assert.fail("[seed = "+seed+"] overlap in level "+lvl+": " + overlap);
+                    }
+                    prev = sstable;
+                }
+            }
+        }
+        assertEquals(sstableCount, actualSSTableCount);
+        for (int i = 0; i < levelCount; i++)
+            assertEquals("[seed = " + seed + "] wrong sstable count in level = " + i, expectedLevelSizes[i], lm.getLevel(i).size());
+    }
+
+    private static List<SSTableReader> generateNewRandomLevels(ColumnFamilyStore cfs, int maxSSTableCountPerLevel, int levelCount, int startGen, Random r)
+    {
+        List<SSTableReader> newLevels = new ArrayList<>();
+        for (int level = 0; level < levelCount; level++)
+        {
+            int numLevelSSTables = r.nextInt(maxSSTableCountPerLevel) + 1;
+            List<Integer> tokens = new ArrayList<>(numLevelSSTables * 2);
+
+            for (int i = 0; i < numLevelSSTables * 2; i++)
+                tokens.add(r.nextInt(4000));
+            Collections.sort(tokens);
+            for (int i = 0; i < tokens.size() - 1; i += 2)
+            {
+                SSTableReader sstable = MockSchema.sstableWithLevel(++startGen, tokens.get(i), tokens.get(i + 1), level, cfs);
+                newLevels.add(sstable);
+            }
+        }
+        return newLevels;
+    }
+
+    /**
+     * brute-force checks if the new sstables can be added to the correct level in manifest
+     *
+     * @return count of expected sstables to add to each level
+     */
+    private static int[] canAdd(LeveledManifest lm, List<SSTableReader> newSSTables, int levelCount)
+    {
+        Map<Integer, Collection<SSTableReader>> sstableGroups = new HashMap<>();
+        newSSTables.forEach(s -> sstableGroups.computeIfAbsent(s.getSSTableLevel(), k -> new ArrayList<>()).add(s));
+
+        int[] canAdd = new int[levelCount];
+        for (Map.Entry<Integer, Collection<SSTableReader>> lvlGroup : sstableGroups.entrySet())
+        {
+            int level = lvlGroup.getKey();
+            if (level == 0)
+            {
+                canAdd[0] += lvlGroup.getValue().size();
+                continue;
+            }
+
+            List<SSTableReader> newLevel = new ArrayList<>(lm.getLevel(level));
+            for (SSTableReader sstable : lvlGroup.getValue())
+            {
+                newLevel.add(sstable);
+                newLevel.sort(SSTableReader.sstableComparator);
+
+                SSTableReader prev = null;
+                boolean kept = true;
+                for (SSTableReader sst : newLevel)
+                {
+                    if (prev != null && prev.last.compareTo(sst.first) >= 0)
+                    {
+                        newLevel.remove(sstable);
+                        kept = false;
+                        break;
+                    }
+                    prev = sst;
+                }
+                if (kept)
+                    canAdd[level] += 1;
+                else
+                    canAdd[0] += 1;
+            }
+        }
+        return canAdd;
+    }
+
+    private static void assertLevelsEqual(Collection<SSTableReader> l1, Collection<SSTableReader> l2)
+    {
+        assertEquals(l1.size(), l2.size());
+        assertEquals(new HashSet<>(l1), new HashSet<>(l2));
     }
 }
