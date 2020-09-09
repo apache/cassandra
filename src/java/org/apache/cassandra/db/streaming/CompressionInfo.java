@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -78,7 +79,7 @@ public abstract class CompressionInfo
         CompressionInfo that = (CompressionInfo) o;
 
         return Objects.equals(parameters(), that.parameters())
-                && Objects.equals(chunks(), that.chunks());
+               && Arrays.equals(chunks(), that.chunks());
     }
 
     @Override

@@ -97,6 +97,8 @@ public class CassandraStreamHeaderTest
         // computing file chunks before sending over network, and verify size is the same
         header.compressionInfo.chunks();
         assertEquals(transferedSize, header.calculateSize());
+
+        SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
     }
 
     @Test
@@ -111,6 +113,8 @@ public class CassandraStreamHeaderTest
         // verify that computing file chunks doesn't change transferred size for ZCS
         header.compressionInfo.chunks();
         assertEquals(transferedSize, header.calculateSize());
+
+        SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
     }
 
     @Test
@@ -122,6 +126,8 @@ public class CassandraStreamHeaderTest
         assertNull(header.compressionInfo);
         assertEquals(sstable.uncompressedLength(), transferedSize);
         assertEquals(transferedSize, header.calculateSize());
+
+        SerializationUtils.assertSerializationCycle(header, CassandraStreamHeader.serializer);
     }
 
     private CassandraStreamHeader header(boolean entireSSTable, boolean compressed)
