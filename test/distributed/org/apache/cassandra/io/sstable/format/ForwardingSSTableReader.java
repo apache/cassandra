@@ -19,8 +19,6 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
@@ -62,31 +60,13 @@ import org.apache.cassandra.utils.concurrent.Ref;
 
 public abstract class ForwardingSSTableReader extends SSTableReader
 {
-    // This method is only accessiable via extension and not for calling directly;
-    // to work around this, rely on reflection if the method gets called
-    private static final Method ESTIMATE_ROWS_FROM_INDEX;
-
-    static
-    {
-        try
-        {
-            Method m = SSTable.class.getDeclaredMethod("estimateRowsFromIndex", RandomAccessReader.class);
-            m.setAccessible(true);
-            ESTIMATE_ROWS_FROM_INDEX = m;
-        }
-        catch (NoSuchMethodException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
     private final SSTableReader delegate;
 
     public ForwardingSSTableReader(SSTableReader delegate)
     {
         super(delegate.descriptor, SSTable.componentsFor(delegate.descriptor),
               TableMetadataRef.forOfflineTools(delegate.metadata()), delegate.maxDataAge, delegate.getSSTableMetadata(),
-              delegate.openReason, delegate.header);
+              delegate.openReason, delegate.header, delegate.indexSummary, delegate.dfile, delegate.ifile, delegate.bf);
         this.delegate = delegate;
         this.first = delegate.first;
         this.last = delegate.last;
@@ -114,24 +94,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public void setupOnline()
     {
         delegate.setupOnline();
-    }
-
-    @Override
-    public boolean loadSummary()
-    {
-        return delegate.loadSummary();
-    }
-
-    @Override
-    public void saveSummary()
-    {
-        delegate.saveSummary();
-    }
-
-    @Override
-    public void saveBloomFilter()
-    {
-        delegate.saveBloomFilter();
     }
 
     @Override
@@ -222,12 +184,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public long getCompressionMetadataOffHeapSize()
     {
         return delegate.getCompressionMetadataOffHeapSize();
-    }
-
-    @Override
-    public void forceFilterFailures()
-    {
-        delegate.forceFilterFailures();
     }
 
     @Override
@@ -774,30 +730,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public List<String> getAllFilePaths()
     {
         return delegate.getAllFilePaths();
-    }
-
-    @Override
-    protected long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
-    {
-        try
-        {
-            return (Long) ESTIMATE_ROWS_FROM_INDEX.invoke(delegate, ifile);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (InvocationTargetException e)
-        {
-            Throwable cause = e.getCause();
-            if (cause instanceof IOException)
-                throw (IOException) cause;
-            if (cause instanceof Error)
-                throw (Error) cause;
-            if (cause instanceof RuntimeException)
-                throw (RuntimeException) cause;
-            throw new RuntimeException(cause);
-        }
     }
 
     @Override

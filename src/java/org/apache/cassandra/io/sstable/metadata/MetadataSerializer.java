@@ -19,7 +19,7 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.*;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 
 import com.google.common.base.Throwables;
@@ -114,7 +114,7 @@ public class MetadataSerializer implements IMetadataSerializer
             out.writeInt((int) crc.getValue());
     }
 
-    public Map<MetadataType, MetadataComponent> deserialize( Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
+    public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
     {
         Map<MetadataType, MetadataComponent> components;
         logger.trace("Load metadata for {}", descriptor);
@@ -224,15 +224,15 @@ public class MetadataSerializer implements IMetadataSerializer
     }
 
     @Override
-    public void mutate(Descriptor descriptor, Function<StatsMetadata, StatsMetadata> transform) throws IOException
+    public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException
     {
-        Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
-        StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
+        if (logger.isTraceEnabled() )
+            logger.trace("Mutating {} to {}", descriptor.filenameFor(Component.STATS), description);
 
-        currentComponents.put(MetadataType.STATS, transform.apply(stats));
-        rewriteSSTableMetadata(descriptor, currentComponents);
+        mutate(descriptor, transform);
     }
 
+    @Override
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
         if (logger.isTraceEnabled())
@@ -241,6 +241,7 @@ public class MetadataSerializer implements IMetadataSerializer
         mutate(descriptor, stats -> stats.mutateLevel(newLevel));
     }
 
+    @Override
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
     {
         if (logger.isTraceEnabled())
@@ -248,6 +249,15 @@ public class MetadataSerializer implements IMetadataSerializer
                          descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
 
         mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
+    }
+
+    private void mutate(Descriptor descriptor, UnaryOperator<StatsMetadata> transform) throws IOException
+    {
+        Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
+        StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
+
+        currentComponents.put(MetadataType.STATS, transform.apply(stats));
+        rewriteSSTableMetadata(descriptor, currentComponents);
     }
 
     public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException

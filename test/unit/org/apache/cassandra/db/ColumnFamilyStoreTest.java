@@ -129,7 +129,7 @@ public class ColumnFamilyStoreTest
 
         List<SSTableReader> ssTables = keyspace.getAllSSTables(SSTableSet.LIVE);
         assertEquals(1, ssTables.size());
-        ssTables.get(0).forceFilterFailures();
+        Util.disableBloomFilter(cfs);
         Util.assertEmpty(Util.cmd(cfs, "key2").build());
     }
 

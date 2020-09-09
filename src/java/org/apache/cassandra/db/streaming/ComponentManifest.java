@@ -18,28 +18,51 @@
 
 package org.apache.cassandra.db.streaming;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+
+/**
+ * SSTable components and their sizes to be tranfered via entire-sstable-streaming
+ */
 public final class ComponentManifest implements Iterable<Component>
 {
+    private static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
+                                                                             Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
+                                                                             Component.DIGEST, Component.CRC);
+
     private final LinkedHashMap<Component, Long> components;
 
     public ComponentManifest(Map<Component, Long> components)
     {
         this.components = new LinkedHashMap<>(components);
+    }
+
+    @VisibleForTesting
+    public static ComponentManifest create(Descriptor descriptor)
+    {
+        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(STREAM_COMPONENTS.size());
+
+        for (Component component : STREAM_COMPONENTS)
+        {
+            File file = new File(descriptor.filenameFor(component));
+            if (!file.exists())
+                continue;
+
+            components.put(component, file.length());
+        }
+
+        return new ComponentManifest(components);
     }
 
     public long sizeOf(Component component)

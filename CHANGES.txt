@@ -5,6 +5,7 @@
  * Avoid trying to keep track of RTs for endpoints we won't write to during read repair (CASSANDRA-16084)
  * When compaction gets interrupted, the exception should include the compactionId (CASSANDRA-15954)
  * Make Table/Keyspace Metric Names Consistent With Each Other (CASSANDRA-15909)
+ * Mutating sstable component may race with entire-sstable-streaming(ZCS) causing checksum validation failure (CASSANDRA-15861)
 
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
