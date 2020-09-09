@@ -4,16 +4,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
-import java.io.Reader;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -102,7 +98,7 @@ public class JMXTool
         @Option(title = "url", name = { "-u", "--url" }, description = "JMX url to target")
         private String targetUrl = "service:jmx:rmi:///jndi/rmi://localhost:7199/jmxrmi";
 
-        @Option(title = "format", name = { "-f", "--format" }, description = "What format to dump content as")
+        @Option(title = "format", name = { "-f", "--format" }, description = "What format to dump content as; supported values are console (default), json, and yaml")
         private Format format = Format.console;
 
         public Void call() throws Exception
@@ -213,6 +209,12 @@ public class JMXTool
                 right = format.load(rightStream);
             }
 
+            diff(left, right);
+            return null;
+        }
+
+        private void diff(Map<String, Info> left, Map<String, Info> right)
+        {
             DiffResult<String> objectNames = diff(left.keySet(), right.keySet(), name -> {
                 for (CliPattern p : excludeObjects)
                 {
@@ -296,7 +298,6 @@ public class JMXTool
                                                                                               sb.append("\t").append("similar in left: ").append(match)));
                 }
             }
-            return null;
         }
 
         private static <T extends Comparable<T>> void printSet(int indent, Set<T> set)
