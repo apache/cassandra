@@ -90,7 +90,7 @@ public class RepairTest extends TestBaseImpl
         return init(Cluster.build().withNodes(3).withConfig(configModifier).start());
     }
 
-    private void repair(ICluster<IInvokableInstance> cluster, Map<String, String> options)
+    static void repair(ICluster<IInvokableInstance> cluster, Map<String, String> options)
     {
         cluster.get(1).runOnInstance(rethrow(() -> {
             SimpleCondition await = new SimpleCondition();
@@ -102,7 +102,7 @@ public class RepairTest extends TestBaseImpl
         }));
     }
 
-    void populate(ICluster<IInvokableInstance> cluster, String compression) throws Exception
+    static void populate(ICluster<IInvokableInstance> cluster, String compression) throws Exception
     {
         try
         {

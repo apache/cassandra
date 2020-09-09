@@ -126,7 +126,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
-     * @param force true if the repair should ignore dead endpoints (instead of failing)
      * @param cfnames names of columnfamilies
      */
     public RepairSession(UUID parentRepairSession,
@@ -136,7 +135,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          RepairParallelism parallelismDegree,
                          boolean isIncremental,
                          boolean pullRepair,
-                         boolean force,
                          PreviewKind previewKind,
                          boolean optimiseStreams,
                          String... cfnames)
@@ -148,37 +146,11 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.parallelismDegree = parallelismDegree;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
-
-        //If force then filter out dead endpoints
-        boolean forceSkippedReplicas = false;
-        if (force)
-        {
-            logger.debug("force flag set, removing dead endpoints");
-            final Set<InetAddressAndPort> removeCandidates = new HashSet<>();
-            for (final InetAddressAndPort endpoint : commonRange.endpoints)
-            {
-                if (!FailureDetector.instance.isAlive(endpoint))
-                {
-                    logger.info("Removing a dead node from Repair due to -force {}", endpoint);
-                    removeCandidates.add(endpoint);
-                }
-            }
-            if (!removeCandidates.isEmpty())
-            {
-                // we shouldn't be recording a successful repair if
-                // any replicas are excluded from the repair
-                forceSkippedReplicas = true;
-                Set<InetAddressAndPort> filteredEndpoints = new HashSet<>(commonRange.endpoints);
-                filteredEndpoints.removeAll(removeCandidates);
-                commonRange = new CommonRange(filteredEndpoints, commonRange.transEndpoints, commonRange.ranges);
-            }
-        }
-
         this.commonRange = commonRange;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
-        this.skippedReplicas = forceSkippedReplicas;
+        this.skippedReplicas = commonRange.hasSkippedReplicas;
         this.optimiseStreams = optimiseStreams;
         this.taskExecutor = MoreExecutors.listeningDecorator(createExecutor());
     }

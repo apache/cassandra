@@ -113,6 +113,11 @@ public final class DistributedRepairUtils
 
     public static void assertParentRepairSuccess(AbstractCluster<?> cluster, int coordinator, String ks, String table)
     {
+        assertParentRepairSuccess(cluster, coordinator, ks, table, row -> {});
+    }
+
+    public static void assertParentRepairSuccess(AbstractCluster<?> cluster, int coordinator, String ks, String table, Consumer<Row> moreSuccessCriteria)
+    {
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
@@ -121,6 +126,8 @@ public final class DistributedRepairUtils
             // check not failed (aka success)
             Assert.assertNull("Exception found", row.getString("exception_stacktrace"));
             Assert.assertNull("Exception found", row.getString("exception_message"));
+
+            moreSuccessCriteria.accept(row);
         });
     }
 

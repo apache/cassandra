@@ -347,7 +347,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         boolean force = options.isForcedRepair();
 
-        if (force && options.isIncremental())
+        if (force)
         {
             Set<InetAddressAndPort> actualNeighbors = Sets.newHashSet(Iterables.filter(allNeighbors, FailureDetector.instance::isAlive));
             force = !allNeighbors.equals(actualNeighbors);
@@ -393,16 +393,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         if (options.isPreview())
         {
-            previewRepair(parentSession, creationTimeMillis, neighborsAndRanges.commonRanges, cfnames);
+            previewRepair(parentSession, creationTimeMillis, neighborsAndRanges.filterCommonRanges(), cfnames);
         }
         else if (options.isIncremental())
         {
-            incrementalRepair(parentSession, creationTimeMillis, neighborsAndRanges.force, traceState,
-                              neighborsAndRanges.allNeighbors, neighborsAndRanges.commonRanges, cfnames);
+            incrementalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges, cfnames);
         }
         else
         {
-            normalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges.commonRanges, cfnames);
+            normalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges.filterCommonRanges(), cfnames);
         }
     }
 
@@ -428,10 +427,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             @SuppressWarnings("unchecked")
             public ListenableFuture apply(List<RepairSessionResult> results)
             {
+                logger.debug("Repair result: {}", results);
                 // filter out null(=failed) results and get successful ranges
                 for (RepairSessionResult sessionResult : results)
                 {
-                    logger.debug("Repair result: {}", results);
                     if (sessionResult != null)
                     {
                         // don't record successful repair if we had to skip ranges
@@ -463,6 +462,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
         else
         {
+            logger.debug("force flag set, removing dead endpoints if possible");
+
             List<CommonRange> filtered = new ArrayList<>(commonRanges.size());
 
             for (CommonRange commonRange : commonRanges)
@@ -474,7 +475,14 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 // this node is implicitly a participant in this repair, so a single endpoint is ok here
                 if (!endpoints.isEmpty())
                 {
-                    filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges));
+                    Set<InetAddressAndPort> skippedReplicas = Sets.union(Sets.difference(commonRange.endpoints, endpoints),
+                                                                         Sets.difference(commonRange.transEndpoints, transEndpoints));
+                    skippedReplicas.forEach(endpoint -> logger.info("Removing a dead node {} from Repair for ranges {} due to -force", endpoint, commonRange.ranges));
+                    filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges, !skippedReplicas.isEmpty()));
+                }
+                else
+                {
+                    logger.warn("Unable to force repair for {}, as no neighbor nodes are live", commonRange.ranges);
                 }
             }
             Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
@@ -484,21 +492,19 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private void incrementalRepair(UUID parentSession,
                                    long startTime,
-                                   boolean forceRepair,
                                    TraceState traceState,
-                                   Set<InetAddressAndPort> allNeighbors,
-                                   List<CommonRange> commonRanges,
+                                   NeighborsAndRanges neighborsAndRanges,
                                    String... cfnames)
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
-                                                  .addAll(allNeighbors)
+                                                  .addAll(neighborsAndRanges.allNeighbors)
                                                   .add(FBUtilities.getBroadcastAddressAndPort())
                                                   .build();
+        // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
+        List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges();
 
-        List<CommonRange> allRanges = filterCommonRanges(commonRanges, allParticipants, forceRepair);
-
-        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, forceRepair);
+        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.force);
         ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
         ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, allRanges, cfnames),
@@ -640,9 +646,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         List<ListenableFuture<RepairSessionResult>> futures = new ArrayList<>(options.getRanges().size());
 
-        // we do endpoint filtering at the start of an incremental repair,
-        // so repair sessions shouldn't also be checking liveness
-        boolean force = options.isForcedRepair() && !isIncremental;
         for (CommonRange commonRange : commonRanges)
         {
             logger.info("Starting RepairSession for {}", commonRange);
@@ -652,7 +655,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                                                                      options.getParallelism(),
                                                                                      isIncremental,
                                                                                      options.isPullRepair(),
-                                                                                     force,
                                                                                      options.getPreviewKind(),
                                                                                      options.optimiseStreams(),
                                                                                      executor,
@@ -862,6 +864,12 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             this.force = force;
             this.allNeighbors = allNeighbors;
             this.commonRanges = commonRanges;
+        }
+
+        List<CommonRange> filterCommonRanges()
+        {
+            // filter and only keep the neighbor endpoints that are contained in `allNeighbors` in each commonRange when in force mode.
+            return RepairRunnable.filterCommonRanges(commonRanges, allNeighbors, force);
         }
     }
 }
