@@ -107,9 +107,9 @@ public class RepairJobTest
 
         public MeasureableRepairSession(UUID parentRepairSession, UUID id, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
-                                        boolean force, PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
+                                        PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
         {
-            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, force, previewKind, optimiseStreams, cfnames);
+            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, previewKind, optimiseStreams, cfnames);
         }
 
         protected DebuggableThreadPoolExecutor createExecutor()
@@ -168,8 +168,7 @@ public class RepairJobTest
 
         this.session = new MeasureableRepairSession(parentRepairSession, UUIDGen.getTimeUUID(),
                                                     new CommonRange(neighbors, Collections.emptySet(), FULL_RANGE),
-                                                    KEYSPACE, RepairParallelism.SEQUENTIAL,
-                                                    false, false, false,
+                                                    KEYSPACE, RepairParallelism.SEQUENTIAL, false, false,
                                                     PreviewKind.NONE, false, CF);
 
         this.job = new RepairJob(session, CF);
