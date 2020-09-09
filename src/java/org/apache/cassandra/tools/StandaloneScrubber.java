@@ -245,30 +245,19 @@ public class StandaloneScrubber
         if (strategyManager.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
             int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
+            int fanOut = cfs.getCompactionStrategyManager().getLevelFanoutSize();
+            List<SSTableReader> repaired = new ArrayList<>();
+            List<SSTableReader> unrepaired = new ArrayList<>();
 
-            System.out.println("Checking leveled manifest");
-            Predicate<SSTableReader> repairedPredicate = new Predicate<SSTableReader>()
+            for (SSTableReader sstable : sstables)
             {
-                @Override
-                public boolean apply(SSTableReader sstable)
-                {
-                    return sstable.isRepaired();
-                }
-            };
-
-            List<SSTableReader> repaired = Lists.newArrayList(Iterables.filter(sstables, repairedPredicate));
-            List<SSTableReader> unRepaired = Lists.newArrayList(Iterables.filter(sstables, Predicates.not(repairedPredicate)));
-
-            LeveledManifest repairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), repaired);
-            for (int i = 1; i < repairedManifest.getLevelCount(); i++)
-            {
-                repairedManifest.repairOverlappingSSTables(i);
+                if (sstable.isRepaired())
+                    repaired.add(sstable);
+                else
+                    unrepaired.add(sstable);
             }
-            LeveledManifest unRepairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), unRepaired);
-            for (int i = 1; i < unRepairedManifest.getLevelCount(); i++)
-            {
-                unRepairedManifest.repairOverlappingSSTables(i);
-            }
+            LeveledManifest.create(cfs, maxSizeInMB, fanOut, repaired);
+            LeveledManifest.create(cfs, maxSizeInMB, fanOut, unrepaired);
         }
     }
 

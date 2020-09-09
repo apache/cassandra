@@ -1,4 +1,5 @@
 3.11.9
+ * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
 
 3.11.8
  * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)

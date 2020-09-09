@@ -161,7 +161,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
     {
-        Iterable<SSTableReader> sstables = manifest.getAllSSTables();
+        Iterable<SSTableReader> sstables = manifest.getSSTables();
 
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
         if (Iterables.isEmpty(sstables))
@@ -340,9 +340,15 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
+    public void addSSTables(Iterable<SSTableReader> sstables)
+    {
+        manifest.addSSTables(sstables);
+    }
+
+    @Override
     public void addSSTable(SSTableReader added)
     {
-        manifest.add(added);
+        manifest.addSSTables(Collections.singleton(added));
     }
 
     @Override
@@ -493,21 +499,17 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         level:
         for (int i = manifest.getLevelCount(); i >= 0; i--)
         {
-            // sort sstables by droppable ratio in descending order
-            SortedSet<SSTableReader> sstables = manifest.getLevelSorted(i, new Comparator<SSTableReader>()
-            {
-                public int compare(SSTableReader o1, SSTableReader o2)
-                {
-                    double r1 = o1.getEstimatedDroppableTombstoneRatio(gcBefore);
-                    double r2 = o2.getEstimatedDroppableTombstoneRatio(gcBefore);
-                    return -1 * Doubles.compare(r1, r2);
-                }
-            });
-            if (sstables.isEmpty())
+            if (manifest.getLevelSize(i) == 0)
                 continue;
+            // sort sstables by droppable ratio in descending order
+            List<SSTableReader> tombstoneSortedSSTables = manifest.getLevelSorted(i, (o1, o2) -> {
+                double r1 = o1.getEstimatedDroppableTombstoneRatio(gcBefore);
+                double r2 = o2.getEstimatedDroppableTombstoneRatio(gcBefore);
+                return -1 * Doubles.compare(r1, r2);
+            });
 
             Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
-            for (SSTableReader sstable : sstables)
+            for (SSTableReader sstable : tombstoneSortedSSTables)
             {
                 if (sstable.getEstimatedDroppableTombstoneRatio(gcBefore) <= tombstoneThreshold)
                     continue level;
