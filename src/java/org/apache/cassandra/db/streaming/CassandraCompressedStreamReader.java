@@ -123,10 +123,6 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
     @Override
     protected long totalSize()
     {
-        long size = 0;
-        // calculate total length of transferring chunks
-        for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
-            size += chunk.length + 4; // 4 bytes for CRC
-        return size;
+        return compressionInfo.getTotalSize();
     }
 }

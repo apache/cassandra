@@ -18,11 +18,14 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.compress.CompressionMetadata.Chunk;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -31,31 +34,133 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 /**
  * Container that carries compression parameters and chunks to decompress data from stream.
  */
-public class CompressionInfo
+public abstract class CompressionInfo
 {
     public static final IVersionedSerializer<CompressionInfo> serializer = new CompressionInfoSerializer();
 
-    public final CompressionMetadata.Chunk[] chunks;
-    public final CompressionParams parameters;
+    /**
+     * Returns the compression parameters.
+     *
+     * @return the compression parameters.
+     */
+    public abstract CompressionParams parameters();
 
-    public CompressionInfo(CompressionMetadata.Chunk[] chunks, CompressionParams parameters)
+    /**
+     * Returns the offset and length of the file chunks.
+     *
+     * @return the offset and length of the file chunks.
+     */
+    public abstract CompressionMetadata.Chunk[] chunks();
+
+    /**
+     * Computes the size of the file to transfer.
+     *
+     * @return the size of the file in bytes
+     */
+    public long getTotalSize()
     {
-        assert chunks != null && parameters != null;
-        this.chunks = chunks;
-        this.parameters = parameters;
+        long size = 0;
+        for (CompressionMetadata.Chunk chunk : chunks())
+        {
+            size += chunk.length + 4; // 4 bytes for CRC
+        }
+        return size;
     }
 
-    static CompressionInfo fromCompressionMetadata(CompressionMetadata metadata, List<SSTableReader.PartitionPositionBounds> sections)
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof CompressionInfo))
+            return false;
+
+        CompressionInfo that = (CompressionInfo) o;
+
+        return Objects.equals(parameters(), that.parameters())
+               && Arrays.equals(chunks(), that.chunks());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(parameters(), chunks());
+    }
+
+    /**
+     * Create a {@code CompressionInfo} instance which is fully initialized.
+     *
+     * @param chunks the file chunks
+     * @param parameters the compression parameters
+     */
+    public static CompressionInfo newInstance(CompressionMetadata.Chunk[] chunks, CompressionParams parameters)
+    {
+        assert chunks != null && parameters != null;
+
+        return new CompressionInfo()
+        {
+            @Override
+            public Chunk[] chunks()
+            {
+                return chunks;
+            }
+
+            @Override
+            public CompressionParams parameters()
+            {
+                return parameters;
+            }
+        };
+    }
+
+    /**
+     * Create a {@code CompressionInfo} that will computes the file chunks only upon request.
+     *
+     * <p>The instance returned by that method will only computes the file chunks when the {@code chunks},
+     * {@code equals} or {@code hashcode} methods are called for the first time. This is done to reduce the GC
+     * pressure. See CASSANDRA-10680 for more details</p>.
+     *
+     * @param metadata the compression metadata
+     * @param sections the file sections
+     * @return a {@code CompressionInfo} that will computes the file chunks only upon request.
+     */
+    static CompressionInfo newLazyInstance(CompressionMetadata metadata, List<SSTableReader.PartitionPositionBounds> sections)
     {
         if (metadata == null)
         {
             return null;
         }
-        else
-        {
-            return new CompressionInfo(metadata.getChunksForSections(sections), metadata.parameters);
-        }
 
+        return new CompressionInfo()
+        {
+            private volatile Chunk[] chunks;
+
+            @Override
+            public synchronized Chunk[] chunks()
+            {
+                if (chunks == null)
+                    chunks = metadata.getChunksForSections(sections);
+
+                return chunks;
+            }
+
+            @Override
+            public CompressionParams parameters()
+            {
+                return metadata.parameters;
+            }
+
+            @Override
+            public long getTotalSize()
+            {
+                // If the chunks have not been loaded yet we avoid to compute them.
+                if (chunks == null)
+                    return metadata.getTotalSizeForSections(sections);
+
+                return super.getTotalSize();
+            }
+        };
     }
 
     static class CompressionInfoSerializer implements IVersionedSerializer<CompressionInfo>
@@ -68,12 +173,13 @@ public class CompressionInfo
                 return;
             }
 
-            int chunkCount = info.chunks.length;
+            Chunk[] chunks = info.chunks();
+            int chunkCount = chunks.length;
             out.writeInt(chunkCount);
             for (int i = 0; i < chunkCount; i++)
-                CompressionMetadata.Chunk.serializer.serialize(info.chunks[i], out, version);
+                CompressionMetadata.Chunk.serializer.serialize(chunks[i], out, version);
             // compression params
-            CompressionParams.serializer.serialize(info.parameters, out, version);
+            CompressionParams.serializer.serialize(info.parameters(), out, version);
         }
 
         public CompressionInfo deserialize(DataInputPlus in, int version) throws IOException
@@ -89,7 +195,7 @@ public class CompressionInfo
 
             // compression params
             CompressionParams parameters = CompressionParams.serializer.deserialize(in, version);
-            return new CompressionInfo(chunks, parameters);
+            return CompressionInfo.newInstance(chunks, parameters);
         }
 
         public long serializedSize(CompressionInfo info, int version)
@@ -98,12 +204,13 @@ public class CompressionInfo
                 return TypeSizes.sizeof(-1);
 
             // chunks
-            int chunkCount = info.chunks.length;
+            Chunk[] chunks = info.chunks();
+            int chunkCount = chunks.length;
             long size = TypeSizes.sizeof(chunkCount);
             for (int i = 0; i < chunkCount; i++)
-                size += CompressionMetadata.Chunk.serializer.serializedSize(info.chunks[i], version);
+                size += CompressionMetadata.Chunk.serializer.serializedSize(chunks[i], version);
             // compression params
-            size += CompressionParams.serializer.serializedSize(info.parameters, version);
+            size += CompressionParams.serializer.serializedSize(info.parameters(), version);
             return size;
         }
     }
