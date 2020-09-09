@@ -30,7 +30,6 @@ types <custom-types>`:
 .. productionlist::
    cql_type: `native_type` | `collection_type` | `user_defined_type` | `tuple_type` | `custom_type`
 
-
 .. _native-types:
 
 Native Types
@@ -310,7 +309,6 @@ inserted/updated elements. In other words::
 
 will only apply the TTL to the ``{ 'color' : 'green' }`` record, the rest of the map remaining unaffected.
 
-
 .. _sets:
 
 Sets
@@ -400,19 +398,45 @@ Further, lists support:
 
 Lastly, as for :ref:`maps <maps>`, TTLs when used only apply to the newly inserted values.
 
+.. _tuples:
+
+Tuples
+^^^^^^
+
+CQL also support tuples and tuple types (where the elements can be of different types). Tuple types and tuple literals
+are defined by:
+
+.. productionlist::
+   tuple_type: TUPLE '<' `cql_type` ( ',' `cql_type` )* '>'
+   tuple_literal: '(' `term` ( ',' `term` )* ')'
+
+and can be used thusly::
+
+    CREATE TABLE durations (
+        event text,
+        duration tuple<int, text>,
+    )
+
+    INSERT INTO durations (event, duration) VALUES ('ev1', (3, 'hours'));
+
+Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>` (without the need of the
+`frozen` keyword) and it is not possible to update only some elements of a tuple (without updating the whole tuple).
+Also, a tuple literal should always have the same number of value than declared in the type it is a tuple of (some of
+those values can be null but they need to be explicitly declared as so).
+
 .. _udts:
 
 User-Defined Types
 ^^^^^^^^^^^^^^^^^^
 
-CQL support the definition of user-defined types (UDT for short). Such a type can be created, modified and removed using
-the :token:`create_type_statement`, :token:`alter_type_statement` and :token:`drop_type_statement` described below. But
+CQL support the definition of user-defined types (UDT for short), which is basically a tuple on steroids - it's
+literally an extension of the class that represents a tuple. Such a type can be created, modified and removed using the
+:token:`create_type_statement`, :token:`alter_type_statement` and :token:`drop_type_statement` described below. But
 once created, a UDT is simply referred to by its name:
 
 .. productionlist::
    user_defined_type: `udt_name`
    udt_name: [ `keyspace_name` '.' ] `identifier`
-
 
 Creating a UDT
 ~~~~~~~~~~~~~~
@@ -514,32 +538,6 @@ still in use by another type, table or function will result in an error.
 
 If the type dropped does not exist, an error will be returned unless ``IF EXISTS`` is used, in which case the operation
 is a no-op.
-
-.. _tuples:
-
-Tuples
-^^^^^^
-
-CQL also support tuples and tuple types (where the elements can be of different types). Functionally, tuples can be
-though as anonymous UDT with anonymous fields. Tuple types and tuple literals are defined by:
-
-.. productionlist::
-   tuple_type: TUPLE '<' `cql_type` ( ',' `cql_type` )* '>'
-   tuple_literal: '(' `term` ( ',' `term` )* ')'
-
-and can be used thusly::
-
-    CREATE TABLE durations (
-        event text,
-        duration tuple<int, text>,
-    )
-
-    INSERT INTO durations (event, duration) VALUES ('ev1', (3, 'hours'));
-
-Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>` (without the need of the
-`frozen` keyword) and it is not possible to update only some elements of a tuple (without updating the whole tuple).
-Also, a tuple literal should always have the same number of value than declared in the type it is a tuple of (some of
-those values can be null but they need to be explicitly declared as so).
 
 .. _custom-types:
 
