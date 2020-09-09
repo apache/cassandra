@@ -539,6 +539,49 @@ still in use by another type, table or function will result in an error.
 If the type dropped does not exist, an error will be returned unless ``IF EXISTS`` is used, in which case the operation
 is a no-op.
 
+.. _frozen:
+
+Frozen Types
+^^^^^^^^^^^^
+
+The ``frozen`` keyword is used to change the way a collection or user-defined type column is serialized. When it is
+present multiple values will be serialized as one, disabling updates on parts of UDTs or individual items of
+collections.
+
+To freeze a column, use the keyword, followed by the type in angle brackets, for instance::
+
+    CREATE TABLE posts (
+        id int PRIMARY KEY,
+        title text,
+        content text,
+        tags frozen<set<text>>
+    );
+
+To insert a frozen value, it's just like a non-frozen column::
+
+    INSERT INTO posts (id, title, content, tags)
+            VALUES (1, 'Even Higher Availability with 5x Faster Streaming in Cassandra 4.0',
+                    'Streaming is a process...', {'cassandra', 'availability'});
+
+Updating a frozen column
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+As mentioned before, it's not possible to update an individual item of a collection::
+
+    UPDATE posts SET tags = tags - {'availability'} WHERE id = 1;
+
+The above command would result in the following error::
+
+    InvalidRequest: Error from server: code=2200 [Invalid query] message="Invalid operation (tags = tags -
+    {'availability'}) for frozen collection column tags"
+
+When there's a need to update, the full value must be provided::
+
+    UPDATE posts SET tags = {'cassandra'} WHERE id = 1;
+
+Note we're replacing the whole value, not just removing the unwanted item. The same is true for appending elements in
+a collection.
+
 .. _custom-types:
 
 Custom Types
