@@ -188,13 +188,22 @@ public class JMXTool
         @Option(title = "ignore right", name = { "--ignore-missing-on-right" }, description = "Ignore results missing on the right")
         private boolean ignoreMissingRight;
 
-        @Option(title = "exclude objects", name = "--exclude-object", description = "Ignores processing specific objects")
+        @Option(title = "exclude objects", name = "--exclude-object", description
+                                                                      = "Ignores processing specific objects. " +
+                                                                        "Each usage should take a single object, " +
+                                                                        "but can use this flag multiple times.")
         private List<CliPattern> excludeObjects = new ArrayList<>();
 
-        @Option(title = "exclude attributes", name = "--exclude-attribute", description = "Ignores processing specific attributes")
+        @Option(title = "exclude attributes", name = "--exclude-attribute", description
+                                                                            = "Ignores processing specific attributes. " +
+                                                                              "Each usage should take a single attribute, " +
+                                                                              "but can use this flag multiple times.")
         private List<CliPattern> excludeAttributes = new ArrayList<>();
 
-        @Option(title = "exclude operations", name = "--exclude-operation", description = "Ignores processing specific operations")
+        @Option(title = "exclude operations", name = "--exclude-operation", description
+                                                                            = "Ignores processing specific operations. " +
+                                                                              "Each usage should take a single operation, " +
+                                                                              "but can use this flag multiple times.")
         private List<CliPattern> excludeOperations = new ArrayList<>();
 
         public Void call() throws Exception
