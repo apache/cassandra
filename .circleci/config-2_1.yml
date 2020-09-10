@@ -28,6 +28,12 @@ j8_small_par_executor: &j8_small_par_executor
     #exec_resource_class: xlarge
   parallelism: 1
 
+j8_small_executor: &j8_small_executor
+  executor:
+    name: java8-executor
+    exec_resource_class: medium
+  parallelism: 1
+
 j8_medium_par_executor: &j8_medium_par_executor
   executor:
     name: java8-executor
@@ -52,6 +58,12 @@ j11_small_par_executor: &j11_small_par_executor
     #exec_resource_class: xlarge
   parallelism: 1
 
+j11_small_executor: &j11_small_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: medium
+  parallelism: 1
+
 j8_with_dtests_jobs: &j8_with_dtests_jobs
   jobs:
     - j8_build
@@ -70,6 +82,9 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
           - start_j11_unit_tests
           - j8_build
     # specialized unit tests (all run on request using Java 8)
+    - j8_cqlshlib_tests:
+        requires:
+          - j8_build
     - start_utests_long:
         type: approval
     - utests_long:
@@ -200,6 +215,9 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
           - start_j11_unit_tests
           - j11_build
     - j11_jvm_dtests:
+        requires:
+          - j11_build
+    - j11_cqlshlib_tests:
         requires:
           - j11_build
     # Java 11 dtests (on request)
@@ -388,6 +406,20 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests
+
+  j8_cqlshlib_tests:
+    <<: *j8_small_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_cqlshlib_tests
+
+  j11_cqlshlib_tests:
+    <<: *j11_small_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_cqlshlib_tests
 
   utests_long:
     <<: *j8_seq_executor
@@ -865,6 +897,23 @@ commands:
     - store_artifacts:
         path: /tmp/cassandra/build/test/logs
         destination: logs
+
+  run_cqlshlib_tests:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 15m
+    steps:
+    - run:
+        name: Run cqlshlib Unit Tests
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra/pylib
+          ./cassandra-cqlsh-tests.sh ..
+        no_output_timeout: <<parameters.no_output_timeout>>
+    - store_test_results:
+        path: /tmp/cassandra/pylib
 
   run_parallel_junit_tests:
     parameters:

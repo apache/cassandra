@@ -109,6 +109,7 @@ cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
 nosetests
+RETURN="$?"
 
 ccm remove
 # hack around --xunit-prefix-with-testsuite-name not being available in nose 1.3.7
@@ -125,5 +126,4 @@ mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 # /virtualenv
 deactivate
 
-# Exit cleanly for usable "Unstable" status
-exit 0
+exit ${RETURN}
