@@ -20,7 +20,6 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -48,11 +47,13 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     private static final Logger logger = LoggerFactory.getLogger(CassandraCompressedStreamWriter.class);
 
     private final CompressionInfo compressionInfo;
+    private final long totalSize;
 
-    public CassandraCompressedStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, CompressionInfo compressionInfo, StreamSession session)
+    public CassandraCompressedStreamWriter(SSTableReader sstable, CassandraStreamHeader header, StreamSession session)
     {
-        super(sstable, sections, session);
-        this.compressionInfo = compressionInfo;
+        super(sstable, header, session);
+        this.compressionInfo = header.compressionInfo;
+        this.totalSize = header.size();
     }
 
     @Override
@@ -67,7 +68,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
             long progress = 0L;
 
             // we want to send continuous chunks together to minimise reads from disk and network writes
-            List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks);
+            List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks());
 
             int sectionIdx = 0;
 
@@ -106,11 +107,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     @Override
     protected long totalSize()
     {
-        long size = 0;
-        // calculate total length of transferring chunks
-        for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
-            size += chunk.length + 4; // 4 bytes for CRC
-        return size;
+        return totalSize;
     }
 
     // chunks are assumed to be sorted by offset

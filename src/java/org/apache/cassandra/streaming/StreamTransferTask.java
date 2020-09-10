@@ -70,7 +70,7 @@ public class StreamTransferTask extends StreamTask
         OutgoingStreamMessage message = new OutgoingStreamMessage(tableId, session, stream, sequenceNumber.getAndIncrement());
         message = StreamHook.instance.reportOutgoingStream(session, stream, message);
         streams.put(message.header.sequenceNumber, message);
-        totalSize += message.stream.getSize();
+        totalSize += message.stream.getEstimatedSize();
         totalFiles += message.stream.getNumFiles();
     }
 

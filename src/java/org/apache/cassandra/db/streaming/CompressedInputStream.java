@@ -75,15 +75,15 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
                                  ChecksumType checksumType,
                                  DoubleSupplier validateChecksumChance)
     {
-        super(ByteBuffer.allocateDirect(compressionInfo.parameters.chunkLength()));
+        super(ByteBuffer.allocateDirect(compressionInfo.parameters().chunkLength()));
         buffer.limit(0);
 
         this.input = input;
         this.checksumType = checksumType;
         this.validateChecksumChance = validateChecksumChance;
 
-        compressionParams = compressionInfo.parameters;
-        compressedChunks = Iterators.forArray(compressionInfo.chunks);
+        compressionParams = compressionInfo.parameters();
+        compressedChunks = Iterators.forArray(compressionInfo.chunks());
         compressedChunk = ByteBuffer.allocateDirect(compressionParams.chunkLength());
     }
 

@@ -21,8 +21,8 @@ package org.apache.cassandra.db.streaming;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.function.UnaryOperator;
 
-import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
@@ -135,9 +135,11 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(totalSize));
             }
 
-            Function<StatsMetadata, StatsMetadata> transform = stats -> stats.mutateLevel(header.sstableLevel)
-                                                                             .mutateRepairedMetadata(messageHeader.repairedAt, messageHeader.pendingRepair, false);
-            writer.descriptor.getMetadataSerializer().mutate(writer.descriptor, transform);
+            UnaryOperator<StatsMetadata> transform = stats -> stats.mutateLevel(header.sstableLevel)
+                                                                   .mutateRepairedMetadata(messageHeader.repairedAt, messageHeader.pendingRepair, false);
+            String description = String.format("level %s and repairedAt time %s and pendingRepair %s",
+                                               header.sstableLevel, messageHeader.repairedAt, messageHeader.pendingRepair);
+            writer.descriptor.getMetadataSerializer().mutate(writer.descriptor, description, transform);
             return writer;
         }
         catch (Throwable e)
