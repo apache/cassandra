@@ -475,7 +475,7 @@ Note that:
 - A type is intrinsically bound to the keyspace in which it is created, and can only be used in that keyspace. At
   creation, if the type name is prefixed by a keyspace name, it is created in that keyspace. Otherwise, it is created in
   the current keyspace.
-- As of Cassandra |version|, UDT have to be frozen in most cases, hence the ``frozen<address>`` in the table definition
+- As of Cassandra 3.7, UDT have to be frozen in most cases, hence the ``frozen<address>`` in the table definition
   above. Please see the section on :ref:`frozen <frozen>` for more details.
 
 UDT literals
