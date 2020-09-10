@@ -260,7 +260,7 @@ messages sent by a user”, “events registered by a sensor”...), then collec
 characteristics and limitations:
 
 - Individual collections are not indexed internally. Which means that even to access a single element of a collection,
-  the while collection has to be read (and reading one is not paged internally).
+  the whole collection has to be read (and reading one is not paged internally).
 - While insertion operations on sets and maps never incur a read-before-write internally, some operations on lists do.
   Further, some lists operations are not idempotent by nature (see the section on :ref:`lists <lists>` below for
   details), making their retry in case of timeout problematic. It is thus advised to prefer sets over lists when
