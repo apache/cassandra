@@ -152,15 +152,15 @@ public class ZeroCopyStreamingBenchmark
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
             CassandraStreamHeader partialSSTableStreamHeader =
-            CassandraStreamHeader.builder()
-                                 .withSSTableFormat(sstable.descriptor.formatType)
-                                 .withSSTableVersion(sstable.descriptor.version)
-                                 .withSSTableLevel(0)
-                                 .withEstimatedKeys(sstable.estimatedKeys())
-                                 .withSections(sstable.getPositionsForRanges(requestedRanges))
-                                 .withSerializationHeader(sstable.header.toComponent())
-                                 .withTableId(sstable.metadata().id)
-                                 .build();
+                    CassandraStreamHeader.builder()
+                                         .withSSTableFormat(sstable.descriptor.formatType)
+                                         .withSSTableVersion(sstable.descriptor.version)
+                                         .withSSTableLevel(0)
+                                         .withEstimatedKeys(sstable.estimatedKeys())
+                                         .withSections(sstable.getPositionsForRanges(requestedRanges))
+                                         .withSerializationHeader(sstable.header.toComponent())
+                                         .withTableId(sstable.metadata().id)
+                                         .build();
 
             partialStreamWriter = new CassandraStreamWriter(sstable, partialSSTableStreamHeader, session);
 
