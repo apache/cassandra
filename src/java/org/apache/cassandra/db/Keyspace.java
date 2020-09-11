@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +59,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -106,6 +108,7 @@ public class Keyspace
     private final KeyspaceWriteHandler writeHandler;
     private volatile ReplicationParams replicationParams;
     private final KeyspaceRepairManager repairManager;
+    private final SchemaProvider schema;
 
     private static volatile boolean initialized = false;
 
@@ -126,7 +129,8 @@ public class Keyspace
         return open(keyspaceName, Schema.instance, false);
     }
 
-    private static Keyspace open(String keyspaceName, Schema schema, boolean loadSSTables)
+    @VisibleForTesting
+    static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
         Keyspace keyspaceInstance = schema.getKeyspaceInstance(keyspaceName);
 
@@ -140,7 +144,7 @@ public class Keyspace
                 if (keyspaceInstance == null)
                 {
                     // open and store the keyspace
-                    keyspaceInstance = new Keyspace(keyspaceName, loadSSTables);
+                    keyspaceInstance = new Keyspace(keyspaceName, schema, loadSSTables);
                     schema.storeKeyspaceInstance(keyspaceInstance);
                 }
             }
@@ -212,7 +216,7 @@ public class Keyspace
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        TableMetadata table = Schema.instance.getTableMetadata(getName(), cfName);
+        TableMetadata table = schema.getTableMetadata(getName(), cfName);
         if (table == null)
             throw new IllegalArgumentException(String.format("Unknown keyspace/cf pair (%s.%s)", getName(), cfName));
         return getColumnFamilyStore(table.id);
@@ -329,10 +333,12 @@ public class Keyspace
         return list;
     }
 
-    private Keyspace(String keyspaceName, boolean loadSSTables)
+    private Keyspace(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
-        metadata = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        this.schema = schema;
+        metadata = schema.getKeyspaceMetadata(keyspaceName);
         assert metadata != null : "Unknown keyspace " + keyspaceName;
+        
         if (metadata.isVirtual())
             throw new IllegalStateException("Cannot initialize Keyspace with virtual metadata " + keyspaceName);
         createReplicationStrategy(metadata);
@@ -342,7 +348,7 @@ public class Keyspace
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
-            TableMetadataRef tableMetadataRef = Schema.instance.getTableMetadataRef(cfm.id);
+            TableMetadataRef tableMetadataRef = schema.getTableMetadataRef(cfm.id);
             
             if (tableMetadataRef == null)
             {
@@ -364,6 +370,7 @@ public class Keyspace
 
     private Keyspace(KeyspaceMetadata metadata)
     {
+        this.schema = Schema.instance;
         this.metadata = metadata;
         createReplicationStrategy(metadata);
         this.metric = new KeyspaceMetrics(this);

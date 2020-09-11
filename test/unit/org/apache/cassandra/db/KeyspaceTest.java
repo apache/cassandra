@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -21,10 +21,15 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
+import org.mockito.Mockito;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
@@ -33,12 +38,16 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaProvider;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Test;
 
 import static org.junit.Assert.*;
-
 
 public class KeyspaceTest extends CQLTester
 {
@@ -491,5 +500,33 @@ public class KeyspaceTest extends CQLTester
         command = SinglePartitionReadCommand.create(
                 cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command);
+    }
+
+    /**
+     * Test behavior of trying to open a Keyspace when the table is missing from the schema; this can happen
+     * if the table is dropped while the call to open happens.
+     *
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-15949">CASSANDRA-15949</a>
+     */
+    @Test
+    public void shouldThrowOnMissingTable()
+    {
+        SchemaProvider schema = Mockito.mock(SchemaProvider.class, Mockito.CALLS_REAL_METHODS);
+        String ksName = "missingTable";
+        String missingTableName = "table1";
+        TableId tableId = TableId.fromUUID(UUID.randomUUID());
+        KeyspaceMetadata metadata = KeyspaceMetadata.create(ksName, KeyspaceParams.local(), Tables.of(
+        
+        TableMetadata.builder(ksName, missingTableName).id(tableId)
+                                                       .addPartitionKeyColumn("key", BytesType.instance)
+                                                       .build()));
+        
+        Mockito.when(schema.getKeyspaceMetadata(ksName)).thenReturn(metadata);
+
+        Keyspace ks = Keyspace.open(ksName, schema, false);
+
+        Assertions.assertThatThrownBy(() -> ks.getColumnFamilyStore(tableId))
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessage("Unknown CF " + tableId);
     }
 }
