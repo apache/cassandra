@@ -173,7 +173,7 @@ public class CassandraDaemon
         {
             try
             {
-                Keyspace.all().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold));
+                Keyspace.allExisting().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold));
             }
             catch (Throwable t)
             {

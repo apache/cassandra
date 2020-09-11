@@ -22,7 +22,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Sets;
@@ -363,13 +362,6 @@ public final class Schema implements TableMetadataProvider
              ? null
              : metadataRefs.get(tm.id);
     }
-    
-    @VisibleForTesting
-    public void removeTableMetadataRef(String keyspace, String table)
-    {
-        TableMetadata tm = getTableMetadata(keyspace, table);
-        metadataRefs.remove(tm.id);
-    }
 
     public TableMetadataRef getIndexTableMetadataRef(String keyspace, String index)
     {
@@ -388,6 +380,7 @@ public final class Schema implements TableMetadataProvider
      *
      * @return metadata about Table or View
      */
+    @Nullable
     public TableMetadataRef getTableMetadataRef(TableId id)
     {
         return metadataRefs.get(id);

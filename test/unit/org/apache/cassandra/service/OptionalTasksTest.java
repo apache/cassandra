@@ -18,21 +18,29 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.apache.cassandra.service.CassandraDaemon.SPECULATION_THRESHOLD_UPDATER;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public class OptionalTasksTest
 {
     private static final String KEYSPACE = "OpitonalTasksTest";
-    private static final String TABLE = "DroppedTable";
+    private static final String TABLE = "SpeculationThreshold";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -42,13 +50,45 @@ public class OptionalTasksTest
     }
     
     @Test
-    public void shouldIgnoreDroppedTable()
+    public void shouldIgnoreDroppedKeyspace()
     {
-        // Remove the literal Keyspace and TableMetadataRef objects from Schema...
-        Schema.instance.removeKeyspaceInstance(KEYSPACE);
-        Schema.instance.removeTableMetadataRef(KEYSPACE, TABLE);
+        // Set the initial sampling state...
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
+        Objects.requireNonNull(cfs).metric.coordinatorReadLatency.update(100, TimeUnit.NANOSECONDS);
         
-        // ...and ensure that the speculation threshold updater does not allow an exception to escape.
+        // Remove the Keyspace name to trigger creation on open...
+        Keyspace removed = Schema.instance.removeKeyspaceInstance(KEYSPACE);
+
+        try
+        {
+            long originalValue = cfs.sampleReadLatencyNanos;
+
+            // ...and ensure that the speculation threshold updater doesn't run.
+            SPECULATION_THRESHOLD_UPDATER.run();
+
+            assertEquals(originalValue, cfs.sampleReadLatencyNanos);
+        }
+        finally
+        {
+            // Restore the removed Keyspace to put things back the way we found them.
+            Schema.instance.storeKeyspaceInstance(removed);
+        }
+    }
+
+    @Test
+    public void shouldUpdateSpeculationThreshold()
+    {
+        // Set the initial sampling state...
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
+        Objects.requireNonNull(cfs).metric.coordinatorReadLatency.update(100, TimeUnit.NANOSECONDS);
+
+        long originalValue = cfs.sampleReadLatencyNanos;
+        
+        // ...and ensure that the speculation threshold updater runs.
         SPECULATION_THRESHOLD_UPDATER.run();
+        
+        assertNotEquals(originalValue, cfs.sampleReadLatencyNanos);
     }
 }
