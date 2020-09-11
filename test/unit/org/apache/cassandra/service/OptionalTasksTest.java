@@ -57,7 +57,7 @@ public class OptionalTasksTest
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(Objects.requireNonNull(metadata).id);
         Objects.requireNonNull(cfs).metric.coordinatorReadLatency.update(100, TimeUnit.NANOSECONDS);
         
-        // Remove the Keyspace name to trigger creation on open...
+        // Remove the Keyspace name to make it invisible to the updater...
         Keyspace removed = Schema.instance.removeKeyspaceInstance(KEYSPACE);
 
         try

@@ -178,6 +178,7 @@ public class CassandraDaemon
             catch (Throwable t)
             {
                 logger.warn("Failed to update speculative retry thresholds.", t);
+                JVMStabilityInspector.inspectThrowable(t);
             }
         };
     
