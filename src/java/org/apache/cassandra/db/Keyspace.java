@@ -136,9 +136,9 @@ public class Keyspace
 
         if (keyspaceInstance == null)
         {
-            // instantiate the Keyspace.  we could use putIfAbsent but it's important to making sure it is only done once
-            // per keyspace, so we synchronize and re-check before doing it.
-            synchronized (Keyspace.class)
+            // Instantiate the Keyspace while holding the Schema lock. This both ensures we only do it once per
+            // keyspace, and also ensures that Keyspace construction sees a consistent view of the schema.
+            synchronized (schema)
             {
                 keyspaceInstance = schema.getKeyspaceInstance(keyspaceName);
                 if (keyspaceInstance == null)
@@ -157,19 +157,19 @@ public class Keyspace
         return clear(keyspaceName, Schema.instance);
     }
 
+    /**
+     * Note that this method should only be called while holding the monitor lock for {@link Schema#instance} 
+     */
     public static Keyspace clear(String keyspaceName, Schema schema)
     {
-        synchronized (Keyspace.class)
+        Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
+        if (t != null)
         {
-            Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
-            if (t != null)
-            {
-                for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
-                    t.unloadCf(cfs);
-                t.metric.release();
-            }
-            return t;
+            for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
+                t.unloadCf(cfs);
+            t.metric.release();
         }
+        return t;
     }
 
     public static ColumnFamilyStore openAndGetStore(TableMetadataRef tableRef)
@@ -348,19 +348,7 @@ public class Keyspace
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
-            TableMetadataRef tableMetadataRef = schema.getTableMetadataRef(cfm.id);
-            
-            if (tableMetadataRef == null)
-            {
-                logger.info("Failed to initialize {}.{}, as no table metadata was available. This " +
-                            "has likely occurred because the keyspace metadata for {} has not yet " +
-                            "been updated to reflect the table being dropped.", 
-                            getName(), cfm.name, getName());
-            }
-            else
-            {
-                initCf(tableMetadataRef, loadSSTables);
-            }
+            initCf(schema.getTableMetadataRef(cfm.id), loadSSTables);
         }
         this.viewManager.reload(false);
 
