@@ -47,8 +47,8 @@ public class TimestampSerializer extends TypeSerializer<Date>
 
         final String[] dateTimeFormats = new String[]
                                          {
-                                         "yyyy-MM-dd'T'HH:mm[:ss]",
-                                         "yyyy-MM-dd HH:mm[:ss]"
+                                         "y-M-d'T'H:m[:s]",
+                                         "y-M-d H:m[:s]"
                                          };
         final String[] offsetFormats = new String[]
                                          {
