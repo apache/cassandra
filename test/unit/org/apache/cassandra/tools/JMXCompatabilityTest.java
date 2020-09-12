@@ -72,11 +72,11 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
-//                                                    // Cas*Latency metrics missing
-                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
-                                                    ".*:type=Table,.*,name=CasProposeLatency",
+                                                    // Cas*Latency metrics missing
                                                     ".*:type=Table,.*,name=CasPrepareLatency",
                                                     ".*:type=Table,.*,name=CasPrepareTotalLatency",
+                                                    ".*:type=Table,.*,name=CasProposeLatency",
+                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
                                                     ".*:type=Table,.*,name=CasCommitLatency",
                                                     ".*:type=Table,.*,name=CasCommitTotalLatency",
 
@@ -111,10 +111,10 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
                                                     // Cas*Latency metrics missing
-                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
-                                                    ".*:type=Table,.*,name=CasProposeLatency",
                                                     ".*:type=Table,.*,name=CasPrepareLatency",
                                                     ".*:type=Table,.*,name=CasPrepareTotalLatency",
+                                                    ".*:type=Table,.*,name=CasProposeLatency",
+                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
                                                     ".*:type=Table,.*,name=CasCommitLatency",
                                                     ".*:type=Table,.*,name=CasCommitTotalLatency",
 
