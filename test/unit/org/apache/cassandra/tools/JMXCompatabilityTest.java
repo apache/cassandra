@@ -72,15 +72,8 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
-                                                    // Cas*Latency metrics missing
-                                                    ".*:type=Table,.*,name=CasPrepareLatency",
-                                                    ".*:type=Table,.*,name=CasPrepareTotalLatency",
-                                                    ".*:type=Table,.*,name=CasProposeLatency",
-                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
-                                                    ".*:type=Table,.*,name=CasCommitLatency",
-                                                    ".*:type=Table,.*,name=CasCommitTotalLatency",
-
                                                     // dropped tables
+                                                    "org.apache.cassandra.metrics:type=Table,keyspace=system,scope=(schema_aggregates|schema_columnfamilies|schema_columns|schema_functions|schema_keyspaces|schema_triggers|schema_usertypes),name=.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=hints.*",
@@ -110,15 +103,8 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
-                                                    // Cas*Latency metrics missing
-                                                    ".*:type=Table,.*,name=CasPrepareLatency",
-                                                    ".*:type=Table,.*,name=CasPrepareTotalLatency",
-                                                    ".*:type=Table,.*,name=CasProposeLatency",
-                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
-                                                    ".*:type=Table,.*,name=CasCommitLatency",
-                                                    ".*:type=Table,.*,name=CasCommitTotalLatency",
-
                                                     // dropped tables
+                                                    "org.apache.cassandra.metrics:type=Table,keyspace=system,scope=(schema_aggregates|schema_columnfamilies|schema_columns|schema_functions|schema_keyspaces|schema_triggers|schema_usertypes),name=.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
                                                     ".*keyspace=system,(scope|table|columnfamily)=hints.*",
