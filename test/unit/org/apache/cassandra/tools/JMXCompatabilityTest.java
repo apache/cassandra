@@ -72,14 +72,13 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
-                                                    // Cas*Latency metrics missing
-                                                    ".*keyspace=system,scope=schema_aggregates,.*",
-                                                    ".*keyspace=system,scope=schema_columnfamilies,.*",
-                                                    ".*keyspace=system,scope=schema_columns,.*",
-                                                    ".*keyspace=system,scope=schema_functions,.*",
-                                                    ".*keyspace=system,scope=schema_keyspaces,.*",
-                                                    ".*keyspace=system,scope=schema_triggers,.*",
-                                                    ".*keyspace=system,scope=schema_usertypes,.*",
+//                                                    // Cas*Latency metrics missing
+                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
+                                                    ".*:type=Table,.*,name=CasProposeLatency",
+                                                    ".*:type=Table,.*,name=CasPrepareLatency",
+                                                    ".*:type=Table,.*,name=CasPrepareTotalLatency",
+                                                    ".*:type=Table,.*,name=CasCommitLatency",
+                                                    ".*:type=Table,.*,name=CasCommitTotalLatency",
 
                                                     // dropped tables
                                                     ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
@@ -112,13 +111,12 @@ public class JMXCompatabilityTest extends CQLTester
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
                                                     // Cas*Latency metrics missing
-                                                    ".*keyspace=system,scope=schema_aggregates,.*",
-                                                    ".*keyspace=system,scope=schema_columnfamilies,.*",
-                                                    ".*keyspace=system,scope=schema_columns,.*",
-                                                    ".*keyspace=system,scope=schema_functions,.*",
-                                                    ".*keyspace=system,scope=schema_keyspaces,.*",
-                                                    ".*keyspace=system,scope=schema_triggers,.*",
-                                                    ".*keyspace=system,scope=schema_usertypes,.*",
+                                                    ".*:type=Table,.*,name=CasProposeTotalLatency",
+                                                    ".*:type=Table,.*,name=CasProposeLatency",
+                                                    ".*:type=Table,.*,name=CasPrepareLatency",
+                                                    ".*:type=Table,.*,name=CasPrepareTotalLatency",
+                                                    ".*:type=Table,.*,name=CasCommitLatency",
+                                                    ".*:type=Table,.*,name=CasCommitTotalLatency",
 
                                                     // dropped tables
                                                     ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
