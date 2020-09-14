@@ -157,19 +157,19 @@ public class Keyspace
         return clear(keyspaceName, Schema.instance);
     }
 
-    /**
-     * Note that this method should only be called while holding the monitor lock for {@link Schema#instance} 
-     */
     public static Keyspace clear(String keyspaceName, Schema schema)
     {
-        Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
-        if (t != null)
+        synchronized (schema)
         {
-            for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
-                t.unloadCf(cfs);
-            t.metric.release();
+            Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
+            if (t != null)
+            {
+                for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
+                    t.unloadCf(cfs);
+                t.metric.release();
+            }
+            return t;
         }
-        return t;
     }
 
     public static ColumnFamilyStore openAndGetStore(TableMetadataRef tableRef)
@@ -759,7 +759,7 @@ public class Keyspace
     }
 
     /**
-     * @return a {@link Stream} of all keyspaces existing/open {@link Keyspace} instances
+     * @return a {@link Stream} of all existing/open {@link Keyspace} instances
      */
     public static Stream<Keyspace> allExisting()
     {
