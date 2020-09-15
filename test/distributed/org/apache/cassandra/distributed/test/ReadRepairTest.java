@@ -124,10 +124,12 @@ public class ReadRepairTest extends TestBaseImpl
 
             // prevent #4 from reading or writing to #3, so our QUORUM must contain #2 and #4
             // since #1 is taking over the range, this means any read-repair must make it to #1 as well
-            cluster.filters().verbs(READ_REQ.ordinal()).from(4).to(3).drop();
-            cluster.filters().verbs(READ_REPAIR_REQ.ordinal()).from(4).to(3).drop();
+            // (as a speculative repair in this case, as we prefer to send repair mutations to the initial
+            // set of read replicas, which are 2 and 3 here).
+            cluster.filters().verbs(READ_REQ.id).from(4).to(3).drop();
+            cluster.filters().verbs(READ_REPAIR_REQ.id).from(4).to(3).drop();
             assertRows(cluster.coordinator(4).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
-                                                      ConsistencyLevel.ALL, i),
+                                                      ConsistencyLevel.QUORUM, i),
                        row(i, 1, 1));
 
             // verify that #1 receives the write
