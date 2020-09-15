@@ -42,6 +42,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
+import javax.management.remote.rmi.RMIConnectorServer;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
@@ -376,6 +377,18 @@ public abstract class CQLTester
 
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
+
+        if (jmxServer != null && jmxServer instanceof RMIConnectorServer)
+        {
+            try
+            {
+                ((RMIConnectorServer) jmxServer).stop();
+            }
+            catch (IOException e)
+            {
+                logger.warn("Error shutting down jmx", e);
+            }
+        }
     }
 
     @Before

@@ -90,7 +90,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     @Override
     public void flush() throws IOException
     {
-        throw new UnsupportedOperationException();
+
     }
 
     //The actual value observed in Hotspot is only -2

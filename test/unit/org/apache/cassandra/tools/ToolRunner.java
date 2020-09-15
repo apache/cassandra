@@ -30,14 +30,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-
 import org.apache.commons.io.IOUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,15 +49,16 @@ public class ToolRunner implements AutoCloseable
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
     private static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R");
-    
+    private static final String[] EMPTY_STRING_ARRAY = new String[0];
+
     private final List<String> allArgs = new ArrayList<>();
     private Process process;
+    @SuppressWarnings("resource")
     private final ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
+    @SuppressWarnings("resource")
     private final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
     private InputStream stdin;
-    private boolean stdinAutoClose;
-    private long defaultTimeoutMillis = TimeUnit.SECONDS.toMillis(30);
-    private Thread ioWatcher;
+    private Thread[] ioWatchers;
     private Map<String, String> envs;
     private boolean runOutOfProcess = true;
 
@@ -75,10 +73,9 @@ public class ToolRunner implements AutoCloseable
         this.runOutOfProcess = runOutOfProcess;
     }
 
-    public ToolRunner withStdin(InputStream stdin, boolean autoClose)
+    public ToolRunner withStdin(InputStream stdin)
     {
         this.stdin = stdin;
-        this.stdinAutoClose = autoClose;
         return this;
     }
 
@@ -114,15 +111,16 @@ public class ToolRunner implements AutoCloseable
                 originalSysErr.flush();
                 ByteArrayOutputStream toolOut = new ByteArrayOutputStream();
                 ByteArrayOutputStream toolErr = new ByteArrayOutputStream();
-                
+
                 System.setIn(stdin == null ? originalSysIn : stdin);
-                int exit = 0;
-                try (PrintStream newOut = new PrintStream(toolOut); PrintStream newErr = new PrintStream(toolErr);)
+
+                int exit;
+                try (PrintStream newOut = new PrintStream(toolOut); PrintStream newErr = new PrintStream(toolErr))
                 {
                     System.setOut(newOut);
                     System.setErr(newErr);
                     String clazz = allArgs.get(0);
-                    String[] clazzArgs = allArgs.subList(1, allArgs.size()).toArray(new String[0]);
+                    String[] clazzArgs = allArgs.subList(1, allArgs.size()).toArray(EMPTY_STRING_ARRAY);
                     exit = runClassAsTool(clazz, clazzArgs);
                 }
                 
@@ -161,8 +159,8 @@ public class ToolRunner implements AutoCloseable
                     {
                         if (stdin == null)
                             return null;
-                        
-                        ByteArrayOutputStream out = null;
+
+                        ByteArrayOutputStream out;
                         try
                         {
                             out = new ByteArrayOutputStream(stdin.available());
@@ -176,17 +174,40 @@ public class ToolRunner implements AutoCloseable
                     }
 
                     @Override
-                    public int waitFor() throws InterruptedException
+                    public int waitFor()
                     {
                         return exitValue();
                     }
                     
                 };
             }
-            
-            ioWatcher = new Thread(this::watchIO);
-            ioWatcher.setDaemon(true);
-            ioWatcher.start();
+
+            // each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
+            // might block on an idle stream, not consuming the other stream which is blocked in the other process
+            // as nothing is consuming
+            int numWatchers = 2;
+            // only need a stdin watcher when forking
+            boolean includeStdinWatcher = runOutOfProcess && stdin != null;
+            if (includeStdinWatcher)
+                numWatchers = 3;
+            ioWatchers = new Thread[numWatchers];
+            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), errBuffer));
+            ioWatchers[0].setDaemon(true);
+            ioWatchers[0].setName("IO Watcher stderr for " + allArgs);
+            ioWatchers[0].start();
+
+            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), outBuffer));
+            ioWatchers[1].setDaemon(true);
+            ioWatchers[1].setName("IO Watcher stdout for " + allArgs);
+            ioWatchers[1].start();
+
+            if (includeStdinWatcher)
+            {
+                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream()));
+                ioWatchers[2].setDaemon(true);
+                ioWatchers[2].setName("IO Watcher stdin for " + allArgs);
+                ioWatchers[2].start();
+            }
         }
         catch (IOException e)
         {
@@ -196,53 +217,7 @@ public class ToolRunner implements AutoCloseable
         return this;
     }
 
-    private void watchIO()
-    {
-        OutputStream in = process.getOutputStream();
-        InputStream err = process.getErrorStream();
-        InputStream out = process.getInputStream();
-        while (true)
-        {
-            boolean errHandled;
-            boolean outHandled;
-            try
-            {
-                if (stdin != null)
-                {
-                    IOUtils.copy(stdin, in);
-                    if (stdinAutoClose)
-                    {
-                        in.close();
-                        stdin = null;
-                    }
-                }
-                errHandled = IOUtils.copy(err, errBuffer) > 0;
-                outHandled = IOUtils.copy(out, outBuffer) > 0;
-            }
-            catch(IOException e1)
-            {
-                logger.error("Error trying to use in/err/out from process");
-                Thread.currentThread().interrupt();
-                break;
-            }
-            if (!errHandled && !outHandled)
-            {
-                if (!process.isAlive())
-                    return;
-                try
-                {
-                    Thread.sleep(50L);
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }
-    }
-    
-    public int runClassAsTool(String clazz, String... args)
+    public static int runClassAsTool(String clazz, String... args)
     {
         try
         {
@@ -303,19 +278,16 @@ public class ToolRunner implements AutoCloseable
         return process != null && process.isAlive();
     }
 
-    public boolean waitFor()
-    {
-        return waitFor(defaultTimeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    public boolean waitFor(long time, TimeUnit timeUnit)
+    public int waitFor()
     {
         try
         {
-            if (!process.waitFor(time, timeUnit))
-                return false;
-            ioWatcher.join();
-            return true;
+            int rc = process.waitFor();
+            // must call first in order to make sure the stdin ioWatcher will exit
+            onComplete();
+            for (Thread t : ioWatchers)
+                t.join();
+            return rc;
         }
         catch (InterruptedException e)
         {
@@ -325,10 +297,8 @@ public class ToolRunner implements AutoCloseable
 
     public ToolRunner waitAndAssertOnExitCode()
     {
-        assertTrue(String.format("Tool %s didn't terminate",
-                           argsToLogString()),
-                   waitFor());
-        return assertOnExitCode();
+        assertExitCode(waitFor());
+        return this;
     }
     
     public ToolRunner waitAndAssertOnCleanExit()
@@ -350,14 +320,18 @@ public class ToolRunner implements AutoCloseable
 
     public ToolRunner assertOnExitCode()
     {
-        int code = getExitCode();
+        assertExitCode(getExitCode());
+        return this;
+    }
+
+    private void assertExitCode(int code)
+    {
         if (code != 0)
             fail(String.format("%s%nexited with code %d%nstderr:%n%s%nstdout:%n%s",
                                argsToLogString(),
                                code,
                                getStderr(),
                                getStdout()));
-        return this;
     }
 
     public String argsToLogString()
@@ -423,16 +397,68 @@ public class ToolRunner implements AutoCloseable
     public void close()
     {
         forceKill();
+        onComplete();
+    }
+
+    private void onComplete()
+    {
+        if (stdin != null)
+        {
+            try
+            {
+                stdin.close();
+            }
+            catch (IOException e)
+            {
+                logger.warn("Error closing stdin for {}", allArgs, e);
+            }
+        }
+    }
+
+    private static final class StreamGobbler<T extends OutputStream> implements Runnable
+    {
+        private static final int BUFFER_SIZE = 8_192;
+
+        private final InputStream input;
+        private final T out;
+
+        private StreamGobbler(InputStream input, T out)
+        {
+            this.input = input;
+            this.out = out;
+        }
+
+        public void run()
+        {
+            byte[] buffer = new byte[BUFFER_SIZE];
+            while (true)
+            {
+                try
+                {
+                    int read = input.read(buffer);
+                    if (read == -1)
+                    {
+                        return;
+                    }
+                    out.write(buffer, 0, read);
+                }
+                catch (IOException e)
+                {
+                    logger.error("Unexpected IO Error while reading stream", e);
+                    return;
+                }
+            }
+        }
     }
 
     public static class Runners
     {
-        public ToolRunner invokeNodetool(String... args)
+        public static ToolRunner invokeNodetool(String... args)
         {
             return invokeNodetool(Arrays.asList(args));
         }
 
-        public ToolRunner invokeNodetool(List<String> args)
+        public static ToolRunner invokeNodetool(List<String> args)
         {
             return invokeTool(buildNodetoolArgs(args), true);
         }
@@ -442,31 +468,33 @@ public class ToolRunner implements AutoCloseable
             return CQLTester.buildNodetoolArgs(args);
         }
 
-        public ToolRunner invokeClassAsTool(String... args)
+        public static ToolRunner invokeClassAsTool(String... args)
         {
             return invokeClassAsTool(Arrays.asList(args));
         }
 
-        public ToolRunner invokeClassAsTool(List<String> args)
+        public static ToolRunner invokeClassAsTool(List<String> args)
         {
             return invokeTool(args, false);
         }
 
-        public ToolRunner invokeTool(String... args)
+        public static ToolRunner invokeTool(String... args)
         {
             return invokeTool(Arrays.asList(args));
         }
 
-        public ToolRunner invokeTool(List<String> args)
+        public static ToolRunner invokeTool(List<String> args)
         {
             return invokeTool(args, true);
         }
 
-        public ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
+        public static ToolRunner invokeTool(List<String> args, boolean runOutOfProcess)
         {
-            ToolRunner runner = new ToolRunner(args, runOutOfProcess);
-            runner.start().waitFor();
-            return runner;
+            try (ToolRunner runner = new ToolRunner(args, runOutOfProcess).start())
+            {
+                runner.waitFor();
+                return runner;
+            }
         }
     }
 }
