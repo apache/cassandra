@@ -88,18 +88,6 @@ public class StreamingInboundHandlerTest
     }
 
     @Test
-    public void channelRead_Normal()
-    {
-        Assert.assertEquals(0, buffers.unsafeAvailable());
-        int size = 8;
-        buf = channel.alloc().buffer(size);
-        buf.writerIndex(size);
-        channel.writeInbound(buf);
-        Assert.assertEquals(size, buffers.unsafeAvailable());
-        Assert.assertFalse(channel.releaseInbound());
-    }
-
-    @Test
     public void channelRead_Closed()
     {
         int size = 8;
