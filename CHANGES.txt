@@ -1,4 +1,5 @@
 4.0-beta3
+ * Prevent NPE in StreamMessage in type lookup (CASSANDRA-16131)
  * Avoid invalid state transition exception during incremental repair (CASSANDRA-16067)
  * Allow zero padding in timestamp serialization (CASSANDRA-16105)
  * Add byte array backed cells (CASSANDRA-15393)
