@@ -20,7 +20,6 @@ package org.apache.cassandra.schema;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
@@ -36,7 +35,6 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -51,7 +49,7 @@ import static java.lang.String.format;
 
 import static com.google.common.collect.Iterables.size;
 
-public final class Schema implements TableMetadataProvider
+public final class Schema implements SchemaProvider
 {
     public static final Schema instance = new Schema();
 
@@ -192,6 +190,7 @@ public final class Schema implements TableMetadataProvider
      *
      * @return Keyspace object or null if keyspace was not found
      */
+    @Override
     public Keyspace getKeyspaceInstance(String keyspaceName)
     {
         return keyspaceInstances.get(keyspaceName);
@@ -219,6 +218,7 @@ public final class Schema implements TableMetadataProvider
      *
      * @throws IllegalArgumentException if Keyspace is already stored
      */
+    @Override
     public void storeKeyspaceInstance(Keyspace keyspace)
     {
         if (keyspaceInstances.containsKey(keyspace.getName()))
@@ -283,6 +283,7 @@ public final class Schema implements TableMetadataProvider
      *
      * @return The keyspace metadata or null if it wasn't found
      */
+    @Override
     public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
     {
         assert keyspaceName != null;
@@ -356,6 +357,7 @@ public final class Schema implements TableMetadataProvider
      *
      * @return TableMetadataRef object or null if it wasn't found
      */
+    @Override
     public TableMetadataRef getTableMetadataRef(String keyspace, String table)
     {
         TableMetadata tm = getTableMetadata(keyspace, table);
@@ -381,11 +383,13 @@ public final class Schema implements TableMetadataProvider
      *
      * @return metadata about Table or View
      */
+    @Override
     public TableMetadataRef getTableMetadataRef(TableId id)
     {
         return metadataRefs.get(id);
     }
 
+    @Override
     public TableMetadataRef getTableMetadataRef(Descriptor descriptor)
     {
         return getTableMetadataRef(descriptor.ksname, descriptor.cfname);
@@ -418,7 +422,6 @@ public final class Schema implements TableMetadataProvider
     }
 
     @Override
-    @Nullable
     public TableMetadata getTableMetadata(TableId id)
     {
         TableMetadata table = keyspaces.getTableOrViewNullable(id);

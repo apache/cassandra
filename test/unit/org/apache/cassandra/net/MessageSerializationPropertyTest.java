@@ -32,7 +32,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataProvider;
+import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FBUtilities;
@@ -88,7 +88,7 @@ public class MessageSerializationPropertyTest implements Serializable
     @Test
     public void testMessageSerialization() throws Exception
     {
-        TableMetadataProvider schema = Mockito.mock(TableMetadataProvider.class, Mockito.CALLS_REAL_METHODS);
+        SchemaProvider schema = Mockito.mock(SchemaProvider.class, Mockito.CALLS_REAL_METHODS);
         ReadCommand.Serializer readCommandSerializer = new ReadCommand.Serializer(schema);
         Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> original = Verb.READ_REQ.unsafeSetSerializer(() -> readCommandSerializer);
         try (DataOutputBuffer first = new DataOutputBuffer(1024);
@@ -127,7 +127,7 @@ public class MessageSerializationPropertyTest implements Serializable
         }
     }
 
-    private static void withTable(TableMetadataProvider schema, Message<?> message, Consumer<TableMetadata> fn)
+    private static void withTable(SchemaProvider schema, Message<?> message, Consumer<TableMetadata> fn)
     {
         TableMetadata metadata = null;
         if (message.payload instanceof ReadQuery)
