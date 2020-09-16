@@ -245,29 +245,15 @@ public class StandaloneScrubber
         if (strategyManager.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
             int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
-
-            System.out.println("Checking leveled manifest");
-            Predicate<SSTableReader> repairedPredicate = new Predicate<SSTableReader>()
+            int fanOut = cfs.getCompactionStrategyManager().getLevelFanoutSize();
+            for (AbstractStrategyHolder.GroupedSSTableContainer sstableGroup : strategyManager.groupSSTables(sstables))
             {
-                @Override
-                public boolean apply(SSTableReader sstable)
+                for (int i = 0; i < sstableGroup.numGroups(); i++)
                 {
-                    return sstable.isRepaired();
+                    List<SSTableReader> groupSSTables = new ArrayList<>(sstableGroup.getGroup(i));
+                    // creating the manifest makes sure the leveling is sane:
+                    LeveledManifest.create(cfs, maxSizeInMB, fanOut, groupSSTables);
                 }
-            };
-
-            List<SSTableReader> repaired = Lists.newArrayList(Iterables.filter(sstables, repairedPredicate));
-            List<SSTableReader> unRepaired = Lists.newArrayList(Iterables.filter(sstables, Predicates.not(repairedPredicate)));
-
-            LeveledManifest repairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), repaired);
-            for (int i = 1; i < repairedManifest.getLevelCount(); i++)
-            {
-                repairedManifest.repairOverlappingSSTables(i);
-            }
-            LeveledManifest unRepairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), unRepaired);
-            for (int i = 1; i < unRepairedManifest.getLevelCount(); i++)
-            {
-                unRepairedManifest.repairOverlappingSSTables(i);
             }
         }
     }

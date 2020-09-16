@@ -81,7 +81,7 @@ public abstract class AbstractStrategyHolder
     /**
      * Maps sstables to their token partition bucket
      */
-    static class GroupedSSTableContainer
+    public static class GroupedSSTableContainer
     {
         private final AbstractStrategyHolder holder;
         private final Set<SSTableReader>[] groups;
@@ -103,12 +103,12 @@ public abstract class AbstractStrategyHolder
             groups[idx].add(sstable);
         }
 
-        int numGroups()
+        public int numGroups()
         {
             return groups.length;
         }
 
-        Set<SSTableReader> getGroup(int i)
+        public Set<SSTableReader> getGroup(int i)
         {
             Preconditions.checkArgument(i >= 0 && i < groups.length);
             Set<SSTableReader> group = groups[i];
