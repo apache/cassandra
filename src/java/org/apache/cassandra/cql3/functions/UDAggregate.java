@@ -332,11 +332,17 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
-        builder.append("CREATE AGGREGATE ")
-               .append(name())
+        builder.append("CREATE AGGREGATE ");
+
+        if (ifNotExists)
+        {
+            builder.append("IF NOT EXISTS ");
+        }
+
+        builder.append(name())
                .append('(')
                .appendWithSeparators(argTypes, (b, t) -> b.append(toCqlString(t)), ", ")
                .append(')')

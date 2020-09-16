@@ -1095,10 +1095,10 @@ public final class TableMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, withInternals, withInternals, false);
+        appendCqlTo(builder, withInternals, withInternals, ifNotExists);
         return builder.toString();
     }
 

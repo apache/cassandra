@@ -225,27 +225,33 @@ public final class IndexMetadata
                .build();
     }
 
-    public String toCqlString(TableMetadata table)
+    public String toCqlString(TableMetadata table, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
-        appendCqlTo(builder, table);
+        appendCqlTo(builder, table, ifNotExists);
         return builder.toString();
     }
 
     /**
      * Appends to the specified builder the CQL used to create this index.
-     *
      * @param builder the builder to which the CQL myst be appended
      * @param table the parent table
+     * @param ifNotExists includes "IF NOT EXISTS" into statement
      */
-    public void appendCqlTo(CqlBuilder builder, TableMetadata table)
+    public void appendCqlTo(CqlBuilder builder, TableMetadata table, boolean ifNotExists)
     {
         if (isCustom())
         {
             Map<String, String> copyOptions = new HashMap<>(options);
 
-            builder.append("CREATE CUSTOM INDEX ")
-                   .appendQuotingIfNeeded(name)
+            builder.append("CREATE CUSTOM INDEX ");
+
+            if (ifNotExists)
+            {
+                builder.append("IF NOT EXISTS ");
+            }
+
+            builder.appendQuotingIfNeeded(name)
                    .append(" ON ")
                    .append(table.toString())
                    .append(" (")
@@ -259,8 +265,14 @@ public final class IndexMetadata
         }
         else
         {
-            builder.append("CREATE INDEX ")
-                   .appendQuotingIfNeeded(name)
+            builder.append("CREATE INDEX ");
+
+            if (ifNotExists)
+            {
+                builder.append("IF NOT EXISTS ");
+            }
+
+            builder.appendQuotingIfNeeded(name)
                    .append(" ON ")
                    .append(table.toString())
                    .append(" (")

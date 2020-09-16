@@ -122,7 +122,7 @@ public class SchemaCQLHelperTest extends CQLTester
                                       "    c2 b,\n" +
                                       "    c3 b\n" +
                                       ");"),
-                     SchemaCQLHelper.getUserTypesAsCQL(cfs.metadata(), cfs.keyspace.getMetadata().types).collect(Collectors.toList()));
+                     SchemaCQLHelper.getUserTypesAsCQL(cfs.metadata(), cfs.keyspace.getMetadata().types, false).collect(Collectors.toList()));
     }
 
     @Test
@@ -360,7 +360,7 @@ public class SchemaCQLHelperTest extends CQLTester
                                       "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (keys(reg1));",
                                       "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (entries(reg1));",
                                       "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
-                     SchemaCQLHelper.getIndexesAsCQL(cfs.metadata()).collect(Collectors.toList()));
+                     SchemaCQLHelper.getIndexesAsCQL(cfs.metadata(), false).collect(Collectors.toList()));
     }
 
     private final static String SNAPSHOT = "testsnapshot";
@@ -385,6 +385,8 @@ public class SchemaCQLHelperTest extends CQLTester
 
         alterTable("ALTER TABLE %s DROP reg3 USING TIMESTAMP 10000;");
         alterTable("ALTER TABLE %s ADD reg3 int;");
+        // CREATE INDEX def_name_idx ON abc.def (name);
+        createIndex("CREATE INDEX ON %s(reg2)");
 
         for (int i = 0; i < 10; i++)
             execute("INSERT INTO %s (pk1, pk2, ck1, ck2, reg1, reg2) VALUES (?, ?, ?, ?, ?, ?)", i, i + 1, i + 2, i + 3, null, i + 5);
@@ -394,22 +396,22 @@ public class SchemaCQLHelperTest extends CQLTester
 
         String schema = Files.toString(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT), Charset.defaultCharset());
         assertThat(schema,
-                   allOf(containsString(String.format("CREATE TYPE %s.%s (\n" +
+                   allOf(containsString(String.format("CREATE TYPE IF NOT EXISTS %s.%s (\n" +
                                                       "    a1 varint,\n" +
                                                       "    a2 varint,\n" +
                                                       "    a3 varint\n" +
                                                       ");", keyspace(), typeA)),
-                         containsString(String.format("CREATE TYPE %s.%s (\n" +
+                         containsString(String.format("CREATE TYPE IF NOT EXISTS %s.%s (\n" +
                                                       "    a1 varint,\n" +
                                                       "    a2 varint,\n" +
                                                       "    a3 varint\n" +
                                                       ");", keyspace(), typeA)),
-                         containsString(String.format("CREATE TYPE %s.%s (\n" +
+                         containsString(String.format("CREATE TYPE IF NOT EXISTS %s.%s (\n" +
                                                       "    b1 frozen<%s>,\n" +
                                                       "    b2 frozen<%s>,\n" +
                                                       "    b3 frozen<%s>\n" +
                                                       ");", keyspace(), typeB, typeA, typeA, typeA)),
-                         containsString(String.format("CREATE TYPE %s.%s (\n" +
+                         containsString(String.format("CREATE TYPE IF NOT EXISTS %s.%s (\n" +
                                                       "    c1 frozen<%s>,\n" +
                                                       "    c2 frozen<%s>,\n" +
                                                       "    c3 frozen<%s>\n" +
@@ -433,9 +435,12 @@ public class SchemaCQLHelperTest extends CQLTester
                          containsString("ALTER TABLE " + keyspace() + "." + tableName + " DROP reg3 USING TIMESTAMP 10000;"),
                          containsString("ALTER TABLE " + keyspace() + "." + tableName + " ADD reg3 int;")));
 
+        assertThat(schema, containsString("CREATE INDEX IF NOT EXISTS " + tableName + "_reg2_idx ON " + keyspace() + '.' + tableName + " (reg2);"));
+
         JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(cfs.getDirectories().getSnapshotManifestFile(SNAPSHOT)));
         JSONArray files = (JSONArray) manifest.get("files");
-        Assert.assertEquals(1, files.size());
+        // two files, the second is index
+        Assert.assertEquals(2, files.size());
     }
 
     @Test

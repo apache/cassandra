@@ -251,7 +251,7 @@ public final class KeyspaceMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
         if (isVirtual())
@@ -273,8 +273,14 @@ public final class KeyspaceMetadata implements SchemaElement
         }
         else
         {
-            builder.append("CREATE KEYSPACE ")
-                   .appendQuotingIfNeeded(name)
+            builder.append("CREATE KEYSPACE ");
+
+            if (ifNotExists)
+            {
+                builder.append("IF NOT EXISTS ");
+            }
+
+            builder.appendQuotingIfNeeded(name)
                    .append(" WITH replication = ");
 
             params.replication.appendCqlTo(builder);

@@ -309,12 +309,17 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
-        builder.append("CREATE FUNCTION ")
-               .append(name())
-               .append("(");
+        builder.append("CREATE FUNCTION ");
+
+        if (ifNotExists)
+        {
+            builder.append("IF NOT EXISTS ");
+        }
+
+        builder.append(name()).append("(");
 
         for (int i = 0, m = argNames().size(); i < m; i++)
         {
