@@ -61,7 +61,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataProvider;
+import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
@@ -909,7 +909,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     @VisibleForTesting
     public static class Serializer implements IVersionedSerializer<ReadCommand>
     {
-        private final TableMetadataProvider schema;
+        private final SchemaProvider schema;
 
         public Serializer()
         {
@@ -917,7 +917,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
 
         @VisibleForTesting
-        public Serializer(TableMetadataProvider schema)
+        public Serializer(SchemaProvider schema)
         {
             this.schema = Objects.requireNonNull(schema, "schema");
         }

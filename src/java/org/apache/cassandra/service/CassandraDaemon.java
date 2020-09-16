@@ -167,6 +167,21 @@ public class CassandraDaemon
         }
     }
 
+    @VisibleForTesting
+    public static Runnable SPECULATION_THRESHOLD_UPDATER = 
+        () -> 
+        {
+            try
+            {
+                Keyspace.allExisting().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold));
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to update speculative retry thresholds.", t);
+                JVMStabilityInspector.inspectThrowable(t);
+            }
+        };
+    
     static final CassandraDaemon instance = new CassandraDaemon();
 
     private NativeTransportService nativeTransportService;
@@ -431,12 +446,10 @@ public class CassandraDaemon
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
 
         // schedule periodic recomputation of speculative retry thresholds
-        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(
-            () -> Keyspace.all().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold)),
-            DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
-            DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
-            NANOSECONDS
-        );
+        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SPECULATION_THRESHOLD_UPDATER, 
+                                                                DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
+                                                                DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
+                                                                NANOSECONDS);
 
         initializeNativeTransport();
 
