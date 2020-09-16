@@ -472,11 +472,17 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
-        builder.append("CREATE TYPE ")
-               .appendQuotingIfNeeded(keyspace)
+        builder.append("CREATE TYPE ");
+
+        if (ifNotExists)
+        {
+            builder.append("IF NOT EXISTS ");
+        }
+
+        builder.appendQuotingIfNeeded(keyspace)
                .append('.')
                .appendQuotingIfNeeded(getNameAsString())
                .append(" (")

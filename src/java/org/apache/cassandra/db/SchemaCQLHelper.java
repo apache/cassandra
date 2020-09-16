@@ -44,7 +44,7 @@ public class SchemaCQLHelper
     public static Stream<String> reCreateStatementsForSchemaCql(TableMetadata metadata, Types types)
     {
         // Types come first, as table can't be created without them
-        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, types);
+        Stream<String> udts = SchemaCQLHelper.getUserTypesAsCQL(metadata, types, true);
 
         return Stream.concat(udts,
                              reCreateStatements(metadata,
@@ -70,7 +70,7 @@ public class SchemaCQLHelper
         if (includeIndexes)
         {
             // Indexes applied as last, since otherwise they may interfere with column drops / re-additions
-            r = Stream.concat(r, SchemaCQLHelper.getIndexesAsCQL(metadata));
+            r = Stream.concat(r, SchemaCQLHelper.getIndexesAsCQL(metadata, ifNotExists));
         }
 
         return r;
@@ -108,10 +108,11 @@ public class SchemaCQLHelper
      * @param metadata the table for which to extract the user types CQL statements.
      * @param types the user types defined in the keyspace of the dumped table (which will thus contain any user type
      * used by {@code metadata}).
+     * @param ifNotExists set to true if IF NOT EXISTS should be appended after CREATE TYPE string.
      * @return a list of {@code CREATE TYPE} statements corresponding to all the types used in {@code metadata}.
      */
     @VisibleForTesting
-    public static Stream<String> getUserTypesAsCQL(TableMetadata metadata, Types types)
+    public static Stream<String> getUserTypesAsCQL(TableMetadata metadata, Types types, boolean ifNotExists)
     {
         /*
          * Implementation note: at first approximation, it may seem like we don't need the Types argument and instead
@@ -140,18 +141,22 @@ public class SchemaCQLHelper
          */
         return metadata.getReferencedUserTypes()
                        .stream()
-                       .map(name -> getType(metadata, types, name).toCqlString(false));
+                       .map(name -> getType(metadata, types, name).toCqlString(false, ifNotExists));
     }
 
     /**
      * Build a CQL String representation of Indexes on columns in the given Column Family
+     *
+     * @param metadata the table for which to extract the index CQL statements.
+     * @param ifNotExists set to true if IF NOT EXISTS should be appended after CREATE INDEX string.
+     * @return a list of {@code CREATE INDEX} statements corresponding to table {@code metadata}.
      */
     @VisibleForTesting
-    public static Stream<String> getIndexesAsCQL(TableMetadata metadata)
+    public static Stream<String> getIndexesAsCQL(TableMetadata metadata, boolean ifNotExists)
     {
         return metadata.indexes
                 .stream()
-                .map(indexMetadata -> indexMetadata.toCqlString(metadata));
+                .map(indexMetadata -> indexMetadata.toCqlString(metadata, ifNotExists));
     }
 
     private static UserType getType(TableMetadata metadata, Types types, ByteBuffer name)
