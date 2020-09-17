@@ -74,6 +74,7 @@ public class PreV5Handlers
                 dispatcher.dispatch(ctx.channel(), request, this::toFlushItem);
         }
 
+        // Acts as a Dispatcher.FlushItemConverter
         private Flusher.FlushItem.Unframed toFlushItem(Channel channel, Message.Request request, Message.Response response)
         {
             return new Flusher.FlushItem.Unframed(channel, response, request.getSourceFrame(), this::releaseItem);

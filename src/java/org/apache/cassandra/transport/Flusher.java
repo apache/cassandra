@@ -19,11 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,7 +109,7 @@ abstract class Flusher implements Runnable
     protected final EventLoop eventLoop;
     private final ConcurrentLinkedQueue<FlushItem<?>> queued = new ConcurrentLinkedQueue<>();
     protected final AtomicBoolean scheduled = new AtomicBoolean(false);
-    protected final List<FlushItem<?>> flushed = new ArrayList<>();
+    protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
     private final Map<Channel, FrameSet> payloads = new HashMap<>();
 
@@ -204,14 +200,21 @@ abstract class Flusher implements Runnable
         }
     }
 
-    protected void processItem(FlushItem<?> flush)
+    protected boolean processQueue()
     {
-        if (flush.kind == FlushItem.Kind.FRAMED)
-            processFramedResponse((FlushItem.Framed)flush);
-        else
-            processUnframedResponse((FlushItem.Unframed)flush);
+        boolean doneWork = false;
+        FlushItem<?> flush;
+        while ((flush = poll()) != null)
+        {
+            if (flush.kind == FlushItem.Kind.FRAMED)
+                processFramedResponse((FlushItem.Framed) flush);
+            else
+                processUnframedResponse((FlushItem.Unframed) flush);
 
-        flushed.add(flush);
+            processed.add(flush);
+            doneWork = true;
+        }
+        return doneWork;
     }
 
     protected void flushWrittenChannels()
@@ -224,12 +227,22 @@ abstract class Flusher implements Runnable
         for (FrameSet frameset : payloads.values())
             frameset.finish();
 
-        for (FlushItem<?> item : flushed)
+        // Ultimately, this passes the flush item to the Consumer<FlushItem> configured in
+        // whichever Dispatcher.FlushItemConverter implementation created it. Due to the quite
+        // different ways in which resource allocation is handled in protocol V5 and later
+        // there are distinct implementations for V5 and pre-V5 connections:
+        //   * o.a.c.t.CQLMessageHandler::toFlushItem for V5, which relates to FlushItem.Framed.
+        //   * o.a.c.t.PreV5Handlers.LegacyDispatchHandler::toFlushItem, relating to FlushItem.Unframed
+        // In both cases, the Consumer releases the buffers for the source frame and returns the
+        // capacity claimed for message processing back to the global and per-endpoint reserves.
+        // Those reserves are used to determine if capacity is available for any inbound message
+        // or whether we should attempt to shed load or apply backpressure.
+        for (FlushItem<?> item : processed)
             item.release();
 
         payloads.clear();
         channels.clear();
-        flushed.clear();
+        processed.clear();
     }
 
     private static void writeAndFlush(Channel channel, FrameEncoder.Payload payload)
@@ -289,6 +302,8 @@ abstract class Flusher implements Runnable
                     sending = allocate(sizeInBytes - writtenBytes, framesToWrite);
                 }
                 f.encodeInto(sending.buffer);
+                // Release the buffer for the outgoing CQL message as
+                // it's now been encoded into a messaging frame buffer
                 f.release();
                 writtenBytes += frameSize(f.header);
                 framesToWrite--;
@@ -309,18 +324,10 @@ abstract class Flusher implements Runnable
 
         public void run()
         {
-
-            boolean doneWork = false;
-            FlushItem<?> flush;
-            while (null != (flush = poll()))
-            {
-                processItem(flush);
-                doneWork = true;
-            }
-
+            boolean doneWork = processQueue();
             runsSinceFlush++;
 
-            if (!doneWork || runsSinceFlush > 2 || flushed.size() > 50)
+            if (!doneWork || runsSinceFlush > 2 || processed.size() > 50)
             {
                 flushWrittenChannels();
                 runsSinceFlush = 0;
@@ -354,18 +361,15 @@ abstract class Flusher implements Runnable
 
         public void run()
         {
-            boolean doneWork = false;
-            FlushItem<?> flush;
             scheduled.set(false);
-
-            while (null != (flush = poll()))
+            try
             {
-                processItem(flush);
-                doneWork = true;
+                processQueue();
             }
-
-            if (doneWork)
+            finally
+            {
                 flushWrittenChannels();
+            }
         }
     }
 }
