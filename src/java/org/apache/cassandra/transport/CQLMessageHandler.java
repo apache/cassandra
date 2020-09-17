@@ -133,6 +133,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                                                     "Cannot accept more requests at this point"),
                             frame.header);
 
+                frame.release();
                 // Don't stop processing incoming frames, rely on the client to apply
                 // backpressure when it receives OverloadedException
                 return true;
