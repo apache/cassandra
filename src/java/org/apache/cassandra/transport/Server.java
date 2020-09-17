@@ -17,67 +17,38 @@
  */
 package org.apache.cassandra.transport;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslHandler;
-import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.handler.timeout.IdleStateHandler;
-import io.netty.util.Attribute;
-import io.netty.util.Version;
-import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.AbstractMessageHandler;
-import org.apache.cassandra.net.AsyncChannelPromise;
-import org.apache.cassandra.net.BufferPoolAllocator;
-import org.apache.cassandra.net.FrameDecoder;
-import org.apache.cassandra.net.FrameDecoderCrc;
-import org.apache.cassandra.net.FrameDecoderLZ4;
-import org.apache.cassandra.net.FrameEncoder;
-import org.apache.cassandra.net.FrameEncoderCrc;
-import org.apache.cassandra.net.FrameEncoderLZ4;
-import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
-import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
-import org.apache.cassandra.transport.messages.StartupMessage;
-import org.apache.cassandra.transport.messages.SupportedMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Server implements CassandraDaemon.Server
@@ -208,7 +179,6 @@ public class Server implements CassandraDaemon.Server
     public static class Builder
     {
         private EventLoopGroup workerGroup;
-        private EventExecutor eventExecutorGroup;
         private boolean useSSL = false;
         private InetAddress hostAddr;
         private int port = -1;
