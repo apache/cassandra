@@ -142,14 +142,10 @@ public final class ViewMetadata implements SchemaElement
 
     public ViewMetadata withRenamedPrimaryKeyColumn(ColumnIdentifier from, ColumnIdentifier to)
     {
-        // convert whereClause to Relations, rename ids in Relations, then convert back to whereClause
-        ColumnMetadata.Raw rawFrom = ColumnMetadata.Raw.forQuoted(from.toString());
-        ColumnMetadata.Raw rawTo = ColumnMetadata.Raw.forQuoted(to.toString());
-
         return new ViewMetadata(baseTableId,
                                 baseTableName,
                                 includeAllColumns,
-                                whereClause.renameIdentifier(rawFrom, rawTo),
+                                whereClause.renameIdentifier(from, to),
                                 metadata.unbuild().renamePrimaryKeyColumn(from, to).build());
     }
 
@@ -222,18 +218,10 @@ public final class ViewMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, withInternals, false);
-        return builder.toString();
-    }
-
-    public String toCqlString(boolean internals,
-                              boolean ifNotExists)
-    {
-        CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, internals, ifNotExists);
+        appendCqlTo(builder, withInternals, ifNotExists);
         return builder.toString();
     }
 }

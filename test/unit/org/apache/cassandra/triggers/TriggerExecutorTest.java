@@ -67,7 +67,7 @@ public class TriggerExecutorTest
         // only 1 row
         assertEquals(1, rows.size());
 
-        List<Cell> cells = new ArrayList<>();
+        List<Cell<?>> cells = new ArrayList<>();
         rows.get(0).cells().forEach(cells::add);
 
         // 2 columns

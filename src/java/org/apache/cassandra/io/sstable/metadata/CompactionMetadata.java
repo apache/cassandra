@@ -26,6 +26,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -81,7 +82,7 @@ public class CompactionMetadata extends MetadataComponent
 
         public void serialize(Version version, CompactionMetadata component, DataOutputPlus out) throws IOException
         {
-            ByteBufferUtil.writeWithLength(component.cardinalityEstimator.getBytes(), out);
+            ByteArrayUtil.writeWithLength(component.cardinalityEstimator.getBytes(), out);
         }
 
         public CompactionMetadata deserialize(Version version, DataInputPlus in) throws IOException

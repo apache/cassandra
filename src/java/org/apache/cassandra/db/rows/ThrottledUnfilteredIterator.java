@@ -180,12 +180,11 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
                 {
                     // it's Row, need to create closeMarker for current batch and openMarker for next batch
                     DeletionTime openDeletion = openMarker.openDeletionTime(isReverseOrder());
-                    ByteBuffer[] buffers = next.clustering().getRawValues();
-                    closeMarker = RangeTombstoneBoundMarker.exclusiveClose(isReverseOrder(), buffers, openDeletion);
+                    closeMarker = RangeTombstoneBoundMarker.exclusiveClose(isReverseOrder(), next.clustering(), openDeletion);
 
                     // for next batch
                     overflowed = Arrays.asList(RangeTombstoneBoundMarker.inclusiveOpen(isReverseOrder(),
-                                                                                       buffers,
+                                                                                       next.clustering(),
                                                                                        openDeletion), next).iterator();
                 }
             }

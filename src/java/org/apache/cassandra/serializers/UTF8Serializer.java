@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.serializers;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public class UTF8Serializer extends AbstractTextSerializer
 {
@@ -29,9 +30,9 @@ public class UTF8Serializer extends AbstractTextSerializer
         super(StandardCharsets.UTF_8);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (!UTF8Validator.validate(bytes))
+        if (!UTF8Validator.validate(value, accessor))
             throw new MarshalException("String didn't validate.");
     }
 
@@ -51,17 +52,17 @@ public class UTF8Serializer extends AbstractTextSerializer
 
         // since we're not converting to java strings, we don't need to worry about converting to surrogates.
         // buf has already been sliced/duplicated.
-        static boolean validate(ByteBuffer buf)
+        static <V> boolean validate(V value, ValueAccessor<V> accessor)
         {
-            if (buf == null)
+            if (value == null)
                 return false;
 
-            buf = buf.slice();
             int b = 0;
+            int offset = 0;
             State state = State.START;
-            while (buf.remaining() > 0)
+            while (!accessor.isEmptyFromOffset(value, offset))
             {
-                b = buf.get();
+                b = accessor.getByte(value, offset++);
                 switch (state)
                 {
                     case START:

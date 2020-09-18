@@ -57,6 +57,30 @@ public class RepairOption
 
     private static final Logger logger = LoggerFactory.getLogger(RepairOption.class);
 
+    public static Set<Range<Token>> parseRanges(String rangesStr, IPartitioner partitioner)
+    {
+        if (rangesStr == null || rangesStr.isEmpty())
+            return Collections.emptySet();
+
+        Set<Range<Token>> ranges = new HashSet<>();
+        StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
+        while (tokenizer.hasMoreTokens())
+        {
+            String[] rangeStr = tokenizer.nextToken().split(":", 2);
+            if (rangeStr.length < 2)
+            {
+                continue;
+            }
+            Token parsedBeginToken = partitioner.getTokenFactory().fromString(rangeStr[0].trim());
+            Token parsedEndToken = partitioner.getTokenFactory().fromString(rangeStr[1].trim());
+            if (parsedBeginToken.equals(parsedEndToken))
+            {
+                throw new IllegalArgumentException("Start and end tokens must be different.");
+            }
+            ranges.add(new Range<>(parsedBeginToken, parsedEndToken));
+        }
+        return ranges;
+    }
     /**
      * Construct RepairOptions object from given map of Strings.
      * <p>
@@ -165,28 +189,10 @@ public class RepairOption
             }
             catch (NumberFormatException ignore) {}
         }
+
         // ranges
-        String rangesStr = options.get(RANGES_KEY);
-        Set<Range<Token>> ranges = new HashSet<>();
-        if (rangesStr != null)
-        {
-            StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
-            while (tokenizer.hasMoreTokens())
-            {
-                String[] rangeStr = tokenizer.nextToken().split(":", 2);
-                if (rangeStr.length < 2)
-                {
-                    continue;
-                }
-                Token parsedBeginToken = partitioner.getTokenFactory().fromString(rangeStr[0].trim());
-                Token parsedEndToken = partitioner.getTokenFactory().fromString(rangeStr[1].trim());
-                if (parsedBeginToken.equals(parsedEndToken))
-                {
-                    throw new IllegalArgumentException("Start and end tokens must be different.");
-                }
-                ranges.add(new Range<>(parsedBeginToken, parsedEndToken));
-            }
-        }
+        Set<Range<Token>> ranges = parseRanges(options.get(RANGES_KEY), partitioner);
+
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
         RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing);

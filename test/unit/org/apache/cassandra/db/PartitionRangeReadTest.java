@@ -69,9 +69,12 @@ public class PartitionRangeReadTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDINT, IntegerType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDINT,
+                                                              0,
+                                                              AsciiType.instance,
+                                                              AsciiType.instance,
+                                                              IntegerType.instance),
                                     TableMetadata.builder(KEYSPACE1, CF_COMPACT1)
-                                                 .isCompound(false)
                                                  .addPartitionKeyColumn("key", AsciiType.instance)
                                                  .addClusteringColumn("column1", AsciiType.instance)
                                                  .addRegularColumn("value", AsciiType.instance)
@@ -124,11 +127,11 @@ public class PartitionRangeReadTest
 
         // fetch by the first column name; we should get the second version of the column value
         Row row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{1})).build());
-        assertTrue(row.getCell(cDef).value().equals(ByteBufferUtil.bytes("val2")));
+        assertTrue(row.getCell(cDef).buffer().equals(ByteBufferUtil.bytes("val2")));
 
         // fetch by the second column name; we should get the second version of the column value
         row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{0, 0, 1})).build());
-        assertTrue(row.getCell(cDef).value().equals(ByteBufferUtil.bytes("val2")));
+        assertTrue(row.getCell(cDef).buffer().equals(ByteBufferUtil.bytes("val2")));
     }
 
     @Test
@@ -181,26 +184,26 @@ public class PartitionRangeReadTest
         // Start and end inclusive
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyIncl("7").build());
         assertEquals(6, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("2")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("7")));
+        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("2")));
+        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("7")));
 
         // Start and end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyExcl("7").build());
         assertEquals(4, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("3")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("6")));
+        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("3")));
+        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("6")));
 
         // Start excluded, end included
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyIncl("7").build());
         assertEquals(5, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("3")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("7")));
+        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("3")));
+        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("7")));
 
         // Start included, end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyExcl("7").build());
         assertEquals(5, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("2")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("6")));
+        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("2")));
+        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("6")));
     }
 
     @Test

@@ -62,7 +62,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -211,7 +210,6 @@ public class StorageProxy implements StorageProxyMBean
     {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
         HintsService.instance.registerMBean();
-        HintedHandOffManager.instance.registerMBean();
 
         standardWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
@@ -617,7 +615,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
             responseHandler = rs.getWriteResponseHandler(replicaPlan, null, WriteType.SIMPLE, queryStartNanoTime);
-            responseHandler.setSupportsBackPressure(false);
         }
 
         Message<Commit> message = Message.outWithFlag(PAXOS_COMMIT_REQ, proposal, MessageFlag.CALL_BACK_ON_FAILURE);
@@ -1338,9 +1335,6 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         }
-
-        if (backPressureHosts != null)
-            MessagingService.instance().applyBackPressure(backPressureHosts, responseHandler.currentTimeoutNanos());
 
         if (endpointsToHint != null)
             submitHint(mutation, EndpointsForToken.copyOf(mutation.key().getToken(), endpointsToHint), responseHandler);
@@ -2819,7 +2813,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public String getIdealConsistencyLevel()
     {
-        return DatabaseDescriptor.getIdealConsistencyLevel().toString();
+        return Objects.toString(DatabaseDescriptor.getIdealConsistencyLevel(), "");
     }
 
     public String setIdealConsistencyLevel(String cl)

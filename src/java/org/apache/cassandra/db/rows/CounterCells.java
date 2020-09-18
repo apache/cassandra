@@ -25,8 +25,8 @@ public abstract class CounterCells
 
     private static final CounterContext contextManager = CounterContext.instance();
 
-    public static boolean hasLegacyShards(Cell cell)
+    public static <V> boolean hasLegacyShards(Cell<V> cell)
     {
-        return contextManager.hasLegacyShards(cell.value());
+        return contextManager.hasLegacyShards(cell.value(), cell.accessor());
     }
 }

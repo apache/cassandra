@@ -63,8 +63,6 @@ public class ColumnFamilyStoreTest
     public static final String KEYSPACE2 = "ColumnFamilyStoreTest2";
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
-    public static final String CF_SUPER1 = "Super1";
-    public static final String CF_SUPER6 = "Super6";
     public static final String CF_INDEX1 = "Indexed1";
 
     @BeforeClass
@@ -76,9 +74,6 @@ public class ColumnFamilyStoreTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE1, CF_INDEX1, true));
-                                    // TODO: Fix superCFMD failing on legacy table creation. Seems to be applying composite comparator to partition key
-                                    // SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, LongType.instance));
-                                    // SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER6, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", LexicalUUIDType.instance, UTF8Type.instance),
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
@@ -89,8 +84,6 @@ public class ColumnFamilyStoreTest
     {
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlocking();
-        // Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_SUPER1).truncateBlocking();
-
         Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
     }
 
@@ -136,7 +129,7 @@ public class ColumnFamilyStoreTest
 
         List<SSTableReader> ssTables = keyspace.getAllSSTables(SSTableSet.LIVE);
         assertEquals(1, ssTables.size());
-        ssTables.get(0).forceFilterFailures();
+        Util.disableBloomFilter(cfs);
         Util.assertEmpty(Util.cmd(cfs, "key2").build());
     }
 
@@ -153,7 +146,7 @@ public class ColumnFamilyStoreTest
             public void runMayThrow() throws IOException
             {
                 Row toCheck = Util.getOnlyRowUnfiltered(Util.cmd(cfs, "key1").build());
-                Iterator<Cell> iter = toCheck.cells().iterator();
+                Iterator<Cell<?>> iter = toCheck.cells().iterator();
                 assert(Iterators.size(iter) == 0);
             }
         };
@@ -424,7 +417,7 @@ public class ColumnFamilyStoreTest
             {
                 for (Row r : partition)
                 {
-                    if (r.getCell(col).value().equals(val))
+                    if (r.getCell(col).buffer().equals(val))
                         ++found;
                 }
             }

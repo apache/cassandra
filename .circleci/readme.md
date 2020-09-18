@@ -15,8 +15,8 @@ Make sure you never edit the config.yml manually.
 To update the config (other than just swapping high/low resources) you need to install
 the [CircleCI CLI](https://circleci.com/docs/2.0/local-cli/#install).
 
-The directory contains `config-2_1.yml` which is then converted to the actual HIGH/LOW
-resource files. There is a script called `generate.sh` which creates the LOWRES and
+The directory contains `config-2_1.yml` which is then converted to the actual HIGH/MID/LOW
+resource files. There is a script called `generate.sh` which creates the LOWRES, MIDRES, and
 HIGHRES files, read below for details how to do it manually;
 
 1. make your edits to config-2_1.yml - let it stay at lowres settings

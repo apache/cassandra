@@ -46,6 +46,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -74,9 +75,9 @@ public class UDHelperTest
             return UTF8Type.instance.getSerializer();
         }
 
-        public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+        public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
         {
-            return o1.compareTo(o2);
+            return ValueAccessor.compare(left, accessorL, right, accessorR);
         }
     }
 

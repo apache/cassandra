@@ -234,7 +234,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         catch (IncompatibleSchemaException e)
         {
             callbacks.onFailedDeserialize(size, header, e);
-            noSpamLogger.info("{} incompatible schema encountered while deserializing a message", id(), e);
+            noSpamLogger.info("{} incompatible schema encountered while deserializing a message", this, e);
         }
         catch (Throwable t)
         {
@@ -300,6 +300,12 @@ public class InboundMessageHandler extends AbstractMessageHandler
     protected String id()
     {
         return SocketFactory.channelId(peer, self, type, channel.id().asShortText());
+    }
+
+    @Override
+    public String toString()
+    {
+        return id();
     }
 
     @Override
@@ -397,7 +403,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
             catch (IncompatibleSchemaException e)
             {
                 callbacks.onFailedDeserialize(size, header, e);
-                noSpamLogger.info("{} incompatible schema encountered while deserializing a message", id(), e);
+                noSpamLogger.info("{} incompatible schema encountered while deserializing a message", InboundMessageHandler.this, e);
             }
             catch (Throwable t)
             {

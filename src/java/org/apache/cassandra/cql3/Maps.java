@@ -44,12 +44,27 @@ public abstract class Maps
 
     public static ColumnSpecification keySpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), ((MapType<? , ?>)column.type).getKeysType());
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), keysType(column.type));
     }
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((MapType<?, ?>)column.type).getValuesType());
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), valuesType(column.type));
+    }
+
+    private static AbstractType<?> unwrap(AbstractType<?> type)
+    {
+        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
+    }
+
+    private static AbstractType<?> keysType(AbstractType<?> type)
+    {
+        return ((MapType<?, ?>) unwrap(type)).getKeysType();
+    }
+
+    private static AbstractType<?> valuesType(AbstractType<?> type)
+    {
+        return ((MapType<?, ?>) unwrap(type)).getValuesType();
     }
 
     /**
@@ -159,13 +174,15 @@ public abstract class Maps
 
                 values.put(k, v);
             }
-            DelayedValue value = new DelayedValue(((MapType<?, ?>)receiver.type).getKeysType(), values);
+            DelayedValue value = new DelayedValue(keysType(receiver.type), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!(receiver.type instanceof MapType))
+            AbstractType<?> type = unwrap(receiver.type);
+
+            if (!(type instanceof MapType))
                 throw new InvalidRequestException(String.format("Invalid map literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
 
             ColumnSpecification keySpec = Maps.keySpecOf(receiver);
@@ -211,7 +228,7 @@ public abstract class Maps
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, version);
+                Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
                 Map<ByteBuffer, ByteBuffer> map = new LinkedHashMap<>(m.size());
                 for (Map.Entry<?, ?> entry : m.entrySet())
                     map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));
@@ -223,6 +240,7 @@ public abstract class Maps
             }
         }
 
+        @Override
         public ByteBuffer get(ProtocolVersion protocolVersion)
         {
             List<ByteBuffer> buffers = new ArrayList<>(2 * map.size());

@@ -18,6 +18,8 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import io.netty.channel.Channel;
 
@@ -72,33 +74,25 @@ public abstract class StreamMessage
         PREPARE_ACK    (9,  5, PrepareAckMessage.serializer   ),
         STREAM_INIT    (10, 5, StreamInitMessage.serializer   );
 
-        private static final Type[] idToTypeMap;
+        private static final Map<Integer, Type> idToTypeMap;
 
         static
         {
-            Type[] values = values();
-
-            int max = Integer.MIN_VALUE;
-            for (Type t : values)
-                max = max(t.id, max);
-
-            Type[] idMap = new Type[max + 1];
-            for (Type t : values)
+            idToTypeMap = new HashMap<>();
+            for (Type t : values())
             {
-                if (idMap[t.id] != null)
+                if (idToTypeMap.put(t.id, t) != null)
                     throw new RuntimeException("Two StreamMessage Types map to the same id: " + t.id);
-                idMap[t.id] = t;
             }
-
-            idToTypeMap = idMap;
         }
 
         public static Type lookupById(int id)
         {
-            if (id < 0 || id >= idToTypeMap.length)
+            Type t = idToTypeMap.get(id);
+            if (t == null)
                 throw new IllegalArgumentException("Invalid type id: " + id);
 
-            return idToTypeMap[id];
+            return t;
         }
 
         public final int id;

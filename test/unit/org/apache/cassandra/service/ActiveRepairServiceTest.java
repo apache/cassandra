@@ -37,6 +37,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -216,7 +217,7 @@ public class ActiveRepairServiceTest
         }
 
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().toString(),expected.get(0).toString());
+        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(),expected.get(0).getHostAddressAndPort());
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
 
         assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5, ranges,
@@ -426,9 +427,12 @@ public class ActiveRepairServiceTest
             // Make sure all tasks have been submitted to the validation executor
             allSubmitted.await(10, TimeUnit.SECONDS);
 
-            // 2 threads actively processing tasks
+            // Give the tasks we expect to execute immediately chance to be scheduled
+            Util.spinAssertEquals(2 , ((DebuggableThreadPoolExecutor) validationExecutor)::getActiveTaskCount, 1);
+            Util.spinAssertEquals(3 , ((DebuggableThreadPoolExecutor) validationExecutor)::getPendingTaskCount, 1);
+
+            // verify that we've reached a steady state with 2 threads actively processing and 3 queued tasks
             Assert.assertEquals(2, ((DebuggableThreadPoolExecutor) validationExecutor).getActiveTaskCount());
-            // 3 tasks queued
             Assert.assertEquals(3, ((DebuggableThreadPoolExecutor) validationExecutor).getPendingTaskCount());
             // allow executing tests to complete
             blocked.signalAll();

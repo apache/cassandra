@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.audit.AuditLogContext;
@@ -28,7 +27,6 @@ import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -40,7 +38,6 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
@@ -48,8 +45,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
  */
 public class UpdateStatement extends ModificationStatement
 {
-    private static final Constants.Value EMPTY = new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-
     private UpdateStatement(StatementType type,
                             VariableSpecifications bindVariables,
                             TableMetadata metadata,
@@ -62,31 +57,17 @@ public class UpdateStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
     {
         if (updatesRegularRows())
         {
             params.newRow(clustering);
 
-            // We update the row timestamp (ex-row marker) only on INSERT (#6782)
-            // Further, COMPACT tables semantic differs from "CQL3" ones in that a row exists only if it has
-            // a non-null column, so we don't want to set the row timestamp for them.
-            if (type.isInsert() && metadata().isCQLTable())
+            // We update the row timestamp only on INSERT (#6782)
+            if (type.isInsert())
                 params.addPrimaryKeyLivenessInfo();
 
             List<Operation> updates = getRegularOperations();
-
-            // For compact table, we don't accept an insert/update that only sets the PK unless the is no
-            // declared non-PK columns (which we recognize because in that case
-            // the compact value is of type "EmptyType").
-            if (metadata().isCompactTable() && updates.isEmpty())
-            {
-                checkTrue(CompactTables.hasEmptyCompactValue(metadata),
-                          "Column %s is mandatory for this COMPACT STORAGE table",
-                          metadata().compactValueColumn.name);
-
-                updates = Collections.<Operation>singletonList(new Constants.Setter(metadata().compactValueColumn, EMPTY));
-            }
 
             for (Operation op : updates)
                 op.execute(updateBuilder.partitionKey(), params);
@@ -111,7 +92,7 @@ public class UpdateStatement extends ModificationStatement
 
     public static class ParsedInsert extends ModificationStatement.Parsed
     {
-        private final List<ColumnMetadata.Raw> columnNames;
+        private final List<ColumnIdentifier> columnNames;
         private final List<Term.Raw> columnValues;
 
         /**
@@ -125,7 +106,7 @@ public class UpdateStatement extends ModificationStatement
          */
         public ParsedInsert(QualifiedName name,
                             Attributes.Raw attrs,
-                            List<ColumnMetadata.Raw> columnNames,
+                            List<ColumnIdentifier> columnNames,
                             List<Term.Raw> columnValues,
                             boolean ifNotExists)
         {
@@ -155,7 +136,7 @@ public class UpdateStatement extends ModificationStatement
 
             for (int i = 0; i < columnNames.size(); i++)
             {
-                ColumnMetadata def = getColumnDefinition(metadata, columnNames.get(i));
+                ColumnMetadata def = metadata.getExistingColumn(columnNames.get(i));
 
                 if (def.isClusteringColumn())
                     hasClusteringColumnsSet = true;
@@ -232,7 +213,7 @@ public class UpdateStatement extends ModificationStatement
                 Term.Raw raw = prepared.getRawTermForColumn(def, defaultUnset);
                 if (def.isPrimaryKeyColumn())
                 {
-                    whereClause.add(new SingleColumnRelation(ColumnMetadata.Raw.forColumn(def), Operator.EQ, raw));
+                    whereClause.add(new SingleColumnRelation(def.name, Operator.EQ, raw));
                 }
                 else
                 {
@@ -265,7 +246,7 @@ public class UpdateStatement extends ModificationStatement
     public static class ParsedUpdate extends ModificationStatement.Parsed
     {
         // Provided for an UPDATE
-        private final List<Pair<ColumnMetadata.Raw, Operation.RawUpdate>> updates;
+        private final List<Pair<ColumnIdentifier, Operation.RawUpdate>> updates;
         private final WhereClause whereClause;
 
         /**
@@ -280,9 +261,9 @@ public class UpdateStatement extends ModificationStatement
          * */
         public ParsedUpdate(QualifiedName name,
                             Attributes.Raw attrs,
-                            List<Pair<ColumnMetadata.Raw, Operation.RawUpdate>> updates,
+                            List<Pair<ColumnIdentifier, Operation.RawUpdate>> updates,
                             WhereClause whereClause,
-                            List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
+                            List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
                             boolean ifExists)
         {
             super(name, StatementType.UPDATE, attrs, conditions, false, ifExists);
@@ -298,9 +279,9 @@ public class UpdateStatement extends ModificationStatement
         {
             Operations operations = new Operations(type);
 
-            for (Pair<ColumnMetadata.Raw, Operation.RawUpdate> entry : updates)
+            for (Pair<ColumnIdentifier, Operation.RawUpdate> entry : updates)
             {
-                ColumnMetadata def = getColumnDefinition(metadata, entry.left);
+                ColumnMetadata def = metadata.getExistingColumn(entry.left);
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
 

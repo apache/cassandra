@@ -31,6 +31,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -181,10 +182,10 @@ public class HintsBufferTest
         Row row = hint.mutation.getPartitionUpdates().iterator().next().iterator().next();
         assertEquals(1, Iterables.size(row.cells()));
 
-        assertEquals(bytes(idx), row.clustering().get(0));
-        Cell cell = row.cells().iterator().next();
+        ValueAccessors.assertDataEquals(bytes(idx), row.clustering().get(0));
+        Cell<?> cell = row.cells().iterator().next();
         assertEquals(TimeUnit.MILLISECONDS.toMicros(baseTimestamp + idx), cell.timestamp());
-        assertEquals(bytes(idx), cell.value());
+        ValueAccessors.assertDataEquals(bytes(idx), cell.buffer());
 
         return idx;
     }

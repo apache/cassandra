@@ -35,7 +35,6 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -510,8 +509,7 @@ public final class StatementRestrictions
         checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.hasSlice(),
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
 
-        if (!type.allowClusteringColumnSlices()
-               && (!table.isCompactTable() || (table.isCompactTable() && !hasClusteringColumnsRestrictions())))
+        if (!type.allowClusteringColumnSlices())
         {
             if (!selectsOnlyStaticColumns && hasUnrestrictedClusteringColumns())
                 throw invalidRequest("Some clustering keys are missing: %s",
@@ -745,14 +743,8 @@ public final class StatementRestrictions
      * @param options the query options
      * @return the requested clustering columns
      */
-    public NavigableSet<Clustering> getClusteringColumns(QueryOptions options)
+    public NavigableSet<Clustering<?>> getClusteringColumns(QueryOptions options)
     {
-        // If this is a names command and the table is a static compact one, then as far as CQL is concerned we have
-        // only a single row which internally correspond to the static parts. In which case we want to return an empty
-        // set (since that's what ClusteringIndexNamesFilter expects).
-        if (table.isStaticCompactTable())
-            return BTreeSet.empty(table.comparator);
-
         return clusteringColumnsRestrictions.valuesAsClustering(options);
     }
 
@@ -763,7 +755,7 @@ public final class StatementRestrictions
      * @param options the query options
      * @return the bounds (start or end) of the clustering columns
      */
-    public NavigableSet<ClusteringBound> getClusteringColumnsBounds(Bound b, QueryOptions options)
+    public NavigableSet<ClusteringBound<?>> getClusteringColumnsBounds(Bound b, QueryOptions options)
     {
         return clusteringColumnsRestrictions.boundsAsClustering(b, options);
     }
@@ -775,10 +767,7 @@ public final class StatementRestrictions
      */
     public boolean isColumnRange()
     {
-        // For static compact tables we want to ignore the fake clustering column (note that if we weren't special casing,
-        // this would mean a 'SELECT *' on a static compact table would query whole partitions, even though we'll only return
-        // the static part as far as CQL is concerned. This is thus mostly an optimization to use the query-by-name path).
-        int numberOfClusteringColumns = table.isStaticCompactTable() ? 0 : table.clusteringColumns().size();
+        int numberOfClusteringColumns = table.clusteringColumns().size();
         // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ or IN.
         return clusteringColumnsRestrictions.size() < numberOfClusteringColumns
             || !clusteringColumnsRestrictions.hasOnlyEqualityRestrictions();

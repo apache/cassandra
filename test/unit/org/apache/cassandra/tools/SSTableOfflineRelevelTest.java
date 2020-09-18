@@ -23,13 +23,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class SSTableOfflineRelevelTest extends ToolsTester
+public class SSTableOfflineRelevelTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testSSTableOfflineRelevel_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.SSTableOfflineRelevel");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableOfflineRelevel").getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -42,7 +46,7 @@ public class SSTableOfflineRelevelTest extends ToolsTester
     public void testSSTableOfflineRelevel_WithArgs()
     {
         // Note: SSTableOfflineRelevel exits with code 1 if no sstables to relevel have been found
-        runTool(1, "org.apache.cassandra.tools.SSTableOfflineRelevel", "system_schema", "tables");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableOfflineRelevel", "system_schema", "tables").getExitCode());
         assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();

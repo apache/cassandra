@@ -20,6 +20,7 @@ package org.apache.cassandra.fql;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +38,7 @@ import io.netty.buffer.ByteBuf;
 import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.wire.ValueOut;
 import net.openhft.chronicle.wire.WireOut;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -46,6 +48,7 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
+import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 import org.github.jamm.MemoryLayoutSpecification;
 
@@ -114,6 +117,30 @@ public class FullQueryLogger implements QueryEvents.Listener
         finally
         {
             buf.release();
+        }
+    }
+
+    public FullQueryLoggerOptions getFullQueryLoggerOptions()
+    {
+        if (isEnabled())
+        {
+            final FullQueryLoggerOptions options = new FullQueryLoggerOptions();
+            final BinLogOptions binLogOptions = binLog.getBinLogOptions();
+
+            options.archive_command = binLogOptions.archive_command;
+            options.roll_cycle = binLogOptions.roll_cycle;
+            options.block = binLogOptions.block;
+            options.max_archive_retries = binLogOptions.max_archive_retries;
+            options.max_queue_weight = binLogOptions.max_queue_weight;
+            options.max_log_size = binLogOptions.max_log_size;
+            options.log_dir = binLog.path.toString();
+
+            return options;
+        }
+        else
+        {
+            // otherwise get what database is configured with from cassandra.yaml
+            return DatabaseDescriptor.getFullQueryLogOptions();
         }
     }
 

@@ -39,13 +39,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.BackPressureState;
-import org.apache.cassandra.net.ConnectionType;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.OutboundConnectionSettings;
-import org.apache.cassandra.net.OutboundConnections;
-import org.apache.cassandra.net.PingRequest;
-import org.apache.cassandra.net.Verb;
 
 public class OutboundConnectionsTest
 {
@@ -66,8 +59,7 @@ public class OutboundConnectionsTest
     @Before
     public void setup()
     {
-        BackPressureState backPressureState = DatabaseDescriptor.getBackPressureStrategy().newState(REMOTE_ADDR);
-        connections = OutboundConnections.unsafeCreate(new OutboundConnectionSettings(REMOTE_ADDR), backPressureState);
+        connections = OutboundConnections.unsafeCreate(new OutboundConnectionSettings(REMOTE_ADDR));
     }
 
     @After

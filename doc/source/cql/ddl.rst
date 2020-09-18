@@ -244,8 +244,7 @@ Creating a new table uses the ``CREATE TABLE`` statement:
    partition_key: `column_name`
                 : | '(' `column_name` ( ',' `column_name` )* ')'
    clustering_columns: `column_name` ( ',' `column_name` )*
-   table_options: COMPACT STORAGE [ AND `table_options` ]
-                   : | CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `table_options` ]
+   table_options: CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `options` ]
                    : | `options`
    clustering_order: `column_name` (ASC | DESC) ( ',' `column_name` (ASC | DESC) )*
 
@@ -330,7 +329,6 @@ that example being ``pk``, both rows are in that same partition): the 2nd insert
 
 The use of static columns as the following restrictions:
 
-- tables with the ``COMPACT STORAGE`` option (see below) cannot use them.
 - a table without clustering columns cannot have static columns (in a table without clustering columns, every partition
   has only one row, and so every column is inherently static).
 - only non ``PRIMARY KEY`` columns can be static.
@@ -452,32 +450,11 @@ Table options
 ~~~~~~~~~~~~~
 
 A CQL table has a number of options that can be set at creation (and, for most of them, :ref:`altered
-<alter-table-statement>` later). These options are specified after the ``WITH`` keyword.
+<alter-table-statement>` later). These options are specified after the ``WITH`` keyword and are described
+in the following sections.
 
-Amongst those options, two important ones cannot be changed after creation and influence which queries can be done
-against the table: the ``COMPACT STORAGE`` option and the ``CLUSTERING ORDER`` option. Those, as well as the other
-options of a table are described in the following sections.
-
-.. _compact-tables:
-
-Compact tables
-``````````````
-
-.. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
-   same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
-   and usage. It only exists for historical reason and is preserved for backward compatibility And as ``COMPACT
-   STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
-   ``COMPACT STORAGE`` option.
-
-A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
-compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. Declaring a
-table with this option creates limitations for the table which are largely arbitrary (and exists for historical
-reasons). Amongst those limitation:
-
-- a compact table cannot use collections nor static columns.
-- if a compact table has at least one clustering column, then it must have *exactly* one column outside of the primary
-  key ones. This imply you cannot add or remove columns after creation in particular.
-- a compact table is limited in the indexes it can create, and no materialized view can be created on it.
+But please bear in mind that the ``CLUSTERING ORDER`` option cannot be changed after table creation and
+has influences on the performance of some queries.
 
 .. _clustering-order:
 
@@ -807,7 +784,7 @@ The ``ALTER TABLE`` statement can:
   below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
   cluster) time operation.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
-  <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
+  <create-table-options>` are the same that when creating a table (outside of ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
   erasing all previous ``compaction`` options, so you need to re-specify all the sub-options if you want to keep them.
   The same note applies to the set of ``compression`` sub-options.

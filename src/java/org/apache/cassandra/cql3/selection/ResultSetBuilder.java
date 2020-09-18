@@ -84,7 +84,7 @@ public final class ResultSetBuilder
         current.add(v);
     }
 
-    public void add(Cell c, int nowInSec)
+    public void add(Cell<?> c, int nowInSec)
     {
         if (c == null)
         {
@@ -101,7 +101,7 @@ public final class ResultSetBuilder
             ttls[current.size() - 1] = remainingTTL(c, nowInSec);
     }
 
-    private int remainingTTL(Cell c, int nowInSec)
+    private int remainingTTL(Cell<?> c, int nowInSec)
     {
         if (!c.isExpiring())
             return -1;
@@ -110,11 +110,11 @@ public final class ResultSetBuilder
         return remaining >= 0 ? remaining : -1;
     }
 
-    private ByteBuffer value(Cell c)
+    private <V> ByteBuffer value(Cell<V> c)
     {
         return c.isCounterCell()
-             ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
-             : c.value();
+             ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value(), c.accessor()))
+             : c.buffer();
     }
 
     /**
@@ -123,7 +123,7 @@ public final class ResultSetBuilder
      * @param partitionKey the partition key of the new row
      * @param clustering the clustering of the new row
      */
-    public void newRow(DecoratedKey partitionKey, Clustering clustering)
+    public void newRow(DecoratedKey partitionKey, Clustering<?> clustering)
     {
         // The groupMaker needs to be called for each row
         boolean isNewAggregate = groupMaker == null || groupMaker.isNewGroup(partitionKey, clustering);

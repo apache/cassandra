@@ -23,13 +23,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 
+import static org.junit.Assert.assertEquals;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class SSTableRepairedAtSetterTest extends ToolsTester
+public class SSTableRepairedAtSetterTest extends OfflineToolUtils
 {
+    private ToolRunner.Runners runner = new ToolRunner.Runners();
+    
     @Test
     public void testSSTableRepairedAtSetter_NoArgs()
     {
-        runTool(1, "org.apache.cassandra.tools.SSTableRepairedAtSetter");
+        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableRepairedAtSetter").getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -41,7 +45,8 @@ public class SSTableRepairedAtSetterTest extends ToolsTester
     @Test
     public void testSSTableRepairedAtSetter_WithArgs() throws Exception
     {
-        runTool(0, "org.apache.cassandra.tools.SSTableRepairedAtSetter", "--really-set", "--is-repaired", findOneSSTable("legacy_sstables", "legacy_ma_simple"));
+        runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableRepairedAtSetter", "--really-set", "--is-repaired", findOneSSTable("legacy_sstables", "legacy_ma_simple"))
+              .waitAndAssertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();

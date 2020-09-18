@@ -51,6 +51,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 
@@ -310,6 +311,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (gossipActive)
         {
             logger.warn("Stopping gossip by operator request");
+
+            if (isNativeTransportRunning())
+            {
+                logger.warn("Disabling gossip while native transport is still active is unsafe");
+            }
+
             Gossiper.instance.stop();
             gossipActive = false;
         }
@@ -397,15 +404,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void stopTransports()
     {
-        if (isGossipActive())
-        {
-            logger.error("Stopping gossiper");
-            stopGossiping();
-        }
         if (isNativeTransportRunning())
         {
             logger.error("Stopping native transport");
             stopNativeTransport();
+        }
+        if (isGossipActive())
+        {
+            logger.error("Stopping gossiper");
+            stopGossiping();
         }
     }
 
@@ -1748,7 +1755,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public String getNativeaddress(InetAddressAndPort endpoint, boolean withPort)
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return FBUtilities.getBroadcastNativeAddressAndPort().toString(withPort);
+            return FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(withPort);
         else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null)
         {
             try
@@ -3121,7 +3128,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             map.put(entry.getKey().getHostAddress(withPort), FileUtils.stringifyFileSize(entry.getValue()));
         }
         // gossiper doesn't see its own updates, so we need to special-case the local node
-        map.put(withPort ? FBUtilities.getJustBroadcastAddress().getHostAddress() : FBUtilities.getBroadcastAddressAndPort().toString(), getLoadString());
+        map.put(FBUtilities.getBroadcastAddressAndPort().getHostAddress(withPort), getLoadString());
         return map;
     }
 
@@ -3220,7 +3227,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Pair<Token, InetAddressAndPort> node : tokenMetadata.getMovingEndpoints())
         {
-            endpoints.add(node.right.toString());
+            endpoints.add(node.right.getHostAddressAndPort());
         }
 
         return endpoints;
@@ -5387,6 +5394,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneWarnThreshold(threshold);
+        logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
     public int getTombstoneFailureThreshold()
@@ -5397,6 +5405,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneFailureThreshold(threshold);
+        logger.info("updated tombstone_failure_threshold to {}", threshold);
+    }
+
+    public int getCachedReplicaRowsWarnThreshold()
+    {
+        return DatabaseDescriptor.getCachedReplicaRowsWarnThreshold();
+    }
+
+    public void setCachedReplicaRowsWarnThreshold(int threshold)
+    {
+        DatabaseDescriptor.setCachedReplicaRowsWarnThreshold(threshold);
+        logger.info("updated replica_filtering_protection.cached_rows_warn_threshold to {}", threshold);
+    }
+
+    public int getCachedReplicaRowsFailThreshold()
+    {
+        return DatabaseDescriptor.getCachedReplicaRowsFailThreshold();
+    }
+
+    public void setCachedReplicaRowsFailThreshold(int threshold)
+    {
+        DatabaseDescriptor.setCachedReplicaRowsFailThreshold(threshold);
+        logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
     }
 
     public int getColumnIndexCacheSize()
@@ -5418,7 +5449,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setBatchSizeFailureThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
-        logger.info("Updated batch_size_fail_threshold_in_kb to {}", threshold);
+        logger.info("updated batch_size_fail_threshold_in_kb to {}", threshold);
     }
 
     public int getBatchSizeWarnThreshold()
@@ -5470,7 +5501,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
-        logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
+        logger.info("updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
     }
 
     @Override
@@ -5594,5 +5625,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void stopFullQueryLogger()
     {
         FullQueryLogger.instance.stop();
+    }
+
+    @Override
+    public boolean isFullQueryLogEnabled()
+    {
+        return FullQueryLogger.instance.isEnabled();
+    }
+
+    @Override
+    public CompositeData getFullQueryLoggerOptions()
+    {
+        return FullQueryLoggerOptionsCompositeData.toCompositeData(FullQueryLogger.instance.getFullQueryLoggerOptions());
     }
 }

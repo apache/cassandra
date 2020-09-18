@@ -28,7 +28,6 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.lifecycle.*;
@@ -256,7 +255,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries the {@code names} in {@code key}. The returned query will
      * query every columns (without limit or row filtering) and be in forward order.
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, NavigableSet<Clustering> names)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, NavigableSet<Clustering<?>> names)
     {
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names, false);
         return create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, key, filter);
@@ -273,7 +272,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries {@code name} in {@code key}. The returned query will
      * query every columns (without limit or row filtering).
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, Clustering name)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, Clustering<?> name)
     {
         return create(metadata, nowInSec, key, FBUtilities.singleton(name, metadata.comparator));
     }
@@ -369,7 +368,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    public SinglePartitionReadCommand forPaging(Clustering lastReturned, DataLimits limits)
+    public SinglePartitionReadCommand forPaging(Clustering<?> lastReturned, DataLimits limits)
     {
         // We shouldn't have set digest yet when reaching that point
         assert !isDigestQuery();
@@ -817,7 +816,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         /* add the SSTables on disk */
         Collections.sort(view.sstables, SSTableReader.maxTimestampDescending);
-        boolean onlyUnrepaired = true;
         // read sorted sstables
         SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
         for (SSTableReader sstable : view.sstables)
@@ -889,9 +887,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 if (iter.isEmpty())
                     continue;
 
-                if (sstable.isRepaired())
-                    onlyUnrepaired = false;
-
                 result = add(
                     RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false),
                     result,
@@ -909,26 +904,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         DecoratedKey key = result.partitionKey();
         cfs.metric.topReadPartitionFrequency.addSample(key.getKey(), 1);
         StorageHook.instance.reportRead(cfs.metadata.id, partitionKey());
-
-        // "hoist up" the requested data into a more recent sstable
-        if (metricsCollector.getMergedSSTables() > cfs.getMinimumCompactionThreshold()
-            && onlyUnrepaired
-            && !cfs.isAutoCompactionDisabled()
-            && cfs.getCompactionStrategyManager().shouldDefragment())
-        {
-            // !!WARNING!!   if we stop copying our data to a heap-managed object,
-            //               we will need to track the lifetime of this mutation as well
-            Tracing.trace("Defragmenting requested data");
-
-            try (UnfilteredRowIterator iter = result.unfilteredIterator(columnFilter(), Slices.ALL, false))
-            {
-                final Mutation mutation = new Mutation(PartitionUpdate.fromIterator(iter, columnFilter()));
-                Stage.MUTATION.execute(() -> {
-                    // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
-                    Keyspace.open(mutation.getKeyspaceName()).apply(mutation, false, false);
-                });
-            }
-        }
 
         return result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
     }
@@ -953,10 +928,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (result == null)
             return filter;
 
-        SearchIterator<Clustering, Row> searchIter = result.searchIterator(columnFilter(), false);
+        SearchIterator<Clustering<?>, Row> searchIter = result.searchIterator(columnFilter(), false);
 
         RegularAndStaticColumns columns = columnFilter().fetchedColumns();
-        NavigableSet<Clustering> clusterings = filter.requestedRows();
+        NavigableSet<Clustering<?>> clusterings = filter.requestedRows();
 
         // We want to remove rows for which we have values for all requested columns. We have to deal with both static and regular rows.
         // TODO: we could also remove a selected column if we've found values for every requested row but we'll leave
@@ -969,8 +944,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             removeStatic = staticRow != null && canRemoveRow(staticRow, columns.statics, sstableTimestamp);
         }
 
-        NavigableSet<Clustering> toRemove = null;
-        for (Clustering clustering : clusterings)
+        NavigableSet<Clustering<?>> toRemove = null;
+        for (Clustering<?> clustering : clusterings)
         {
             Row row = searchIter.next(clustering);
             if (row == null || !canRemoveRow(row, columns.regulars, sstableTimestamp))
@@ -992,7 +967,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         if (toRemove != null)
         {
-            BTreeSet.Builder<Clustering> newClusterings = BTreeSet.builder(result.metadata().comparator);
+            BTreeSet.Builder<Clustering<?>> newClusterings = BTreeSet.builder(result.metadata().comparator);
             newClusterings.addAll(Sets.difference(clusterings, toRemove));
             clusterings = newClusterings.build();
         }
@@ -1009,7 +984,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         for (ColumnMetadata column : requestedColumns)
         {
-            Cell cell = row.getCell(column);
+            Cell<?> cell = row.getCell(column);
             if (cell == null || cell.timestamp() <= sstableTimestamp)
                 return false;
         }
@@ -1019,8 +994,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     public boolean selectsFullPartition()
     {
-        return metadata().isStaticCompactTable() ||
-               (clusteringIndexFilter.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns());
+        return clusteringIndexFilter.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
     }
 
     @Override
@@ -1139,7 +1113,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                        IndexMetadata index)
         throws IOException
         {
-            DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readValue(in, DatabaseDescriptor.getMaxValueSize()));
+            DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             return new SinglePartitionReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index);
         }

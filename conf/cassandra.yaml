@@ -1222,6 +1222,26 @@ transparent_data_encryption_options:
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
 
+# Filtering and secondary index queries at read consistency levels above ONE/LOCAL_ONE use a
+# mechanism called replica filtering protection to ensure that results from stale replicas do
+# not violate consistency. (See CASSANDRA-8272 and CASSANDRA-15907 for more details.) This
+# mechanism materializes replica results by partition on-heap at the coordinator. The more possibly
+# stale results returned by the replicas, the more rows materialized during the query.
+replica_filtering_protection:
+    # These thresholds exist to limit the damage severely out-of-date replicas can cause during these
+    # queries. They limit the number of rows from all replicas individual index and filtering queries
+    # can materialize on-heap to return correct results at the desired read consistency level.
+    #
+    # "cached_replica_rows_warn_threshold" is the per-query threshold at which a warning will be logged.
+    # "cached_replica_rows_fail_threshold" is the per-query threshold at which the query will fail.
+    #
+    # These thresholds may also be adjusted at runtime using the StorageService mbean.
+    #
+    # If the failure threshold is breached, it is likely that either the current page/fetch size
+    # is too large or one or more replicas is severely out-of-sync and in need of repair.
+    cached_rows_warn_threshold: 2000
+    cached_rows_fail_threshold: 32000
+
 # Log WARN on any multiple-partition batch size exceeding this value. 5kb per batch by default.
 # Caution should be taken on increasing the size of this threshold as it can lead to node instability.
 batch_size_warn_threshold_in_kb: 5
@@ -1248,28 +1268,6 @@ compaction_large_partition_warning_threshold_mb: 100
 # early. Any value size larger than this threshold will result into marking an SSTable
 # as corrupted. This should be positive and less than 2048.
 # max_value_size_in_mb: 256
-
-# Back-pressure settings #
-# If enabled, the coordinator will apply the back-pressure strategy specified below to each mutation
-# sent to replicas, with the aim of reducing pressure on overloaded replicas.
-back_pressure_enabled: false
-# The back-pressure strategy applied.
-# The default implementation, RateBasedBackPressure, takes three arguments:
-# high ratio, factor, and flow type, and uses the ratio between incoming mutation responses and outgoing mutation requests.
-# If below high ratio, outgoing mutations are rate limited according to the incoming rate decreased by the given factor;
-# if above high ratio, the rate limiting is increased by the given factor;
-# such factor is usually best configured between 1 and 10, use larger values for a faster recovery
-# at the expense of potentially more dropped mutations;
-# the rate limiting is applied according to the flow type: if FAST, it's rate limited at the speed of the fastest replica,
-# if SLOW at the speed of the slowest one.
-# New strategies can be added. Implementors need to implement org.apache.cassandra.net.BackpressureStrategy and
-# provide a public constructor accepting a Map<String, Object>.
-back_pressure_strategy:
-    - class_name: org.apache.cassandra.net.RateBasedBackPressure
-      parameters:
-        - high_ratio: 0.90
-          factor: 5
-          flow: FAST
 
 # Coalescing Strategies #
 # Coalescing multiples messages turns out to significantly boost message processing throughput (think doubling or more).

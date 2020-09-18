@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +56,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -84,6 +86,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -259,7 +262,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             int version = MessagingService.instance().versions.get(to);
             Message.serializer.serialize(messageOut, out, version);
-            return new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), version, fromCassandraInetAddressAndPort(from));
+            byte[] bytes = out.toByteArray();
+            if (messageOut.serializedSize(version) != bytes.length)
+                throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
+                                                       "expected %s, actual %s", version, version, messageOut.verb(), messageOut.serializer.getClass(),
+                                                       messageOut.serializedSize(version), bytes.length));
+            return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), version, fromCassandraInetAddressAndPort(from));
         }
         catch (IOException e)
         {
@@ -337,8 +345,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
-                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
@@ -354,6 +360,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.daemonInitialization();
+                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CommitLog.instance.start();
 
@@ -383,6 +390,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
+
+                Verb.REQUEST_RSP.unsafeSetSerializer(() -> ReadResponse.serializer);
 
                 if (config.has(NETWORK))
                 {

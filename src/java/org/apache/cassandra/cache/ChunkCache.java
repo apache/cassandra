@@ -166,7 +166,7 @@ public class ChunkCache
         cache.invalidateAll();
     }
 
-    public RebuffererFactory wrap(ChunkReader file)
+    private RebuffererFactory wrap(ChunkReader file)
     {
         return new CachingRebufferer(file);
     }

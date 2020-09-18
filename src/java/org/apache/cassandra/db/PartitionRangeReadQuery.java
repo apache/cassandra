@@ -75,7 +75,7 @@ public interface PartitionRangeReadQuery extends ReadQuery
         return rowFilter().partitionKeyRestrictionsAreSatisfiedBy(key, metadata().partitionKeyType);
     }
 
-    default boolean selectsClustering(DecoratedKey key, Clustering clustering)
+    default boolean selectsClustering(DecoratedKey key, Clustering<?> clustering)
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
             return !columnFilter().fetchedColumns().statics.isEmpty();
@@ -87,7 +87,6 @@ public interface PartitionRangeReadQuery extends ReadQuery
 
     default boolean selectsFullPartition()
     {
-        return metadata().isStaticCompactTable() ||
-               (dataRange().selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns());
+        return dataRange().selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
     }
 }

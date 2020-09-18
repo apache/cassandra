@@ -1,4 +1,62 @@
-4.0-alpha5
+4.0-beta3
+ * Prevent NPE in StreamMessage in type lookup (CASSANDRA-16131)
+ * Avoid invalid state transition exception during incremental repair (CASSANDRA-16067)
+ * Allow zero padding in timestamp serialization (CASSANDRA-16105)
+ * Add byte array backed cells (CASSANDRA-15393)
+ * Correctly handle pending ranges with adjacent range movements (CASSANDRA-14801)
+ * Avoid adding locahost when streaming trivial ranges (CASSANDRA-16099)
+ * Add nodetool getfullquerylog (CASSANDRA-15988)
+ * Fix yaml format and alignment in tpstats (CASSANDRA-11402)
+ * Avoid trying to keep track of RTs for endpoints we won't write to during read repair (CASSANDRA-16084)
+ * When compaction gets interrupted, the exception should include the compactionId (CASSANDRA-15954)
+ * Make Table/Keyspace Metric Names Consistent With Each Other (CASSANDRA-15909)
+ * Mutating sstable component may race with entire-sstable-streaming(ZCS) causing checksum validation failure (CASSANDRA-15861)
+ * NPE thrown while updating speculative execution time if keyspace is removed during task execution (CASSANDRA-15949)
+Merged from 3.11:
+ * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
+ * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
+
+4.0-beta2
+ * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
+ * Always access system properties and environment variables via the new CassandraRelevantProperties and CassandraRelevantEnv classes (CASSANDRA-15876)
+ * Remove deprecated HintedHandOffManager (CASSANDRA-15939)
+ * Prevent repair from overrunning compaction (CASSANDRA-15817)
+ * fix cqlsh COPY functions in Python 3.8 on Mac (CASSANDRA-16053)
+ * Strip comment blocks from cqlsh input before processing statements (CASSANDRA-15802)
+ * Fix unicode chars error input (CASSANDRA-15990)
+ * Improved testability for CacheMetrics and ChunkCacheMetrics (CASSANDRA-15788)
+ * Handle errors in StreamSession#prepare (CASSANDRA-15852)
+ * FQL replay should have options to ignore DDL statements (CASSANDRA-16039)
+ * Remove COMPACT STORAGE internals (CASSANDRA-13994)
+ * Make TimestampSerializer accept fractional seconds of varying precision (CASSANDRA-15976)
+ * Improve cassandra-stress logging when using a profile file that doesn't exist (CASSANDRA-14425)
+ * Improve logging for socket connection/disconnection (CASSANDRA-15980)
+ * Throw FSWriteError upon write failures in order to apply DiskFailurePolicy (CASSANDRA-15928)
+ * Forbid altering UDTs used in partition keys (CASSANDRA-15933)
+ * Fix version parsing logic when upgrading from 3.0 (CASSANDRA-15973)
+ * Optimize NoSpamLogger use in hot paths (CASSANDRA-15766)
+ * Verify sstable components on startup (CASSANDRA-15945)
+ * Resolve JMX output inconsistencies from CASSANDRA-7544 storage-port-configurable-per-node (CASSANDRA-15937)
+Merged from 3.11:
+ * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)
+ * Fix short read protection for GROUP BY queries (CASSANDRA-15459)
+ * stop_paranoid disk failure policy is ignored on CorruptSSTableException after node is up (CASSANDRA-15191)
+ * Frozen RawTuple is not annotated with frozen in the toString method (CASSANDRA-15857)
+Merged from 3.0:
+ * Fix gossip shutdown order (CASSANDRA-15816)
+ * Remove broken 'defrag-on-read' optimization (CASSANDRA-15432)
+ * Check for endpoint collision with hibernating nodes (CASSANDRA-14599)
+ * Operational improvements and hardening for replica filtering protection (CASSANDRA-15907)
+ * Fix empty/null json string representation (CASSANDRA-15896)
+ * Handle difference in timestamp precision between java8 and java11 in LogFIle.java (CASSANDRA-16050)
+Merged from 2.2:
+ * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
+Merged from 2.1:
+ * Only allow strings to be passed to JMX authentication (CASSANDRA-16077)
+
+4.0-beta1
+ * Remove BackPressureStrategy (CASSANDRA-15375)
+ * Improve messaging on indexing frozen collections (CASSANDRA-15908)
  * USING_G1 is incorrectly set in cassandra-env.sh if G1 is explicitly disabled with -UseG1GC (CASSANDRA-15931)
  * Update compaction_throughput_mb_per_sec throttle default to 64 (CASSANDRA-14902)
  * Add option to disable compaction at startup (CASSANDRA-15927)

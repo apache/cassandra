@@ -53,6 +53,8 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private final ReadCommand command;
     private final Replica source;
 
+    private final Runnable preFetchCallback; // called immediately before fetching more contents
+
     private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
 
@@ -62,13 +64,16 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private final long queryStartNanoTime;
 
-    public ShortReadPartitionsProtection(ReadCommand command, Replica source,
+    public ShortReadPartitionsProtection(ReadCommand command,
+                                         Replica source,
+                                         Runnable preFetchCallback,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
                                          long queryStartNanoTime)
     {
         this.command = command;
         this.source = source;
+        this.preFetchCallback = preFetchCallback;
         this.singleResultCounter = singleResultCounter;
         this.mergedResultCounter = mergedResultCounter;
         this.queryStartNanoTime = queryStartNanoTime;
@@ -140,22 +145,17 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
          */
         int toQuery = command.limits().count() != DataLimits.NO_LIMIT
-                      ? command.limits().count() - counted(mergedResultCounter)
+                      ? command.limits().count() - mergedResultCounter.rowsCounted()
                       : command.limits().perPartitionCount();
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
         Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
         logger.info("Requesting {} extra rows from {} for short read protection", toQuery, source);
 
-        return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
-    }
+        // If we've arrived here, all responses have been consumed, and we're about to request more.
+        preFetchCallback.run();
 
-    // Counts the number of rows for regular queries and the number of groups for GROUP BY queries
-    private int counted(DataLimits.Counter counter)
-    {
-        return command.limits().isGroupByLimit()
-               ? counter.rowCounted()
-               : counter.counted();
+        return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
     }
 
     private UnfilteredPartitionIterator makeAndExecuteFetchAdditionalPartitionReadCommand(int toQuery)

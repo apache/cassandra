@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="4.0-alpha5"/>
+    <property name="base.version" value="4.0-beta3"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -44,7 +44,6 @@
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
-    <property name="javadoc.jars.dir" value="${build.dir}/javadocs"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
@@ -205,8 +204,38 @@
         </not>
     </condition>
 
+    <!--
+      JVM arguments for tests.
+
+      There is a race condition bug in java 11 (see CASSANDRA-15981) which causes a crash of the 
+      JVM; this race is between CMS and class unloading.  In java 8 we can cap the metaspace to 
+      make tests stable on low resource environments, but in java 11 we need to make it unlimited 
+      (don't define MaxMetaspaceSize) and disable class unloading in CMS outside of a 
+      stop-the-world pause.
+    -->
+    <resources id="_jvm8_test_arg_items">
+        <string>-XX:MaxMetaspaceExpansion=64M</string>
+        <string>-XX:MaxMetaspaceSize=512M</string>
+        <string>-XX:MetaspaceSize=128M</string>
+    </resources>
+    <pathconvert property="_jvm8_test_arg_items_concat" refid="_jvm8_test_arg_items" pathsep=" "/>
+    <resources id="_jvm11_test_arg_items">
+        <string>-XX:-CMSClassUnloadingEnabled</string>
+    </resources>
+    <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
+    <condition property="test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
+    </condition>
+
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <condition property="jdk11-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" else="">
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
+    </condition>
+    <condition property="jdk11-javadoc-exports" value="${jdk11-javac-exports} --frames" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -261,10 +290,17 @@
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; 2009-2020 The Apache Software Foundation"
-        useexternalfile="yes" encoding="UTF-8"
-        maxmemory="256m">
+        useexternalfile="yes" encoding="UTF-8" failonerror="false"
+        maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
       </javadoc>
+      <fail message="javadoc failed">
+        <condition>
+            <not>
+                <available file="@{destdir}/index-all.html" />
+            </not>
+        </condition>
+      </fail>
     </sequential>
   </macrodef>
 
@@ -527,7 +563,7 @@
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
-          <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.1"/>
+          <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
           <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2">
             <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
@@ -552,8 +588,7 @@
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.3" />
-
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.4" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
@@ -1138,24 +1173,11 @@
     <!--
         The javadoc-jar target makes cassandra-javadoc.jar output required for publishing to Maven central repository.
     -->
-    <target name="javadoc-jar" description="Assemble Cassandra JavaDoc JAR file">
-      <mkdir dir="${javadoc.jars.dir}"/>
-      <create-javadoc destdir="${javadoc.jars.dir}/main">
-        <filesets>
-          <fileset dir="${build.src.java}" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
-          <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/main"/>
-
+    <target name="javadoc-jar" depends="javadoc" description="Assemble Cassandra JavaDoc JAR file">
+      <jar jarfile="${build.dir}/${final.name}-javadoc.jar" basedir="${javadoc.dir}"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent
            being pulled into the distribution by accident -->
-      <delete quiet="true" dir="${javadoc.jars.dir}"/>
+      <delete quiet="true" dir="${javadoc.dir}"/>
     </target>
 
     <!--
@@ -1422,9 +1444,6 @@
              algorithm to limit the metaspace size and clean up SoftReferences
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
-        <jvmarg value="-XX:MaxMetaspaceSize=384M" />
-        <jvmarg value="-XX:MetaspaceSize=128M" />
-        <jvmarg value="-XX:MaxMetaspaceExpansion=64M" />
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
@@ -1434,10 +1453,11 @@
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
-          <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+        <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg line="${java11-jvmargs}"/>
-	<!-- disable shrinks in quicktheories CASSANDRA-15554 -->
+        <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
+        <jvmarg line="${test-jvmargs}" />
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
         <!--
@@ -1812,7 +1832,7 @@
     </java>
   </target>
 
-  <target name="javadoc" depends="init" description="Create javadoc" unless="no-javadoc">
+  <target name="javadoc" depends="build" description="Create javadoc" unless="no-javadoc">
     <create-javadoc destdir="${javadoc.dir}">
       <filesets>
         <fileset dir="${build.src.java}" defaultexcludes="yes">
@@ -2080,7 +2100,6 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
-      <jvmarg value="-XX:MaxMetaspaceSize=512M"/>
     </testmacro>
   </target>
 

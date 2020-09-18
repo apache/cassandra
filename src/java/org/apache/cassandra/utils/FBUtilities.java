@@ -26,9 +26,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -69,6 +66,9 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
 
 
 public class FBUtilities
@@ -912,19 +912,19 @@ public class FBUtilities
             int errCode = p.waitFor();
             if (errCode != 0)
             {
-            	try (BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
                      BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream())))
                 {
-            		String lineSep = System.getProperty("line.separator");
-	                StringBuilder sb = new StringBuilder();
-	                String str;
-	                while ((str = in.readLine()) != null)
-	                    sb.append(str).append(lineSep);
-	                while ((str = err.readLine()) != null)
-	                    sb.append(str).append(lineSep);
-	                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
-	                                      ", command error Code: " + errCode +
-	                                      ", command output: "+ sb.toString());
+                    String lineSep = LINE_SEPARATOR.getString();
+                    StringBuilder sb = new StringBuilder();
+                    String str;
+                    while ((str = in.readLine()) != null)
+                        sb.append(str).append(lineSep);
+                    while ((str = err.readLine()) != null)
+                        sb.append(str).append(lineSep);
+                    throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                                          ", command error Code: " + errCode +
+                                          ", command output: "+ sb.toString());
                 }
             }
         }
@@ -1036,7 +1036,7 @@ public class FBUtilities
 
     public static File getToolsOutputDirectory()
     {
-        File historyDir = new File(System.getProperty("user.home"), ".cassandra");
+        File historyDir = new File(USER_HOME.getString(), ".cassandra");
         FileUtils.createDirectory(historyDir);
         return historyDir;
     }

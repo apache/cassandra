@@ -27,6 +27,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -42,6 +44,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BiMultiValMap;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SortedBiMultiValMap;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 
 public class TokenMetadata
 {
@@ -783,7 +787,7 @@ public class TokenMetadata
             Replica replica = entry.getValue();
             if (replica.endpoint().equals(endpoint))
             {
-                builder.add(replica);
+                builder.add(replica, Conflict.DUPLICATE);
             }
         }
         return builder.build();
@@ -895,11 +899,15 @@ public class TokenMetadata
         {
             EndpointsForRange currentReplicas = strategy.calculateNaturalReplicas(range.right, metadata);
             EndpointsForRange newReplicas = strategy.calculateNaturalReplicas(range.right, allLeftMetadata);
-            for (Replica replica : newReplicas)
+            for (Replica newReplica : newReplicas)
             {
-                if (currentReplicas.endpoints().contains(replica.endpoint()))
+                if (currentReplicas.endpoints().contains(newReplica.endpoint()))
                     continue;
-                newPendingRanges.addPendingRange(range, replica);
+
+                // we calculate pending replicas for leave- and move- affected ranges in the same way to avoid
+                // a possible conflict when 2 pending replicas have the same endpoint and different ranges.
+                for (Replica pendingReplica : newReplica.subtractSameReplication(addressRanges.get(newReplica.endpoint())))
+                    newPendingRanges.addPendingRange(range, pendingReplica);
             }
         }
 
@@ -1201,42 +1209,42 @@ public class TokenMetadata
             if (!eps.isEmpty())
             {
                 sb.append("Normal Tokens:");
-                sb.append(System.getProperty("line.separator"));
+                sb.append(LINE_SEPARATOR.getString());
                 for (InetAddressAndPort ep : eps)
                 {
                     sb.append(ep);
                     sb.append(':');
                     sb.append(endpointToTokenMap.get(ep));
-                    sb.append(System.getProperty("line.separator"));
+                    sb.append(LINE_SEPARATOR.getString());
                 }
             }
 
             if (!bootstrapTokens.isEmpty())
             {
                 sb.append("Bootstrapping Tokens:" );
-                sb.append(System.getProperty("line.separator"));
+                sb.append(LINE_SEPARATOR.getString());
                 for (Map.Entry<Token, InetAddressAndPort> entry : bootstrapTokens.entrySet())
                 {
                     sb.append(entry.getValue()).append(':').append(entry.getKey());
-                    sb.append(System.getProperty("line.separator"));
+                    sb.append(LINE_SEPARATOR.getString());
                 }
             }
 
             if (!leavingEndpoints.isEmpty())
             {
                 sb.append("Leaving Endpoints:");
-                sb.append(System.getProperty("line.separator"));
+                sb.append(LINE_SEPARATOR.getString());
                 for (InetAddressAndPort ep : leavingEndpoints)
                 {
                     sb.append(ep);
-                    sb.append(System.getProperty("line.separator"));
+                    sb.append(LINE_SEPARATOR.getString());
                 }
             }
 
             if (!pendingRanges.isEmpty())
             {
                 sb.append("Pending Ranges:");
-                sb.append(System.getProperty("line.separator"));
+                sb.append(LINE_SEPARATOR.getString());
                 sb.append(printPendingRanges());
             }
         }
