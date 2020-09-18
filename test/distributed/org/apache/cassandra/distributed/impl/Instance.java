@@ -605,16 +605,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).call();
     }
 
-    private static class DTestNodeTool extends NodeTool {
+    public static class DTestNodeTool extends NodeTool {
         private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
 
         private Throwable latestError;
 
-        DTestNodeTool(boolean withNotifications) {
+        public DTestNodeTool(boolean withNotifications) {
             super(new InternalNodeProbeFactory(withNotifications));
             storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
+        }
+
+        public List<Notification> getNotifications()
+        {
+            return new ArrayList<>(notifications.notifications);
+        }
+
+        public Throwable getLatestError()
+        {
+            return latestError;
         }
 
         public int execute(String... args)
