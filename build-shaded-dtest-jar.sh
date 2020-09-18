@@ -2,7 +2,9 @@
 
 set -xe
 
+# Cassandra version that is specified in build.xml
 CASSANDRA_VERSION=$1
+# In-JVM dtest version that is specified in relocate-dependencies.pom
 DTEST_VERSION=$2
 ARTIFACT_NAME=cassandra-dtest
 REPO_DIR=~/.m2/repository
