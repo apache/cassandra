@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.beans.IntrospectionException;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -45,6 +44,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
@@ -119,7 +119,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            Constructor constructor = new CustomConstructor(Config.class);
+
+            Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             PropertiesChecker propertiesChecker = new PropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
@@ -134,11 +135,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    static class CustomConstructor extends Constructor
+    static class CustomConstructor extends CustomClassLoaderConstructor
     {
-        CustomConstructor(Class<?> theRoot)
+        CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
-            super(theRoot);
+            super(theRoot, classLoader);
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -148,7 +149,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         @Override
         protected List<Object> createDefaultList(int initSize)
         {
-
             return Lists.newCopyOnWriteArrayList();
         }
 
@@ -165,7 +165,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    private Config loadConfig(Yaml yaml, byte[] configBytes)
+    private static Config loadConfig(Yaml yaml, byte[] configBytes)
     {
         Config config = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
         // If the configuration file is empty yaml will return null. In this case we should use the default
