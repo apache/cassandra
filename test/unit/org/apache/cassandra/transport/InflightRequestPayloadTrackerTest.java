@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.transport;
 
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -40,6 +43,16 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
     private static long LOW_LIMIT = 600L;
     private static long HIGH_LIMIT = 5000000000L;
+
+    private static final QueryOptions V5_DEFAULT_OPTIONS = QueryOptions.create(
+    QueryOptions.DEFAULT.getConsistency(),
+    QueryOptions.DEFAULT.getValues(),
+    QueryOptions.DEFAULT.skipMetadata(),
+    QueryOptions.DEFAULT.getPageSize(),
+    QueryOptions.DEFAULT.getPagingState(),
+    QueryOptions.DEFAULT.getSerialConsistency(),
+    ProtocolVersion.V5,
+    KEYSPACE);
 
     @BeforeClass
     public static void setUp()
@@ -69,137 +82,115 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         }
     }
 
+    private SimpleClient client() throws IOException
+    {
+        return new SimpleClient(nativeAddr.getHostAddress(),
+                                nativePort,
+                                ProtocolVersion.V5,
+                                true,
+                                new EncryptionOptions())
+               .connect(false, false, true);
+    }
+
     @Test
     public void testQueryExecutionWithThrowOnOverload() throws Throwable
     {
-        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
-                                               nativePort,
-                                               ProtocolVersion.V5,
-                                               true,
-                                               new EncryptionOptions());
-
-        try
+        try (SimpleClient client = client())
         {
-            client.connect(false, false, true);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
-            ProtocolVersion.V5,
-            KEYSPACE);
-
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk1 int PRIMARY KEY, v text)",
-                                                         queryOptions);
+                                                         V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
-        }
-        finally
-        {
-            client.close();
         }
     }
 
     @Test
     public void testQueryExecutionWithoutThrowOnOverload() throws Throwable
     {
-        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
-                                               nativePort,
-                                               ProtocolVersion.V5,
-                                               true,
-                                               new EncryptionOptions());
-
-        try
+        try (SimpleClient client = client())
         {
             client.connect(false, false, false);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
-            ProtocolVersion.V5,
-            KEYSPACE);
 
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         queryOptions);
+                                                         V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
             queryMessage = new QueryMessage("SELECT * FROM atable",
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
         }
-        finally
+    }
+
+    @Test
+    public void testQueryUpdatesConcurrentMetricsUpdate() throws Throwable
+    {
+        try (SimpleClient client = client())
         {
-            client.close();
+            final QueryMessage create = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
+                                                         V5_DEFAULT_OPTIONS);
+            client.execute(create);
+
+            final QueryMessage queryMessage = new QueryMessage("SELECT * FROM atable",
+                                                               V5_DEFAULT_OPTIONS);
+
+            Assert.assertEquals(0L, Server.EndpointPayloadTracker.getCurrentGlobalUsage());
+            AtomicBoolean running = new AtomicBoolean(true);
+            // run query serially on repeat
+            new Thread(() ->
+                       {
+                           while (running.get())
+                           {
+                               client.execute(queryMessage);
+                           }
+                       }).start();
+
+            // checking metric may occur inbetween running of query, so check multiple times for up to 2 seconds
+            long start = System.currentTimeMillis();
+            while (running.get() && System.currentTimeMillis() - start < 2000)
+            {
+                if (Server.EndpointPayloadTracker.getCurrentGlobalUsage() > 0)
+                {
+                    running.set(false);
+                }
+            }
+
+            // if this isnt false it never saw the usage go above zero
+            Assert.assertFalse(running.get());
+
+            // set to false to ensure stopping the background thread
+            running.set(false);
         }
     }
 
     @Test
     public void testQueryExecutionWithoutThrowOnOverloadAndInflightLimitedExceeded() throws Throwable
     {
-        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
-                                               nativePort,
-                                               ProtocolVersion.V5,
-                                               true,
-                                               new EncryptionOptions());
-
-        try
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
+                                                    nativePort,
+                                                    ProtocolVersion.V5,
+                                                    true,
+                                                    new EncryptionOptions()))
         {
             client.connect(false, false, false);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
-            ProtocolVersion.V5,
-            KEYSPACE);
-
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         queryOptions);
+                                                         V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
             queryMessage = new QueryMessage("INSERT INTO atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
-        }
-        finally
-        {
-            client.close();
         }
     }
 
     @Test
     public void testOverloadedExceptionForEndpointInflightLimit() throws Throwable
     {
-        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
-                                               nativePort,
-                                               ProtocolVersion.V5,
-                                               true,
-                                               new EncryptionOptions());
-
-        try
+        try (SimpleClient client = client())
         {
-            client.connect(false, false, true);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
-            ProtocolVersion.V5,
-            KEYSPACE);
-
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         queryOptions);
+                                                         V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
             queryMessage = new QueryMessage("INSERT INTO atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);
@@ -209,41 +200,20 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             {
                 Assert.assertTrue(e.getCause() instanceof OverloadedException);
             }
-        }
-        finally
-        {
-            client.close();
         }
     }
 
     @Test
     public void testOverloadedExceptionForOverallInflightLimit() throws Throwable
     {
-        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
-                                               nativePort,
-                                               ProtocolVersion.V5,
-                                               true,
-                                               new EncryptionOptions());
-
-        try
+        try (SimpleClient client = client())
         {
-            client.connect(false, false, true);
-            QueryOptions queryOptions = QueryOptions.create(
-            QueryOptions.DEFAULT.getConsistency(),
-            QueryOptions.DEFAULT.getValues(),
-            QueryOptions.DEFAULT.skipMetadata(),
-            QueryOptions.DEFAULT.getPageSize(),
-            QueryOptions.DEFAULT.getPagingState(),
-            QueryOptions.DEFAULT.getSerialConsistency(),
-            ProtocolVersion.V5,
-            KEYSPACE);
-
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         queryOptions);
+                                                         V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
             queryMessage = new QueryMessage("INSERT INTO atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);
@@ -253,41 +223,21 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             {
                 Assert.assertTrue(e.getCause() instanceof OverloadedException);
             }
-        }
-        finally
-        {
-            client.close();
         }
     }
 
     @Test
     public void testChangingLimitsAtRuntime() throws Throwable
     {
-        SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
-                                               nativePort,
-                                               ProtocolVersion.V5,
-                                               true,
-                                               new EncryptionOptions());
-        client.connect(false, true, true);
-
-        QueryOptions queryOptions = QueryOptions.create(
-        QueryOptions.DEFAULT.getConsistency(),
-        QueryOptions.DEFAULT.getValues(),
-        QueryOptions.DEFAULT.skipMetadata(),
-        QueryOptions.DEFAULT.getPageSize(),
-        QueryOptions.DEFAULT.getPagingState(),
-        QueryOptions.DEFAULT.getSerialConsistency(),
-        ProtocolVersion.V5,
-        KEYSPACE);
-
+        SimpleClient client = client();
         try
         {
             QueryMessage queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
-                                                         queryOptions);
+                                                         V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);
@@ -297,7 +247,6 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             {
                 Assert.assertTrue(e.getCause() instanceof OverloadedException);
             }
-
 
             // change global limit, query will still fail because endpoint limit
             Server.EndpointPayloadTracker.setGlobalLimit(HIGH_LIMIT);
@@ -305,7 +254,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             Assert.assertEquals("new global limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);
@@ -322,7 +271,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
             // ensure new clients also see the new raised limits
@@ -335,7 +284,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             client.connect(false, true, true);
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             client.execute(queryMessage);
 
             // lower the global limit and ensure the query fails again
@@ -344,7 +293,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             Assert.assertEquals("new global limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);
@@ -361,7 +310,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", 60, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
 
             queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
-                                                         queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);
@@ -382,7 +331,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             client.connect(false, true, true);
 
             queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
-                                            queryOptions);
+                                            V5_DEFAULT_OPTIONS);
             try
             {
                 client.execute(queryMessage);

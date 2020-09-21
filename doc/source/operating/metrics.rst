@@ -621,13 +621,16 @@ Reported name format:
 **JMX MBean**
     ``org.apache.cassandra.metrics:type=Client name=<MetricName>``
 
-============================== =============================== ===========
-Name                           Type                            Description
-============================== =============================== ===========
-connectedNativeClients         Gauge<Integer>                  Number of clients connected to this nodes native protocol server
-connections                    Gauge<List<Map<String, String>> List of all connections and their state information
-connectedNativeClientsByUser   Gauge<Map<String, Int>          Number of connnective native clients by username
-============================== =============================== ===========
+============================== ================================ ===========
+Name                           Type                             Description
+============================== ================================ ===========
+ConnectedNativeClients         Gauge<Integer>                   Number of clients connected to this nodes native protocol server
+Connections                    Gauge<List<Map<String, String>>  List of all connections and their state information
+ConnectedNativeClientsByUser   Gauge<Map<String, Int>           Number of connnective native clients by username
+ClientsByProtocolVersion       Gauge<List<Map<String, String>>> List of up to last 100 connections including protocol version. Can be reset with clearConnectionHistory operation in org.apache.cassandra.db:StorageService mbean.
+RequestsSize                   Gauge<Long>                      How many concurrent bytes used in currently processing requests
+RequestsSizeByIpDistribution   Histogram                        How many concurrent bytes used in currently processing requests by different ips
+============================== ================================ ===========
 
 
 Batch Metrics
