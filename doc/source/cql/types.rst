@@ -420,9 +420,9 @@ and can be used thusly::
     INSERT INTO durations (event, duration) VALUES ('ev1', (3, 'hours'));
 
 Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>` (without the need of the
-`frozen` keyword) and it is not possible to update only some elements of a tuple (without updating the whole tuple).
-Also, a tuple literal should always have the same number of value than declared in the type it is a tuple of (some of
-those values can be null but they need to be explicitly declared as so).
+`frozen` keyword). It is not possible to update only some elements of a tuple (without updating the whole tuple).
+A tuple literal must have the same number of items as its declaring type (some of
+those values can be null but they must be explicitly declared).
 
 .. _udts:
 
