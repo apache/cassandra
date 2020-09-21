@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Reservoir;
+import com.codahale.metrics.Snapshot;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -44,7 +46,6 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.Version;
@@ -57,6 +58,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -366,6 +368,21 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
+        public static long getCurrentGlobalUsage()
+        {
+            return globalRequestPayloadInFlight.using();
+        }
+
+        public static Snapshot getCurrentIpUsage()
+        {
+            DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir();
+            for (EndpointPayloadTracker tracker : requestPayloadInFlightPerEndpoint.values())
+            {
+                histogram.update(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using());
+            }
+            return histogram.getSnapshot();
+        }
+
         public static long getGlobalLimit()
         {
             return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes();
@@ -403,6 +420,31 @@ public class Server implements CassandraDaemon.Server
         {
             if (-1 == refCount.updateAndGet(i -> i == 1 ? -1 : i - 1))
                 requestPayloadInFlightPerEndpoint.remove(endpoint, this);
+        }
+
+        /**
+         * This will recompute the ip usage histo on each query of the snapshot when requested instead of trying to keep
+         * a histogram up to date with each request
+         */
+        public static Reservoir ipUsageReservoir()
+        {
+            return new Reservoir()
+            {
+                public int size()
+                {
+                    return requestPayloadInFlightPerEndpoint.size();
+                }
+
+                public void update(long l)
+                {
+                    throw new IllegalStateException();
+                }
+
+                public Snapshot getSnapshot()
+                {
+                    return getCurrentIpUsage();
+                }
+            };
         }
     }
 
