@@ -566,7 +566,7 @@ To insert a frozen value, it's just like a non-frozen column::
 Updating a frozen column
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-As mentioned before, it's not possible to update an individual item of a collection::
+It's not possible to update an individual item of a collection::
 
     UPDATE posts SET tags = tags - {'availability'} WHERE id = 1;
 
