@@ -27,6 +27,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -270,7 +271,7 @@ public class BatchMessage extends Message.Request
                     {
                         ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
                         String boundValue = cs.type.asCQL3Type().toCQLLiteral(queryValues.get(i), options.getProtocolVersion());
-                        boundValue = truncateCqlLiteral(boundValue);
+                        boundValue = CqlBuilder.truncateCqlLiteral(boundValue);
                         values.add(boundValue);
                     }
                     sb.append(prepared.rawCQLStatement).append(" WITH ").append(values);

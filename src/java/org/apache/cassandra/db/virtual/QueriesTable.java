@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.db.virtual;
 
-
-import java.util.concurrent.TimeUnit;
-
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.db.marshal.LongType;
@@ -40,7 +37,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  */
 public class QueriesTable extends AbstractVirtualTable
 {
-
     private static final String TABLE_NAME = "queries";
     private static final String ID = "thread_id";
     private static final String QUEUETIME = "queued_micros";
@@ -68,19 +64,17 @@ public class QueriesTable extends AbstractVirtualTable
     public AbstractVirtualTable.DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        long now = MonotonicClock.approxTime.now();
         for (DebuggableTask.RunningDebuggableTask task : SharedExecutorPool.SHARED.runningTasks())
         {
             if(!task.hasTask()) continue;
             long approxTimeOfCreation = task.approxTimeOfCreation();
             long approxTimeOfStart = task.approxTimeOfStart();
-            long queuedMicros = NANOSECONDS.toMicros(max((approxTimeOfStart > 0 ? approxTimeOfStart : now) - approxTimeOfCreation, 0));
-            long runningMicros = approxTimeOfStart > 0 ? NANOSECONDS.toMicros(max(approxTimeOfStart - now, 0)) : 0;
+            long nowNanos = MonotonicClock.approxTime.now();
+            long queuedMicros = NANOSECONDS.toMicros(max((approxTimeOfStart > 0 ? approxTimeOfStart : nowNanos) - approxTimeOfCreation, 0));
+            long runningMicros = NANOSECONDS.toMicros(approxTimeOfStart > 0 ? max(nowNanos - approxTimeOfStart, 0) : 0);
             result.row(task.threadId())
-                  // Since MonotonicClock is used for some but not all, we want to cap to make sure any drift between
-                  // different clocks doesn't cause it to go negative which would just look impossible
-                  .column(QUEUETIME, Math.max(1, now - queuedMicros))
-                  .column(RUNTIME, Math.max(1, now - runningMicros))
+                  .column(QUEUETIME, queuedMicros)
+                  .column(RUNTIME, runningMicros)
                   .column(DESC, task.debug());
         }
         return result;

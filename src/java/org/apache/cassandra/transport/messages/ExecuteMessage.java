@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -206,7 +207,7 @@ public class ExecuteMessage extends Message.Request
             ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
             String boundName = cs.name.toString();
             String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
-            boundValue = truncateCqlLiteral(boundValue);
+            boundValue = CqlBuilder.truncateCqlLiteral(boundValue);
             //Here we prefix boundName with the index to avoid possible collission in builder keys due to
             //having multiple boundValues for the same variable
             builder.put("bound_var_" + i + '_' + boundName, boundValue);

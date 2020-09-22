@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -669,7 +669,8 @@ public abstract class ModificationStatement implements CQLStatement
      *
      * @return list of the mutations
      */
-    private List<? extends IMutation> getMutations(QueryOptions options,
+    @VisibleForTesting
+    public List<? extends IMutation> getMutations(QueryOptions options,
                                                          boolean local,
                                                          long timestamp,
                                                          int nowInSeconds,

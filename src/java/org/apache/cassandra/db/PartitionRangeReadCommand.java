@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableMetadata;
@@ -358,7 +359,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         return Verb.RANGE_REQ;
     }
 
-    protected void appendCQLWhereClause(StringBuilder sb)
+    protected void appendCQLWhereClause(CqlBuilder sb)
     {
         if (dataRange.isUnrestricted() && rowFilter().isEmpty())
             return;

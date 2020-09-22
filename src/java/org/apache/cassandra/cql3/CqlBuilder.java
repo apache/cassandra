@@ -17,24 +17,42 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
+
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Utility class to facilitate the creation of the CQL representation of {@code SchemaElements}.
  */
-public final class CqlBuilder
+public class CqlBuilder
 {
     @FunctionalInterface
     public static interface Appender<T>
     {
         public void appendTo(CqlBuilder builder, T obj);
     }
+
+    /**
+     * Max length to display values for debug strings
+     **/
+    public final static int MAX_VALUE_LEN = Integer.getInteger(Config.PROPERTY_PREFIX + "max_cql_debug_length", 128);
+
+    /**
+     * chars that wrap a CQL literal
+     */
+    private static List<Character> LITERAL_END = Lists.newArrayList('\'', ']', '}', ')');
 
     /**
      * The new line character
@@ -63,6 +81,13 @@ public final class CqlBuilder
     {
         indentIfNeeded();
         builder.append(str);
+        return this;
+    }
+
+    public CqlBuilder append(Object obj)
+    {
+        indentIfNeeded();
+        builder.append(obj.toString());
         return this;
     }
 
@@ -141,6 +166,31 @@ public final class CqlBuilder
         return append(column.toCQLString());
     }
 
+    public CqlBuilder append(AbstractType<?> type, ByteBuffer buffer)
+    {
+        return append(type, buffer, false);
+    }
+
+    public CqlBuilder append(AbstractType<?> type, ByteBuffer buffer, boolean truncate)
+    {
+        if (type instanceof CompositeType)
+        {
+            CompositeType ct = (CompositeType)type;
+            ByteBuffer[] values = ct.split(buffer);
+            for (int i = 0; i < ct.types.size(); i++)
+            {
+                String val = ct.types.get(i).asCQL3Type().toCQLLiteral(values[i], ProtocolVersion.CURRENT);
+                append(i == 0 ? "" : ", ").append(truncate? truncateCqlLiteral(val) : val);
+            }
+        }
+        else
+        {
+            String val = type.asCQL3Type().toCQLLiteral(buffer, ProtocolVersion.CURRENT);
+            append(truncate? truncateCqlLiteral(val) : val);
+        }
+        return this;
+    }
+
     public CqlBuilder append(FunctionName name)
     {
         name.appendCqlTo(this);
@@ -217,6 +267,34 @@ public final class CqlBuilder
                 builder.append(INDENTATION);
             isNewLine = false;
         }
+    }
+
+    public static String truncateCqlLiteral(String value)
+    {
+        return truncateCqlLiteral(value, MAX_VALUE_LEN);
+    }
+
+    @VisibleForTesting
+    public static String truncateCqlLiteral(final String value, int max)
+    {
+        if (value.length() <= max)
+            return value;
+
+        String result = value;
+        // Do not interrupt a escaped '
+        int truncateAt = max;
+        for (;value.charAt(truncateAt) == '\'' && truncateAt < value.length()-1; truncateAt++);
+
+        result = value.substring(0, truncateAt) + "...";
+
+        // both string literals or blobs are expected to exceed this size, while blobs are fine as is the string
+        // literals will be truncating their trailing '. Collections have (), {}, and []'s
+        char last = value.charAt(value.length() - 1);
+        if (LITERAL_END.contains(last))
+        {
+            result += last;
+        }
+        return result;
     }
 
     public String toString()

@@ -68,10 +68,6 @@ import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
 public abstract class Message
 {
     protected static final Logger logger = LoggerFactory.getLogger(Message.class);
-    /**
-     * Max length to display values for debug strings
-     **/
-    public final static int MAX_VALUE_LEN = Integer.getInteger(Config.PROPERTY_PREFIX + "max_cql_debug_length", 128);
 
     /**
      * When we encounter an unexpected IOException we look for these {@link Throwable#getMessage() messages}
@@ -733,6 +729,8 @@ public abstract class Message
                 this.request = request;
                 this.dispatcher = dispatcher;
             }
+
+            @Override
             public void run()
             {
                 approxTimeOfStart = MonotonicClock.approxTime.now();
@@ -772,16 +770,19 @@ public abstract class Message
                 flush(new FlushItem(ctx, response, request.getSourceFrame(), dispatcher));
             }
 
+            @Override
             public long approxTimeOfCreation()
             {
                 return approxTimeOfCreation;
             }
 
+            @Override
             public long approxTimeOfStart()
             {
                 return approxTimeOfStart;
             }
 
+            @Override
             public String debug()
             {
                 return request.toString();
@@ -921,39 +922,5 @@ public abstract class Message
             // We handled the exception.
             return true;
         }
-    }
-
-
-    protected static String truncateCqlLiteral(String value)
-    {
-        return truncateCqlLiteral(value, MAX_VALUE_LEN);
-    }
-
-    /**
-     * chars that wrap a CQL literal
-     */
-    private static List<Character> LITERAL_END = Lists.newArrayList('\'', ']', '}', ')');
-
-    @VisibleForTesting
-    protected static String truncateCqlLiteral(final String value, int max)
-    {
-        if (value.length() <= max)
-            return value;
-
-        String result = value;
-        // Do not interrupt a escaped '
-        int truncateAt = max;
-        for (;value.charAt(truncateAt) == '\'' && truncateAt < value.length()-1; truncateAt++);
-
-        result = value.substring(0, truncateAt) + "...";
-
-        // both string literals or blobs are expected to exceed this size, while blobs are fine as is the string
-        // literals will be truncating their trailing '. Collections have (), {}, and []'s
-        char last = value.charAt(value.length() - 1);
-        if (LITERAL_END.contains(last))
-        {
-            result += last;
-        }
-        return result;
     }
 }

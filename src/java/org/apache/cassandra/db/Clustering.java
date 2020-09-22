@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -30,6 +31,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import static org.apache.cassandra.db.AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY;
@@ -68,11 +70,13 @@ public interface Clustering<V> extends ClusteringPrefix<V>
 
     public default String toCQLString(TableMetadata metadata)
     {
-        StringBuilder sb = new StringBuilder();
+        CqlBuilder sb = new CqlBuilder();
+        ByteBuffer[] buffer = getBufferArray();
         for (int i = 0; i < size(); i++)
         {
             ColumnMetadata c = metadata.clusteringColumns().get(i);
-            sb.append(i == 0 ? "" : ", ").append(c.type.getString(get(i), accessor()));
+            sb.append(i == 0 ? "" : ", ")
+              .append(c.type.asCQL3Type().toCQLLiteral(buffer[i], ProtocolVersion.CURRENT));
         }
         return sb.toString();
     }

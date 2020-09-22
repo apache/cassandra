@@ -63,18 +63,21 @@ public interface DebuggableTask
             return task != null;
         }
 
+        @Override
         public long approxTimeOfCreation()
         {
             assert hasTask();
             return task.approxTimeOfCreation();
         }
 
+        @Override
         public long approxTimeOfStart()
         {
             assert hasTask();
             return task.approxTimeOfStart();
         }
 
+        @Override
         public String debug()
         {
             assert hasTask();

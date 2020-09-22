@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -664,6 +664,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         PAXOS_COMMIT_REQ.stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
+            @Override
             public void runMayThrow()
             {
                 try
@@ -680,9 +681,11 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
+            @Override
             public String debug()
             {
-                return "Paxos" + message.payload.toString();
+                return "Paxos local commit for " + message.payload.update.partitionKey().toString() +
+                       " in " + message.payload.update.metadata().toString();
             }
 
             @Override
@@ -1095,7 +1098,7 @@ public class StorageProxy implements StorageProxyMBean
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
 
             if (replica.isSelf())
-                performLocally(Stage.MUTATION, replica, () -> BatchlogManager.store(batch), handler, "Batchlog store");
+                performLocally(Stage.MUTATION, replica, () -> BatchlogManager.store(batch), handler, () -> "Batchlog store");
             else
                 MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
         }
@@ -1111,7 +1114,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.trace("Sending batchlog remove request {} to {}", uuid, target);
 
             if (target.isSelf())
-                performLocally(Stage.MUTATION, target, () -> BatchlogManager.remove(uuid), "Batchlog remove");
+                performLocally(Stage.MUTATION, target, () -> BatchlogManager.remove(uuid), () -> "Batchlog remove");
             else
                 MessagingService.instance().send(message, target.endpoint());
         }
@@ -1348,7 +1351,7 @@ public class StorageProxy implements StorageProxyMBean
         if (insertLocal)
         {
             Preconditions.checkNotNull(localReplica);
-            performLocally(stage, localReplica, mutation::apply, responseHandler, mutation);
+            performLocally(stage, localReplica, mutation::apply, responseHandler, () -> "APPLY " + mutation.toCQLString(true));
         }
 
         if (localDc != null)
@@ -1415,10 +1418,11 @@ public class StorageProxy implements StorageProxyMBean
         logger.trace("Sending message to {}@{}", message.id(), target);
     }
 
-    private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, String description)
+    private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, Supplier<String> description)
     {
         stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
+            @Override
             public void runMayThrow()
             {
                 try
@@ -1431,9 +1435,10 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
+            @Override
             public String debug()
             {
-                return description;
+                return description.get();
             }
 
             @Override
@@ -1445,10 +1450,11 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable,
-                                       final RequestCallback<?> handler, Object description)
+                                       final RequestCallback<?> handler, Supplier<String> description)
     {
         stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
+            @Override
             public void runMayThrow()
             {
                 try
@@ -1464,11 +1470,10 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
+            @Override
             public String debug()
             {
-                // description is an Object and toString() called so we do not have to evaluate the Mutation.toString()
-                // unless expliclitly checked
-                return description.toString();
+                return description.get();
             }
 
             @Override
@@ -2643,6 +2648,7 @@ public class StorageProxy implements StorageProxyMBean
             this.localReplica = localReplica;
         }
 
+        @Override
         public final void run()
         {
             final Verb verb = verb();
@@ -2674,11 +2680,13 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
+        @Override
         public long approxTimeOfCreation()
         {
             return approxTimeOfCreation;
         }
 
+        @Override
         public long approxTimeOfStart()
         {
             return approxTimeOfStart;
