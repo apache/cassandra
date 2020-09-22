@@ -96,7 +96,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
 
-        for (int i = 0; bb1.remaining() > 0 && bb2.remaining() > 0; i++)
+        for (int i = 0; bb1.remaining() > 0 && bb2.remaining() > 0 && i < types.size(); i++)
         {
             AbstractType<?> comparator = types.get(i);
 
@@ -120,11 +120,26 @@ public class TupleType extends AbstractType<ByteBuffer>
                 return cmp;
         }
 
+        if (bb1.remaining() == 0 && bb2.remaining() == 0)
+            return 0;
+
         if (bb1.remaining() == 0)
-            return bb2.remaining() == 0 ? 0 : -1;
+            return allRemainingComponentsAreNull(bb2) ? 0 : -1;
 
         // bb1.remaining() > 0 && bb2.remaining() == 0
-        return 1;
+        return allRemainingComponentsAreNull(bb1) ? 0 : 1;
+    }
+
+    // checks if all remaining components are null (e.g., their size is -1)
+    private static boolean allRemainingComponentsAreNull(ByteBuffer bb)
+    {
+        while (bb.hasRemaining())
+        {
+            int size = bb.getInt();
+            if (size >= 0)
+                return false;
+        }
+        return true;
     }
 
     /**
