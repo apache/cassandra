@@ -151,7 +151,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         int offsetL = 0;
         int offsetR = 0;
 
-        for (int i = 0; !accessorL.isEmptyFromOffset(left, offsetL) && !accessorR.isEmptyFromOffset(right, offsetR); i++)
+        for (int i = 0; !accessorL.isEmptyFromOffset(left, offsetL) && !accessorR.isEmptyFromOffset(right, offsetR) && i < types.size(); i++)
         {
             AbstractType<?> comparator = types.get(i);
 
@@ -179,24 +179,25 @@ public class TupleType extends AbstractType<ByteBuffer>
                 return cmp;
         }
 
-        // handle trailing nulls
-        while (!accessorL.isEmptyFromOffset(left, offsetL))
-        {
-            int size = accessorL.getInt(left, offsetL);
-            offsetL += TypeSizes.INT_SIZE;
-            if (size > 0) // non-null
-                return 1;
-        }
+        if (allRemainingComponentsAreNull(left, accessorL, offsetL) && allRemainingComponentsAreNull(right, accessorR, offsetR))
+            return 0;
 
-        while (!accessorR.isEmptyFromOffset(right, offsetR))
-        {
-            int size = accessorR.getInt(right, offsetR);
-            offsetR += TypeSizes.INT_SIZE;
-            if (size > 0) // non-null
-                return -1;
-        }
+        if (accessorL.isEmptyFromOffset(left, offsetL))
+            return allRemainingComponentsAreNull(right, accessorR, offsetR) ? 0 : -1;
 
-        return 0;
+        return allRemainingComponentsAreNull(left, accessorL, offsetL) ? 0 : 1;
+    }
+
+    private <T> boolean allRemainingComponentsAreNull(T v, ValueAccessor<T> accessor, int offset)
+    {
+        while (!accessor.isEmptyFromOffset(v, offset))
+        {
+            int size = accessor.getInt(v, offset);
+            offset += TypeSizes.INT_SIZE;
+            if (size >= 0)
+                return false;
+        }
+        return true;
     }
 
     /**
