@@ -2601,7 +2601,7 @@ public class StorageProxy implements StorageProxyMBean
     private static abstract class DroppableRunnable implements Runnable
     {
         final long approxTimeOfCreation;
-        long approxTimeOfStart;
+        volatile long approxTimeOfStart;
         final Verb verb;
 
         public DroppableRunnable(Verb verb)
@@ -2640,7 +2640,7 @@ public class StorageProxy implements StorageProxyMBean
     private static abstract class LocalMutationRunnable implements Runnable, DebuggableTask
     {
         private final long approxTimeOfCreation = MonotonicClock.approxTime.now();
-        private long approxTimeOfStart;
+        private volatile long approxTimeOfStart;
         private final Replica localReplica;
 
         LocalMutationRunnable(Replica localReplica)

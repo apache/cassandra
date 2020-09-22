@@ -721,7 +721,7 @@ public abstract class Message
             private final Request request;
             private final Dispatcher dispatcher;
             private final long approxTimeOfCreation = MonotonicClock.approxTime.now();
-            private long approxTimeOfStart;
+            private volatile long approxTimeOfStart;
 
             public RequestProcessor(ChannelHandlerContext ctx, Request request, Dispatcher dispatcher)
             {
