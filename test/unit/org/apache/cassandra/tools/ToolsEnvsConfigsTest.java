@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.junit.Assert.assertTrue;
 
@@ -35,19 +36,9 @@ public class ToolsEnvsConfigsTest
     @Test
     public void testJDKEnvInfoDefaultCleaners()
     {
-        ToolRunner runner = null;
-        try
-        {
-            runner = new ToolRunner(CQLTester.buildNodetoolArgs(Collections.emptyList()), true);
-            runner = runner.withEnvs(ImmutableMap.of("_JAVA_OPTIONS", "-Djava.net.preferIPv4Stack=true"));
-            runner = runner.start();
-            runner.waitFor();
-            assertTrue("Cleaned Stderr was not empty: " + runner.getCleanedStderr(),
-                       runner.getCleanedStderr().isEmpty());
-        }
-        finally
-        {
-            runner.close();
-        }
+        ToolResult tool = ToolRunner.invoke(ImmutableMap.of("_JAVA_OPTIONS", "-Djava.net.preferIPv4Stack=true"),
+                                            null,
+                                            CQLTester.buildNodetoolArgs(Collections.emptyList()));
+        assertTrue("Cleaned Stderr was not empty: " + tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
     }
 }

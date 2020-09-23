@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
@@ -30,8 +31,6 @@ import static org.junit.Assert.assertThat;
 
 public class CqlshTest extends CQLTester
 {
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
-    
     @BeforeClass
     public static void setUp()
     {
@@ -41,11 +40,8 @@ public class CqlshTest extends CQLTester
     @Test
     public void testKeyspaceRequired()
     {
-        try (ToolRunner tool = runner.invokeCqlsh("SELECT * FROM test"))
-        {
-            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No keyspace has been specified"));
-            assertEquals(2, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeCqlsh("SELECT * FROM test");
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No keyspace has been specified"));
+        assertEquals(2, tool.getExitCode());
     }
-    
 }

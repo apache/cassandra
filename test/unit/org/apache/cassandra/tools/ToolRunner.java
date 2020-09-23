@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,13 +27,17 @@ import java.lang.reflect.InvocationTargetException;
 import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-import org.apache.commons.io.IOUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,181 +47,13 @@ import org.apache.cassandra.tools.OfflineToolUtils.SystemExitException;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class ToolRunner implements AutoCloseable
+public class ToolRunner
 {
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
     private static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R");
-    private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
-    private final List<String> allArgs = new ArrayList<>();
-    private Process process;
-    @SuppressWarnings("resource")
-    private final ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
-    @SuppressWarnings("resource")
-    private final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-    private InputStream stdin;
-    private boolean stdinAutoClose;
-    private Thread[] ioWatchers;
-    private Map<String, String> envs;
-    private boolean runOutOfProcess = true;
-
-    public ToolRunner(List<String> args)
-    {
-        this.allArgs.addAll(args);
-    }
-    
-    public ToolRunner(List<String> args, boolean runOutOfProcess)
-    {
-        this.allArgs.addAll(args);
-        this.runOutOfProcess = runOutOfProcess;
-    }
-
-    public ToolRunner withStdin(InputStream stdin)
-    {
-        this.stdin = stdin;
-        return this;
-    }
-
-    public ToolRunner withEnvs(Map<String, String> envs)
-    {
-        Preconditions.checkArgument(runOutOfProcess, "Not supported");
-        this.envs = envs;
-        return this;
-    }
-
-    public ToolRunner start()
-    {
-        if (process != null)
-            throw new IllegalStateException("Process already started. Create a new ToolRunner instance for each invocation.");
-
-        logger.debug("Starting {} with args {}", runOutOfProcess ? "process" : "class" , argsToLogString());
-
-        try
-        {
-            if (runOutOfProcess)
-            {
-                ProcessBuilder pb = new ProcessBuilder(allArgs);
-                if (envs != null)
-                    pb.environment().putAll(envs);
-                process = pb.start();
-            }
-            else
-            {
-                PrintStream originalSysOut = System.out;
-                PrintStream originalSysErr = System.err;
-                InputStream originalSysIn = System.in;
-                originalSysOut.flush();
-                originalSysErr.flush();
-                ByteArrayOutputStream toolOut = new ByteArrayOutputStream();
-                ByteArrayOutputStream toolErr = new ByteArrayOutputStream();
-
-                System.setIn(stdin == null ? originalSysIn : stdin);
-
-                int exit;
-                try (PrintStream newOut = new PrintStream(toolOut); PrintStream newErr = new PrintStream(toolErr))
-                {
-                    System.setOut(newOut);
-                    System.setErr(newErr);
-                    String clazz = allArgs.get(0);
-                    String[] clazzArgs = allArgs.subList(1, allArgs.size()).toArray(EMPTY_STRING_ARRAY);
-                    exit = runClassAsTool(clazz, clazzArgs);
-                }
-                
-                final int exitCode = exit;
-                System.setOut(originalSysOut);
-                System.setErr(originalSysErr);
-                System.setIn(originalSysIn);
-                
-                process = new Process() {
-
-                    @Override
-                    public void destroy()
-                    {
-                    }
-
-                    @Override
-                    public int exitValue()
-                    {
-                        return exitCode;
-                    }
-
-                    @Override
-                    public InputStream getErrorStream()
-                    {
-                        return new ByteArrayInputStream(toolErr.toByteArray());
-                    }
-
-                    @Override
-                    public InputStream getInputStream()
-                    {
-                        return new ByteArrayInputStream(toolOut.toByteArray());
-                    }
-
-                    @Override
-                    public OutputStream getOutputStream()
-                    {
-                        if (stdin == null)
-                            return null;
-
-                        ByteArrayOutputStream out;
-                        try
-                        {
-                            out = new ByteArrayOutputStream(stdin.available());
-                            IOUtils.copy(stdin, out);
-                        }
-                        catch(IOException e)
-                        {
-                            throw new RuntimeException("Failed to get stdin", e);
-                        }
-                        return out;
-                    }
-
-                    @Override
-                    public int waitFor()
-                    {
-                        return exitValue();
-                    }
-                    
-                };
-            }
-
-            // each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
-            // might block on an idle stream, not consuming the other stream which is blocked in the other process
-            // as nothing is consuming
-            int numWatchers = 2;
-            // only need a stdin watcher when forking
-            boolean includeStdinWatcher = runOutOfProcess && stdin != null;
-            if (includeStdinWatcher)
-                numWatchers = 3;
-            ioWatchers = new Thread[numWatchers];
-            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), errBuffer));
-            ioWatchers[0].setDaemon(true);
-            ioWatchers[0].setName("IO Watcher stderr for " + allArgs);
-            ioWatchers[0].start();
-
-            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), outBuffer));
-            ioWatchers[1].setDaemon(true);
-            ioWatchers[1].setName("IO Watcher stdout for " + allArgs);
-            ioWatchers[1].start();
-
-            if (includeStdinWatcher)
-            {
-                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream()));
-                ioWatchers[2].setDaemon(true);
-                ioWatchers[2].setName("IO Watcher stdin for " + allArgs);
-                ioWatchers[2].start();
-            }
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Failed to start " + allArgs, e);
-        }
-
-        return this;
-    }
-    
-    public int runClassAsTool(String clazz, String... args)
+    public static int runClassAsTool(String clazz, String... args)
     {
         try
         {
@@ -274,148 +109,6 @@ public class ToolRunner implements AutoCloseable
         }
     }
 
-    public boolean isRunning()
-    {
-        return process != null && process.isAlive();
-    }
-
-    public int waitFor()
-    {
-        try
-        {
-            int rc = process.waitFor();
-            // must call first in order to make sure the stdin ioWatcher will exit
-            onComplete();
-            for (Thread t : ioWatchers)
-                t.join();
-            return rc;
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public ToolRunner waitAndAssertOnExitCode()
-    {
-        assertExitCode(waitFor());
-        return this;
-    }
-    
-    public ToolRunner waitAndAssertOnCleanExit()
-    {
-        return waitAndAssertOnExitCode().assertCleanStdErr();
-    }
-    
-    /**
-     * Checks if the stdErr is empty after removing any potential JVM env info output and other noise
-     * 
-     * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual stdErr
-     * @return The ToolRunner instance
-     */
-    public ToolRunner assertCleanStdErr()
-    {
-        assertTrue("Failed because cleaned stdErr wasn't empty: " + getCleanedStderr(), getCleanedStderr().isEmpty());
-        return this;
-    }
-
-    public ToolRunner assertOnExitCode()
-    {
-        assertExitCode(getExitCode());
-        return this;
-    }
-
-    private void assertExitCode(int code)
-    {
-        if (code != 0)
-            fail(String.format("%s%nexited with code %d%nstderr:%n%s%nstdout:%n%s",
-                               argsToLogString(),
-                               code,
-                               getStderr(),
-                               getStdout()));
-    }
-
-    public String argsToLogString()
-    {
-        return allArgs.stream().collect(Collectors.joining(",\n    ", "[", "]"));
-    }
-
-    public int getExitCode()
-    {
-        return process.exitValue();
-    }
-
-    public String getStdout()
-    {
-        return outBuffer.toString();
-    }
-
-    public String getStderr()
-    {
-        return errBuffer.toString();
-    }
-
-    /**
-     * Returns stdErr after removing any potential JVM env info output through the provided cleaners
-     * 
-     * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual stdErr
-     * 
-     * @param regExpCleaners List of regExps to remove from stdErr
-     * @return The stdErr with all excludes removed
-     */
-    public String getCleanedStderr(List<String> regExpCleaners)
-    {
-        String sanitizedStderr = getStderr();
-        for (String regExp: regExpCleaners)
-            sanitizedStderr = sanitizedStderr.replaceAll(regExp, "");
-        return sanitizedStderr;
-    }
-
-    /**
-     * Returns stdErr after removing any potential JVM env info output. Uses default list of excludes
-     * 
-     * {@link #getCleanedStderr(List)}
-     */
-    public String getCleanedStderr()
-    {
-        return getCleanedStderr(DEFAULT_CLEANERS);
-    }
-
-    public void forceKill()
-    {
-        try
-        {
-            process.exitValue();
-            // process no longer alive - just ignore that fact
-        }
-        catch (IllegalThreadStateException e)
-        {
-            process.destroyForcibly();
-        }
-    }
-
-    @Override
-    public void close()
-    {
-        forceKill();
-        onComplete();
-    }
-
-    private void onComplete()
-    {
-        if (stdin != null)
-        {
-            try
-            {
-                stdin.close();
-            }
-            catch (IOException e)
-            {
-                logger.warn("Error closing stdin for {}", allArgs, e);
-            }
-        }
-    }
-
     private static final class StreamGobbler<T extends OutputStream> implements Runnable
     {
         private static final int BUFFER_SIZE = 8_192;
@@ -452,125 +145,430 @@ public class ToolRunner implements AutoCloseable
         }
     }
 
-    private void watchIO()
+    /**
+     * Invokes Cqlsh. The first arg is the cql to execute
+     */
+    public static ToolResult invokeCqlsh(String... args)
     {
-        OutputStream in = process.getOutputStream();
-        InputStream err = process.getErrorStream();
-        InputStream out = process.getInputStream();
-        while (true)
+        return invokeCqlsh(Arrays.asList(args));
+    }
+
+    /**
+     * Invokes Cqlsh. The first arg is the cql to execute
+     */
+    public static ToolResult invokeCqlsh(List<String> args)
+    {
+        return invoke(CQLTester.buildCqlshArgs(args));
+    }
+
+    public static ToolResult invokeCassandraStress(String... args)
+    {
+        return invokeCassandraStress(Arrays.asList(args));
+    }
+
+    public static ToolResult invokeCassandraStress(List<String> args)
+    {
+        return invoke(CQLTester.buildCassandraStressArgs(args));
+    }
+
+    public static ToolResult invokeNodetool(String... args)
+    {
+        return invokeNodetool(Arrays.asList(args));
+    }
+
+    public static ToolResult invokeNodetool(List<String> args)
+    {
+        return invoke(CQLTester.buildNodetoolArgs(args));
+    }
+
+    public static ToolResult invoke(List<String> args)
+    {
+        return invoke(args.toArray(new String[args.size()]));
+    }
+
+    public static ToolResult invoke(String... args) 
+    {
+        return invokeAsync(args).waitComplete();
+    }
+
+    public static ObservableTool invokeAsync(String... args)
+    {
+        return invokeAsync(Collections.emptyMap(), null, Arrays.asList(args));
+    }
+
+    public static ToolResult invoke(Map<String, String> env, InputStream stdin, List<String> args)
+    {
+        return invokeAsync(env, stdin, args).waitComplete();
+    }
+
+    public static ObservableTool invokeAsync(Map<String, String> env, InputStream stdin, List<String> args)
+    {
+        ProcessBuilder pb = new ProcessBuilder(args);
+        if (env != null && !env.isEmpty())
+            pb.environment().putAll(env);
+        try
         {
-            boolean errHandled;
-            boolean outHandled;
-            try
-            {
-                if (stdin != null)
-                {
-                    IOUtils.copy(stdin, in);
-                    if (stdinAutoClose)
-                    {
-                        in.close();
-                        stdin = null;
-                    }
-                }
-                errHandled = IOUtils.copy(err, errBuffer) > 0;
-                outHandled = IOUtils.copy(out, outBuffer) > 0;
-            }
-            catch(IOException e1)
-            {
-                logger.error("Error trying to use in/err/out from process");
-                Thread.currentThread().interrupt();
-                break;
-            }
-            if (!errHandled && !outHandled)
-            {
-                if (!process.isAlive())
-                    return;
-                try
-                {
-                    Thread.sleep(50L);
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
+            return new ForkedObservableTool(pb.start(), stdin, args);
+        }
+        catch (IOException e)
+        {
+            return new FailedObservableTool(e, args);
         }
     }
 
-    public static class Runners
+    public static ToolResult invokeClass(String klass,  String... args)
     {
-        public static ToolRunner invokeNodetool(String... args)
+        return invokeClass(klass, null, args);
+    }
+
+    public static ToolResult invokeClass(Class<?> klass,  String... args)
+    {
+        return invokeClass(klass.getName(), null, args);
+    }
+
+    public static ToolResult invokeClass(String klass, InputStream stdin, String... args)
+    {
+        List<String> allArgs = new ArrayList<>();
+        allArgs.add(klass);
+        allArgs.addAll(Arrays.asList(args));
+        
+        PrintStream originalSysOut = System.out;
+        PrintStream originalSysErr = System.err;
+        InputStream originalSysIn = System.in;
+        originalSysOut.flush();
+        originalSysErr.flush();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        System.setIn(stdin == null ? originalSysIn : stdin);
+
+        try (PrintStream newOut = new PrintStream(out);
+             PrintStream newErr = new PrintStream(err))
         {
-            return invokeNodetool(Arrays.asList(args));
+            System.setOut(newOut);
+            System.setErr(newErr);
+            int rc = runClassAsTool(klass, args);
+            return new ToolResult(allArgs, rc, out.toString(), err.toString(), null);
+        }
+        catch (Exception e)
+        {
+            return new ToolResult(allArgs, -1, "", Throwables.getStackTraceAsString(e), e);
+        }
+        finally
+        {
+            System.setOut(originalSysOut);
+            System.setErr(originalSysErr);
+            System.setIn(originalSysIn);
+        }
+    }
+
+    public static Builder builder(List<String> args)
+    {
+        return new Builder(args);
+    }
+
+    public static final class ToolResult
+    {
+        private final List<String> allArgs;
+        private final int exitCode;
+        private final String stdout;
+        private final String stderr;
+        private final Exception e;
+
+        private ToolResult(List<String> allArgs, int exitCode, String stdout, String stderr, Exception e)
+        {
+            this.allArgs = allArgs;
+            this.exitCode = exitCode;
+            this.stdout = stdout;
+            this.stderr = stderr;
+            this.e = e;
         }
 
-        public static ToolRunner invokeNodetool(List<String> args)
+        public int getExitCode()
         {
-            return invokeTool(CQLTester.buildNodetoolArgs(args), true, true);
+            return exitCode;
+        }
+
+        public String getStdout()
+        {
+            return stdout;
+        }
+
+        public String getStderr()
+        {
+            return stderr;
+        }
+        
+        public Exception getException()
+        {
+            return e;
+        }
+        
+        /**
+         * Checks if the stdErr is empty after removing any potential JVM env info output and other noise
+         * 
+         * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual
+         * stdErr
+         * 
+         * @return The ToolRunner instance
+         */
+        public void assertCleanStdErr()
+        {
+            assertTrue("Failed because cleaned stdErr wasn't empty: " + getCleanedStderr(),
+                       getCleanedStderr().isEmpty());
+        }
+
+        public void assertOnExitCode()
+        {
+            assertExitCode(getExitCode());
+        }
+
+        private void assertExitCode(int code)
+        {
+            if (code != 0)
+                fail(String.format("%s%nexited with code %d%nstderr:%n%s%nstdout:%n%s",
+                                   argsToLogString(),
+                                   code,
+                                   getStderr(),
+                                   getStdout()));
+        }
+
+        public String argsToLogString()
+        {
+            return allArgs.stream().collect(Collectors.joining(",\n    ", "[", "]"));
         }
 
         /**
-         * Invokes Cqlsh. The first arg is the cql to execute
+         * Returns stdErr after removing any potential JVM env info output through the provided cleaners
+         * 
+         * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual
+         * stdErr
+         * 
+         * @param regExpCleaners
+         *            List of regExps to remove from stdErr
+         * @return The stdErr with all excludes removed
          */
-        public ToolRunner invokeCqlsh(String... args)
+        public String getCleanedStderr(List<String> regExpCleaners)
         {
-            return invokeCqlsh(Arrays.asList(args));
+            String sanitizedStderr = getStderr();
+            for (String regExp : regExpCleaners)
+                sanitizedStderr = sanitizedStderr.replaceAll(regExp, "");
+            return sanitizedStderr;
         }
 
         /**
-         * Invokes Cqlsh. The first arg is the cql to execute
+         * Returns stdErr after removing any potential JVM env info output. Uses default list of excludes
+         * 
+         * {@link #getCleanedStderr(List)}
          */
-        public ToolRunner invokeCqlsh(List<String> args)
+        public String getCleanedStderr()
         {
-            return invokeTool(CQLTester.buildCqlshArgs(args), true, true);
+            return getCleanedStderr(DEFAULT_CLEANERS);
+        }
+        
+        public void assertOnCleanExit()
+        {
+            assertOnExitCode();
+            assertCleanStdErr();
+        }
+    }
+
+    public interface ObservableTool extends AutoCloseable
+    {
+        String getPartialStdout();
+
+        String getPartialStderr();
+
+        boolean isDone();
+
+        ToolResult waitComplete();
+
+        @Override
+        void close();
+    }
+
+    private static final class FailedObservableTool implements ObservableTool
+    {
+        private final List<String> args;
+        private final IOException error;
+
+        private FailedObservableTool(IOException error, List<String> args)
+        {
+            this.args = args;
+            this.error = error;
         }
 
-        public static ToolRunner invokeClassAsTool(String... args)
+        @Override
+        public String getPartialStdout()
         {
-            return invokeClassAsTool(Arrays.asList(args));
+            return "";
         }
 
-        public static ToolRunner invokeClassAsTool(List<String> args)
+        @Override
+        public String getPartialStderr()
         {
-            return invokeTool(args, false, true);
+            return error.getMessage();
         }
 
-        public ToolRunner invokeCassandraStress(String... args)
+        @Override
+        public boolean isDone()
         {
-            return invokeCassandraStress(Arrays.asList(args));
+            return true;
         }
 
-        public ToolRunner invokeCassandraStress(List<String> args)
+        @Override
+        public ToolResult waitComplete()
         {
-            return invokeTool(CQLTester.buildCassandraStressArgs(args), true, true);
+            return new ToolResult(args, -1, getPartialStdout(), getPartialStderr(), error);
         }
 
-        public static ToolRunner invokeTool(String... args)
+        @Override
+        public void close()
         {
-            return invokeTool(Arrays.asList(args));
+
+        }
+    }
+
+    private static final class ForkedObservableTool implements ObservableTool
+    {
+        private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
+        private final ByteArrayOutputStream err = new ByteArrayOutputStream();
+        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        private final Process process;
+        private final Thread[] ioWatchers;
+        private final List<String> args;
+
+        private ForkedObservableTool(Process process, InputStream stdin, List<String> args)
+        {
+            this.process = process;
+            this.args = args;
+
+            // Each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
+            // might block on an idle stream, not consuming the other stream which is blocked in the other process
+            // as nothing is consuming
+            int numWatchers = 2;
+            // only need a stdin watcher when forking
+            boolean includeStdinWatcher = stdin != null;
+            if (includeStdinWatcher)
+                numWatchers = 3;
+            ioWatchers = new Thread[numWatchers];
+            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err));
+            ioWatchers[0].setDaemon(true);
+            ioWatchers[0].setName("IO Watcher stderr");
+            ioWatchers[0].start();
+
+            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out));
+            ioWatchers[1].setDaemon(true);
+            ioWatchers[1].setName("IO Watcher stdout");
+            ioWatchers[1].start();
+
+            if (includeStdinWatcher)
+            {
+                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream()));
+                ioWatchers[2].setDaemon(true);
+                ioWatchers[2].setName("IO Watcher stdin");
+                ioWatchers[2].start();
+                // since stdin might not close the thread would block, so add logic to try to close stdin when the process exits
+                onComplete.whenComplete((i1, i2) -> {
+                    try
+                    {
+                        stdin.close();
+                    }
+                    catch (IOException e)
+                    {
+                        logger.warn("Error closing stdin", e);
+                    }
+                });
+            }
         }
 
-        public static ToolRunner invokeTool(List<String> args)
+        @Override
+        public String getPartialStdout()
         {
-            return invokeTool(args, true, true);
+            return out.toString();
         }
 
-        public static ToolRunner invokeToolNoWait(List<String> args)
+        @Override
+        public String getPartialStderr()
         {
-            return invokeTool(args, true, false);
+            return err.toString();
         }
 
-        public static ToolRunner invokeTool(List<String> args, boolean runOutOfProcess, boolean wait)
+        @Override
+        public boolean isDone()
         {
-            ToolRunner runner = new ToolRunner(args, runOutOfProcess);
-            if (wait)
-                runner.start().waitFor();
-            else
-                runner.start();
-
-            return runner;
+            return !process.isAlive();
         }
 
+        @Override
+        public ToolResult waitComplete()
+        {
+            try
+            {
+                int rc = process.waitFor();
+                onComplete();
+                return new ToolResult(args, rc, out.toString(), err.toString(), null);
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void onComplete() throws InterruptedException
+        {
+            onComplete.complete(null);
+            for (Thread t : ioWatchers)
+                t.join();
+        }
+
+        @Override
+        public void close()
+        {
+            if (!process.isAlive())
+                return;
+            process.destroyForcibly();
+        }
+    }
+
+    public static final class Builder
+    {
+        private final Map<String, String> env = new HashMap<>();
+        private final List<String> args;
+        private InputStream stdin;
+
+        public Builder(List<String> args)
+        {
+            this.args = Objects.requireNonNull(args);
+        }
+
+        public Builder withEnv(String key, String value)
+        {
+            env.put(key, value);
+            return this;
+        }
+
+        public Builder withEnvs(Map<String, String> map)
+        {
+            env.putAll(map);
+            return this;
+        }
+
+        public Builder withStdin(InputStream input)
+        {
+            this.stdin = input;
+            return this;
+        }
+
+        public ObservableTool invokeAsync()
+        {
+            return ToolRunner.invokeAsync(env, stdin, args);
+        }
+
+        public ToolResult invoke()
+        {
+            return ToolRunner.invoke(env, stdin, args);
+        }
     }
 }

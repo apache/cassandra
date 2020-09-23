@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
@@ -31,8 +32,6 @@ import static org.junit.Assert.assertTrue;
 
 public class CassandrastressTest extends CQLTester
 {
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
-    
     @BeforeClass
     public static void setUp()
     {
@@ -42,12 +41,10 @@ public class CassandrastressTest extends CQLTester
     @Test
     public void testNoArgsPrintsHelp()
     {
-        try (ToolRunner tool = runner.invokeCassandraStress())
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-            assertTrue("Tool stderr: " +  tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeCassandraStress();
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        assertTrue("Tool stderr: " +  tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
+        assertEquals(1, tool.getExitCode());
     }
     
 }

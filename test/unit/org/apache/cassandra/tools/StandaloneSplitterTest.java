@@ -27,18 +27,16 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StandaloneSplitterTest extends OfflineToolUtils
 {
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
-
     // Note: StandaloneSplitter modifies sstables
 
     @BeforeClass
@@ -53,12 +51,10 @@ public class StandaloneSplitterTest extends OfflineToolUtils
     @Test
     public void testNoArgsPrintsHelp()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSplitter.class.getName()))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No sstables to split"));
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class);
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No sstables to split"));
+        assertEquals(1, tool.getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -71,43 +67,37 @@ public class StandaloneSplitterTest extends OfflineToolUtils
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSplitter.class.getName(), "-h"))
-        {
-            String help = "usage: sstablessplit [options] <filename> [<filename>]*\n" + 
-                          "--\n" + 
-                          "Split the provided sstables files in sstables of maximum provided file\n" + 
-                          "size (see option --size).\n" + 
-                          "--\n" + 
-                          "Options are:\n" + 
-                          "    --debug         display stack traces\n" + 
-                          " -h,--help          display this help message\n" + 
-                          "    --no-snapshot   don't snapshot the sstables before splitting\n" + 
-                          " -s,--size <size>   maximum size in MB for the output sstables (default:\n" + 
-                          "                    50)\n";
-            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
-        }
+        ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class, "-h");
+        String help = "usage: sstablessplit [options] <filename> [<filename>]*\n" + 
+                      "--\n" + 
+                      "Split the provided sstables files in sstables of maximum provided file\n" + 
+                      "size (see option --size).\n" + 
+                      "--\n" + 
+                      "Options are:\n" + 
+                      "    --debug         display stack traces\n" + 
+                      " -h,--help          display this help message\n" + 
+                      "    --no-snapshot   don't snapshot the sstables before splitting\n" + 
+                      " -s,--size <size>   maximum size in MB for the output sstables (default:\n" + 
+                      "                    50)\n";
+        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
     public void testWrongArgFailsAndPrintsHelp()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSplitter.class.getName(), "--debugwrong", "mockFile"))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unrecognized option"));
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class, "--debugwrong", "mockFile");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unrecognized option"));
+        assertEquals(1, tool.getExitCode());
     }
 
     @Test
     public void testWrongFilename()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSplitter.class.getName(), "mockFile"))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Skipping inexisting file mockFile"));
-            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No valid sstables to split"));
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class, "mockFile");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Skipping inexisting file mockFile"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No valid sstables to split"));
+        assertEquals(1, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
 
@@ -115,12 +105,10 @@ public class StandaloneSplitterTest extends OfflineToolUtils
     public void testFlagArgs()
     {
         Arrays.asList("--debug", "--no-snapshot").forEach(arg -> {
-            try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSplitter.class.getName(), arg, "mockFile"))
-            {
-                assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Skipping inexisting file mockFile"));
-                assertThat("Arg: [" + arg + "]", tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No valid sstables to split"));
-                assertEquals(1, tool.getExitCode());
-            }
+            ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class, arg, "mockFile");
+            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Skipping inexisting file mockFile"));
+            assertThat("Arg: [" + arg + "]", tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No valid sstables to split"));
+            assertEquals(1, tool.getExitCode());
             assertCorrectEnvPostTest();
         });
     }
@@ -130,19 +118,12 @@ public class StandaloneSplitterTest extends OfflineToolUtils
     {
         Arrays.asList(Pair.of("-s", ""), Pair.of("-s", "w"), Pair.of("--size", ""), Pair.of("--size", "w"))
               .forEach(arg -> {
-                  try
-                  {
-                      runner.invokeClassAsTool(StandaloneSplitter.class.getName(),
-                                               arg.getLeft(),
-                                               arg.getRight(),
-                                               "mockFile");
-                      fail("Shouldn't be able to parse wrong input as number");
-                  }
-                  catch(RuntimeException e)
-                  {
-                      if (!(e.getCause() instanceof NumberFormatException))
-                          fail("Should have failed parsing a non-num.");
-                  }
+                  ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class,
+                                                           arg.getLeft(),
+                                                           arg.getRight(),
+                                                           "mockFile");
+                  assertEquals(-1, tool.getExitCode());
+                  Assertions.assertThat(tool.getStderr()).contains(NumberFormatException.class.getSimpleName());
               });
 
         Arrays.asList(Pair.of("-s", "0"),
@@ -152,15 +133,13 @@ public class StandaloneSplitterTest extends OfflineToolUtils
                       Pair.of("--size", "1000"),
                       Pair.of("--size", "-1"))
               .forEach(arg -> {
-                  try (ToolRunner tool = runner.invokeClassAsTool(StandaloneSplitter.class.getName(),
+                  ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class,
                                                                   arg.getLeft(),
                                                                   arg.getRight(),
-                                                                  "mockFile"))
-                  {
-                      assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Skipping inexisting file mockFile"));
-                      assertThat("Arg: [" + arg + "]", tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No valid sstables to split"));
-                      assertEquals(1, tool.getExitCode());
-                  }
+                                                                  "mockFile");
+                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Skipping inexisting file mockFile"));
+                  assertThat("Arg: [" + arg + "]", tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No valid sstables to split"));
+                  assertEquals(1, tool.getExitCode());
                   assertCorrectEnvPostTest();
               });
     }

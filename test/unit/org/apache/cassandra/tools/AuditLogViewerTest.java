@@ -43,6 +43,8 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.tools.ToolRunner.ObservableTool;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
 
@@ -55,7 +57,6 @@ public class AuditLogViewerTest
 {
     private Path path;
     private final String toolPath = "tools/bin/auditlogviewer";
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
 
     @Before
     public void setUp() throws IOException
@@ -76,46 +77,40 @@ public class AuditLogViewerTest
     @Test
     public void testNoArgs()
     {
-        try (ToolRunner tool = runner.invokeTool(toolPath))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Audit log files directory path is a required argument."));
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invoke(toolPath);
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Audit log files directory path is a required argument."));
+        assertEquals(1, tool.getExitCode());
     }
 
     @Test
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        try (ToolRunner tool = runner.invokeTool(toolPath, "-h"))
-        {
-            String help = "usage: auditlogviewer <path1> [<path2>...<pathN>] [options]\n" + 
-                           "--\n" + 
-                           "View the audit log contents in human readable format\n" + 
-                           "--\n" + 
-                           "Options are:\n" + 
-                           " -f,--follow             Upon reacahing the end of the log continue\n" + 
-                           "                         indefinitely waiting for more records\n" + 
-                           " -h,--help               display this help message\n" + 
-                           " -i,--ignore             Silently ignore unsupported records\n" + 
-                           " -r,--roll_cycle <arg>   How often to roll the log file was rolled. May be\n" + 
-                           "                         necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY,\n" + 
-                           "                         DAILY). Default HOURLY.\n";
-            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
-        }
+        ToolResult tool = ToolRunner.invoke(toolPath, "-h");
+        String help = "usage: auditlogviewer <path1> [<path2>...<pathN>] [options]\n" + 
+                       "--\n" + 
+                       "View the audit log contents in human readable format\n" + 
+                       "--\n" + 
+                       "Options are:\n" + 
+                       " -f,--follow             Upon reacahing the end of the log continue\n" + 
+                       "                         indefinitely waiting for more records\n" + 
+                       " -h,--help               display this help message\n" + 
+                       " -i,--ignore             Silently ignore unsupported records\n" + 
+                       " -r,--roll_cycle <arg>   How often to roll the log file was rolled. May be\n" + 
+                       "                         necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY,\n" + 
+                       "                         DAILY). Default HOURLY.\n";
+        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
     public void testHelpArg()
     {
         Arrays.asList("-h", "--help").forEach(arg -> {
-            try (ToolRunner tool = runner.invokeTool(toolPath, arg))
-            {
-                assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-                assertTrue(tool.getCleanedStderr(),tool.getCleanedStderr().isEmpty());
-                tool.assertOnExitCode();
-            }
+            ToolResult tool = ToolRunner.invoke(toolPath, arg);
+            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+            assertTrue(tool.getCleanedStderr(),tool.getCleanedStderr().isEmpty());
+            tool.assertOnExitCode();
         });
     }
 
@@ -123,15 +118,13 @@ public class AuditLogViewerTest
     public void testIgnoreArg()
     {
         Arrays.asList("-i", "--ignore").forEach(arg -> {
-            try (ToolRunner tool = runner.invokeTool(toolPath, path.toAbsolutePath().toString(), arg))
-            {
-                assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
-                // @IgnoreAssert see CASSANDRA-16021
+            ToolResult tool = ToolRunner.invoke(toolPath, path.toAbsolutePath().toString(), arg);
+            assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
+            // @IgnoreAssert see CASSANDRA-16021
 //                assertTrue(tool.getCleanedStderr(),
 //                           tool.getCleanedStderr().isEmpty() // j8 is fine
 //                           || tool.getCleanedStderr().startsWith("WARNING: An illegal reflective access operation has occurred")); //j11 throws an error
-                tool.assertOnExitCode();
-            }
+            tool.assertOnExitCode();
         });
     }
 
@@ -139,20 +132,26 @@ public class AuditLogViewerTest
     public void testFollowNRollArgs()
     {
             Lists.cartesianProduct(Arrays.asList("-f", "--follow"), Arrays.asList("-r", "--roll_cycle")).forEach(arg -> {
-            try (ToolRunner tool = runner.invokeToolNoWait(Arrays.asList(toolPath,
-                                                                         path.toAbsolutePath().toString(),
-                                                                         arg.get(0),
-                                                                         arg.get(1),
-                                                                         "TEST_SECONDLY")))
-            {
-                // Tool is running in the background 'following' so we have to kill it
-                assertFalse(tool.waitFor(3, TimeUnit.SECONDS));
-                assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
+                ObservableTool tool = ToolRunner.invokeAsync(toolPath,
+                                                             path.toAbsolutePath().toString(),
+                                                             arg.get(0),
+                                                             arg.get(1),
+                                                             "TEST_SECONDLY");
+                // Tool is running in the background 'following' so wait and then we have to kill it
+                try
+                {
+                    Thread.sleep(3000);
+                }
+                catch(InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                }
+                assertTrue(tool.getPartialStdout(), tool.getPartialStdout().isEmpty());
                 // @IgnoreAssert see CASSANDRA-16021
 //                assertTrue(tool.getCleanedStderr(),
 //                           tool.getCleanedStderr().isEmpty() // j8 is fine
 //                           || tool.getCleanedStderr().startsWith("WARNING: An illegal reflective access operation has occurred")); //j11 throws an error
-            }
+                tool.close();
         });
     }
 

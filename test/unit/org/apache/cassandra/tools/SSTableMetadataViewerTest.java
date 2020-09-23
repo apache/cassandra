@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
 
@@ -38,12 +39,10 @@ import static org.junit.Assert.fail;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableMetadataViewerTest extends OfflineToolUtils
 {
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
-
     @Test
     public void testNoArgsPrintsHelp()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName()))
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class);
         {
             assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
             assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
@@ -61,32 +60,26 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(), "-h"))
-        {
-            assertEquals("a30d3c489bcf56ddb2140184c5c62422", DigestUtils.md5Hex(tool.getCleanedStderr()));
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "-h");
+        assertEquals("a30d3c489bcf56ddb2140184c5c62422", DigestUtils.md5Hex(tool.getCleanedStderr()));
     }
 
     @Test
     public void testWrongArgFailsAndPrintsHelp()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(), "--debugwrong", "ks", "tab"))
-        {
-            assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
-            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "--debugwrong", "ks", "tab");
+        assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
+        assertEquals(1, tool.getExitCode());
     }
 
     @Test
     public void testDefaultCall()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(), "ks", "tab"))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
-            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            assertEquals(0,tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "ks", "tab");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(0,tool.getExitCode());
         assertGoodEnvPostTest();
     }
 
@@ -100,12 +93,10 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
                       "-u",
                       "--unicode")
               .forEach(arg -> {
-                  try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(), arg, "ks", "tab"))
-                  {
-                      assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
-                      Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-                      assertEquals(0,tool.getExitCode());
-                  }
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, arg, "ks", "tab");
+                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+                  Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                  assertEquals(0,tool.getExitCode());
                   assertGoodEnvPostTest();
               });
     }
@@ -118,33 +109,24 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
                       Pair.of("--gc_grace_seconds", ""),
                       Pair.of("--gc_grace_seconds", "w"))
               .forEach(arg -> {
-                  try
-                  {
-                      runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(),
-                                               arg.getLeft(),
-                                               arg.getRight(),
-                                               "ks",
-                                               "tab");
-                      fail("Shouldn't be able to parse wrong input " + arg);
-                  }
-                  catch(RuntimeException e)
-                  {
-                      if (!(e.getCause() instanceof NumberFormatException))
-                          fail("Should have failed parsing a non-num.");
-                  }
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
+                                                           arg.getLeft(),
+                                                           arg.getRight(),
+                                                           "ks",
+                                                           "tab");
+                  assertEquals(-1, tool.getExitCode());
+                  Assertions.assertThat(tool.getStderr()).contains(NumberFormatException.class.getSimpleName());
               });
 
         Arrays.asList(Pair.of("-g", "5"), Pair.of("--gc_grace_seconds", "5")).forEach(arg -> {
-            try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(),
+            ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
                                                             arg.getLeft(),
                                                             arg.getRight(),
                                                             "ks",
-                                                            "tab"))
-            {
-                assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
-                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-                tool.assertOnExitCode();
-            }
+                                                            "tab");
+            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+            Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+            tool.assertOnExitCode();
             assertGoodEnvPostTest();
         });
     }
@@ -157,33 +139,24 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
                       Pair.of("--timestamp_unit", ""),
                       Pair.of("--timestamp_unit", "w"))
               .forEach(arg -> {
-                  try
-                  {
-                      runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(),
-                                               arg.getLeft(),
-                                               arg.getRight(),
-                                               "ks",
-                                               "tab");
-                      fail("Shouldn't be able to parse wrong input " + arg);
-                  }
-                  catch(RuntimeException e)
-                  {
-                      if (!(e.getCause() instanceof IllegalArgumentException))
-                          fail("Should have failed parsing a non-num.");
-                  }
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
+                                                           arg.getLeft(),
+                                                           arg.getRight(),
+                                                           "ks",
+                                                           "tab");
+                  assertEquals(-1, tool.getExitCode());
+                  Assertions.assertThat(tool.getStderr()).contains(IllegalArgumentException.class.getSimpleName());
               });
 
         Arrays.asList(Pair.of("-t", "SECONDS"), Pair.of("--timestamp_unit", "SECONDS")).forEach(arg -> {
-            try (ToolRunner tool = runner.invokeClassAsTool(SSTableMetadataViewer.class.getName(),
+            ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
                                                        arg.getLeft(),
                                                        arg.getRight(),
                                                        "ks",
-                                                       "tab"))
-            {
-                assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
-                Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-                tool.assertOnExitCode();
-            }
+                                                       "tab");
+            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+            Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+            tool.assertOnExitCode();
             assertGoodEnvPostTest();
         });
     }

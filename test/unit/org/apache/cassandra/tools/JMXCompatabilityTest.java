@@ -13,10 +13,9 @@ import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.assertj.core.api.Assertions;
-
-import static org.apache.cassandra.tools.ToolRunner.Runners.invokeTool;
 
 /**
  * This class is to monitor the JMX compatability cross different versions, and relies on a gold set of metrics which
@@ -66,7 +65,7 @@ public class JMXCompatabilityTest extends CQLTester
         executeNet(ProtocolVersion.CURRENT, new SimpleStatement("SELECT * FROM " + name + " WHERE pk=?", 42));
 
         String script = "tools/bin/jmxtool dump -f yaml --url service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi > " + TMP.getRoot().getAbsolutePath() + "/out.yaml";
-        invokeTool("bash", "-c", script).assertOnExitCode().assertCleanStdErr();
+        ToolRunner.invoke("bash", "-c", script).assertOnCleanExit();
         CREATED_TABLE = true;
     }
 
@@ -164,8 +163,8 @@ public class JMXCompatabilityTest extends CQLTester
             args.add("--exclude-operation");
             args.add(a);
         });
-        ToolRunner result = invokeTool(args);
-        result.assertOnExitCode().assertCleanStdErr();
+        ToolResult result = ToolRunner.invoke(args);
+        result.assertOnCleanExit();
         Assertions.assertThat(result.getStdout()).isEmpty();
     }
 }

@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
 
@@ -35,17 +36,13 @@ import static org.junit.Assert.assertThat;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableRepairedAtSetterTest extends OfflineToolUtils
 {
-    private final ToolRunner.Runners runner = new ToolRunner.Runners();
-
     @Test
     public void testNoArgsPrintsHelp()
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableRepairedAtSetter.class.getName()))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            assertEquals(1, tool.getExitCode());
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class);
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(1, tool.getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -58,38 +55,32 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableRepairedAtSetter.class.getName(), "-h"))
-        {
-            String help = "This command should be run with Cassandra stopped, otherwise you will get very strange behavior\n" + 
-                          "Verify that Cassandra is not running and then execute the command like this:\n" + 
-                          "Usage: sstablerepairedset --really-set [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]\n";
-            Assertions.assertThat(tool.getStdout()).isEqualTo(help);
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class, "-h");
+        String help = "This command should be run with Cassandra stopped, otherwise you will get very strange behavior\n" + 
+                      "Verify that Cassandra is not running and then execute the command like this:\n" + 
+                      "Usage: sstablerepairedset --really-set [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]\n";
+        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
     public void testWrongArgFailsAndPrintsHelp() throws IOException
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableRepairedAtSetter.class.getName(),
+        ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class,
                                                        "--debugwrong",
-                                                       findOneSSTable("legacy_sstables", "legacy_ma_simple")))
-        {
-            assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-            Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-            assertEquals(1, tool.getExitCode());
-        }
+                                                       findOneSSTable("legacy_sstables", "legacy_ma_simple"));
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(1, tool.getExitCode());
     }
 
     @Test
     public void testIsrepairedArg() throws Exception
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableRepairedAtSetter.class.getName(),
+        ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class,
                                                        "--really-set",
                                                        "--is-repaired",
-                                                       findOneSSTable("legacy_sstables", "legacy_ma_simple")))
-        {
-            tool.waitAndAssertOnCleanExit();
-        }
+                                                       findOneSSTable("legacy_sstables", "legacy_ma_simple"));
+        tool.assertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -101,10 +92,11 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
     @Test
     public void testIsunrepairedArg() throws Exception
     {
-        try (ToolRunner tool = runner.invokeClassAsTool(SSTableRepairedAtSetter.class.getName(), "--really-set", "--is-unrepaired", findOneSSTable("legacy_sstables", "legacy_ma_simple")))
-        {
-              tool.waitAndAssertOnCleanExit();
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class,
+                                                 "--really-set",
+                                                 "--is-unrepaired",
+                                                 findOneSSTable("legacy_sstables", "legacy_ma_simple"));
+        tool.assertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -122,10 +114,8 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
                            .toAbsolutePath()
                            .toString();
 
-        try(ToolRunner tool = runner.invokeClassAsTool(SSTableRepairedAtSetter.class.getName(), "--really-set", "--is-repaired", "-f", file))
-        {
-              tool.waitAndAssertOnCleanExit();
-        }
+        ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class, "--really-set", "--is-repaired", "-f", file);
+        tool.assertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
