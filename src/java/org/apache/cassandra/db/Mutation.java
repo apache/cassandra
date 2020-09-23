@@ -28,11 +28,17 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -125,7 +131,7 @@ public class Mutation implements IMutation
     public void validateSize(int version, int overhead)
     {
         long totalSize = serializedSize(version) + overhead;
-        if(totalSize > MAX_MUTATION_SIZE)
+        if (totalSize > MAX_MUTATION_SIZE)
         {
             throw new MutationExceededMaxSizeException(this, version, totalSize);
         }
@@ -268,6 +274,76 @@ public class Mutation implements IMutation
         }
         return buff.append("])").toString();
     }
+
+    public String toCQLString(boolean truncateValues)
+    {
+        StringBuilder buff = new StringBuilder();
+        for (Map.Entry<TableId, PartitionUpdate> modification : modifications.entrySet())
+        {
+            PartitionUpdate update = modification.getValue();
+            TableMetadata cfm = Schema.instance.getTableMetadata(modification.getKey());
+            if (!update.partitionLevelDeletion().isLive())
+            {
+                CqlBuilder cql = new CqlBuilder();
+                cql.append("DELETE FROM ").append(cfm.toString()).append(" WHERE ");
+                cql.append('(')
+                       .appendWithSeparators(cfm.partitionKeyColumns(), (b, c) -> b.append(c.name.toCQLString()), ", ")
+                       .append(')');
+                cql.append(" = (");
+                cql.append(cfm.partitionKeyType, update.partitionKey().getKey());
+                cql.append(");");
+                buff.append(cql);
+            }
+            try (UnfilteredRowIterator iter = update.unfilteredIterator())
+            {
+                while (iter.hasNext())
+                {
+                    Unfiltered u = iter.next();
+                    if (u.isRow())
+                        buff.append(getRowCql(cfm, update, ((Row) u), truncateValues));
+                    if (u.isRangeTombstoneMarker())
+                    {
+                        //TODO this can be improved but its very complex
+                        buff.append("TombstoneMarker ");
+                        buff.append(u.clustering().toString(cfm));
+                        buff.append(';');
+                    }
+                    if (iter.hasNext()) buff.append(' ');
+                }
+            }
+            if (!Rows.EMPTY_STATIC_ROW.equals(update.staticRow()))
+                buff.append(getRowCql(cfm, update, update.staticRow(), truncateValues));
+        }
+        return buff.toString();
+    }
+
+    private String getRowCql(TableMetadata cfm, PartitionUpdate update, Row row, boolean truncateValues)
+    {
+        CqlBuilder cql = new CqlBuilder();
+        cql.append("INSERT INTO ").append(cfm.toString()).append(' ');
+        Collection<ColumnMetadata> cmd = row.columns();
+        cql.append('(')
+            .appendWithSeparators(cfm.partitionKeyColumns(), (b, c) -> b.append(c.name.toCQLString()), ", ");
+        if (!row.isStatic())
+            cql.append(", ")
+            .appendWithSeparators(cfm.clusteringColumns(), (b, c) -> b.append(c.name.toCQLString()), ", ");
+        cql.append(", ")
+           .appendWithSeparators(cmd, (b, c) -> b.append(c.name.toCQLString()), ", ")
+           .append(')');
+
+        cql.append(" VALUES ");
+
+        cql.append('(')
+           .append(cfm.partitionKeyType, update.partitionKey().getKey());
+        if (!row.isStatic())
+            cql.append(", ")
+               .append(row.clustering().toCQLString(cfm));
+        cql.append(", ")
+           .appendWithSeparators(cmd, (b, c) -> b.append(c.type, row.getCell(c).buffer(), truncateValues), ", ")
+           .append(");");
+        return cql.toString();
+    }
+
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;

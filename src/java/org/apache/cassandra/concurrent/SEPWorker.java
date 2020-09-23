@@ -19,6 +19,7 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
@@ -47,6 +48,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     long prevStopCheck = 0;
     long soleSpinnerSpinTime = 0;
 
+    AbstractLocalAwareExecutorService.FutureTask currentTask = null;
+
     SEPWorker(Long workerId, Work initialState, SharedExecutorPool pool)
     {
         this.pool = pool;
@@ -55,6 +58,16 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         thread.setDaemon(true);
         set(initialState);
         thread.start();
+    }
+
+    /**
+     * If the FutureTask being run has a DebuggableTask Runnable or Callable it will return it here.
+     */
+    public DebuggableTask debuggableTask()
+    {
+        // this.task can change after null check so go off local reference
+        AbstractLocalAwareExecutorService.FutureTask task = this.currentTask;
+        return task == null ? null : task.debuggableTask();
     }
 
     public void run()
@@ -72,7 +85,6 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
          */
 
         SEPExecutor assigned = null;
-        Runnable task = null;
         try
         {
             while (true)
@@ -101,7 +113,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     continue;
                 if (SET_THREAD_NAME)
                     Thread.currentThread().setName(assigned.name + "-" + workerId);
-                task = assigned.tasks.poll();
+                currentTask = assigned.tasks.poll();
 
                 // if we do have tasks assigned, nobody will change our state so we can simply set it to WORKING
                 // (which is also a state that will never be interrupted externally)
@@ -116,16 +128,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                     assigned.maybeSchedule();
 
                     // we know there is work waiting, as we have a work permit, so poll() will always succeed
-                    task.run();
-                    task = null;
+                    currentTask.run();
+                    currentTask = null;
 
                     if (shutdown = assigned.shuttingDown)
                         break;
 
                     if (TOOK_PERMIT != (status = assigned.takeTaskPermit(true)))
                         break;
-
-                    task = assigned.tasks.poll();
+                    currentTask = assigned.tasks.poll();
                 }
 
                 // return our work permit, and maybe signal shutdown
@@ -161,10 +172,14 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             }
             if (assigned != null)
                 assigned.returnWorkPermit();
-            if (task != null)
+            if (currentTask != null)
                 logger.error("Failed to execute task, unexpected exception killed worker", t);
             else
                 logger.error("Unexpected exception killed worker", t);
+        }
+        finally
+        {
+            pool.workerEnded(this);
         }
     }
 
@@ -412,5 +427,20 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             return assigned != null;
         }
+    }
+
+    public String toString()
+    {
+        return thread.getName();
+    }
+
+    public int hashCode()
+    {
+        return workerId.intValue();
+    }
+
+    public boolean equals(Object obj)
+    {
+        return obj == this;
     }
 }

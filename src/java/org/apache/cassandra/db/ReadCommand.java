@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
@@ -692,7 +693,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public abstract Verb verb();
 
-    protected abstract void appendCQLWhereClause(StringBuilder sb);
+    protected abstract void appendCQLWhereClause(CqlBuilder sb);
 
     // Skip purgeable tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
     // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for purgeable tombstones (which
@@ -727,9 +728,9 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public String toCQLString()
     {
-        StringBuilder sb = new StringBuilder();
+        CqlBuilder sb = new CqlBuilder();
         sb.append("SELECT ").append(columnFilter());
-        sb.append(" FROM ").append(metadata().keyspace).append('.').append(metadata().name);
+        sb.append(" FROM ").append(metadata().toString());
         appendCQLWhereClause(sb);
 
         if (limits() != DataLimits.NONE)

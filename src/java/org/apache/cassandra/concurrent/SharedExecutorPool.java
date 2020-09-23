@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
+import java.util.stream.Collectors;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
@@ -61,7 +65,7 @@ public class SharedExecutorPool
 
     // the name assigned to workers in the pool, and the id suffix
     final String poolName;
-    final AtomicLong workerId = new AtomicLong();
+    final AtomicLong nextWorkerId = new AtomicLong();
 
     // the collection of executors serviced by this pool; periodically ordered by traffic volume
     public final List<SEPExecutor> executors = new CopyOnWriteArrayList<>();
@@ -76,6 +80,8 @@ public class SharedExecutorPool
     final ConcurrentSkipListMap<Long, SEPWorker> spinning = new ConcurrentSkipListMap<>();
     // the collection of threads that have been asked to stop/deschedule - new workers are scheduled from here last
     final ConcurrentSkipListMap<Long, SEPWorker> descheduled = new ConcurrentSkipListMap<>();
+    // All SEPWorkers that are currently running
+    private final Set<SEPWorker> allWorkers = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     volatile boolean shuttingDown = false;
 
@@ -96,7 +102,27 @@ public class SharedExecutorPool
                 return;
 
         if (!work.isStop())
-            new SEPWorker(workerId.incrementAndGet(), work, this);
+        {
+            Long id = nextWorkerId.incrementAndGet();
+            allWorkers.add(new SEPWorker(id, work, this));
+        }
+    }
+
+    void workerEnded(SEPWorker worker)
+    {
+        allWorkers.remove(worker);
+    }
+
+    /**
+     * Return all DebuggableTasks that have been submitted to the SharedExecutorPool, this will also attach the
+     * thread name of the SEPWorker that is running it as a RunningDebuggableTask
+     */
+    public List<DebuggableTask.RunningDebuggableTask> runningTasks()
+    {
+        return allWorkers.stream()
+                         .map(e -> new DebuggableTask.RunningDebuggableTask(e.toString(), e.debuggableTask()))
+                         .filter(DebuggableTask.RunningDebuggableTask::hasTask)
+                         .collect(Collectors.toList());
     }
 
     void maybeStartSpinningWorker()
