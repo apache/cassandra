@@ -98,7 +98,6 @@ public class MessageDebugTest extends CQLTester
                         "PRIMARY KEY ((key1, key2), cl1, cl2))";
         createTable(KEYSPACE, create);
 
-        System.err.println("CCC " + create);
         TableMetadata cfm = currentTableMetadata();
 
         String start = String.format("INSERT INTO %s.%s", cfm.keyspace, cfm.name);
@@ -144,7 +143,6 @@ public class MessageDebugTest extends CQLTester
     {
         ClientState cs = ClientState.forInternalCalls();
         ModificationStatement m = (ModificationStatement) QueryProcessor.parseStatement(query, cs);
-        System.out.println("MMM : " + m.getMutations(QueryOptions.DEFAULT, false, 1, 1, 1).get(0).toString());
         List<String> results = m.getMutations(QueryOptions.DEFAULT, false, 1, 1, 1)
                                 .stream()
                                 .map(x -> ((Mutation) x).toCQLString(false))
