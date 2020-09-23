@@ -1,3 +1,7 @@
+2.2.19
+ * Fix ExceptionInInitializerError when data_file_directories is not set (CASSANDRA-16008)
+
+
 2.2.18
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
 
