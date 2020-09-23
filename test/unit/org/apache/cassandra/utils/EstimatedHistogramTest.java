@@ -21,6 +21,8 @@ package org.apache.cassandra.utils;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 
 public class EstimatedHistogramTest
@@ -166,5 +168,15 @@ public class EstimatedHistogramTest
             assertEquals(0, histogram.percentile(0.5));
             assertEquals(1, histogram.percentile(0.99));
         }
+    }
+
+    @Test
+    public void testClearOverflow()
+    {
+        EstimatedHistogram histogram = new EstimatedHistogram(1);
+        histogram.add(100);
+        assertTrue(histogram.isOverflowed());
+        histogram.clearOverflow();
+        assertFalse(histogram.isOverflowed());
     }
 }
