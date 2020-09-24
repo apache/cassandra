@@ -1,4 +1,5 @@
 3.0.23:
+ * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
 
 3.0.22:
