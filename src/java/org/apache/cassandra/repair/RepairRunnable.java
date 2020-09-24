@@ -255,13 +255,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         notifyStarting();
 
-        NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
+        LiveNeighborsAndRanges liveNeighborsAndRanges = getLiveNeighborsAndRanges();
 
         maybeStoreParentRepairStart(cfnames);
 
-        prepare(columnFamilies, neighborsAndRanges.allNeighbors, neighborsAndRanges.force);
+        prepare(columnFamilies, liveNeighborsAndRanges.allNeighbors, liveNeighborsAndRanges.force);
 
-        repair(cfnames, neighborsAndRanges);
+        repair(cfnames, liveNeighborsAndRanges);
     }
 
     private List<ColumnFamilyStore> getColumnFamilies() throws IOException
@@ -305,7 +305,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
     }
 
-    private NeighborsAndRanges getNeighborsAndRanges()
+    private LiveNeighborsAndRanges getLiveNeighborsAndRanges()
     {
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
@@ -352,7 +352,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             force = !allNeighbors.equals(actualNeighbors);
             allNeighbors = actualNeighbors;
         }
-        return new NeighborsAndRanges(force, allNeighbors, commonRanges);
+        return new LiveNeighborsAndRanges(force, allNeighbors, commonRanges);
     }
 
     private void maybeStoreParentRepairStart(String[] cfnames)
@@ -388,19 +388,19 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void repair(String[] cfnames, NeighborsAndRanges neighborsAndRanges)
+    private void repair(String[] cfnames, LiveNeighborsAndRanges liveNeighborsAndRanges)
     {
         if (options.isPreview())
         {
-            previewRepair(parentSession, creationTimeMillis, neighborsAndRanges.filterCommonRanges(), cfnames);
+            previewRepair(parentSession, creationTimeMillis, liveNeighborsAndRanges.filterCommonRanges(), cfnames);
         }
         else if (options.isIncremental())
         {
-            incrementalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges, cfnames);
+            incrementalRepair(parentSession, creationTimeMillis, traceState, liveNeighborsAndRanges, cfnames);
         }
         else
         {
-            normalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges.filterCommonRanges(), cfnames);
+            normalRepair(parentSession, creationTimeMillis, traceState, liveNeighborsAndRanges.filterCommonRanges(), cfnames);
         }
     }
 
@@ -452,18 +452,18 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private void incrementalRepair(UUID parentSession,
                                    long startTime,
                                    TraceState traceState,
-                                   NeighborsAndRanges neighborsAndRanges,
+                                   LiveNeighborsAndRanges liveNeighborsAndRanges,
                                    String... cfnames)
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
-                                                  .addAll(neighborsAndRanges.allNeighbors)
+                                                  .addAll(liveNeighborsAndRanges.allNeighbors)
                                                   .add(FBUtilities.getBroadcastAddressAndPort())
                                                   .build();
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
-        List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges();
+        List<CommonRange> allRanges = liveNeighborsAndRanges.filterCommonRanges();
 
-        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.force);
+        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, liveNeighborsAndRanges.force);
         ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
         ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, allRanges, cfnames),
@@ -812,13 +812,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    static final class NeighborsAndRanges
+    static final class LiveNeighborsAndRanges
     {
         private final boolean force;
         private final Set<InetAddressAndPort> allNeighbors;
         private final List<CommonRange> commonRanges;
 
-        NeighborsAndRanges(boolean force, Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges)
+        LiveNeighborsAndRanges(boolean force, Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges)
         {
             this.force = force;
             this.allNeighbors = allNeighbors;
