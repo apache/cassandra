@@ -21,11 +21,14 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -80,6 +83,11 @@ public class RepairTest extends TestBaseImpl
 
     private static ICluster create(Consumer<IInstanceConfig> configModifier) throws IOException
     {
+        return create(configModifier, 3, 3);
+    }
+
+    private static ICluster create(Consumer<IInstanceConfig> configModifier, int clusterSize, int replicationFactor) throws IOException
+    {
         configModifier = configModifier.andThen(
         config -> config.set("hinted_handoff_enabled", false)
                         .set("commitlog_sync_batch_window_in_ms", 5)
@@ -87,7 +95,7 @@ public class RepairTest extends TestBaseImpl
                         .with(GOSSIP)
         );
 
-        return init(Cluster.build().withNodes(3).withConfig(configModifier).start());
+        return init(Cluster.build().withNodes(clusterSize).withConfig(configModifier).start(), replicationFactor);
     }
 
     static void repair(ICluster<IInvokableInstance> cluster, Map<String, String> options)
@@ -132,6 +140,13 @@ public class RepairTest extends TestBaseImpl
         populate(cluster, compression);
         repair(cluster, ImmutableMap.of("parallelism", sequential ? "sequential" : "parallel"));
         verify(cluster, 0, 2001, 1, 2, 3);
+    }
+
+    void forceRepair(ICluster<IInvokableInstance> cluster, Integer... downClusterIds) throws Exception
+    {
+        RepairTest.populate(cluster, "{'enabled': false}");
+        Stream.of(downClusterIds).forEach(id -> cluster.get(id).shutdown());
+        RepairTest.repair(cluster, ImmutableMap.of("forceRepair", "true"));
     }
 
     @BeforeClass
@@ -181,5 +196,29 @@ public class RepairTest extends TestBaseImpl
     public void testParallelRepairWithoutCompression() throws Exception
     {
         repair(cluster, false, "{'enabled': false}");
+    }
+
+    @Test
+    public void testForcedNormalRepairWithOneNodeDown() throws Exception
+    {
+        closeCluster();
+        int rf = 2;
+        try (ICluster testCluster = create(config -> {}, 3, rf))
+        {
+            forceRepair(testCluster, 3); // shutdown node 3 after inserting
+            DistributedRepairUtils.assertParentRepairSuccess(testCluster, 1, KEYSPACE, "test", row -> {
+                Set<String> successfulRanges = row.getSet("successful_ranges");
+                Set<String> requestedRanges = row.getSet("requested_ranges");
+                Assert.assertNotNull("Found no successful ranges", successfulRanges);
+                Assert.assertNotNull("Found no requested ranges", requestedRanges);
+                Assert.assertEquals("Requested ranges count should equals to replication factor", rf, requestedRanges.size());
+                Assert.assertTrue("Given clusterSize = 3, RF = 2 and 1 node down in the replica set, it should yield only 1 successful repaired range.",
+                                  successfulRanges.size() == 1 && !successfulRanges.contains("")); // the successful ranges set should not only contain empty string
+            });
+        }
+        finally
+        {
+            setupCluster();
+        }
     }
 }
