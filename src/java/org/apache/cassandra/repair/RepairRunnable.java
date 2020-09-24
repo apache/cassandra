@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -450,46 +449,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, successfulRanges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
     }
 
-    /**
-     * removes dead nodes from common ranges, and exludes ranges left without any participants
-     */
-    @VisibleForTesting
-    static List<CommonRange> filterCommonRanges(List<CommonRange> commonRanges, Set<InetAddressAndPort> liveEndpoints, boolean force)
-    {
-        if (!force)
-        {
-            return commonRanges;
-        }
-        else
-        {
-            logger.debug("force flag set, removing dead endpoints if possible");
-
-            List<CommonRange> filtered = new ArrayList<>(commonRanges.size());
-
-            for (CommonRange commonRange : commonRanges)
-            {
-                Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, liveEndpoints::contains));
-                Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, liveEndpoints::contains));
-                Preconditions.checkState(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
-
-                // this node is implicitly a participant in this repair, so a single endpoint is ok here
-                if (!endpoints.isEmpty())
-                {
-                    Set<InetAddressAndPort> skippedReplicas = Sets.union(Sets.difference(commonRange.endpoints, endpoints),
-                                                                         Sets.difference(commonRange.transEndpoints, transEndpoints));
-                    skippedReplicas.forEach(endpoint -> logger.info("Removing a dead node {} from Repair for ranges {} due to -force", endpoint, commonRange.ranges));
-                    filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges, !skippedReplicas.isEmpty()));
-                }
-                else
-                {
-                    logger.warn("Unable to force repair for {}, as no neighbor nodes are live", commonRange.ranges);
-                }
-            }
-            Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
-            return filtered;
-        }
-    }
-
     private void incrementalRepair(UUID parentSession,
                                    long startTime,
                                    TraceState traceState,
@@ -853,23 +812,58 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private static final class NeighborsAndRanges
+    static final class NeighborsAndRanges
     {
         private final boolean force;
         private final Set<InetAddressAndPort> allNeighbors;
         private final List<CommonRange> commonRanges;
 
-        private NeighborsAndRanges(boolean force, Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges)
+        NeighborsAndRanges(boolean force, Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges)
         {
             this.force = force;
             this.allNeighbors = allNeighbors;
             this.commonRanges = commonRanges;
         }
 
+        /**
+         * When in the force mode, removes dead nodes from common ranges (not contained within `allNeighbors`),
+         * and exludes ranges left without any participants
+         * When not in the force mode, no-op.
+         */
         List<CommonRange> filterCommonRanges()
         {
-            // filter and only keep the neighbor endpoints that are contained in `allNeighbors` in each commonRange when in force mode.
-            return RepairRunnable.filterCommonRanges(commonRanges, allNeighbors, force);
+            if (!force)
+            {
+                return commonRanges;
+            }
+            else
+            {
+                logger.debug("force flag set, removing dead endpoints if possible");
+
+                List<CommonRange> filtered = new ArrayList<>(commonRanges.size());
+
+                for (CommonRange commonRange : commonRanges)
+                {
+                    Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, allNeighbors::contains));
+                    Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, allNeighbors::contains));
+                    Preconditions.checkState(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
+
+                    // this node is implicitly a participant in this repair, so a single endpoint is ok here
+                    if (!endpoints.isEmpty())
+                    {
+                        Set<InetAddressAndPort> skippedReplicas = Sets.union(Sets.difference(commonRange.endpoints, endpoints),
+                                                                             Sets.difference(commonRange.transEndpoints, transEndpoints));
+                        skippedReplicas.forEach(endpoint -> logger.info("Removing a dead node {} from Repair for ranges {} due to -force", endpoint, commonRange.ranges));
+                        filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges, !skippedReplicas.isEmpty()));
+                    }
+                    else
+                    {
+                        logger.warn("Unable to force repair for {}, as no neighbor nodes are live", commonRange.ranges);
+                    }
+                }
+                Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
+                return filtered;
+            }
         }
     }
 }

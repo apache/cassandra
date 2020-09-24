@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -29,9 +30,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.apache.cassandra.repair.RepairRunnable.filterCommonRanges;
+import static org.apache.cassandra.repair.RepairRunnable.NeighborsAndRanges;
 
-public class RepairRunnableTest extends AbstractRepairTest
+public class NeighborsAndRangesTest extends AbstractRepairTest
 {
     /**
      * For non-forced repairs, common ranges should be passed through as-is
@@ -40,9 +41,9 @@ public class RepairRunnableTest extends AbstractRepairTest
     public void filterCommonIncrementalRangesNotForced() throws Exception
     {
         CommonRange cr = new CommonRange(PARTICIPANTS, Collections.emptySet(), ALL_RANGES);
-
+        NeighborsAndRanges nr = new NeighborsAndRanges(false, PARTICIPANTS, Collections.singletonList(cr));
         List<CommonRange> expected = Lists.newArrayList(cr);
-        List<CommonRange> actual = filterCommonRanges(expected, Collections.emptySet(), false);
+        List<CommonRange> actual = nr.filterCommonRanges();
 
         Assert.assertEquals(expected, actual);
     }
@@ -54,12 +55,13 @@ public class RepairRunnableTest extends AbstractRepairTest
         CommonRange cr2 = new CommonRange(Sets.newHashSet(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE3));
         CommonRange cr3 = new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE2));
         Set<InetAddressAndPort> liveEndpoints = Sets.newHashSet(PARTICIPANT2, PARTICIPANT3); // PARTICIPANT1 is excluded
-
         List<CommonRange> initial = Lists.newArrayList(cr1, cr2, cr3);
         List<CommonRange> expected = Lists.newArrayList(new CommonRange(Sets.newHashSet(PARTICIPANT2), Collections.emptySet(), Sets.newHashSet(RANGE1), true),
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE3), true),
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE2), false));
-        List<CommonRange> actual = filterCommonRanges(initial, liveEndpoints, true);
+
+        NeighborsAndRanges nr = new NeighborsAndRanges(true, liveEndpoints, initial);
+        List<CommonRange> actual = nr.filterCommonRanges();
 
         Assert.assertEquals(expected, actual);
     }
