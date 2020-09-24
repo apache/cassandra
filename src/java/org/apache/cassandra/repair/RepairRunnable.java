@@ -853,7 +853,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     {
                         Set<InetAddressAndPort> skippedReplicas = Sets.union(Sets.difference(commonRange.endpoints, endpoints),
                                                                              Sets.difference(commonRange.transEndpoints, transEndpoints));
-                        skippedReplicas.forEach(endpoint -> logger.info("Removing a dead node {} from Repair for ranges {} due to -force", endpoint, commonRange.ranges));
+                        skippedReplicas.forEach(endpoint -> logger.info("Removing a dead node {} from repair for ranges {} due to -force", endpoint, commonRange.ranges));
                         filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges, !skippedReplicas.isEmpty()));
                     }
                     else
