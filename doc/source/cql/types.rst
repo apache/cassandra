@@ -403,8 +403,8 @@ Lastly, as for :ref:`maps <maps>`, TTLs when used only apply to the newly insert
 Tuples
 ^^^^^^
 
-CQL also support tuples and tuple types (where the elements can be of different types). Tuple types and tuple literals
-are defined by:
+A tuple is a fixed-length set of values (fields) where each can be of a different data type. Tuple types and tuple
+literals are defined by:
 
 .. productionlist::
    tuple_type: TUPLE '<' `cql_type` ( ',' `cql_type` )* '>'
@@ -412,17 +412,16 @@ are defined by:
 
 and can be used thusly::
 
-    CREATE TABLE durations (
-        event text,
-        duration tuple<int, text>,
+    CREATE TABLE contacts (
+        user text,
+        phones tuple<text, text>,
     )
 
-    INSERT INTO durations (event, duration) VALUES ('ev1', (3, 'hours'));
+    INSERT INTO contacts (user, phones) VALUES ('John Doe', ('home', '(555) 555-1234'));
 
-Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>` (without the need of the
-`frozen` keyword). It is not possible to update only some elements of a tuple (without updating the whole tuple).
-A tuple literal must have the same number of items as its declaring type (some of
-those values can be null but they must be explicitly declared).
+Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>`. It is not possible to
+update only some elements of a tuple (without updating the whole tuple). A tuple literal must have the same number of
+items as its declaring type (some of those values can be null but they must be explicitly declared).
 
 .. _udts:
 
@@ -544,9 +543,10 @@ is a no-op.
 Frozen Types
 ^^^^^^^^^^^^
 
-The ``frozen`` keyword is used to change the way a collection or user-defined type column is serialized. When it is
-present multiple values will be serialized as one, disabling updates on parts of UDTs or individual items of
-collections.
+The ``frozen`` keyword is used to change the way a collection or user-defined type column is serialized. For non-frozen
+collections or UDTs, each value is serialized independently from the other values. This allow update or delete
+operations on a sub-set of the collections or UDTs values. For frozen collections or UDTs all the value are serialized
+as one, disabling the ability to perform partial updates on the values.
 
 To freeze a column, use the keyword, followed by the type in angle brackets, for instance::
 
@@ -579,8 +579,8 @@ When there's a need to update, the full value must be provided::
 
     UPDATE posts SET tags = {'cassandra'} WHERE id = 1;
 
-Note we're replacing the whole value, not just removing the unwanted item. The same is true for appending elements in
-a collection.
+Note the whole value is being replaced, not just the unwanted item. The same is true for appending elements in a
+collection.
 
 .. _custom-types:
 
