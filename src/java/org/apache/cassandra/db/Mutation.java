@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -127,6 +128,7 @@ public class Mutation implements IMutation
         long totalSize = serializedSize(version) + overhead;
         if(totalSize > MAX_MUTATION_SIZE)
         {
+            CommitLog.instance.metrics.oversizedMutations.mark();
             throw new MutationExceededMaxSizeException(this, version, totalSize);
         }
     }

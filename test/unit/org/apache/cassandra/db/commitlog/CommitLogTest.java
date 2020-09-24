@@ -460,7 +460,16 @@ public abstract class CommitLogTest
                       .clustering("bytes")
                       .add("val", ByteBuffer.allocate(1 + getMaxRecordDataSize()))
                       .build();
-        CommitLog.instance.add(rm);
+        long cnt = CommitLog.instance.metrics.oversizedMutations.getCount();
+        try
+        {
+            CommitLog.instance.add(rm);
+        }
+        catch (MutationExceededMaxSizeException e)
+        {
+            Assert.assertEquals(cnt + 1, CommitLog.instance.metrics.oversizedMutations.getCount());
+            throw e;
+        }
         throw new AssertionError("mutation larger than limit was accepted");
     }
     @Test
