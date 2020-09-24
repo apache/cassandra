@@ -19,8 +19,10 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -34,7 +36,15 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.virtual.AbstractVirtualTable;
+import org.apache.cassandra.db.virtual.SimpleDataSet;
+import org.apache.cassandra.db.virtual.VirtualKeyspace;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -124,39 +134,51 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     {
         try (SimpleClient client = client())
         {
-            final QueryMessage create = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(create);
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            String table = createTableName();
 
-            final QueryMessage queryMessage = new QueryMessage("SELECT * FROM atable",
+            // reusing table name for keyspace name since cannot reuse KEYSPACE and want it to be unique
+            TableMetadata tableMetadata =
+                TableMetadata.builder(table, table)
+                             .kind(TableMetadata.Kind.VIRTUAL)
+                             .addPartitionKeyColumn("pk", UTF8Type.instance)
+                             .addRegularColumn("v", Int32Type.instance)
+                             .build();
+
+            VirtualTable vt1 = new AbstractVirtualTable.SimpleTable(tableMetadata, () -> {
+                try
+                {
+                    // sync up with main thread thats waiting for query to be in progress
+                    barrier.await(30, TimeUnit.SECONDS);
+                    // wait until metric has been checked
+                    barrier.await(30, TimeUnit.SECONDS);
+                }
+                catch (Exception e)
+                {
+                    // ignore interuption and barrier exceptions
+                }
+                return new SimpleDataSet(tableMetadata);
+            });
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(table, ImmutableList.of(vt1)));
+
+            final QueryMessage queryMessage = new QueryMessage(String.format("SELECT * FROM %s.%s", table, table),
                                                                V5_DEFAULT_OPTIONS);
 
             Assert.assertEquals(0L, Server.EndpointPayloadTracker.getCurrentGlobalUsage());
-            AtomicBoolean running = new AtomicBoolean(true);
-            // run query serially on repeat
-            new Thread(() ->
-                       {
-                           while (running.get())
-                           {
-                               client.execute(queryMessage);
-                           }
-                       }).start();
-
-            // checking metric may occur inbetween running of query, so check multiple times for up to 2 seconds
-            long start = System.currentTimeMillis();
-            while (running.get() && System.currentTimeMillis() - start < 2000)
+            try
             {
-                if (Server.EndpointPayloadTracker.getCurrentGlobalUsage() > 0)
-                {
-                    running.set(false);
-                }
+                Thread tester = new Thread(() -> client.execute(queryMessage));
+                tester.setDaemon(true); // so wont block exit if something fails
+                tester.start();
+                // block until query in progress
+                barrier.await(30, TimeUnit.SECONDS);
+                Assert.assertTrue(Server.EndpointPayloadTracker.getCurrentGlobalUsage() > 0);
+            } finally
+            {
+                // notify query thread that metric has been checked. This will also throw TimeoutException if both
+                // the query threads barriers are not reached
+                barrier.await(30, TimeUnit.SECONDS);
             }
-
-            // if this isnt false it never saw the usage go above zero
-            Assert.assertFalse(running.get());
-
-            // set to false to ensure stopping the background thread
-            running.set(false);
         }
     }
 

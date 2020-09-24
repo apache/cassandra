@@ -426,22 +426,25 @@ public class Server implements CassandraDaemon.Server
          * This will recompute the ip usage histo on each query of the snapshot when requested instead of trying to keep
          * a histogram up to date with each request
          */
-        public static class IpUsageReservoir implements Reservoir
+        public static Reservoir ipUsageReservoir()
         {
-            public int size()
+            return new Reservoir()
             {
-                return requestPayloadInFlightPerEndpoint.size();
-            }
+                public int size()
+                {
+                    return requestPayloadInFlightPerEndpoint.size();
+                }
 
-            public void update(long l)
-            {
-                throw new IllegalStateException();
-            }
+                public void update(long l)
+                {
+                    throw new IllegalStateException();
+                }
 
-            public Snapshot getSnapshot()
-            {
-                return getCurrentIpUsage();
-            }
+                public Snapshot getSnapshot()
+                {
+                    return getCurrentIpUsage();
+                }
+            };
         }
     }
 

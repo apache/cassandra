@@ -92,7 +92,7 @@ public final class ClientMetrics
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
         registerGauge("RequestsSize", Server.EndpointPayloadTracker::getCurrentGlobalUsage);
 
-        Reservoir ipUsageReservoir = new Server.EndpointPayloadTracker.IpUsageReservoir();
+        Reservoir ipUsageReservoir = Server.EndpointPayloadTracker.ipUsageReservoir();
         Metrics.register(factory.createMetricName("RequestsSizeByIpDistribution"),
                          new Histogram(ipUsageReservoir)
         {
