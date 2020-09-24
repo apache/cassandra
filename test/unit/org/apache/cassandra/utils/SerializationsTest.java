@@ -210,7 +210,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             offsets[i] = i;
             data[i] = 10 * i;
         }
-        data[offsets.length] = 100000;
+        data[offsets.length] = 100000; // write into the overflow bucket
         EstimatedHistogram hist2 = new EstimatedHistogram(offsets, data);
 
         try (DataOutputStreamPlus out = getOutput("utils.EstimatedHistogram.bin"))

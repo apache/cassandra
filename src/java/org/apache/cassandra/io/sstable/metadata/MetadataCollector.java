@@ -51,8 +51,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     static EstimatedHistogram defaultCellPerPartitionCountHistogram()
     {
-        // EH of 114 can track a max value of 2395318855, i.e., > 2B columns
-        return new EstimatedHistogram(114);
+        // EH of 118 can track a max value of 4139110981, i.e., > 4B cells
+        return new EstimatedHistogram(118);
     }
 
     static EstimatedHistogram defaultPartitionSizeHistogram()

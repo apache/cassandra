@@ -1,4 +1,5 @@
 3.11.9
+ * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
 
 3.11.8

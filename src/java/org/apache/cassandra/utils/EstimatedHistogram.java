@@ -22,12 +22,13 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLongArray;
 
 import com.google.common.base.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.slf4j.Logger;
 
 public class EstimatedHistogram
 {
@@ -262,11 +263,27 @@ public class EstimatedHistogram
     }
 
     /**
-     * @return true if this histogram has overflowed -- that is, a value larger than our largest bucket could bound was added
+     * @return true if a value larger than our largest bucket offset has been recorded, and false otherwise
      */
     public boolean isOverflowed()
     {
-        return buckets.get(buckets.length() - 1) > 0;
+        return overflowCount() > 0;
+    }
+
+    /**
+     * @return the number of recorded values larger than the largest bucket offset
+     */
+    public long overflowCount()
+    {
+        return buckets.get(buckets.length() - 1);
+    }
+
+    /**
+     * Resets the count in the overflow bucket to zero. Subsequent calls to {@link #isOverflowed()} will return false.
+     */
+    public void clearOverflow()
+    {
+        buckets.set(buckets.length() - 1, 0);
     }
 
     /**
@@ -354,8 +371,16 @@ public class EstimatedHistogram
 
     public static class EstimatedHistogramSerializer implements ISerializer<EstimatedHistogram>
     {
+        private static final Logger logger = LoggerFactory.getLogger(EstimatedHistogramSerializer.class);
+
         public void serialize(EstimatedHistogram eh, DataOutputPlus out) throws IOException
         {
+            if (eh.isOverflowed())
+            {
+                logger.warn("Serializing a histogram with {} values greater than the maximum of {}...",
+                            eh.overflowCount(), eh.getLargestBucketOffset());
+            }
+
             long[] offsets = eh.getBucketOffsets();
             long[] buckets = eh.getBuckets(false);
             out.writeInt(buckets.length);
