@@ -84,6 +84,9 @@ public class Repair extends NodeToolCmd
     @Option(title = "pull_repair", name = {"-pl", "--pull"}, description = "Use --pull to perform a one way repair where data is only streamed from a remote node to this node.")
     private boolean pullRepair = false;
 
+    @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
+    private boolean ignoreUnreplicatedKeyspaces = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -112,6 +115,8 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
             options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
             options.put(RepairOption.PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+            options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
+
             if (!startToken.isEmpty() || !endToken.isEmpty())
             {
                 options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);

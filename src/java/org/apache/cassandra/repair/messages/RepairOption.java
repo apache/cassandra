@@ -47,6 +47,7 @@ public class RepairOption
     public static final String TRACE_KEY = "trace";
     public static final String SUB_RANGE_REPAIR_KEY = "sub_range_repair";
     public static final String PULL_REPAIR_KEY = "pullRepair";
+    public static final String IGNORE_UNREPLICATED_KS = "ignoreUnreplicatedKeyspaces";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -138,6 +139,7 @@ public class RepairOption
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
+        boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
 
         int jobThreads = 1;
         if (options.containsKey(JOB_THREADS_KEY))
@@ -175,7 +177,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, ignoreUnreplicatedKeyspaces);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -251,13 +253,14 @@ public class RepairOption
     private final int jobThreads;
     private final boolean isSubrangeRepair;
     private final boolean pullRepair;
+    private final boolean ignoreUnreplicatedKeyspaces;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean ignoreUnreplicatedKeyspaces)
     {
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -276,6 +279,7 @@ public class RepairOption
         this.ranges.addAll(ranges);
         this.isSubrangeRepair = isSubrangeRepair;
         this.pullRepair = pullRepair;
+        this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
     }
 
     public RepairParallelism getParallelism()
@@ -342,6 +346,10 @@ public class RepairOption
         return dataCenters.size() == 1 && dataCenters.contains(DatabaseDescriptor.getLocalDataCenter());
     }
 
+    public boolean ignoreUnreplicatedKeyspaces()
+    {
+        return ignoreUnreplicatedKeyspaces;
+    }
     @Override
     public String toString()
     {
@@ -355,6 +363,7 @@ public class RepairOption
                        ", hosts: " + hosts +
                        ", # of ranges: " + ranges.size() +
                        ", pull repair: " + pullRepair +
+                       ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
                        ')';
     }
 

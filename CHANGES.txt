@@ -1,6 +1,8 @@
 3.11.9
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
+Merged from 3.0:
+ * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
 
 3.11.8
  * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)
