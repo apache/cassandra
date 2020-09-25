@@ -42,7 +42,7 @@ public class LiveNeighborsAndRangesTest extends AbstractRepairTest
         CommonRange cr = new CommonRange(PARTICIPANTS, Collections.emptySet(), ALL_RANGES);
         LiveNeighborsAndRanges nr = new LiveNeighborsAndRanges(false, PARTICIPANTS, Collections.singletonList(cr));
         List<CommonRange> expected = Lists.newArrayList(cr);
-        List<CommonRange> actual = nr.filterCommonRanges();
+        List<CommonRange> actual = nr.filterCommonRanges(null, null);
 
         Assert.assertEquals(expected, actual);
     }
@@ -60,7 +60,7 @@ public class LiveNeighborsAndRangesTest extends AbstractRepairTest
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE2), false));
 
         LiveNeighborsAndRanges nr = new LiveNeighborsAndRanges(true, liveEndpoints, initial);
-        List<CommonRange> actual = nr.filterCommonRanges();
+        List<CommonRange> actual = nr.filterCommonRanges(null, null);
 
         Assert.assertEquals(expected, actual);
     }

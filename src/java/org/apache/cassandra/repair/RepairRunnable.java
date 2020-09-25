@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -392,7 +393,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         if (options.isPreview())
         {
-            previewRepair(parentSession, creationTimeMillis, liveNeighborsAndRanges.filterCommonRanges(), cfnames);
+            previewRepair(parentSession, creationTimeMillis, liveNeighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
         }
         else if (options.isIncremental())
         {
@@ -400,7 +401,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
         else
         {
-            normalRepair(parentSession, creationTimeMillis, traceState, liveNeighborsAndRanges.filterCommonRanges(), cfnames);
+            normalRepair(parentSession, creationTimeMillis, traceState, liveNeighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
         }
     }
 
@@ -461,7 +462,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                                   .add(FBUtilities.getBroadcastAddressAndPort())
                                                   .build();
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
-        List<CommonRange> allRanges = liveNeighborsAndRanges.filterCommonRanges();
+        List<CommonRange> allRanges = liveNeighborsAndRanges.filterCommonRanges(keyspace, cfnames);
 
         CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, liveNeighborsAndRanges.force);
         ListeningExecutorService executor = createExecutor();
@@ -830,7 +831,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
          * and exludes ranges left without any participants
          * When not in the force mode, no-op.
          */
-        List<CommonRange> filterCommonRanges()
+        List<CommonRange> filterCommonRanges(String keyspace, String[] tableNames)
         {
             if (!force)
             {
@@ -858,7 +859,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     else
                     {
-                        logger.warn("Unable to force repair for {}, as no neighbor nodes are live", commonRange.ranges);
+                        logger.warn("Unable to force repair for tables: {} (ranges: {}) in keyspace: {}, as no neighbor nodes are live",
+                                    Arrays.asList(tableNames), commonRange.ranges, keyspace);
                     }
                 }
                 Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
