@@ -81,6 +81,9 @@ public class Repair extends NodeToolCmd
     @Option(title = "trace_repair", name = {"-tr", "--trace"}, description = "Use -tr to trace the repair. Traces are logged to system_traces.events.")
     private boolean trace = false;
 
+    @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
+    private boolean ignoreUnreplicatedKeyspaces = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -108,6 +111,8 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));
             options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
             options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
+            options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
+
             if (!startToken.isEmpty() || !endToken.isEmpty())
             {
                 options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);
