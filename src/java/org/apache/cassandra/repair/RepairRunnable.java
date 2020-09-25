@@ -177,6 +177,21 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                               options.getDataCenters(),
                                                                               options.getHosts());
 
+                if (neighbors.isEmpty())
+                {
+                    if (options.ignoreUnreplicatedKeyspaces())
+                    {
+                        logger.info("Found no neighbors for range {} for {} - ignoring since repairing with --ignore-unreplicated-keyspaces", range, keyspace);
+                        continue;
+                    }
+                    else
+                    {
+                        String errorMessage = String.format("Nothing to repair for %s in %s - aborting", range, keyspace);
+                        logger.error("Repair {}",  errorMessage);
+                        fireErrorAndComplete(tag, progress.get(), totalProgress, errorMessage);
+                        return;
+                    }
+                }
                 addRangeToNeighbors(commonRanges, range, neighbors);
                 allNeighbors.addAll(neighbors);
             }
@@ -187,6 +202,20 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         {
             logger.error("Repair failed:", e);
             fireErrorAndComplete(tag, progress.get(), totalProgress, e.getMessage());
+            return;
+        }
+
+        if (options.ignoreUnreplicatedKeyspaces() && allNeighbors.isEmpty())
+        {
+            String ignoreUnreplicatedMessage = String.format("Nothing to repair for %s in %s - unreplicated keyspace is ignored since repair was called with --ignore-unreplicated-keyspaces",
+                                                             options.getRanges(),
+                                                             keyspace);
+
+            logger.info("Repair {}", ignoreUnreplicatedMessage);
+            fireProgressEvent(tag, new ProgressEvent(ProgressEventType.COMPLETE,
+                                                     progress.get(),
+                                                     totalProgress,
+                                                     ignoreUnreplicatedMessage));
             return;
         }
 
