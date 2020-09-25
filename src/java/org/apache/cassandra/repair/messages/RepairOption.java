@@ -51,6 +51,7 @@ public class RepairOption
     public static final String FORCE_REPAIR_KEY = "forceRepair";
     public static final String PREVIEW = "previewKind";
     public static final String OPTIMISE_STREAMS_KEY = "optimiseStreams";
+    public static final String IGNORE_UNREPLICATED_KS = "ignoreUnreplicatedKeyspaces";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -179,6 +180,7 @@ public class RepairOption
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
         boolean force = Boolean.parseBoolean(options.get(FORCE_REPAIR_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
+        boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
 
         int jobThreads = 1;
         if (options.containsKey(JOB_THREADS_KEY))
@@ -195,7 +197,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -274,13 +276,14 @@ public class RepairOption
     private final boolean forceRepair;
     private final PreviewKind previewKind;
     private final boolean optimiseStreams;
+    private final boolean ignoreUnreplicatedKeyspaces;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces)
     {
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -302,6 +305,7 @@ public class RepairOption
         this.forceRepair = forceRepair;
         this.previewKind = previewKind;
         this.optimiseStreams = optimiseStreams;
+        this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
     }
 
     public RepairParallelism getParallelism()
@@ -389,6 +393,11 @@ public class RepairOption
         return optimiseStreams;
     }
 
+    public boolean ignoreUnreplicatedKeyspaces()
+    {
+        return ignoreUnreplicatedKeyspaces;
+    }
+
     @Override
     public String toString()
     {
@@ -405,6 +414,7 @@ public class RepairOption
                ", pull repair: " + pullRepair +
                ", force repair: " + forceRepair +
                ", optimise streams: "+ optimiseStreams +
+               ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
                ')';
     }
 

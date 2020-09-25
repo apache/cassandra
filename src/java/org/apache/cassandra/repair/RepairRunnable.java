@@ -55,11 +55,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.RepairMetrics;
-import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -82,7 +78,6 @@ import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
@@ -325,9 +320,27 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
                                                                            options.getDataCenters(),
                                                                            options.getHosts());
-
+            if (neighbors.isEmpty())
+            {
+                if (options.ignoreUnreplicatedKeyspaces())
+                {
+                    logger.info("{} Found no neighbors for range {} for {} - ignoring since repairing with --ignore-unreplicated-keyspaces", parentSession, range, keyspace);
+                    continue;
+                }
+                else
+                {
+                    throw new RuntimeException(String.format("Nothing to repair for %s in %s - aborting", range, keyspace));
+                }
+            }
             addRangeToNeighbors(commonRanges, range, neighbors);
             allNeighbors.addAll(neighbors.endpoints());
+        }
+
+        if (options.ignoreUnreplicatedKeyspaces() && allNeighbors.isEmpty())
+        {
+            throw new SkipRepairException(String.format("Nothing to repair for %s in %s - unreplicated keyspace is ignored since repair was called with --ignore-unreplicated-keyspaces",
+                                                        options.getRanges(),
+                                                        keyspace));
         }
 
         progressCounter.incrementAndGet();
