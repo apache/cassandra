@@ -26,8 +26,8 @@ import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
@@ -207,9 +207,9 @@ public class CQLConnectionTest
         // Before closing, the server should send an ErrorMessage to inform the
         // client of the corrupt message.
         // Client needs to expect multiple responses or else awaitResponses returns
-        // after the error is first received and we race between disconnecting and
-        // checking the connection status.
-        int messageCount = 10;
+        // after the error is first received and we race between handling the exception
+        // caused by remote disconnection and checking the connection status.
+        int messageCount = 2;
         Codec codec = Codec.crc(alloc);
         AllocationObserver observer = new AllocationObserver();
         InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
@@ -224,23 +224,35 @@ public class CQLConnectionTest
         client.connect(address, port);
         assertTrue(client.isConnected());
 
-        // Only install the transform after protocol negotiation is complete
-        AtomicInteger byteCount = new AtomicInteger(0);
-        AtomicBoolean corrupted = new AtomicBoolean(false);
-        controller.withPayloadTransform(msg -> {
-            // Don't corrupt the first frame, but subsequent ones
-            ByteBuf bb = (ByteBuf) msg;
-            int beforeBytes = byteCount.getAndAdd(bb.readableBytes());
-            // if the bytes in this buffer takes us into the second frame,
-            // corrupt it somewhere after the frame boundary
-            if (!corrupted.get() && beforeBytes + bb.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE)
+        // Only install the corrupting transform after protocol negotiation is complete
+        controller.withPayloadTransform(new Function<Object, Object>()
+        {
+            // Don't corrupt the first frame as this would fail early and bypass capacity allocation.
+            // Instead, allow enough bytes to fill the first frame through untouched. Then, corrupt
+            // a byte which will be in the second frame of the large message .
+            int seenBytes = 0;
+            int corruptedByte = 0;
+            public Object apply(Object o)
             {
-                int remainingInFirstFrame = MAX_FRAMED_PAYLOAD_SIZE - beforeBytes;
-                int toCorrupt = remainingInFirstFrame + random.nextInt(bb.readableBytes() - remainingInFirstFrame);
-                bb.setByte(toCorrupt, 0xffff);
-                corrupted.set(true);
+                // If we've already injected some corruption, pass through
+                if (corruptedByte > 0)
+                    return o;
+
+                // Will the current buffer size take us into the second frame? If so, corrupt it
+                ByteBuf bb = (ByteBuf)o;
+                if (seenBytes + bb.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE + 100)
+                {
+                    int frameBoundary = MAX_FRAMED_PAYLOAD_SIZE - seenBytes;
+                    corruptedByte = bb.readerIndex() + frameBoundary + 100;
+                    bb.setByte(corruptedByte, 0xffff);
+                }
+                else
+                {
+                    seenBytes += bb.readableBytes();
+                }
+
+                return bb;
             }
-            return msg;
         });
 
         int totalBytes = MAX_FRAMED_PAYLOAD_SIZE * 2;
@@ -248,7 +260,7 @@ public class CQLConnectionTest
         client.awaitResponses();
         // Client has disconnected
         assertFalse(client.isConnected());
-        // But before it did, it sent an error response
+        // But before it did, it received an error response
         Frame receieved = client.inboundFrames.poll();
         assertNotNull(receieved);
         Message.Response response = Message.responseDecoder().decode(client.channel, receieved);
@@ -259,8 +271,6 @@ public class CQLConnectionTest
         Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
         assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
         assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);
-
-        server.stop();
     }
 
     @Test
@@ -559,8 +569,8 @@ public class CQLConnectionTest
 
     static class AllocationObserver
     {
-        InstrumentedLimit endpoint;
-        InstrumentedLimit global;
+        volatile InstrumentedLimit endpoint;
+        volatile InstrumentedLimit global;
 
         long endpointAllocationTotal()
         {
@@ -744,6 +754,7 @@ public class CQLConnectionTest
                         final Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
                         protected void decode(ChannelHandlerContext ctx, Frame msg, List<Object> out) throws Exception
                         {
+                            // Handle ERROR responses during initial connection and protocol negotiation
                             if ( msg.header.type == Message.Type.ERROR)
                             {
                                 connectionError = (ErrorMessage)Message.responseDecoder()
