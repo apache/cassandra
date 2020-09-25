@@ -1,4 +1,5 @@
 3.11.9
+ * Fix ColumnFilter to avoid querying cells of unselected complex columns (CASSANDRA-15977)
  * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
