@@ -859,8 +859,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     else
                     {
-                        logger.warn("Unable to force repair for tables: {} (ranges: {}) in keyspace: {}, as no neighbor nodes are live",
-                                    Arrays.asList(tableNames), commonRange.ranges, keyspace);
+                        logger.warn("Unable to repair ranges {} for tables {} in keyspace {}, as no neighbor nodes are live.",
+                                    commonRange.ranges, Arrays.asList(tableNames), keyspace);
                     }
                 }
                 Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
