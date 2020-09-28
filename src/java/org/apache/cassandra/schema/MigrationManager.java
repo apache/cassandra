@@ -123,6 +123,12 @@ public class MigrationManager
                     logger.debug("epState vanished for {}, not submitting migration task", endpoint);
                     return;
                 }
+                if (!epSchemaVersion.equals(theirVersion))
+                {
+                    logger.debug("Not submitting migration task for {} because their version " +
+                            "has changed from {} to {} since the task was scheduled", endpoint, theirVersion, epSchemaVersion);
+                    return;
+                }
                 if (Schema.instance.isSameVersion(epSchemaVersion))
                 {
                     logger.debug("Not submitting migration task for {} because our versions match ({})", endpoint, epSchemaVersion);
