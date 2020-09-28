@@ -1,4 +1,5 @@
 3.0.23:
+ * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
  * Fix OOM when terminating repair session (CASSANDRA-15902)
  * Avoid marking shutting down nodes as up after receiving gossip shutdown message (CASSANDRA-16094)
  * Check SSTables for latest version before dropping compact storage (CASSANDRA-16063)
