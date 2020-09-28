@@ -171,9 +171,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             CassandraVersion version = getReleaseVersion(host);
 
-            //Raced with changes to gossip state
+            //Raced with changes to gossip state, wait until next iteration
             if (version == null)
-                continue;
+                return true;
 
             if (referenceVersion == null)
                 referenceVersion = version;
