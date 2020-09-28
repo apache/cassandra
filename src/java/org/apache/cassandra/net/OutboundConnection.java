@@ -485,7 +485,7 @@ public class OutboundConnection
      */
     private void onFailedSerialize(Message<?> message, int messagingVersion, int bytesWrittenToNetwork, Throwable t)
     {
-        JVMStabilityInspector.inspectThrowable(t, false);
+        JVMStabilityInspector.inspectThrowable(t);
         releaseCapacity(1, canonicalSize(message));
         errorCount += 1;
         errorBytes += message.serializedSize(messagingVersion);
@@ -1047,7 +1047,7 @@ public class OutboundConnection
 
     private void invalidateChannel(Established established, Throwable cause)
     {
-        JVMStabilityInspector.inspectThrowable(cause, false);
+        JVMStabilityInspector.inspectThrowable(cause);
 
         if (state != established)
             return; // do nothing; channel already invalidated
@@ -1093,7 +1093,7 @@ public class OutboundConnection
                 else
                     noSpamLogger.error("{} failed to connect", id(), cause);
 
-                JVMStabilityInspector.inspectThrowable(cause, false);
+                JVMStabilityInspector.inspectThrowable(cause);
 
                 if (hasPending())
                 {
