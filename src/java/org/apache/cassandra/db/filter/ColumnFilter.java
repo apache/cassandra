@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -449,6 +450,10 @@ public class ColumnFilter
                 }
             }
 
+            // see CASSANDRA-15833
+            if (isFetchAll && Gossiper.instance.haveMajorVersion3Nodes())
+                queried = null;
+
             return new ColumnFilter(isFetchAll, metadata, queried, s);
         }
     }
@@ -615,6 +620,10 @@ public class ColumnFilter
                     subSelections.put(subSel.column().name, subSel);
                 }
             }
+
+            // See CASSANDRA-15833
+            if (version <= MessagingService.VERSION_3014 && isFetchAll)
+                queried = null;
 
             // Same concern than in serialize/serializedSize: we should be wary of the change in meaning for isFetchAll.
             // If we get a filter with isFetchAll from 3.0/3.x, it actually expects all static columns to be fetched,
