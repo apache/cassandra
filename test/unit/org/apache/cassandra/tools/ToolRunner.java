@@ -188,7 +188,10 @@ public class ToolRunner
 
     public static ToolResult invoke(String... args) 
     {
-        return invokeAsync(args).waitComplete();
+        try (ObservableTool  t = invokeAsync(args))
+        {
+            return t.waitComplete();
+        }
     }
 
     public static ObservableTool invokeAsync(String... args)
@@ -198,7 +201,10 @@ public class ToolRunner
 
     public static ToolResult invoke(Map<String, String> env, InputStream stdin, List<String> args)
     {
-        return invokeAsync(env, stdin, args).waitComplete();
+        try (ObservableTool  t = invokeAsync(env, stdin, args))
+        {
+            return t.waitComplete();
+        }
     }
 
     public static ObservableTool invokeAsync(Map<String, String> env, InputStream stdin, List<String> args)
@@ -248,11 +254,17 @@ public class ToolRunner
             System.setOut(newOut);
             System.setErr(newErr);
             int rc = runClassAsTool(klass, args);
+            out.flush();
+            err.flush();
             return new ToolResult(allArgs, rc, out.toString(), err.toString(), null);
         }
         catch (Exception e)
         {
-            return new ToolResult(allArgs, -1, "", Throwables.getStackTraceAsString(e), e);
+            return new ToolResult(allArgs,
+                                  -1,
+                                  out.toString(),
+                                  err.toString() + "\n" + Throwables.getStackTraceAsString(e),
+                                  e);
         }
         finally
         {
@@ -431,9 +443,12 @@ public class ToolRunner
 
     private static final class ForkedObservableTool implements ObservableTool
     {
-        private final CompletableFuture<Void> onComplete = new CompletableFuture<>();
+        @SuppressWarnings("resource")
         private final ByteArrayOutputStream err = new ByteArrayOutputStream();
+        @SuppressWarnings("resource")
         private final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        @SuppressWarnings("resource")
+        private final InputStream stdin;
         private final Process process;
         private final Thread[] ioWatchers;
         private final List<String> args;
@@ -442,6 +457,7 @@ public class ToolRunner
         {
             this.process = process;
             this.args = args;
+            this.stdin = stdin;
 
             // Each stream tends to use a bounded buffer, so need to process each stream in its own thread else we
             // might block on an idle stream, not consuming the other stream which is blocked in the other process
@@ -468,17 +484,6 @@ public class ToolRunner
                 ioWatchers[2].setDaemon(true);
                 ioWatchers[2].setName("IO Watcher stdin");
                 ioWatchers[2].start();
-                // since stdin might not close the thread would block, so add logic to try to close stdin when the process exits
-                onComplete.whenComplete((i1, i2) -> {
-                    try
-                    {
-                        stdin.close();
-                    }
-                    catch (IOException e)
-                    {
-                        logger.warn("Error closing stdin", e);
-                    }
-                });
             }
         }
 
@@ -518,7 +523,15 @@ public class ToolRunner
 
         private void onComplete() throws InterruptedException
         {
-            onComplete.complete(null);
+            try
+            {
+                if (stdin != null)
+                    stdin.close();
+            }
+            catch (IOException e)
+            {
+                logger.warn("Error closing stdin", e);
+            }
             for (Thread t : ioWatchers)
                 t.join();
         }

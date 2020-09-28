@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -49,7 +48,6 @@ import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -132,26 +130,27 @@ public class AuditLogViewerTest
     public void testFollowNRollArgs()
     {
             Lists.cartesianProduct(Arrays.asList("-f", "--follow"), Arrays.asList("-r", "--roll_cycle")).forEach(arg -> {
-                ObservableTool tool = ToolRunner.invokeAsync(toolPath,
+                try (ObservableTool tool = ToolRunner.invokeAsync(toolPath,
                                                              path.toAbsolutePath().toString(),
                                                              arg.get(0),
                                                              arg.get(1),
-                                                             "TEST_SECONDLY");
-                // Tool is running in the background 'following' so wait and then we have to kill it
-                try
+                                                             "TEST_SECONDLY");)
                 {
-                    Thread.sleep(3000);
+                    // Tool is running in the background 'following' so wait and then we have to kill it
+                    try
+                    {
+                        Thread.sleep(3000);
+                    }
+                    catch(InterruptedException e)
+                    {
+                        Thread.currentThread().interrupt();
+                    }
+                    assertTrue(tool.getPartialStdout(), tool.getPartialStdout().isEmpty());
+                    // @IgnoreAssert see CASSANDRA-16021
+    //                assertTrue(tool.getCleanedStderr(),
+    //                           tool.getCleanedStderr().isEmpty() // j8 is fine
+    //                           || tool.getCleanedStderr().startsWith("WARNING: An illegal reflective access operation has occurred")); //j11 throws an error
                 }
-                catch(InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                }
-                assertTrue(tool.getPartialStdout(), tool.getPartialStdout().isEmpty());
-                // @IgnoreAssert see CASSANDRA-16021
-//                assertTrue(tool.getCleanedStderr(),
-//                           tool.getCleanedStderr().isEmpty() // j8 is fine
-//                           || tool.getCleanedStderr().startsWith("WARNING: An illegal reflective access operation has occurred")); //j11 throws an error
-                tool.close();
         });
     }
 

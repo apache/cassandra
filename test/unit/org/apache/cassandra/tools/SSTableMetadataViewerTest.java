@@ -61,7 +61,17 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
     {
         // If you added, modified options or help, please update docs if necessary
         ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "-h");
-        assertEquals("a30d3c489bcf56ddb2140184c5c62422", DigestUtils.md5Hex(tool.getCleanedStderr()));
+        assertEquals("You must supply at least one sstable\n" + 
+                     "usage: sstablemetadata <options> <sstable...> [-c] [-g <arg>] [-s] [-t <arg>] [-u]\n" + 
+                     "\n" + 
+                     "Dump information about SSTable[s] for Apache Cassandra 3.x\n" + 
+                     "Options:\n" + 
+                     "  -c,--colors                 Use ANSI color sequences\n" + 
+                     "  -g,--gc_grace_seconds <arg> Time to use when calculating droppable tombstones\n" + 
+                     "  -s,--scan                   Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false\n" + 
+                     "  -t,--timestamp_unit <arg>   Time unit that cell timestamps are written with\n" + 
+                     "  -u,--unicode                Use unicode to draw histograms and progress bars\n\n" 
+                     , tool.getCleanedStderr());
     }
 
     @Test
