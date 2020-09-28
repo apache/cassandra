@@ -123,7 +123,7 @@ public class GossipTest extends TestBaseImpl
         }
     }
 
-    static class BBBootstrapInterceptor
+    public static class BBBootstrapInterceptor
     {
         final static CountDownLatch bootstrapReady = new CountDownLatch(1);
         final static CountDownLatch bootstrapStart = new CountDownLatch(1);
@@ -174,7 +174,7 @@ public class GossipTest extends TestBaseImpl
                         catch (Exception ex)
                         {
                             Assert.assertSame(ex.getClass(), IllegalStateException.class);
-                            Assert.assertEquals(ex.getMessage(), "Unable to stop gossip because the node is not in the normal state.");
+                            Assert.assertEquals(ex.getMessage(), "Unable to stop gossip because the node is not in the normal state. Try to stop the node instead.");
                         }
                     });
                 }

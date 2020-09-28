@@ -315,7 +315,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (initialized)
         {
             if (!isNormal())
-                throw new IllegalStateException("Unable to stop gossip because the node is not in the normal state.");
+                throw new IllegalStateException("Unable to stop gossip because the node is not in the normal state. Try to stop the node instead.");
 
             logger.warn("Stopping gossip by operator request");
 
