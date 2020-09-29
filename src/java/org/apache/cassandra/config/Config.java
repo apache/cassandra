@@ -304,6 +304,8 @@ public class Config
 
     public Integer file_cache_size_in_mb;
 
+    public boolean file_cache_enabled = Boolean.getBoolean("cassandra.file_cache_enabled");
+
     /**
      * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 kb, we
      * store in the file cache buffers that divide 64 kb, so we need to round the buffer sizes to powers of two.
