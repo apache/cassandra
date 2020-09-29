@@ -50,3 +50,4 @@ stream_entire_sstables: true
 stream_throughput_outbound_megabits_per_sec: 200000000
 enable_sasi_indexes: true
 enable_materialized_views: true
+file_cache_enabled: true

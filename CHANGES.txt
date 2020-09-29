@@ -16,6 +16,7 @@
  * Mutating sstable component may race with entire-sstable-streaming(ZCS) causing checksum validation failure (CASSANDRA-15861)
  * NPE thrown while updating speculative execution time if keyspace is removed during task execution (CASSANDRA-15949)
  * Show the progress of data streaming and index build (CASSANDRA-15406)
+ * Add flag to disable chunk cache and disable by default (CASSANDRA-16036)
 Merged from 3.11:
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
