@@ -111,6 +111,10 @@ public class ByteArrayUtil
                         (b[off] << 8));
     }
 
+    public static int getUnsignedShort(byte[] b, int off) {
+        return ((b[off] & 0xFF) << 8) | (b[off + 1] & 0xFF);
+    }
+
     public static int getInt(byte[] b, int off) {
         return ((b[off + 3] & 0xFF)      ) +
                ((b[off + 2] & 0xFF) <<  8) +
