@@ -110,7 +110,7 @@ public abstract class OfflineToolUtils
                                     .filter(threadName -> optional.stream().anyMatch(pattern -> pattern.matcher(threadName).matches()))
                                     .collect(Collectors.toSet());
 
-        if (!current.isEmpty())
+        if (!remain.isEmpty())
             System.err.println("Unexpected thread names: " + remain);
         if (!notPresent.isEmpty())
             System.err.println("Mandatory thread missing: " + notPresent);
@@ -239,5 +239,12 @@ public abstract class OfflineToolUtils
         File srcDir = new File("test/data/legacy-sstables/ma");
         FileUtils.copyDirectory(new File(srcDir, "legacy_tables"), new File(dataDir, "legacy_sstables"));
         return dataDir;
+    }
+    
+    protected void assertCorrectEnvPostTest()
+    {
+        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertSchemaLoaded();
+        assertServerNotLoaded();
     }
 }

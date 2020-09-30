@@ -16,27 +16,32 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.cqlsh;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.hamcrest.CoreMatchers;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
-public class GetVersionTest extends OfflineToolUtils
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+
+public class CqlshTest extends CQLTester
 {
-    @Test
-    public void testGetVersion()
+    @BeforeClass
+    public static void setUp()
     {
-        ToolResult tool = ToolRunner.invokeClass(GetVersion.class);
-        tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(null, null);
-        assertSchemaNotLoaded();
-        assertCLSMNotLoaded();
-        assertSystemKSNotLoaded();
-        assertKeyspaceNotLoaded();
-        assertServerNotLoaded();
+        requireNetwork();
+    }
+
+    @Test
+    public void testKeyspaceRequired()
+    {
+        ToolResult tool = ToolRunner.invokeCqlsh("SELECT * FROM test");
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("No keyspace has been specified"));
+        assertEquals(2, tool.getExitCode());
     }
 }

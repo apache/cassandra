@@ -73,7 +73,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
 import com.google.common.collect.MinMaxPriorityQueue;
-import org.apache.commons.lang3.time.DurationFormatUtils;
 
 /**
  * Shows the contents of sstable metadata

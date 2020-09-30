@@ -27,6 +27,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -68,14 +69,12 @@ public class FqlReplayDDLExclusionTest extends TestBaseImpl
 
                 node.executeInternal("DROP TABLE fql_ks.fql_table;");
 
-                final ToolRunner.Runners runners = new ToolRunner.Runners();
-
                 // without --replay-ddl-statements, the replay will fail on insert because underlying table is not there
-                final ToolRunner negativeRunner = runners.invokeClassAsTool("org.apache.cassandra.fqltool.FullQueryLogTool",
-                                                                            "replay",
-                                                                            "--keyspace", "fql_ks",
-                                                                            "--target", "127.0.0.1",
-                                                                            "--", temporaryFolder.getRoot().getAbsolutePath());
+                final ToolResult negativeRunner = ToolRunner.invokeClass("org.apache.cassandra.fqltool.FullQueryLogTool",
+                                                                         "replay",
+                                                                         "--keyspace", "fql_ks",
+                                                                         "--target", "127.0.0.1",
+                                                                         "--", temporaryFolder.getRoot().getAbsolutePath());
 
                 assertEquals(0, negativeRunner.getExitCode());
 
@@ -90,13 +89,13 @@ public class FqlReplayDDLExclusionTest extends TestBaseImpl
                 }
 
                 // here we replay with --replay-ddl-statements so table will be created and insert will succeed
-                final ToolRunner positiveRunner = runners.invokeClassAsTool("org.apache.cassandra.fqltool.FullQueryLogTool",
-                                                                            "replay",
-                                                                            "--keyspace", "fql_ks",
-                                                                            "--target", "127.0.0.1",
-                                                                            // important
-                                                                            "--replay-ddl-statements",
-                                                                            "--", temporaryFolder.getRoot().getAbsolutePath());
+                final ToolResult positiveRunner = ToolRunner.invokeClass("org.apache.cassandra.fqltool.FullQueryLogTool",
+                                                                         "replay",
+                                                                         "--keyspace", "fql_ks",
+                                                                         "--target", "127.0.0.1",
+                                                                         // important
+                                                                         "--replay-ddl-statements",
+                                                                         "--", temporaryFolder.getRoot().getAbsolutePath());
 
                 assertEquals(0, positiveRunner.getExitCode());
 

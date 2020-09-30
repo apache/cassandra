@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.Generators;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
@@ -35,8 +36,8 @@ public class JMXToolTest
     @Test
     public void cliHelp()
     {
-        ToolRunner result = jmxtool();
-        result.assertCleanStdErr().assertOnExitCode();
+        ToolResult result = jmxtool();
+        result.assertOnCleanExit();
 
         Assertions.assertThat(result.getStdout())
                   .isEqualTo("usage: jmxtool <command> [<args>]\n" +
@@ -53,8 +54,8 @@ public class JMXToolTest
     @Test
     public void cliHelpDiff()
     {
-        ToolRunner result = jmxtool("help", "diff");
-        result.assertCleanStdErr().assertOnExitCode();
+        ToolResult result = jmxtool("help", "diff");
+        result.assertOnCleanExit();
 
         Assertions.assertThat(result.getStdout())
                   .isEqualTo("NAME\n" +
@@ -107,8 +108,8 @@ public class JMXToolTest
     @Test
     public void cliHelpDump()
     {
-        ToolRunner result = jmxtool("help", "dump");
-        result.assertCleanStdErr().assertOnExitCode();
+        ToolResult result = jmxtool("help", "dump");
+        result.assertOnCleanExit();
 
         Assertions.assertThat(result.getStdout())
                   .isEqualTo("NAME\n" +
@@ -132,12 +133,12 @@ public class JMXToolTest
                              "\n");
     }
 
-    private static ToolRunner jmxtool(String... args)
+    private static ToolResult jmxtool(String... args)
     {
         List<String> cmd = new ArrayList<>(1 + args.length);
         cmd.add("tools/bin/jmxtool");
         cmd.addAll(Arrays.asList(args));
-        return ToolRunner.Runners.invokeTool(cmd);
+        return ToolRunner.invoke(cmd);
     }
 
     private void serde(JMXTool.Dump.Format serializer, JMXTool.Diff.Format deserializer)

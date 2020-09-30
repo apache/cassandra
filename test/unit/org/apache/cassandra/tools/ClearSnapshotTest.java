@@ -29,14 +29,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class ClearSnapshotTest extends CQLTester
 {
     private static NodeProbe probe;
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
 
     @BeforeClass
     public static void setup() throws Exception
@@ -52,33 +54,36 @@ public class ClearSnapshotTest extends CQLTester
     }
 
     @Test
-    public void testClearSnapshot_NoArgs() throws IOException
+    public void testClearSnapshot_NoArgs()
     {
-        ToolRunner tool = runner.invokeNodetool("clearsnapshot");
+        ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot");
         assertEquals(2, tool.getExitCode());
-        assertTrue("Tool stderr: " +  tool.getStderr(), tool.getStderr().contains("Specify snapshot name or --all"));
+        assertTrue("Tool stderr: " +  tool.getCleanedStderr(), tool.getCleanedStderr().contains("Specify snapshot name or --all"));
         
-        runner.invokeNodetool("clearsnapshot", "--all").waitAndAssertOnCleanExit();
+        tool = ToolRunner.invokeNodetool("clearsnapshot", "--all");
+        tool.assertOnCleanExit();
     }
 
     @Test
-    public void testClearSnapshot_AllAndName() throws IOException
+    public void testClearSnapshot_AllAndName()
     {
-        ToolRunner tool = runner.invokeNodetool("clearsnapshot", "-t", "some-name", "--all");
+        ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot", "-t", "some-name", "--all");
         assertEquals(2, tool.getExitCode());
-        assertTrue("Tool stderr: " +  tool.getStderr(), tool.getStderr().contains("Specify only one of snapshot name or --all"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Specify only one of snapshot name or --all"));
     }
 
     @Test
-    public void testClearSnapshot_RemoveByName() throws IOException
+    public void testClearSnapshot_RemoveByName()
     {
-        ToolRunner tool = runner.invokeNodetool("snapshot","-t","some-name").waitAndAssertOnCleanExit();
+        ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
+        tool.assertOnCleanExit();
         assertTrue(!tool.getStdout().isEmpty());
         
         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
         Assert.assertTrue(snapshots_before.containsKey("some-name"));
         
-        tool = runner.invokeNodetool("clearsnapshot","-t","some-name").waitAndAssertOnCleanExit();
+        tool = ToolRunner.invokeNodetool("clearsnapshot","-t","some-name");
+        tool.assertOnCleanExit();
         assertTrue(!tool.getStdout().isEmpty());
         
         Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
@@ -86,17 +91,21 @@ public class ClearSnapshotTest extends CQLTester
     }
 
     @Test
-    public void testClearSnapshot_RemoveMultiple() throws IOException
+    public void testClearSnapshot_RemoveMultiple()
     {
-        ToolRunner tool = runner.invokeNodetool("snapshot","-t","some-name").waitAndAssertOnCleanExit();
+        ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
+        tool.assertOnCleanExit();
         assertTrue(!tool.getStdout().isEmpty());
-        tool = runner.invokeNodetool("snapshot","-t","some-other-name").waitAndAssertOnCleanExit();
-        assertTrue(!tool.getStdout().isEmpty());
+
+        tool = ToolRunner.invokeNodetool("snapshot","-t","some-other-name");
+        tool.assertOnCleanExit();
+            assertTrue(!tool.getStdout().isEmpty());
         
         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
         Assert.assertTrue(snapshots_before.size() == 2);
 
-        tool = runner.invokeNodetool("clearsnapshot","--all").waitAndAssertOnCleanExit();
+        tool = ToolRunner.invokeNodetool("clearsnapshot","--all");
+        tool.assertOnCleanExit();
         assertTrue(!tool.getStdout().isEmpty());
         
         Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
