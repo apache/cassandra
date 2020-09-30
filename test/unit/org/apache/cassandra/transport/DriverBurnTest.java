@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,10 +33,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.commons.math.stat.descriptive.DescriptiveStatistics;
-import org.apache.commons.math3.random.EmpiricalDistribution;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
@@ -86,7 +83,6 @@ public class DriverBurnTest extends CQLTester
     }
 
     @Test
-    @Ignore
     public void test() throws Throwable
     {
         final SizeCaps smallMessageCap = new SizeCaps(10, 20, 5, 10);
@@ -204,7 +200,6 @@ public class DriverBurnTest extends CQLTester
         assertThat(allocationObserver.globalAllocationTotal()).isEqualTo(allocationObserver.globalReleaseTotal());
     }
 
-    @Ignore
     @Test
     public void measureSmallV5() throws Throwable
     {
@@ -215,7 +210,6 @@ public class DriverBurnTest extends CQLTester
                         .withPort(nativePort));
     }
 
-    @Ignore
     @Test
     public void measureSmallV4() throws Throwable
     {
@@ -226,7 +220,6 @@ public class DriverBurnTest extends CQLTester
                         .withPort(nativePort));
     }
 
-    @Ignore
     @Test
     public void measureLargeV5() throws Throwable
     {
@@ -237,7 +230,6 @@ public class DriverBurnTest extends CQLTester
                         .withPort(nativePort));
     }
 
-    @Ignore
     @Test
     public void measureLargeV4() throws Throwable
     {
@@ -248,7 +240,6 @@ public class DriverBurnTest extends CQLTester
                         .withPort(nativePort));
     }
 
-    @Ignore
     @Test
     public void measureSmallV5ithCompression() throws Throwable
     {
@@ -260,7 +251,6 @@ public class DriverBurnTest extends CQLTester
                         .withPort(nativePort));
     }
 
-    @Ignore
     @Test
     public void measureSmallV4WithCompression() throws Throwable
     {

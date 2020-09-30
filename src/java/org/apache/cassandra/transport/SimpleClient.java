@@ -21,14 +21,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
@@ -45,6 +40,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
+import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -75,6 +72,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 
 import static org.apache.cassandra.transport.CQLMessageHandler.frameSize;
+import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 
 public class SimpleClient implements Closeable
 {
@@ -480,19 +478,11 @@ public class SimpleClient implements Closeable
                     Connection connection = ctx.channel().attr(Connection.attributeKey).get();
                     // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
                     ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
-
-                    Flusher.FrameSet frameSet = new Flusher.FrameSet(ctx.channel(), messageFrameEncoder.allocator(), 5);
-
+                    FrameAccumulator accumulator = new FrameAccumulator(messageFrameEncoder);
                     for (Message message : (List<Message>) msg)
-                    {
-                        Frame frame = message.encode(version);
-                        if (frameSize(frame.header) >= largeMessageThreshold)
-                            Flusher.flushLargeMessage(ctx.channel(), frame, messageFrameEncoder.allocator());
-                        else
-                            frameSet.add(frame);
-                    }
+                        accumulator.accumulate(message.encode(version));
 
-                    frameSet.finish();
+                    accumulator.maybeWrite(ctx, promise);
                 }
             });
             pipeline.remove(this);
@@ -627,6 +617,136 @@ public class SimpleClient implements Closeable
             if (this == ctx.pipeline().last())
                 logger.error("Exception in response", cause);
             ctx.fireExceptionCaught(cause);
+        }
+    }
+
+    // Simple stand-in for Flusher for use in test code. Writers push CQL Messages/Frames onto a queue and
+    // this collates them into messaging frames and flushes them to the channel.
+    // Can be either scheduled to run on an EventExecutor or fired manually. If calling maybeWrite manually,
+    // as SimpleClient itself does, the call must be made on the event loop.
+    public static class FrameAccumulator
+    {
+        final Queue<Frame> outboundFrames = new ConcurrentLinkedQueue<>();
+        final FrameEncoder frameEncoder;
+        private final AtomicBoolean scheduled = new AtomicBoolean(false);
+
+        FrameAccumulator(FrameEncoder frameEncoder)
+        {
+            this.frameEncoder = frameEncoder;
+        }
+
+        public void accumulate(Frame frame)
+        {
+            outboundFrames.offer(frame);
+        }
+
+        public void releaseAll()
+        {
+            Frame f;
+            while ((f = outboundFrames.poll()) != null)
+                f.release();
+        }
+
+        public void schedule(ChannelHandlerContext ctx)
+        {
+            if (scheduled.compareAndSet(false, true))
+                ctx.executor().scheduleAtFixedRate(() -> maybeWrite(ctx, ctx.voidPromise()),
+                                                   10, 10, TimeUnit.MILLISECONDS);
+        }
+
+        public void maybeWrite(ChannelHandlerContext ctx, Promise<Void> promise)
+        {
+            if (outboundFrames.isEmpty())
+            {
+                promise.setSuccess(null);
+                return;
+            }
+
+            PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
+            List<Frame> buffer = new ArrayList<>();
+            long bufferSize = 0L;
+            boolean pending = false;
+            Frame f;
+            while ((f = outboundFrames.poll()) != null)
+            {
+                if (f.header.bodySizeInBytes > MAX_FRAMED_PAYLOAD_SIZE)
+                {
+                    combiner.addAll(writeLargeMessage(ctx, f));
+                }
+                else
+                {
+                    int frameSize = frameSize(f.header);
+                    if (bufferSize + frameSize >= MAX_FRAMED_PAYLOAD_SIZE)
+                    {
+                        combiner.add(flushBuffer(ctx, buffer, bufferSize));
+                        buffer.clear();
+                        bufferSize = 0;
+                    }
+                    buffer.add(f);
+                    bufferSize += frameSize;
+                    pending = true;
+                }
+            }
+
+            if (pending)
+                combiner.add(flushBuffer(ctx, buffer, bufferSize));
+            combiner.finish(promise);
+        }
+
+        private ChannelFuture flushBuffer(ChannelHandlerContext ctx, List<Frame> frames, long bufferSize)
+        {
+            FrameEncoder.Payload payload = allocate(Ints.checkedCast(bufferSize), true);
+
+            for (Frame f : frames)
+                f.encodeInto(payload.buffer);
+
+            payload.finish();
+            return ctx.writeAndFlush(payload, ctx.newPromise());
+        }
+
+        private FrameEncoder.Payload allocate(int size, boolean selfContained)
+        {
+            FrameEncoder.Payload payload = frameEncoder.allocator()
+                                                       .allocate(selfContained, Math.min(size, MAX_FRAMED_PAYLOAD_SIZE));
+            if (size >= MAX_FRAMED_PAYLOAD_SIZE)
+                payload.buffer.limit(MAX_FRAMED_PAYLOAD_SIZE);
+
+            return payload;
+        }
+
+        private ChannelFuture[] writeLargeMessage(ChannelHandlerContext ctx, Frame f)
+        {
+            List<ChannelFuture> futures = new ArrayList<>();
+            FrameEncoder.Payload payload;
+            ByteBuffer buf;
+            boolean firstFrame = true;
+            while (f.body.readableBytes() > 0 || firstFrame)
+            {
+                int payloadSize = Math.min(f.body.readableBytes(), MAX_FRAMED_PAYLOAD_SIZE);
+                payload = allocate(f.body.readableBytes(), false);
+
+                buf = payload.buffer;
+                // BufferPool may give us a buffer larger than we asked for.
+                // FrameEncoder may object if buffer.remaining is >= MAX_SIZE.
+                if (payloadSize >= MAX_FRAMED_PAYLOAD_SIZE)
+                    buf.limit(MAX_FRAMED_PAYLOAD_SIZE);
+
+                if (firstFrame)
+                {
+                    f.encodeHeaderInto(buf);
+                    firstFrame = false;
+                }
+
+                int remaining = Math.min(buf.remaining(), f.body.readableBytes());
+                if (remaining > 0)
+                    buf.put(f.body.slice(f.body.readerIndex(), remaining).nioBuffer());
+
+                f.body.readerIndex(f.body.readerIndex() + remaining);
+                payload.finish();
+                futures.add(ctx.writeAndFlush(payload, ctx.newPromise()));
+            }
+            f.release();
+            return futures.toArray(new ChannelFuture[0]);
         }
     }
 }

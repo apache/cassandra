@@ -31,7 +31,6 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
-import com.google.common.primitives.Ints;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -61,7 +60,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.net.FramingTest.randomishBytes;
-import static org.apache.cassandra.transport.CQLMessageHandler.frameSize;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -441,7 +439,7 @@ public class CQLConnectionTest
         final Frame responseTemplate;
         final FrameEncoder frameEncoder;
         final AtomicBoolean scheduled = new AtomicBoolean(false);
-        FrameAccumulator accumulator;
+        SimpleClient.FrameAccumulator accumulator;
 
         TestConsumer(Message.Response fixedResponse, FrameEncoder frameEncoder)
         {
@@ -453,7 +451,7 @@ public class CQLConnectionTest
         public void accept(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem)
         {
             if (accumulator == null)
-                accumulator = new FrameAccumulator(channel, frameEncoder);
+                accumulator = new SimpleClient.FrameAccumulator(frameEncoder);
 
             Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed)toFlushItem.toFlushItem(channel, message, fixedResponse);
             Frame response = Frame.create(responseTemplate.header.type,
@@ -463,8 +461,10 @@ public class CQLConnectionTest
                                           responseTemplate.body.duplicate());
             item.release();
             accumulator.accumulate(response);
-            if (scheduled.compareAndSet(false, true))
-                channel.eventLoop().scheduleAtFixedRate(() ->  accumulator.maybeWrite(), 10, 10, TimeUnit.MILLISECONDS);
+
+            // Schedule the proto-flusher to collate any messages to be served
+            // and flush them to the outbound pipeline
+            accumulator.schedule(channel.pipeline().lastContext());
         }
     }
 
@@ -719,7 +719,7 @@ public class CQLConnectionTest
 
         final Queue<Frame> inboundFrames = new LinkedBlockingQueue<>();
         long sendSize = 0;
-        FrameAccumulator outboundFrames ;
+        SimpleClient.FrameAccumulator outboundFrames ;
         ErrorMessage connectionError;
         Throwable disconnectionError;
 
@@ -728,6 +728,7 @@ public class CQLConnectionTest
             this.codec = codec;
             this.expectedResponses = expectedResponses;
             this.responsesReceived = new CountDownLatch(expectedResponses);
+            outboundFrames = new SimpleClient.FrameAccumulator(codec.encoder);
         }
 
         private void connect(InetAddress address, int port) throws IOException, InterruptedException
@@ -838,8 +839,6 @@ public class CQLConnectionTest
                 throw new IOException("Connection Error", future.cause());
             }
 
-            outboundFrames = new FrameAccumulator(channel, codec.encoder);
-
             // Send an initial STARTUP message to kick off the handshake with the server
             Map<String, String> options = new HashMap<>();
             options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
@@ -852,6 +851,9 @@ public class CQLConnectionTest
             if (!ready.await(10, TimeUnit.SECONDS))
                 throw new RuntimeException("Failed to establish client connection in 10s");
 
+            // Schedule the proto-flusher to collate any messages that have been
+            // written, via send(Frame frame), and flush them to the outbound pipeline
+            outboundFrames.schedule(channel.pipeline().lastContext());
         }
 
         void send(Frame frame)
@@ -862,7 +864,6 @@ public class CQLConnectionTest
 
         private void awaitResponses() throws InterruptedException
         {
-            outboundFrames.maybeWrite();
             if (!responsesReceived.await(10, TimeUnit.SECONDS))
             {
                 fail(String.format("Didn't receive all responses, expected %d, actual %d",
@@ -892,123 +893,10 @@ public class CQLConnectionTest
                 channel.close();
 
             outboundFrames.releaseAll();
+
             Frame f;
             while ((f = inboundFrames.poll()) != null)
                 f.release();
-        }
-    }
-
-    // Simple stand-in for Flusher in non-test code. Writers push CQL Messages/Frames onto a queue and
-    // this periodically collates them into messaging frames and flushes them to the channel.
-    private static class FrameAccumulator
-    {
-        final Queue<Frame> outboundFrames = new ConcurrentLinkedQueue<>();
-        final FrameEncoder frameEncoder;
-        final Channel channel;
-
-        FrameAccumulator(Channel channel, FrameEncoder frameEncoder)
-        {
-            this.frameEncoder = frameEncoder;
-            this.channel = channel;
-        }
-
-        private void accumulate(Frame frame)
-        {
-            outboundFrames.offer(frame);
-        }
-
-        private void releaseAll()
-        {
-            Frame f;
-            while ((f = outboundFrames.poll()) != null)
-                f.release();
-        }
-
-        private void maybeWrite()
-        {
-            if (outboundFrames.isEmpty())
-                return;
-
-            List<Frame> buffer = new ArrayList<>();
-            long bufferSize = 0L;
-            boolean pending = false;
-            Frame f;
-            while ((f = outboundFrames.poll()) != null)
-            {
-                if (f.header.bodySizeInBytes > MAX_FRAMED_PAYLOAD_SIZE)
-                {
-                    writeLargeMessage(f);
-                }
-                else
-                {
-                    int frameSize = frameSize(f.header);
-                    if (bufferSize + frameSize >= MAX_FRAMED_PAYLOAD_SIZE)
-                    {
-                        flushBuffer(buffer, bufferSize);
-                        buffer.clear();
-                        bufferSize = 0;
-                    }
-                    buffer.add(f);
-                    bufferSize += frameSize;
-                    pending = true;
-                }
-            }
-
-            if (pending)
-                flushBuffer(buffer, bufferSize);
-        }
-
-        private void flushBuffer(List<Frame> frames, long bufferSize)
-        {
-            FrameEncoder.Payload payload = allocate(Ints.checkedCast(bufferSize), true);
-
-            for (Frame f : frames)
-                f.encodeInto(payload.buffer);
-
-            payload.finish();
-            channel.writeAndFlush(payload, channel.voidPromise());
-        }
-
-        private FrameEncoder.Payload allocate(int size, boolean selfContained)
-        {
-            FrameEncoder.Payload payload = frameEncoder.allocator()
-                                                       .allocate(selfContained, Math.min(size, MAX_FRAMED_PAYLOAD_SIZE));
-            if (size >= MAX_FRAMED_PAYLOAD_SIZE)
-                payload.buffer.limit(MAX_FRAMED_PAYLOAD_SIZE);
-
-            return payload;
-        }
-
-        private void writeLargeMessage(Frame f)
-        {
-            FrameEncoder.Payload payload;
-            ByteBuffer buf;
-            boolean firstFrame = true;
-            while (f.body.readableBytes() > 0 || firstFrame)
-            {
-                int payloadSize = Math.min(f.body.readableBytes(), MAX_FRAMED_PAYLOAD_SIZE);
-                payload = allocate(f.body.readableBytes(), false);
-
-                buf = payload.buffer;
-                // BufferPool may give us a buffer larger than we asked for.
-                // FrameEncoder may object if buffer.remaining is >= MAX_SIZE.
-                if (payloadSize >= MAX_FRAMED_PAYLOAD_SIZE)
-                    buf.limit(MAX_FRAMED_PAYLOAD_SIZE);
-
-                if (firstFrame)
-                {
-                    f.encodeHeaderInto(buf);
-                    firstFrame = false;
-                }
-
-                int remaining = Math.min(buf.remaining(), f.body.readableBytes());
-                if (remaining > 0)
-                    buf.put(f.body.slice(f.body.readerIndex(), remaining).nioBuffer());
-
-                f.body.readerIndex(f.body.readerIndex() + remaining);
-                payload.finish();
-                channel.writeAndFlush(payload, channel.voidPromise());
-            }
         }
     }
 }
