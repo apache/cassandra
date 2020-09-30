@@ -251,6 +251,8 @@ Upgrading
       break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
     - Updated the default compaction_throughput_mb_per_sec to to 64. The original
       default (16) was meant for spinning disk volumes.  See CASSANDRA-14902 for details.
+    - Custom compaction strategies must now handle getting sstables added/removed notifications for
+      sstables already added/removed - see CASSANDRA-14103 for details.
 
 
 Deprecation

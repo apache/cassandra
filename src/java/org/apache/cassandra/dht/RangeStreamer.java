@@ -613,7 +613,8 @@ public class RangeStreamer
     /**
      * Verify that source returned for each range is correct
      */
-    private static void validateRangeFetchMap(EndpointsByRange rangesWithSources, Multimap<InetAddressAndPort, Range<Token>> rangeFetchMapMap, String keyspace)
+    @VisibleForTesting
+    static void validateRangeFetchMap(EndpointsByRange rangesWithSources, Multimap<InetAddressAndPort, Range<Token>> rangeFetchMapMap, String keyspace)
     {
         for (Map.Entry<InetAddressAndPort, Range<Token>> entry : rangeFetchMapMap.entries())
         {

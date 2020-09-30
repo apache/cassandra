@@ -85,7 +85,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
  * <p>
  * See CASSANDRA-8272, CASSANDRA-8273, and CASSANDRA-15907 for further details.
  */
-class ReplicaFilteringProtection<E extends Endpoints<E>>
+public class ReplicaFilteringProtection<E extends Endpoints<E>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ReplicaFilteringProtection.class);
     private static final NoSpamLogger oneMinuteLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
@@ -364,7 +364,7 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
         private DeletionTime deletionTime;
         private Row staticRow = Rows.EMPTY_STATIC_ROW;
         private final Queue<Unfiltered> contents = new ArrayDeque<>();
-        private BTreeSet.Builder<Clustering> toFetch;
+        private BTreeSet.Builder<Clustering<?>> toFetch;
         private int partitionRowsCached;
 
         private PartitionBuilder(DecoratedKey key, Replica source, RegularAndStaticColumns columns, EncodingStats stats)
@@ -507,7 +507,7 @@ class ReplicaFilteringProtection<E extends Endpoints<E>>
         {
             assert toFetch != null;
 
-            NavigableSet<Clustering> clusterings = toFetch.build();
+            NavigableSet<Clustering<?>> clusterings = toFetch.build();
             tableMetrics.replicaFilteringProtectionRequests.mark();
 
             if (logger.isTraceEnabled())

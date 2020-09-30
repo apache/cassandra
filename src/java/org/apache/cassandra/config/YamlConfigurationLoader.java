@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.config;
 
-import java.beans.IntrospectionException;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.net.URL;
+import java.util.Collections;
 import java.util.HashSet;
 
 import java.util.List;
@@ -43,6 +44,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
@@ -117,7 +119,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            Constructor constructor = new CustomConstructor(Config.class);
+
+            Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             PropertiesChecker propertiesChecker = new PropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
@@ -132,11 +135,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    static class CustomConstructor extends Constructor
+    static class CustomConstructor extends CustomClassLoaderConstructor
     {
-        CustomConstructor(Class<?> theRoot)
+        CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
-            super(theRoot);
+            super(theRoot, classLoader);
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -150,7 +153,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
 
         @Override
-        protected Map<Object, Object> createDefaultMap()
+        protected Map<Object, Object> createDefaultMap(int initSize)
         {
             return Maps.newConcurrentMap();
         }
@@ -160,15 +163,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         {
             return Sets.newConcurrentHashSet();
         }
-
-        @Override
-        protected Set<Object> createDefaultSet()
-        {
-            return Sets.newConcurrentHashSet();
-        }
     }
 
-    private Config loadConfig(Yaml yaml, byte[] configBytes)
+    private static Config loadConfig(Yaml yaml, byte[] configBytes)
     {
         Config config = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
         // If the configuration file is empty yaml will return null. In this case we should use the default
@@ -192,7 +189,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
 
         @Override
-        public Property getProperty(Class<? extends Object> type, String name) throws IntrospectionException
+        public Property getProperty(Class<? extends Object> type, String name)
         {
             final Property result = super.getProperty(type, name);
 
@@ -223,6 +220,16 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 public Object get(Object object)
                 {
                     return result.get(object);
+                }
+
+                public List<Annotation> getAnnotations()
+                {
+                    return Collections.EMPTY_LIST;
+                }
+
+                public <A extends Annotation> A getAnnotation(Class<A> aClass)
+                {
+                    return null;
                 }
             };
         }

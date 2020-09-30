@@ -173,15 +173,15 @@ public class KeyspaceMetrics
         memtableLiveDataSize = createKeyspaceGauge("MemtableLiveDataSize",
                 metric -> metric.memtableLiveDataSize.getValue());
         memtableOnHeapDataSize = createKeyspaceGauge("MemtableOnHeapDataSize",
-                metric -> metric.memtableOnHeapSize.getValue());
+                metric -> metric.memtableOnHeapDataSize.getValue());
         memtableOffHeapDataSize = createKeyspaceGauge("MemtableOffHeapDataSize",
-                metric -> metric.memtableOffHeapSize.getValue());
+                metric -> metric.memtableOffHeapDataSize.getValue());
         allMemtablesLiveDataSize = createKeyspaceGauge("AllMemtablesLiveDataSize",
                 metric -> metric.allMemtablesLiveDataSize.getValue());
         allMemtablesOnHeapDataSize = createKeyspaceGauge("AllMemtablesOnHeapDataSize",
-                metric -> metric.allMemtablesOnHeapSize.getValue());
+                metric -> metric.allMemtablesOnHeapDataSize.getValue());
         allMemtablesOffHeapDataSize = createKeyspaceGauge("AllMemtablesOffHeapDataSize",
-                metric -> metric.allMemtablesOffHeapSize.getValue());
+                metric -> metric.allMemtablesOffHeapDataSize.getValue());
         memtableSwitchCount = createKeyspaceGauge("MemtableSwitchCount",
                 metric -> metric.memtableSwitchCount.getCount());
         pendingCompactions = createKeyspaceGauge("PendingCompactions", metric -> metric.pendingCompactions.getValue());
@@ -233,8 +233,8 @@ public class KeyspaceMetrics
         confirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesConfirmed");
         unconfirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesUnconfirmed");
 
-        repairedDataTrackingOverreadRows = createKeyspaceHistogram("RepairedOverreadRows", false);
-        repairedDataTrackingOverreadTime = createKeyspaceTimer("RepairedOverreadTime");
+        repairedDataTrackingOverreadRows = createKeyspaceHistogram("RepairedDataTrackingOverreadRows", false);
+        repairedDataTrackingOverreadTime = createKeyspaceTimer("RepairedDataTrackingOverreadTime");
     }
 
     /**

@@ -381,6 +381,7 @@
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete dir="${build.dir}" />
         <delete dir="${doc.dir}/build" />
+        <delete dir="${doc.dir}/source/tools/nodetool" />
     </target>
 
     <!--
@@ -582,7 +583,6 @@
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
-
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
           <dependency groupId="junit" artifactId="junit" version="4.12" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />

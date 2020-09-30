@@ -144,6 +144,29 @@ public class TimestampSerializerTest
     }
 
     @Test
+    public void testZeroPadding() // CASSANDRA-16105
+    {
+        long expected = ONE_HOUR + ONE_MINUTE + ONE_SECOND;
+        validateStringTimestamp("1970-01-01 01:01:01Z", expected);
+        validateStringTimestamp("1970-1-1 1:1:1Z", expected);
+        validateStringTimestamp("1970-01-01 01:01:01", BASE_OFFSET + expected);
+        validateStringTimestamp("1970-1-1 1:1:1", BASE_OFFSET + expected);
+
+        expected = -31556905139000L;
+        validateStringTimestamp("0970-01-01 01:01:01Z", expected);
+        validateStringTimestamp("970-1-1 1:1:1Z", expected);
+
+        expected = 10*ONE_MINUTE + 100L;
+        validateStringTimestamp("1970-01-01T0:0000000010:0.1Z", expected);
+        validateStringTimestamp("0001970-01-01T0:010:0.1Z", expected);
+        validateStringTimestamp("1970-1-1T0:10:0.1Z", expected);
+        validateStringTimestamp("1970-0001-0001T0:010:0.1Z", expected);
+
+        validateStringTimestamp("1970-1-01T1:1Z", ONE_HOUR + ONE_MINUTE);
+        validateStringTimestamp("1970-1-01T1:1", BASE_OFFSET + ONE_HOUR + ONE_MINUTE);
+    }
+
+    @Test
     public void testInvalidTimezones()
     {
         List<String> timestamps = new ArrayList<String>(

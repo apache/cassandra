@@ -57,7 +57,7 @@ public class UpdateStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
     {
         if (updatesRegularRows())
         {

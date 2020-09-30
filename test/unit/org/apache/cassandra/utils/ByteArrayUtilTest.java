@@ -44,7 +44,7 @@ public class ByteArrayUtilTest
     {
         byte[] bytes = new byte[16];
         assertThatThrownBy(() -> ByteArrayUtil.putBoolean(bytes, bytes.length + 10, true))
-        .hasMessageContaining("Attempted to write to offset 26 but array length is 16");
+            .isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     @Test
@@ -74,7 +74,7 @@ public class ByteArrayUtilTest
     {
         byte[] bytes = new byte[16];
         assertThatThrownBy(() -> ByteArrayUtil.putInt(bytes, bytes.length + 10, (short) 42))
-        .hasMessageContaining("Attempted to write to offset 26 but array length is 16");
+        .isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     @Test
@@ -104,7 +104,7 @@ public class ByteArrayUtilTest
     {
         byte[] bytes = new byte[16];
         assertThatThrownBy(() -> ByteArrayUtil.putInt(bytes, bytes.length + 10, 42))
-        .hasMessageContaining("Attempted to write to offset 26 but array length is 16");
+            .isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     @Test
@@ -134,7 +134,7 @@ public class ByteArrayUtilTest
     {
         byte[] bytes = new byte[16];
         assertThatThrownBy(() -> ByteArrayUtil.putLong(bytes, bytes.length + 10, 42))
-        .hasMessageContaining("Attempted to write to offset 26 but array length is 16");
+            .isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     @Test
@@ -164,7 +164,7 @@ public class ByteArrayUtilTest
     {
         byte[] bytes = new byte[16];
         assertThatThrownBy(() -> ByteArrayUtil.putFloat(bytes, bytes.length + 10, 42.0f))
-        .hasMessageContaining("Attempted to write to offset 26 but array length is 16");
+            .isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     @Test
@@ -194,7 +194,7 @@ public class ByteArrayUtilTest
     {
         byte[] bytes = new byte[16];
         assertThatThrownBy(() -> ByteArrayUtil.putDouble(bytes, bytes.length + 10, 42.0))
-            .hasMessageContaining("Attempted to write to offset 26 but array length is 16");
+            .isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     private static void putArrayToSmall(int targetBytes, FailingConsumer<byte[]> fn)
@@ -202,9 +202,7 @@ public class ByteArrayUtilTest
         for (int i = 0; i < targetBytes - 1; i++)
         {
             byte[] bytes = new byte[i];
-            assertThatThrownBy(() -> fn.doAccept(bytes)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                        .hasMessageContaining("Attempted to write " + targetBytes + " bytes")
-                                                        .hasMessageContaining("remaining capacity of " + i);
+            assertThatThrownBy(() -> fn.doAccept(bytes)).isInstanceOf(IndexOutOfBoundsException.class);
             assertThat(bytes).isEqualTo(new byte[i]);
         }
     }

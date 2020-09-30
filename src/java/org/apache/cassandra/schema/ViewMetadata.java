@@ -218,18 +218,10 @@ public final class ViewMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals)
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, withInternals, false);
-        return builder.toString();
-    }
-
-    public String toCqlString(boolean internals,
-                              boolean ifNotExists)
-    {
-        CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, internals, ifNotExists);
+        appendCqlTo(builder, withInternals, ifNotExists);
         return builder.toString();
     }
 }

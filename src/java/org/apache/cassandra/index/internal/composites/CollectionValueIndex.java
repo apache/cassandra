@@ -48,20 +48,20 @@ public class CollectionValueIndex extends CassandraIndex
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path, ByteBuffer cellValue)
     {
         return cellValue;
     }
 
-    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
-                                               CellPath path)
+    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                   ClusteringPrefix<T> prefix,
+                                                   CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
-            builder.add(prefix.get(i));
+            builder.add(prefix.get(i), prefix.accessor());
 
         // When indexing a static column, prefix will be empty but only the
         // partition key is needed at query time.
@@ -75,22 +75,22 @@ public class CollectionValueIndex extends CassandraIndex
 
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
-        Clustering clustering = indexEntry.clustering();
-        Clustering indexedEntryClustering = null;
+        Clustering<?> clustering = indexEntry.clustering();
+        Clustering<?> indexedEntryClustering = null;
         if (getIndexedColumn().isStatic())
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;
         else
         {
             CBuilder builder = CBuilder.create(baseCfs.getComparator());
             for (int i = 0; i < baseCfs.getComparator().size(); i++)
-                builder.add(clustering.get(i + 1));
+                builder.add(clustering, i + 1);
             indexedEntryClustering = builder.build();
         }
 
         return new IndexEntry(indexedValue,
                                 clustering,
                                 indexEntry.primaryKeyLivenessInfo().timestamp(),
-                                clustering.get(0),
+                                clustering.bufferAt(0),
                                 indexedEntryClustering);
     }
 
@@ -106,10 +106,10 @@ public class CollectionValueIndex extends CassandraIndex
         if (complexData == null)
             return true;
 
-        for (Cell cell : complexData)
+        for (Cell<?> cell : complexData)
         {
             if (cell.isLive(nowInSec) && ((CollectionType) columnDef.type).valueComparator()
-                                                                          .compare(indexValue, cell.value()) == 0)
+                                                                          .compare(indexValue, cell.buffer()) == 0)
                 return false;
         }
         return true;

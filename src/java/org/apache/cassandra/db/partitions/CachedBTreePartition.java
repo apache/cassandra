@@ -92,7 +92,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
                 ++cachedLiveRows;
 
             boolean hasNonExpiringLiveCell = false;
-            for (Cell cell : row.cells())
+            for (Cell<?> cell : row.cells())
             {
                 if (!cell.isTombstone() && !cell.isExpiring())
                 {

@@ -494,7 +494,7 @@ public class CompactionIteratorTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         DecoratedKey key = cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes("key"));
         try (CompactionController controller = new CompactionController(cfs, Integer.MAX_VALUE);
-             UnfilteredRowIterator rows = rows(metadata, key, false, unfiltereds);
+             UnfilteredRowIterator rows = rows(cfs.metadata(), key, false, unfiltereds);
              ISSTableScanner scanner = new Scanner(Collections.singletonList(rows));
              CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
                                                               Collections.singletonList(scanner),

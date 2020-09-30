@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.serializers;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class BytesSerializer implements TypeSerializer<ByteBuffer>
+public class BytesSerializer extends TypeSerializer<ByteBuffer>
 {
     public static final BytesSerializer instance = new BytesSerializer();
 
@@ -32,13 +33,13 @@ public class BytesSerializer implements TypeSerializer<ByteBuffer>
         return bytes.duplicate();
     }
 
-    public ByteBuffer deserialize(ByteBuffer value)
+    public <V> ByteBuffer deserialize(V value, ValueAccessor<V> accessor)
     {
         // This is from the DB, so it is not shared with someone else
-        return value;
+        return accessor.toBuffer(value);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
         // all bytes are legal.
     }
@@ -57,7 +58,7 @@ public class BytesSerializer implements TypeSerializer<ByteBuffer>
     public String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null
-             ? "null"
-             : "0x" + toString(deserialize(buffer));
+               ? "null"
+               : "0x" + toString(deserialize(buffer));
     }
 }

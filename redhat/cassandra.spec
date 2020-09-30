@@ -124,6 +124,7 @@ exit 0
 %defattr(0644,root,root,0755)
 %doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
 %attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/cassandra-stress
 %attr(755,root,root) %{_bindir}/cqlsh
 %attr(755,root,root) %{_bindir}/cqlsh.py
@@ -181,6 +182,7 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/sstablerepairedset
 %attr(755,root,root) %{_bindir}/sstablesplit
 %attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/fqltool
 
 

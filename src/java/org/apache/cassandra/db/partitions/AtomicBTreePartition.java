@@ -212,7 +212,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
     }
 
     @Override
-    public Row getRow(Clustering clustering)
+    public Row getRow(Clustering<?> clustering)
     {
         return allocator.ensureOnHeap().applyToRow(super.getRow(clustering));
     }
@@ -224,7 +224,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
     }
 
     @Override
-    public SearchIterator<Clustering, Row> searchIterator(ColumnFilter columns, boolean reversed)
+    public SearchIterator<Clustering<?>, Row> searchIterator(ColumnFilter columns, boolean reversed)
     {
         return allocator.ensureOnHeap().applyToPartition(super.searchIterator(columns, reversed));
     }
@@ -352,7 +352,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             this.indexer = indexer;
         }
 
-        private Row.Builder builder(Clustering clustering)
+        private Row.Builder builder(Clustering<?> clustering)
         {
             boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
             // We know we only insert/update one static per PartitionUpdate, so no point in saving the builder

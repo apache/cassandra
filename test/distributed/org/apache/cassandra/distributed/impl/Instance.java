@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -261,7 +262,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             int version = MessagingService.instance().versions.get(to);
             Message.serializer.serialize(messageOut, out, version);
-            return new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), version, fromCassandraInetAddressAndPort(from));
+            byte[] bytes = out.toByteArray();
+            if (messageOut.serializedSize(version) != bytes.length)
+                throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
+                                                       "expected %s, actual %s", version, version, messageOut.verb(), messageOut.serializer.getClass(),
+                                                       messageOut.serializedSize(version), bytes.length));
+            return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), version, fromCassandraInetAddressAndPort(from));
         }
         catch (IOException e)
         {
@@ -599,16 +605,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).call();
     }
 
-    private static class DTestNodeTool extends NodeTool {
+    public static class DTestNodeTool extends NodeTool {
         private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
 
         private Throwable latestError;
 
-        DTestNodeTool(boolean withNotifications) {
+        public DTestNodeTool(boolean withNotifications) {
             super(new InternalNodeProbeFactory(withNotifications));
             storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
+        }
+
+        public List<Notification> getNotifications()
+        {
+            return new ArrayList<>(notifications.notifications);
+        }
+
+        public Throwable getLatestError()
+        {
+            return latestError;
         }
 
         public int execute(String... args)

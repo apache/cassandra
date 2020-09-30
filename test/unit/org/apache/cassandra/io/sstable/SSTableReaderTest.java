@@ -18,12 +18,10 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -480,7 +478,7 @@ public class SSTableReaderTest
             SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
             assert sstable.first.getToken() instanceof LocalToken;
 
-            sstable.saveSummary();
+            SSTableReader.saveSummary(sstable.descriptor, sstable.first, sstable.last, sstable.indexSummary);
             SSTableReader reopened = SSTableReader.open(sstable.descriptor);
             assert reopened.first.getToken() instanceof LocalToken;
             reopened.selfRef().release();
@@ -593,7 +591,7 @@ public class SSTableReaderTest
                 public void run()
                 {
                     Row row = Util.getOnlyRowUnfiltered(Util.cmd(store, key).build());
-                    assertEquals(0, ByteBufferUtil.compare(String.format("%3d", index).getBytes(), row.cells().iterator().next().value()));
+                    assertEquals(0, ByteBufferUtil.compare(String.format("%3d", index).getBytes(), row.cells().iterator().next().buffer()));
                 }
             }));
 

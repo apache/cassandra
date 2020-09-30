@@ -602,7 +602,7 @@ public class CustomIndexTest extends CQLTester
 
         // the index should have been notified of the expired row
         assertEquals(1, index.rowsDeleted.size());
-        Integer deletedClustering = Int32Type.instance.compose(index.rowsDeleted.get(0).clustering().get(0));
+        Integer deletedClustering = Int32Type.instance.compose(index.rowsDeleted.get(0).clustering().bufferAt(0));
         assertEquals(0, deletedClustering.intValue());
     }
 

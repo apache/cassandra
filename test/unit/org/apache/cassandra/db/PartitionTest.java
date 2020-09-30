@@ -110,7 +110,7 @@ public class PartitionTest
         assertTrue(deserialized.columns().regulars.getSimple(5).equals(partition.columns().regulars.getSimple(5)));
 
         ColumnMetadata cDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val8"));
-        assertTrue(partition.lastRow().getCell(cDef).value().equals(deserialized.lastRow().getCell(cDef).value()));
+        assertTrue(partition.lastRow().getCell(cDef).buffer().equals(deserialized.lastRow().getCell(cDef).buffer()));
         assert deserialized.partitionKey().equals(partition.partitionKey());
     }
 

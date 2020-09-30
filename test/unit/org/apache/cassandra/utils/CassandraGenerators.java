@@ -38,6 +38,7 @@ import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -185,7 +186,7 @@ public final class CassandraGenerators
             ByteBuffer[] buffers = new ByteBuffer[columnGens.size()];
             for (int i = 0; i < columnGens.size(); i++)
                 buffers[i] = columnGens.get(i).generate(rnd);
-            return CompositeType.build(buffers);
+            return CompositeType.build(ByteBufferAccessor.instance, buffers);
         };
     }
 

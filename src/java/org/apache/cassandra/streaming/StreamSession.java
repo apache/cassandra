@@ -763,7 +763,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void streamSent(OutgoingStreamMessage message)
     {
-        long headerSize = message.stream.getSize();
+        long headerSize = message.stream.getEstimatedSize();
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);
         metrics.outgoingBytes.inc(headerSize);
         // schedule timeout for receiving ACK

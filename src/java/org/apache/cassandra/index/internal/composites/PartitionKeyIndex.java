@@ -55,7 +55,7 @@ public class PartitionKeyIndex extends CassandraIndex
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path,
                                       ByteBuffer cellValue)
     {
@@ -64,29 +64,29 @@ public class PartitionKeyIndex extends CassandraIndex
         return components[indexedColumn.position()];
     }
 
-    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
-                                               CellPath path)
+    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                   ClusteringPrefix<T> prefix,
+                                                   CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
-            builder.add(prefix.get(i));
+            builder.add(prefix.get(i), prefix.accessor());
         return builder;
     }
 
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         int ckCount = baseCfs.metadata().clusteringColumns().size();
-        Clustering clustering = indexEntry.clustering();
+        Clustering<?> clustering = indexEntry.clustering();
         CBuilder builder = CBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < ckCount; i++)
-            builder.add(clustering.get(i + 1));
+            builder.add(clustering, i + 1);
 
         return new IndexEntry(indexedValue,
                               clustering,
                               indexEntry.primaryKeyLivenessInfo().timestamp(),
-                              clustering.get(0),
+                              clustering.bufferAt(0),
                               builder.build());
     }
 

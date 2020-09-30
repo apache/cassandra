@@ -157,7 +157,7 @@ public class GroupMakerTest
         return DatabaseDescriptor.getPartitioner().decorateKey(buffer);
     }
 
-    private static Clustering clustering(int... components)
+    private static Clustering<?> clustering(int... components)
     {
         return Clustering.make(toByteBufferArray(components));
     }

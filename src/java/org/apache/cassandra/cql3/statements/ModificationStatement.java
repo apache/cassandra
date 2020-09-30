@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -180,7 +181,7 @@ public abstract class ModificationStatement implements CQLStatement
         return restrictions;
     }
 
-    public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params);
+    public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params);
 
     public abstract void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Slice slice, UpdateParameters params);
 
@@ -323,7 +324,7 @@ public abstract class ModificationStatement implements CQLStatement
         return partitionKeys;
     }
 
-    public NavigableSet<Clustering> createClustering(QueryOptions options)
+    public NavigableSet<Clustering<?>> createClustering(QueryOptions options)
     throws InvalidRequestException
     {
         if (appliesOnlyToStaticColumns() && !restrictions.hasClusteringColumnsRestrictions())
@@ -503,7 +504,7 @@ public abstract class ModificationStatement implements CQLStatement
                    "IN on the clustering key columns is not supported with conditional %s",
                     type.isUpdate()? "updates" : "deletions");
 
-        Clustering clustering = Iterables.getOnlyElement(createClustering(options));
+        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options));
         CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
@@ -512,7 +513,7 @@ public abstract class ModificationStatement implements CQLStatement
         return request;
     }
 
-    public void addConditions(Clustering clustering, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
+    public void addConditions(Clustering<?> clustering, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
     {
         conditions.addConditionsTo(request, clustering, options);
     }
@@ -717,7 +718,7 @@ public abstract class ModificationStatement implements CQLStatement
         }
         else
         {
-            NavigableSet<Clustering> clusterings = createClustering(options);
+            NavigableSet<Clustering<?>> clusterings = createClustering(options);
 
             // If some of the restrictions were unspecified (e.g. empty IN restrictions) we do not need to do anything.
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
@@ -738,15 +739,9 @@ public abstract class ModificationStatement implements CQLStatement
                 }
                 else
                 {
-                    for (Clustering clustering : clusterings)
+                    for (Clustering<?> clustering : clusterings)
                     {
-                        for (ByteBuffer c : clustering.getRawValues())
-                        {
-                            if (c != null && c.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                                throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
-                                                                                clustering.dataSize(),
-                                                                                FBUtilities.MAX_UNSIGNED_SHORT));
-                        }
+                        validateClustering(clustering);
                         addUpdateForKey(updateBuilder, clustering, params);
                     }
                 }
@@ -754,16 +749,28 @@ public abstract class ModificationStatement implements CQLStatement
         }
     }
 
+    private <V> void validateClustering(Clustering<V> clustering)
+    {
+        ValueAccessor<V> accessor = clustering.accessor();
+        for (V v : clustering.getRawValues())
+        {
+            if (v != null && accessor.size(v) > FBUtilities.MAX_UNSIGNED_SHORT)
+                throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                                clustering.dataSize(),
+                                                                FBUtilities.MAX_UNSIGNED_SHORT));
+        }
+    }
+
     Slices createSlices(QueryOptions options)
     {
-        SortedSet<ClusteringBound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
-        SortedSet<ClusteringBound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
+        SortedSet<ClusteringBound<?>> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
+        SortedSet<ClusteringBound<?>> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
 
         return toSlices(startBounds, endBounds);
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
-                                                  NavigableSet<Clustering> clusterings,
+                                                  NavigableSet<Clustering<?>> clusterings,
                                                   QueryOptions options,
                                                   boolean local,
                                                   long timestamp,
@@ -818,14 +825,14 @@ public abstract class ModificationStatement implements CQLStatement
                                     lists);
     }
 
-    private Slices toSlices(SortedSet<ClusteringBound> startBounds, SortedSet<ClusteringBound> endBounds)
+    private Slices toSlices(SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
     {
         assert startBounds.size() == endBounds.size();
 
         Slices.Builder builder = new Slices.Builder(metadata().comparator);
 
-        Iterator<ClusteringBound> starts = startBounds.iterator();
-        Iterator<ClusteringBound> ends = endBounds.iterator();
+        Iterator<ClusteringBound<?>> starts = startBounds.iterator();
+        Iterator<ClusteringBound<?>> ends = endBounds.iterator();
 
         while (starts.hasNext())
         {

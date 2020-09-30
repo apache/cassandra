@@ -68,12 +68,12 @@ public class EmptyType extends AbstractType<Void>
 
     private EmptyType() {super(ComparisonType.CUSTOM);} // singleton
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return 0;
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
         return "";
     }
@@ -121,21 +121,20 @@ public class EmptyType extends AbstractType<Void>
     }
 
     @Override
-    public long writtenLength(ByteBuffer value)
+    public <V> long writtenLength(V value, ValueAccessor<V> accessor)
     {
         // default implemenation requires non-empty bytes but this always requires empty bytes, so special case
-        validate(value);
+        validate(value, accessor);
         return 0;
     }
 
-    @Override
-    public ByteBuffer readValue(DataInputPlus in)
+    public ByteBuffer readBuffer(DataInputPlus in)
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;
     }
 
     @Override
-    public ByteBuffer readValue(DataInputPlus in, int maxValueSize)
+    public ByteBuffer readBuffer(DataInputPlus in, int maxValueSize)
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;
     }
