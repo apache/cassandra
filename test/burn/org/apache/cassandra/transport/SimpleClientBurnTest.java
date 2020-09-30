@@ -22,21 +22,12 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +38,6 @@ import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
-
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.NativeTransportService;
@@ -56,9 +46,10 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 
+import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
+import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
+import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
 import static org.assertj.core.api.Assertions.assertThat;
-
-import static org.apache.cassandra.transport.BurnTestUtil.*;
 
 public class SimpleClientBurnTest
 {
@@ -94,7 +85,6 @@ public class SimpleClientBurnTest
         }
     }
 
-    @Ignore
     @Test
     public void test() throws Throwable
     {

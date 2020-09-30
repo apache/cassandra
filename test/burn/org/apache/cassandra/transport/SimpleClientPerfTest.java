@@ -21,16 +21,8 @@ package org.apache.cassandra.transport;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -39,13 +31,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.commons.math.stat.descriptive.DescriptiveStatistics;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.SimpleStatement;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
@@ -60,11 +49,9 @@ import org.apache.cassandra.utils.AssertUtil;
 
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
-import static org.apache.cassandra.transport.BurnTestUtil.generateQueryStatement;
 import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
 
-@Ignore
-public class SimpleClientPerfTest extends SimpleClientBurnTest
+public class SimpleClientPerfTest
 {
 
     private static final Logger logger = LoggerFactory.getLogger(CQLConnectionTest.class);
@@ -119,6 +106,72 @@ public class SimpleClientPerfTest extends SimpleClientBurnTest
                                   port, ProtocolVersion.V4, false,
                                   new EncryptionOptions())
                  .connect(false));
+    }
+
+    @Test
+    public void measureSmallV5WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(10, 20, 5, 10),
+                 new SizeCaps(10, 20, 5, 10),
+                 () -> new SimpleClient(address.getHostAddress(),
+                                        port, ProtocolVersion.V5, true,
+                                        new EncryptionOptions())
+                       .connect(true));
+    }
+
+    @Test
+    public void measureSmallV4WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(10, 20, 5, 10),
+                 new SizeCaps(10, 20, 5, 10),
+                 () -> new SimpleClient(address.getHostAddress(),
+                                        port, ProtocolVersion.V4, false,
+                                        new EncryptionOptions())
+                       .connect(true));
+    }
+
+    @Test
+    public void measureLargeV5() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 () -> new SimpleClient(address.getHostAddress(),
+                                        port, ProtocolVersion.V5, true,
+                                        new EncryptionOptions())
+                       .connect(false));
+    }
+
+    @Test
+    public void measureLargeV4() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 () -> new SimpleClient(address.getHostAddress(),
+                                        port, ProtocolVersion.V4, false,
+                                        new EncryptionOptions())
+                       .connect(false));
+    }
+
+    @Test
+    public void measureLargeV5WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 () -> new SimpleClient(address.getHostAddress(),
+                                        port, ProtocolVersion.V5, true,
+                                        new EncryptionOptions())
+                       .connect(true));
+    }
+
+    @Test
+    public void measureLargeV4WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 () -> new SimpleClient(address.getHostAddress(),
+                                        port, ProtocolVersion.V4, false,
+                                        new EncryptionOptions())
+                       .connect(true));
     }
 
     public void perfTest(SizeCaps requestCaps, SizeCaps responseCaps, AssertUtil.ThrowingSupplier<SimpleClient> clientSupplier) throws Throwable
