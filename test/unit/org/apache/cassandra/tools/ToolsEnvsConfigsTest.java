@@ -18,25 +18,27 @@
 
 package org.apache.cassandra.tools;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import java.util.Collections;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
+
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
-public class GetVersionTest extends OfflineToolUtils
+import static org.junit.Assert.assertTrue;
+
+public class ToolsEnvsConfigsTest
 {
+    //Some JDK can output env info on stdout/err. Check we can clean them
+    @SuppressWarnings("resource")
     @Test
-    public void testGetVersion()
+    public void testJDKEnvInfoDefaultCleaners()
     {
-        ToolResult tool = ToolRunner.invokeClass(GetVersion.class);
-        tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(null, null);
-        assertSchemaNotLoaded();
-        assertCLSMNotLoaded();
-        assertSystemKSNotLoaded();
-        assertKeyspaceNotLoaded();
-        assertServerNotLoaded();
+        ToolResult tool = ToolRunner.invoke(ImmutableMap.of("_JAVA_OPTIONS", "-Djava.net.preferIPv4Stack=true"),
+                                            null,
+                                            CQLTester.buildNodetoolArgs(Collections.emptyList()));
+        assertTrue("Cleaned Stderr was not empty: " + tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
     }
 }

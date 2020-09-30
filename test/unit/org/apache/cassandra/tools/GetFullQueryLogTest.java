@@ -29,6 +29,7 @@ import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -36,7 +37,6 @@ import static org.junit.Assert.assertTrue;
 public class GetFullQueryLogTest extends CQLTester
 {
     private static NodeProbe probe;
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
 
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -55,7 +55,7 @@ public class GetFullQueryLogTest extends CQLTester
     }
 
     @After
-    public void afterTest()
+    public void afterTest() throws InterruptedException
     {
         disableFullQueryLog();
     }
@@ -87,29 +87,39 @@ public class GetFullQueryLogTest extends CQLTester
 
     private String getFullQueryLog()
     {
-        return runner.invokeNodetool("getfullquerylog").waitAndAssertOnCleanExit().getStdout();
+        ToolResult tool = ToolRunner.invokeNodetool("getfullquerylog");
+        tool.assertOnCleanExit();
+        return tool.getStdout();
     }
 
     private void resetFullQueryLog()
     {
-        runner.invokeNodetool("resetfullquerylog").waitAndAssertOnCleanExit();
+        ToolRunner.invokeNodetool("resetfullquerylog").assertOnCleanExit();
     }
 
     private void disableFullQueryLog()
     {
-        runner.invokeNodetool("disablefullquerylog").waitAndAssertOnCleanExit();
+        ToolRunner.invokeNodetool("disablefullquerylog").assertOnCleanExit();
     }
 
     private void enableFullQueryLog()
     {
-        runner.invokeNodetool("enablefullquerylog",
-                              "--path", temporaryFolder.getRoot().toString(),
-                              "--blocking", "false",
-                              "--max-archive-retries", "5",
-                              "--archive-command", "/path/to/script.sh %path",
-                              "--max-log-size", "100000",
-                              "--max-queue-weight", "10000",
-                              "--roll-cycle", "DAILY").waitAndAssertOnCleanExit();
+        ToolRunner.invokeNodetool("enablefullquerylog",
+                                  "--path",
+                                  temporaryFolder.getRoot().toString(),
+                                  "--blocking",
+                                  "false",
+                                  "--max-archive-retries",
+                                  "5",
+                                  "--archive-command",
+                                  "/path/to/script.sh %path",
+                                  "--max-log-size",
+                                  "100000",
+                                  "--max-queue-weight",
+                                  "10000",
+                                  "--roll-cycle",
+                                  "DAILY")
+                  .assertOnCleanExit();
     }
 
     private void testChangedOutput(final String getFullQueryLogOutput)
