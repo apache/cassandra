@@ -211,8 +211,8 @@ public class SimpleClient implements Closeable
 
         if (useCompression)
         {
-            options.put(StartupMessage.COMPRESSION, "snappy");
-            connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
+            options.put(StartupMessage.COMPRESSION, "LZ4");
+            connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
         }
         execute(new StartupMessage(options));
 
