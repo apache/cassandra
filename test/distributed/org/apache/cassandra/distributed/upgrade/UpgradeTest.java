@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.upgrade;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.Versions;
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
@@ -34,10 +35,6 @@ public class UpgradeTest extends UpgradeTestBase
         .upgrade(Versions.Major.v22, Versions.Major.v30, Versions.Major.v3X)
         .upgrade(Versions.Major.v30, Versions.Major.v3X, Versions.Major.v4)
         .setup((cluster) -> {
-            //TODO fix - this is a jvm-dtest bug where we get null when we want the NoPayload object
-            cluster.setUncaughtExceptionsFilter(t ->
-                                                t instanceof IllegalArgumentException 
-                                                && t.getStackTrace()[0].getClassName().startsWith("org.apache.cassandra.net.NoPayload"));
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
@@ -51,6 +48,34 @@ public class UpgradeTest extends UpgradeTestBase
                        row(1, 1, 1),
                        row(1, 2, 2),
                        row(1, 3, 3));
+        }).run();
+    }
+
+    @Test
+    public void reserializationDuringUpgradeFrom30() throws Throwable
+    {
+        new TestCase()
+        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .nodes(3)
+        .nodesToUpgrade(1)
+        .withConfig(cfg -> cfg.with(Feature.GOSSIP, Feature.NETWORK))
+        .setup((cluster) -> {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, 2)", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, 3)", ConsistencyLevel.ALL);
+        })
+        .runAfterNodeUpgrade((cluster, upgraded) -> {
+            for (int i = 1; i <= cluster.size(); i++)
+            {
+                assertRows(cluster.coordinator(i).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+                                                         ConsistencyLevel.ALL,
+                                                         1),
+                           row(1, 1, 1),
+                           row(1, 2, 2),
+                           row(1, 3, 3));
+            }
         }).run();
     }
 }

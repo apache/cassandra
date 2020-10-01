@@ -83,6 +83,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -91,6 +92,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -110,6 +112,7 @@ import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -284,9 +287,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static IMessage serializeMessage(InetAddressAndPort from, InetAddressAndPort to, Message<?> messageOut)
     {
+        int version = MessagingService.instance().versions.get(to);
+        if (messageOut.verb().serializer() == ((IVersionedAsymmetricSerializer) NoPayload.serializer) || messageOut.payload == null)
+        {
+            return new MessageImpl(messageOut.verb().id,
+                                   ByteArrayUtil.EMPTY_BYTE_ARRAY,
+                                   messageOut.id(),
+                                   version,
+                                   fromCassandraInetAddressAndPort(from));
+        }
+
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            int version = MessagingService.instance().versions.get(to);
             Message.serializer.serialize(messageOut, out, version);
             byte[] bytes = out.toByteArray();
             if (messageOut.serializedSize(version) != bytes.length)
