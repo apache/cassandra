@@ -161,7 +161,7 @@ abstract class Flusher implements Runnable
         }
     }
 
-    public static void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
+    private void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
     {
         FrameEncoder.Payload payload;
         ByteBuffer buf;
@@ -197,6 +197,14 @@ abstract class Flusher implements Runnable
             body.readerIndex(body.readerIndex() + remaining);
             writeAndFlush(channel, payload);
         }
+        outbound.release();
+    }
+
+    private void writeAndFlush(Channel channel, FrameEncoder.Payload payload)
+    {
+        // we finish, but not "release" here since we're passing the buffer ownership to FrameEncoder#encode
+        payload.finish();
+        channel.writeAndFlush(payload, channel.voidPromise());
     }
 
     protected boolean processQueue()
@@ -244,14 +252,7 @@ abstract class Flusher implements Runnable
         processed.clear();
     }
 
-    private static void writeAndFlush(Channel channel, FrameEncoder.Payload payload)
-    {
-        payload.finish();
-        channel.writeAndFlush(payload, channel.voidPromise());
-        payload.release();
-    }
-
-    public static class FrameSet extends ArrayList<Frame>
+    private class FrameSet extends ArrayList<Frame>
     {
         private final Channel channel;
         private final FrameEncoder.PayloadAllocator allocator;
