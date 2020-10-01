@@ -82,6 +82,10 @@ public class PreV5Handlers
 
         private void releaseItem(Flusher.FlushItem<Message.Response> item)
         {
+            // Note: in contrast to the equivalent for V5 protocol, CQLMessageHandler::release(FlushItem item),
+            // this does not release the FlushItem's Message.Response. In V4, the buffers for the response's body
+            // and serialised header are emitted directly down the Netty pipeline from Frame.FrameEncoder, so
+            // releasing them is handled by the pipeline itself.
             long itemSize = item.sourceFrame.header.bodySizeInBytes;
             item.sourceFrame.release();
 

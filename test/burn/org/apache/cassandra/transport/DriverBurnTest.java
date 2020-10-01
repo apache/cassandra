@@ -317,7 +317,7 @@ public class DriverBurnTest extends CQLTester
         });
 
         int threads = 10;
-        int perThread = 1;
+        int perThread = 30;
         ExecutorService executor = Executors.newFixedThreadPool(threads + 10);
         AtomicReference<Throwable> error = new AtomicReference<>();
         CountDownLatch signal = new CountDownLatch(1);

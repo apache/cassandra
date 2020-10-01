@@ -279,6 +279,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     {
         release(flushItem.sourceFrame.header);
         flushItem.sourceFrame.release();
+        flushItem.response.release();
     }
 
     private void release(Frame.Header header)

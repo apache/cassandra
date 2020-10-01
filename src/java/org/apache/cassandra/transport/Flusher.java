@@ -197,7 +197,6 @@ abstract class Flusher implements Runnable
             body.readerIndex(body.readerIndex() + remaining);
             writeAndFlush(channel, payload);
         }
-        outbound.release();
     }
 
     private void writeAndFlush(Channel channel, FrameEncoder.Payload payload)
@@ -244,6 +243,10 @@ abstract class Flusher implements Runnable
         // capacity claimed for message processing back to the global and per-endpoint reserves.
         // Those reserves are used to determine if capacity is available for any inbound message
         // or whether we should attempt to shed load or apply backpressure.
+        // The response buffers are handled differently though. In V5, CQL frames are collated into
+        // outer frames, and so their buffers can be released immediately after flushing. In V4 however,
+        // the buffers containing each CQL frame header and body are emitted from Frame.FrameEncoder
+        // and so releasing them is handled by Netty internally.
         for (FlushItem<?> item : processed)
             item.release();
 
@@ -302,9 +305,6 @@ abstract class Flusher implements Runnable
                     sending = allocate(sizeInBytes - writtenBytes, framesToWrite);
                 }
                 f.encodeInto(sending.buffer);
-                // Release the buffer for the outgoing CQL message as
-                // it's now been encoded into a messaging frame buffer
-                f.release();
                 writtenBytes += frameSize(f.header);
                 framesToWrite--;
             }
