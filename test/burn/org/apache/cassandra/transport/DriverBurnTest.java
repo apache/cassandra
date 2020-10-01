@@ -251,6 +251,28 @@ public class DriverBurnTest extends CQLTester
                         .withPort(nativePort));
     }
 
+    @Test
+    public void measureLargeV5WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .allowBetaProtocolVersion()
+                        .withCompression(ProtocolOptions.Compression.LZ4)
+                        .withPort(nativePort));
+    }
+
+    @Test
+    public void measureLargeV4WithCompression() throws Throwable
+    {
+        perfTest(new SizeCaps(1000, 2000, 5, 150),
+                 new SizeCaps(1000, 2000, 5, 150),
+                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                        .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
+                        .withCompression(ProtocolOptions.Compression.LZ4)
+                        .withPort(nativePort));
+    }
+
     public void perfTest(SizeCaps requestCaps, SizeCaps responseCaps, Cluster.Builder builder) throws Throwable
     {
         SimpleStatement request = generateQueryStatement(0, requestCaps);
