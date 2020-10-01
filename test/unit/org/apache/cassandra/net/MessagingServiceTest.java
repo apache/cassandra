@@ -366,11 +366,11 @@ public class MessagingServiceTest
             for (InboundSockets.InboundSocket socket : connections.sockets())
             {
                 Assert.assertEquals(serverEncryptionOptions.isEnabled(), socket.settings.encryption.isEnabled());
-                Assert.assertEquals(serverEncryptionOptions.optional, socket.settings.encryption.optional);
+                Assert.assertEquals(serverEncryptionOptions.isOptional(), socket.settings.encryption.isOptional());
                 if (!serverEncryptionOptions.isEnabled())
                     Assert.assertFalse(legacySslPort == socket.settings.bindAddress.port);
                 if (legacySslPort == socket.settings.bindAddress.port)
-                    Assert.assertFalse(socket.settings.encryption.optional);
+                    Assert.assertFalse(socket.settings.encryption.isOptional());
                 Assert.assertTrue(socket.settings.bindAddress.toString(), expect.remove(socket.settings.bindAddress));
             }
         }
