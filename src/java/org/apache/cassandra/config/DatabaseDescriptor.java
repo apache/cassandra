@@ -2434,6 +2434,11 @@ public class DatabaseDescriptor
         conf.incremental_backups = value;
     }
 
+    public static boolean getFileCacheEnabled()
+    {
+        return conf.file_cache_enabled;
+    }
+
     public static int getFileCacheSizeInMB()
     {
         if (conf.file_cache_size_in_mb == null)

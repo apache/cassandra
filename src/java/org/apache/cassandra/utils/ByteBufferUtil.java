@@ -701,11 +701,15 @@ public class ByteBufferUtil
         return false;
     }
 
+    public static int getUnsignedShort(ByteBuffer bb, int position)
+    {
+        return ((bb.get(position) & 0xFF) << 8) | (bb.get(position + 1) & 0xFF);
+    }
+
     // Doesn't change bb position
     public static int getShortLength(ByteBuffer bb, int position)
     {
-        int length = (bb.get(position) & 0xFF) << 8;
-        return length | (bb.get(position + 1) & 0xFF);
+        return getUnsignedShort(bb, position);
     }
 
     // changes bb position

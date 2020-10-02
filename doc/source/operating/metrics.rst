@@ -514,6 +514,7 @@ PendingTasks               Gauge<Long>    Number of commit log messages written 
 TotalCommitLogSize         Gauge<Long>    Current size, in bytes, used by all the commit log segments.
 WaitingOnSegmentAllocation Timer          Time spent waiting for a CommitLogSegment to be allocated - under normal conditions this should be zero.
 WaitingOnCommit            Timer          The time spent waiting on CL fsync; for Periodic this is only occurs when the sync is lagging its sync interval.
+OverSizedMutations         Meter          Throughput for mutations that exceed limit.
 ========================== ============== ===========
 
 Storage Metrics

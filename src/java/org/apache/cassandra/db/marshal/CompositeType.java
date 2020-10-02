@@ -247,7 +247,7 @@ public class CompositeType extends AbstractCompositeType
 
     public static <V> boolean isStaticName(V value, ValueAccessor<V> accessor)
     {
-        return accessor.size(value) >= 2 && (accessor.getShortLength(value, 0) & 0xFFFF) == STATIC_MARKER;
+        return accessor.size(value) >= 2 && (accessor.getUnsignedShort(value, 0) & 0xFFFF) == STATIC_MARKER;
     }
 
     @Override

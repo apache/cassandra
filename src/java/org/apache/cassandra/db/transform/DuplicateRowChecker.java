@@ -41,6 +41,7 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
 
     Clustering<?> previous = null;
     int duplicatesDetected = 0;
+    boolean hadNonEqualDuplicates = false;
 
     final String stage;
     final List<InetAddressAndPort> replicas;
@@ -78,8 +79,12 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
 
     protected Row applyToRow(Row row)
     {
-        if (null != previous && row.clustering().equals(previous))
+        if (null != previous && metadata.comparator.compare(row.clustering(), previous) == 0)
+        {
             duplicatesDetected++;
+            hadNonEqualDuplicates |= !row.clustering().equals(previous);
+        }
+
         previous = row.clustering();
         return row;
     }
@@ -88,10 +93,11 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
     {
         if (duplicatesDetected > 0)
         {
-            logger.warn("Detected {} duplicate rows for {} during {}",
+            logger.warn("Detected {} duplicate rows for {} during {}.{}",
                         duplicatesDetected,
                         metadata.partitionKeyType.getString(key.getKey()),
-                        stage);
+                        stage,
+                        hadNonEqualDuplicates ? " Some duplicates had different byte representation." : "");
             if (snapshotOnDuplicate)
                 DiagnosticSnapshotService.duplicateRows(metadata, replicas);
         }

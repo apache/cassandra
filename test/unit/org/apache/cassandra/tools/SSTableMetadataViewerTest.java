@@ -18,22 +18,36 @@
 
 package org.apache.cassandra.tools;
 
+import java.util.Arrays;
+
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.tuple.Pair;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableMetadataViewerTest extends OfflineToolUtils
 {
-    private ToolRunner.Runners runner = new ToolRunner.Runners();
-    
     @Test
-    public void testSSTableOfflineRelevel_NoArgs()
+    public void testNoArgsPrintsHelp()
     {
-        assertEquals(1, runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableMetadataViewer").getExitCode());
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class);
+        {
+            assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
+            assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
+            assertEquals(1, tool.getExitCode());
+        }
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -43,9 +57,122 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
     }
 
     @Test
-    public void testSSTableOfflineRelevel_WithArgs()
+    public void testMaybeChangeDocs()
     {
-        runner.invokeClassAsTool("org.apache.cassandra.tools.SSTableMetadataViewer", "ks", "tab").waitAndAssertOnCleanExit();
+        // If you added, modified options or help, please update docs if necessary
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "-h");
+        assertEquals("You must supply at least one sstable\n" + 
+                     "usage: sstablemetadata <options> <sstable...> [-c] [-g <arg>] [-s] [-t <arg>] [-u]\n" + 
+                     "\n" + 
+                     "Dump information about SSTable[s] for Apache Cassandra 3.x\n" + 
+                     "Options:\n" + 
+                     "  -c,--colors                 Use ANSI color sequences\n" + 
+                     "  -g,--gc_grace_seconds <arg> Time to use when calculating droppable tombstones\n" + 
+                     "  -s,--scan                   Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false\n" + 
+                     "  -t,--timestamp_unit <arg>   Time unit that cell timestamps are written with\n" + 
+                     "  -u,--unicode                Use unicode to draw histograms and progress bars\n\n" 
+                     , tool.getCleanedStderr());
+    }
+
+    @Test
+    public void testWrongArgFailsAndPrintsHelp()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "--debugwrong", "ks", "tab");
+        assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
+        assertEquals(1, tool.getExitCode());
+    }
+
+    @Test
+    public void testDefaultCall()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "ks", "tab");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(0,tool.getExitCode());
+        assertGoodEnvPostTest();
+    }
+
+    @Test
+    public void testFlagArgs()
+    {
+        Arrays.asList("-c",
+                      "--colors",
+                      "-s",
+                      "--scan",
+                      "-u",
+                      "--unicode")
+              .forEach(arg -> {
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, arg, "ks", "tab");
+                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+                  Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+                  assertEquals(0,tool.getExitCode());
+                  assertGoodEnvPostTest();
+              });
+    }
+
+    @Test
+    public void testGCArg()
+    {
+        Arrays.asList(Pair.of("-g", ""),
+                      Pair.of("-g", "w"),
+                      Pair.of("--gc_grace_seconds", ""),
+                      Pair.of("--gc_grace_seconds", "w"))
+              .forEach(arg -> {
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
+                                                           arg.getLeft(),
+                                                           arg.getRight(),
+                                                           "ks",
+                                                           "tab");
+                  assertEquals(-1, tool.getExitCode());
+                  Assertions.assertThat(tool.getStderr()).contains(NumberFormatException.class.getSimpleName());
+              });
+
+        Arrays.asList(Pair.of("-g", "5"), Pair.of("--gc_grace_seconds", "5")).forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
+                                                            arg.getLeft(),
+                                                            arg.getRight(),
+                                                            "ks",
+                                                            "tab");
+            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+            Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+            tool.assertOnExitCode();
+            assertGoodEnvPostTest();
+        });
+    }
+
+    @Test
+    public void testTSUnitArg()
+    {
+        Arrays.asList(Pair.of("-t", ""),
+                      Pair.of("-t", "w"),
+                      Pair.of("--timestamp_unit", ""),
+                      Pair.of("--timestamp_unit", "w"))
+              .forEach(arg -> {
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
+                                                           arg.getLeft(),
+                                                           arg.getRight(),
+                                                           "ks",
+                                                           "tab");
+                  assertEquals(-1, tool.getExitCode());
+                  Assertions.assertThat(tool.getStderr()).contains(IllegalArgumentException.class.getSimpleName());
+              });
+
+        Arrays.asList(Pair.of("-t", "SECONDS"), Pair.of("--timestamp_unit", "SECONDS")).forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
+                                                       arg.getLeft(),
+                                                       arg.getRight(),
+                                                       "ks",
+                                                       "tab");
+            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
+            Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+            tool.assertOnExitCode();
+            assertGoodEnvPostTest();
+        });
+    }
+
+    private void assertGoodEnvPostTest()
+    {
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
