@@ -19,6 +19,7 @@
  * Show the progress of data streaming and index build (CASSANDRA-15406)
  * Add flag to disable chunk cache and disable by default (CASSANDRA-16036)
 Merged from 3.11:
+ * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)

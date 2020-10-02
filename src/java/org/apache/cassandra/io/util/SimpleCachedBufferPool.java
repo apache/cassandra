@@ -16,16 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db.commitlog;
+package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.FileUtils;
+import org.jctools.queues.MpmcArrayQueue;
 
 /**
  * A very simple Bytebuffer pool with a fixed allocation size and a cached max allocation count. Will allow
@@ -35,15 +33,13 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class SimpleCachedBufferPool
 {
-    protected static final FastThreadLocal<ByteBuffer> reusableBufferHolder = new FastThreadLocal<ByteBuffer>()
-    {
-        protected ByteBuffer initialValue()
-        {
-            return ByteBuffer.allocate(0);
-        }
-    };
+    private final ThreadLocalByteBufferHolder bufferHolder;
 
-    private Queue<ByteBuffer> bufferPool = new ConcurrentLinkedQueue<>();
+    private final Queue<ByteBuffer> bufferPool;
+
+    /**
+     * The number of buffers currently used.
+     */
     private AtomicInteger usedBuffers = new AtomicInteger(0);
 
     /**
@@ -57,15 +53,19 @@ public class SimpleCachedBufferPool
      */
     private final int bufferSize;
 
-    private BufferType preferredReusableBufferType = BufferType.ON_HEAP;
+    private final BufferType preferredReusableBufferType;
 
-    public SimpleCachedBufferPool(int maxBufferPoolSize, int bufferSize)
+    public SimpleCachedBufferPool(int maxBufferPoolSize, int bufferSize, BufferType preferredReusableBufferType)
     {
+        // We want to use a bounded queue to ensure that we do not pool more buffers than maxBufferPoolSize
+        this.bufferPool = new MpmcArrayQueue<>(maxBufferPoolSize);
         this.maxBufferPoolSize = maxBufferPoolSize;
         this.bufferSize = bufferSize;
+        this.preferredReusableBufferType = preferredReusableBufferType;
+        this.bufferHolder = new ThreadLocalByteBufferHolder(preferredReusableBufferType);
     }
 
-    public ByteBuffer createBuffer(BufferType bufferType)
+    public ByteBuffer createBuffer()
     {
         usedBuffers.incrementAndGet();
         ByteBuffer buf = bufferPool.poll();
@@ -74,41 +74,46 @@ public class SimpleCachedBufferPool
             buf.clear();
             return buf;
         }
-        return bufferType.allocate(bufferSize);
+        return preferredReusableBufferType.allocate(bufferSize);
     }
 
     public ByteBuffer getThreadLocalReusableBuffer(int size)
     {
-        ByteBuffer result = reusableBufferHolder.get();
-        if (result.capacity() < size || BufferType.typeOf(result) != preferredReusableBufferType)
-        {
-            FileUtils.clean(result);
-            result = preferredReusableBufferType.allocate(size);
-            reusableBufferHolder.set(result);
-        }
-        return result;
-    }
-
-    public void setPreferredReusableBufferType(BufferType type)
-    {
-        preferredReusableBufferType = type;
+        return bufferHolder.getBuffer(size);
     }
 
     public void releaseBuffer(ByteBuffer buffer)
     {
+        assert buffer != null;
+        assert preferredReusableBufferType == BufferType.typeOf(buffer);
+
         usedBuffers.decrementAndGet();
 
-        if (bufferPool.size() < maxBufferPoolSize)
-            bufferPool.add(buffer);
-        else
+        // We use a bounded queue. By consequence if we have reached the maximum size for the buffer pool
+        // offer will return false and we know that we can simply get rid of the buffer.
+        if (!bufferPool.offer(buffer))
             FileUtils.clean(buffer);
     }
 
-    public void shutdown()
+    /**
+     * Empties the buffer pool.
+     */
+    public void emptyBufferPool()
     {
-        bufferPool.clear();
+        ByteBuffer buffer = bufferPool.poll();
+        while(buffer != null)
+        {
+            FileUtils.clean(buffer);
+            buffer = bufferPool.poll();
+        }
     }
 
+    /**
+     * Checks if the number of used buffers has exceeded the maximum number of cached buffers.
+     *
+     * @return {@code true} if the number of used buffers has exceeded the maximum number of cached buffers,
+     * {@code false} otherwise.
+     */
     public boolean atLimit()
     {
         return usedBuffers.get() >= maxBufferPoolSize;
@@ -119,9 +124,9 @@ public class SimpleCachedBufferPool
     {
         return new StringBuilder()
                .append("SimpleBufferPool:")
-               .append(" bufferCount:").append(usedBuffers.get())
-               .append(", bufferSize:").append(maxBufferPoolSize)
-               .append(", buffer size:").append(bufferSize)
+               .append(" usedBuffers:").append(usedBuffers.get())
+               .append(", maxBufferPoolSize:").append(maxBufferPoolSize)
+               .append(", bufferSize:").append(bufferSize)
                .toString();
     }
 }
