@@ -84,22 +84,12 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     public static class Standard extends CompressedChunkReader
     {
         // we read the raw compressed bytes into this buffer, then uncompressed them into the provided one.
-        private final ThreadLocal<ByteBuffer> compressedHolder;
+        ThreadLocalByteBufferHolder bufferHolder;
 
         public Standard(ChannelProxy channel, CompressionMetadata metadata)
         {
             super(channel, metadata);
-            compressedHolder = ThreadLocal.withInitial(this::allocateBuffer);
-        }
-
-        public ByteBuffer allocateBuffer()
-        {
-            return allocateBuffer(metadata.compressor().initialCompressedBufferLength(metadata.chunkLength()));
-        }
-
-        public ByteBuffer allocateBuffer(int size)
-        {
-            return metadata.compressor().preferredBufferType().allocate(size);
+            bufferHolder = new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType());
         }
 
         @Override
@@ -112,23 +102,12 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 assert position <= fileLength;
 
                 CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
-                ByteBuffer compressed = compressedHolder.get();
 
                 boolean shouldCheckCrc = shouldCheckCrc();
 
                 int length = shouldCheckCrc ? chunk.length + Integer.BYTES : chunk.length;
+                ByteBuffer compressed = bufferHolder.getBuffer(length);
 
-                if (compressed.capacity() < length)
-                {
-                    compressed = allocateBuffer(length);
-                    compressedHolder.set(compressed);
-                }
-                else
-                {
-                    compressed.clear();
-                }
-
-                compressed.limit(length);
                 if (channel.read(compressed, chunk.offset) != length)
                     throw new CorruptBlockException(channel.filePath(), chunk);
 
