@@ -428,8 +428,8 @@ items as its declaring type (some of those values can be null but they must be e
 User-Defined Types
 ^^^^^^^^^^^^^^^^^^
 
-CQL support the definition of user-defined types (UDT for short), which is basically a tuple on steroids - it's
-literally an extension of the class that represents a tuple. Such a type can be created, modified and removed using the
+A User Defined Type (UDT) is a set data fields where each field is named and typed. UDTs allow to store related
+information together within one colum. UDTs can be created, modified and removed using token
 :token:`create_type_statement`, :token:`alter_type_statement` and :token:`drop_type_statement` described below. But
 once created, a UDT is simply referred to by its name:
 
