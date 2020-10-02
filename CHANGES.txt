@@ -1,4 +1,5 @@
 3.11.9
+ * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
