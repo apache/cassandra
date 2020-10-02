@@ -277,8 +277,6 @@ class CqlshRunner(ProcRunner):
                  win_force_colors=True, tty=True, **kwargs):
         if path is None:
             cqlsh_bin = 'cqlsh'
-            if is_win():
-                cqlsh_bin = 'cqlsh.bat'
             path = normpath(join(basecase.cqlshdir, cqlsh_bin))
         if host is None:
             host = basecase.TEST_HOST
