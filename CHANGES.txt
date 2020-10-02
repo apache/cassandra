@@ -9,6 +9,7 @@ Merged from 3.0:
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
 
 4.0-beta3
+ * Remove Windows scripts (CASSANDRA-16171)
  * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)
  * Fail truncation requests when they fail on a replica (CASSANDRA-16208)
  * Move compact storage validation earlier in startup process (CASSANDRA-16063)
