@@ -84,6 +84,7 @@ public abstract class AbstractCommitLogSegmentManager
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
     private final WaitQueue managerThreadWaitQueue = new WaitQueue();
+    private ExecutorService syncExecutor;
 
     private static final SimpleCachedBufferPool bufferPool =
         new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(), DatabaseDescriptor.getCommitLogSegmentSize());
@@ -145,6 +146,7 @@ public abstract class AbstractCommitLogSegmentManager
         };
 
         shutdown = false;
+        syncExecutor = Executors.newFixedThreadPool(5, new NamedThreadFactory("COMMIT-LOG-SYNC-EXECUTOR"));
         managerThread = NamedThreadFactory.createThread(runnable, "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
 
@@ -483,6 +485,8 @@ public abstract class AbstractCommitLogSegmentManager
         for (CommitLogSegment segment : activeSegments)
             segment.close();
 
+        syncExecutor.shutdown();
+        syncExecutor = null;
         bufferPool.shutdown();
     }
 
@@ -511,12 +515,36 @@ public abstract class AbstractCommitLogSegmentManager
     public void sync(boolean flush) throws IOException
     {
         CommitLogSegment current = allocatingFrom;
+        List<Future<?>> futures = new ArrayList<>();
         for (CommitLogSegment segment : getActiveSegments())
         {
             // Do not sync segments that became active after sync started.
             if (segment.id > current.id)
                 return;
-            segment.sync(flush);
+
+            futures.add(syncExecutor.submit(new WrappedRunnable()
+            {
+                protected void runMayThrow() throws Exception
+                {
+                    segment.sync(flush);
+                }
+            }));
+        }
+
+        for(Future<?> future : futures)
+        {
+            try
+            {
+                future.get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 
