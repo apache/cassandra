@@ -18,8 +18,11 @@
 package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import com.google.common.collect.Iterables;
 
@@ -27,7 +30,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -84,7 +86,7 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
     {
         ByteBuffer partitionKey = partitionKeyValues.length == 1
                                 ? decompose(metadata.partitionKeyType, partitionKeyValues[0])
-                                : ((CompositeType) metadata.partitionKeyType).decompose(ByteBufferAccessor.instance, partitionKeyValues);
+                                : ((CompositeType) metadata.partitionKeyType).decompose(partitionKeyValues);
         return metadata.partitioner.decorateKey(partitionKey);
     }
 
