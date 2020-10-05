@@ -431,8 +431,8 @@ public class ColumnFilter
             {
                 if (version >= MessagingService.VERSION_3014)
                 {
-                    Columns statics = Columns.serializer.deserialize(in, metadata);
-                    Columns regulars = Columns.serializer.deserialize(in, metadata);
+                    Columns statics = Columns.serializer.deserializeStatics(in, metadata);
+                    Columns regulars = Columns.serializer.deserializeRegulars(in, metadata);
                     fetched = new PartitionColumns(statics, regulars);
                 }
                 else
@@ -443,8 +443,8 @@ public class ColumnFilter
 
             if (hasSelection)
             {
-                Columns statics = Columns.serializer.deserialize(in, metadata);
-                Columns regulars = Columns.serializer.deserialize(in, metadata);
+                Columns statics = Columns.serializer.deserializeStatics(in, metadata);
+                Columns regulars = Columns.serializer.deserializeRegulars(in, metadata);
                 selection = new PartitionColumns(statics, regulars);
             }
 

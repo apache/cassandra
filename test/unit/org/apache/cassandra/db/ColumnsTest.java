@@ -132,7 +132,7 @@ public class ColumnsTest
         {
             Columns.serializer.serialize(columns, out);
             Assert.assertEquals(Columns.serializer.serializedSize(columns), out.buffer().remaining());
-            Columns deserialized = Columns.serializer.deserialize(new DataInputBuffer(out.buffer(), false), mock(columns));
+            Columns deserialized = Columns.serializer.deserializeRegulars(new DataInputBuffer(out.buffer(), false), mock(columns));
             Assert.assertEquals(columns, deserialized);
             Assert.assertEquals(columns.hashCode(), deserialized.hashCode());
             assertContents(deserialized, definitions);

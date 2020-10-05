@@ -19,9 +19,9 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
 
-import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -133,7 +133,7 @@ public class UnfilteredSerializer
         LivenessInfo pkLiveness = row.primaryKeyLivenessInfo();
         Row.Deletion deletion = row.deletion();
         boolean hasComplexDeletion = row.hasComplexDeletion();
-        boolean hasAllColumns = (row.columnCount() == headerColumns.size());
+        boolean hasAllColumns = header.hasAllColumns(row, isStatic);
         boolean hasExtendedFlags = hasExtendedFlags(row);
 
         if (isStatic)
@@ -192,7 +192,12 @@ public class UnfilteredSerializer
             // with. So we use the ColumnDefinition from the "header" which is "current". Also see #11810 for what
             // happens if we don't do that.
             ColumnDefinition column = si.next(data.column());
-            assert column != null;
+
+            // we may have columns that the remote node isn't aware of due to inflight schema changes
+            // in cases where it tries to fetch all columns, it will set the `all columns` flag, but only
+            // expect a subset of columns (from this node's perspective). See CASSANDRA-15899
+            if (column == null)
+                continue;
 
             if (data.column.isSimple())
                 Cell.serializer.serialize((Cell) data, column, out, pkLiveness, header);
@@ -274,7 +279,7 @@ public class UnfilteredSerializer
         LivenessInfo pkLiveness = row.primaryKeyLivenessInfo();
         Row.Deletion deletion = row.deletion();
         boolean hasComplexDeletion = row.hasComplexDeletion();
-        boolean hasAllColumns = (row.columnCount() == headerColumns.size());
+        boolean hasAllColumns = header.hasAllColumns(row, isStatic);
 
         if (!pkLiveness.isEmpty())
             size += header.timestampSerializedSize(pkLiveness.timestamp());
@@ -293,7 +298,8 @@ public class UnfilteredSerializer
         for (ColumnData data : row)
         {
             ColumnDefinition column = si.next(data.column());
-            assert column != null;
+            if (column == null)
+                continue;
 
             if (data.column.isSimple())
                 size += Cell.serializer.serializedSize((Cell) data, column, pkLiveness, header);
@@ -484,6 +490,9 @@ public class UnfilteredSerializer
             Columns columns = hasAllColumns ? headerColumns : Columns.serializer.deserializeSubset(headerColumns, in);
             for (ColumnDefinition column : columns)
             {
+                // if the column is a placeholder, then it's not part of our schema, and we can't deserialize it
+                if (column.isPlaceholder())
+                    throw new UnknownColumnException(column.ksName, column.cfName, column.name.bytes);
                 if (column.isSimple())
                     readSimpleColumn(column, in, header, helper, builder, rowLiveness);
                 else
