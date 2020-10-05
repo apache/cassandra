@@ -206,6 +206,29 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
         };
     }
 
+    private static class Placeholder extends ColumnDefinition
+    {
+        Placeholder(CFMetaData table, ByteBuffer name, AbstractType<?> type, int position, Kind kind)
+        {
+            super(table, name, type, position, kind);
+        }
+
+        public boolean isPlaceholder()
+        {
+            return true;
+        }
+    }
+
+    public static ColumnDefinition placeholder(CFMetaData table, ByteBuffer name, boolean isStatic)
+    {
+        return new Placeholder(table, name, EmptyType.instance, NO_POSITION, isStatic ? Kind.STATIC : Kind.REGULAR);
+    }
+
+    public boolean isPlaceholder()
+    {
+        return false;
+    }
+
     public ColumnDefinition copy()
     {
         return new ColumnDefinition(ksName, cfName, name, type, position, kind);

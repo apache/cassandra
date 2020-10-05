@@ -444,7 +444,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             return size;
         }
 
-        public Columns deserialize(DataInputPlus in, CFMetaData metadata) throws IOException
+        public Columns deserialize(DataInputPlus in, CFMetaData metadata, boolean isStatic) throws IOException
         {
             int length = (int)in.readUnsignedVInt();
             BTree.Builder<ColumnDefinition> builder = BTree.builder(Comparator.naturalOrder());
@@ -460,12 +460,27 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
                     // fail deserialization because of that. So we grab a "fake" ColumnDefinition that ensure proper
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumnDefinition(name);
+
+                    // If there's no dropped column, it may be for a column we haven't received a schema update for yet
+                    // so we create a placeholder column. If this is a read, the placeholder column will let the response
+                    // serializer know we're not serializing all requested columns when it writes the row flags, but it
+                    // will cause mutations that try to write values for this column to fail.
                     if (column == null)
-                        throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                        column = ColumnDefinition.placeholder(metadata, name, isStatic);
                 }
                 builder.add(column);
             }
             return new Columns(builder.build());
+        }
+
+        public Columns deserializeStatics(DataInputPlus in, CFMetaData metadata) throws IOException
+        {
+            return deserialize(in, metadata, true);
+        }
+
+        public Columns deserializeRegulars(DataInputPlus in, CFMetaData metadata) throws IOException
+        {
+            return deserialize(in, metadata, false);
         }
 
         /**
