@@ -24,6 +24,7 @@ Merged from 3.11:
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
 Merged from 3.0:
+ * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
 
 4.0-beta2
