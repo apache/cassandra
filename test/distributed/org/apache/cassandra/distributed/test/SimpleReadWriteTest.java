@@ -92,6 +92,9 @@ public class SimpleReadWriteTest extends SharedClusterTestBase
                    row(1, 1, 1));
     }
 
+    /**
+     * If a node receives a mutation for a column it's not aware of, it should fail, since it can't write the data.
+     */
     @Test
     public void writeWithSchemaDisagreement() throws Throwable
     {
@@ -108,7 +111,7 @@ public class SimpleReadWriteTest extends SharedClusterTestBase
         try
         {
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (2, 2, 2, 2)",
-                                           ConsistencyLevel.QUORUM);
+                                           ConsistencyLevel.ALL);
         }
         catch (RuntimeException e)
         {
@@ -116,9 +119,64 @@ public class SimpleReadWriteTest extends SharedClusterTestBase
         }
 
         Assert.assertTrue(thrown.getMessage().contains("Exception occurred on node"));
-        Assert.assertTrue(thrown.getCause().getCause().getCause().getMessage().contains("Unknown column v2 during deserialization"));
     }
 
+    /**
+     * If a node receives a mutation for a column it knows has been dropped, the write should succeed
+     */
+    @Test
+    public void writeWithSchemaDisagreement2() throws Throwable
+    {
+        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
+
+        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (1, 1, 1, 1)");
+        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (1, 1, 1, 1)");
+        cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (1, 1, 1, 1)");
+
+        for (int i=0; i<cluster.size(); i++)
+            cluster.get(i+1).flush(KEYSPACE);;
+
+        // Introduce schema disagreement
+        cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl DROP v2", 1);
+
+        // execute a write including the dropped column where the coordinator is not yet aware of the drop
+        // all nodes should process this without error
+        cluster.coordinator(2).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (2, 2, 2, 2)",
+                                           ConsistencyLevel.ALL);
+        // and flushing should also be fine
+        for (int i=0; i<cluster.size(); i++)
+            cluster.get(i+1).flush(KEYSPACE);;
+        // the results of reads will vary depending on whether the coordinator has seen the schema change
+        // note: read repairs will propagate the v2 value to node1, but this is safe and handled correctly
+        assertRows(cluster.coordinator(2).execute("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL),
+                   rows(row(1,1,1,1), row(2,2,2,2)));
+        assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL),
+                   rows(row(1,1,1), row(2,2,2)));
+    }
+
+    /**
+     * If a node isn't aware of a column, but receives a mutation without that column, the write should succeed
+     */
+    @Test
+    public void writeWithInconsequentialSchemaDisagreement() throws Throwable
+    {
+        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
+
+        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
+        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
+        cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
+
+        // Introduce schema disagreement
+        cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD v2 int", 1);
+
+        // this write shouldn't cause any problems because it doesn't write to the new column
+        cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (2, 2, 2)",
+                                       ConsistencyLevel.ALL);
+    }
+
+    /**
+     * If a node receives a read for a column it's not aware of, it shouldn't complain, since it won't have any data for that column
+     */
     @Test
     public void readWithSchemaDisagreement() throws Throwable
     {
@@ -131,20 +189,8 @@ public class SimpleReadWriteTest extends SharedClusterTestBase
         // Introduce schema disagreement
         cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD v2 int", 1);
 
-        Exception thrown = null;
-        try
-        {
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                      ConsistencyLevel.ALL),
-                       row(1, 1, 1, null));
-        }
-        catch (Exception e)
-        {
-            thrown = e;
-        }
-
-        Assert.assertTrue(thrown.getMessage().contains("Exception occurred on node"));
-        Assert.assertTrue(thrown.getCause().getCause().getCause().getMessage().contains("Unknown column v2 during deserialization"));
+        Object[][] expected = new Object[][]{new Object[]{1, 1, 1, null}};
+        assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL), expected);
     }
 
     @Test
@@ -374,4 +420,12 @@ public class SimpleReadWriteTest extends SharedClusterTestBase
     {
         return instance.callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
     }
+
+    private static Object[][] rows(Object[]...rows)
+    {
+        Object[][] r = new Object[rows.length][];
+        System.arraycopy(rows, 0, r, 0, rows.length);
+        return r;
+    }
+
 }

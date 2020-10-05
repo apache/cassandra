@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -752,6 +753,12 @@ public class PartitionUpdate extends AbstractBTreePartition
                     else
                         deletionBuilder.add((RangeTombstoneMarker)unfiltered);
                 }
+            }
+            catch (IOError e)
+            {
+                if (e.getCause() != null && e.getCause() instanceof UnknownColumnException)
+                    throw (UnknownColumnException) e.getCause();
+                throw e;
             }
 
             MutableDeletionInfo deletionInfo = deletionBuilder.build();
