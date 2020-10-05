@@ -26,6 +26,9 @@ import java.nio.ByteBuffer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -421,6 +424,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
 
     public static class Serializer
     {
+        private static final Logger logger = LoggerFactory.getLogger(Serializer.class);
+
         public void serialize(Columns columns, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt(columns.size());
@@ -452,7 +457,21 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumn(name);
                     if (column == null)
-                        throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                    {
+                        // see CASSANDRA-15804
+                        if (metadata.keyspace.equals("system_schema")
+                            && metadata.name.equals("dropped_columns")
+                            && UTF8Type.instance.getString(name).equals("kind"))
+                        {
+                            logger.info("Skipping deserialisation of column 'kind' on table 'dropped_columns' in keyspace 'system_schema'. " +
+                                        "It is likely you are upgrading this node to a node of later version which contains this column.");
+                        }
+                        else
+                        {
+                            throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                        }
+                    }
+
                 }
                 builder.add(column);
             }
