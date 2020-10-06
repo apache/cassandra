@@ -86,7 +86,7 @@ public class StandaloneSSTableUtilTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(StandaloneSSTableUtil.class, "system_schema", "tables");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Listing files..."));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        assertEquals(0,tool.getExitCode());
+        assertEquals(0, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
 
