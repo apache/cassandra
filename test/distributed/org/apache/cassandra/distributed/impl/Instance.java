@@ -270,7 +270,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 int toNum = config().num();
 
 
-                IMessage msg = serializeMessage(message, id, from.broadcastAddress(), broadcastAddress());
+                IMessage msg = serializeMessage(message, id, from.config().broadcastAddress(), broadcastAddress());
 
                 return cluster.filters().permitInbound(fromNum, toNum, msg);
             }

@@ -261,7 +261,7 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
+    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp, int datadirCount)
     {
         return new InstanceConfig(nodeNum,
                                   networkTopology,
@@ -271,11 +271,20 @@ public class InstanceConfig implements IInstanceConfig
                                   ipAddress,
                                   seedIp,
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
-                                  new String[] { String.format("%s/node%d/data", root, nodeNum) },
+                                  datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
 //                                  String.format("%s/node%d/cdc", root, nodeNum),
                                   token);
+    }
+
+    private static String[] datadirs(int datadirCount, File root, int nodeNum)
+    {
+        String datadirFormat = String.format("%s/node%d/data%%d", root.getPath(), nodeNum);
+        String [] datadirs = new String[datadirCount];
+        for (int i = 0; i < datadirs.length; i++)
+            datadirs[i] = String.format(datadirFormat, i);
+        return datadirs;
     }
 
     public InstanceConfig forVersion(Versions.Major major)
