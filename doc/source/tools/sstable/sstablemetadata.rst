@@ -29,7 +29,11 @@ Usage
 sstablemetadata <options> <sstable filename(s)>
 
 =========================        ================================================================================
---gc_grace_seconds <arg>         The gc_grace_seconds to use when calculating droppable tombstones
+-c,--colors                      Use ANSI color sequences
+-g,--gc_grace_seconds <arg>      Time to use when calculating droppable tombstones
+-s,--scan                        Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false
+-t,--timestamp_unit <arg>        Time unit that cell timestamps are written with
+-u,--unicode                     Use unicode to draw histograms and progress bars
 =========================        ================================================================================
 
 Print all the metadata
@@ -252,7 +256,7 @@ Example::
     sstablemetadata --gc_grace_seconds 4700 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
     Estimated droppable tombstones: 9.61111111111111E-6
 
-    # if gc_grace_seconds was configured at 100, none of the tombstones would be currently droppable 
+    # if gc_grace_seconds was configured at 5000, none of the tombstones would be currently droppable 
     sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
     Estimated droppable tombstones: 0.0
 

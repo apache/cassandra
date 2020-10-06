@@ -73,7 +73,7 @@ public class SSTableLevelResetterTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(SSTableLevelResetter.class, "--really-reset", "system_schema", "tables");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Found no sstables,"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        assertEquals(0,tool.getExitCode());
+        assertEquals(0, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
 

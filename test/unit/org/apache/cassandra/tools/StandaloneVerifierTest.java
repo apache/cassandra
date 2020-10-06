@@ -87,7 +87,7 @@ public class StandaloneVerifierTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(StandaloneVerifier.class, "system_schema", "tables");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("using the following options"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        assertEquals(0,tool.getExitCode());
+        assertEquals(0, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
 

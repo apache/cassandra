@@ -87,7 +87,7 @@ public class StandaloneUpgraderTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(StandaloneUpgrader.class, "system_schema", "tables");
         Assertions.assertThat(tool.getStdout()).isEqualTo("Found 0 sstables that need upgrading.\n");
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        assertEquals(0,tool.getExitCode());
+        assertEquals(0, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
 
@@ -101,7 +101,7 @@ public class StandaloneUpgraderTest extends OfflineToolUtils
                                                        "tables");
             Assertions.assertThat(tool.getStdout()).as("Arg: [%s]", arg).isEqualTo("Found 0 sstables that need upgrading.\n");
             Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-            assertEquals(0,tool.getExitCode());
+            assertEquals(0, tool.getExitCode());
             assertCorrectEnvPostTest();
         });
     }
