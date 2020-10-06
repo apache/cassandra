@@ -18,30 +18,30 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.util.Objects;
+
 import ch.qos.logback.core.PropertyDefinerBase;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 
 /**
  * Used by logback to find/define property value, see logback-dtest.xml
  */
-public class InstanceIDDefiner extends PropertyDefinerBase
+public class ClusterIDDefiner extends PropertyDefinerBase
 {
-    // Instantiated per classloader, set by Instance
-    private static volatile String INSTANCE_ID = "<main>";
+    private static volatile String ID = "<main>";
 
-    public static void setInstanceId(int id)
+    public static void setId(String id)
     {
-        INSTANCE_ID = "node" + id;
-        NamedThreadFactory.setGlobalPrefix("node" + id + "_");
+        ID = Objects.requireNonNull(id);
     }
 
-    public static String getInstanceId()
+    public static String getId()
     {
-        return INSTANCE_ID;
+        return ID;
     }
 
+    @Override
     public String getPropertyValue()
     {
-        return INSTANCE_ID;
+        return ID;
     }
 }

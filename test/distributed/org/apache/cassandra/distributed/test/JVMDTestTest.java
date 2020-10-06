@@ -19,12 +19,18 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.LogAction;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -48,6 +54,32 @@ public class JVMDTestTest extends TestBaseImpl
             res = cluster.coordinator(1).execute("SELECT writetime(i) FROM "+KEYSPACE+".tbl WHERE id = 2", ConsistencyLevel.ALL);
             assertEquals(1, res.length);
             assertEquals(1000, (long) res[0][0]);
+        }
+    }
+
+    @Test
+    public void instanceLogs() throws IOException, TimeoutException
+    {
+        try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.with(Feature.values())).start()))
+        {
+            // debug logging is turned on so we will see debug logs
+            Assertions.assertThat(cluster.get(1).logs().grep("^DEBUG").getResult()).isNotEmpty();
+            // make sure an exception is thrown in the cluster
+            LogAction logs = cluster.get(2).logs();
+            long mark = logs.mark(); // get the current position so watching doesn't see any previous exceptions
+            cluster.get(2).runOnInstance(() -> {
+                // pretend that an uncaught exception was thrown
+                CassandraDaemon.uncaughtException(Thread.currentThread(), new RuntimeException("fail without fail"));
+            });
+            List<String> errors = logs.watchFor(mark, "^ERROR").getResult();
+            Assertions.assertThat(errors)
+                      // can't check for "fail without fail" since thats on the next line, and watchFor doesn't
+                      // stitch lines together like grepForError does
+                      .allMatch(s -> s.contains("ERROR"))
+                      .allMatch(s -> s.contains("isolatedExecutor"))
+                      .allMatch(s -> s.contains("Exception in thread"))
+                      .as("Unable to find 'ERROR', 'isolatedExecutor', and 'Exception in thread'")
+                      .isNotEmpty();
         }
     }
 }
