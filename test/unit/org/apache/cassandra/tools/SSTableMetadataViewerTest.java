@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.IOException;
 import java.util.Arrays;
 
-import org.apache.commons.codec.digest.DigestUtils;
+import com.google.common.base.CharMatcher;
+
 import org.apache.commons.lang3.tuple.Pair;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -34,11 +37,18 @@ import org.hamcrest.CoreMatchers;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableMetadataViewerTest extends OfflineToolUtils
 {
+    private static String sstable;
+
+    @BeforeClass
+    public static void setupTest() throws IOException
+    {
+        sstable = findOneSSTable("legacy_sstables", "legacy_ma_simple");
+    }
+
     @Test
     public void testNoArgsPrintsHelp()
     {
@@ -77,36 +87,63 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
     @Test
     public void testWrongArgFailsAndPrintsHelp()
     {
-        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "--debugwrong", "ks", "tab");
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "--debugwrong", "sstableFile");
         assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
         assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
         assertEquals(1, tool.getExitCode());
     }
 
     @Test
-    public void testDefaultCall()
+    public void testNAFileCall()
     {
-        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "ks", "tab");
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, "mockFile");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        assertEquals(0,tool.getExitCode());
+        assertEquals(0, tool.getExitCode());
         assertGoodEnvPostTest();
     }
 
     @Test
-    public void testFlagArgs()
+    public void testOnlySstableArg()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, sstable);
+        Assertions.assertThat(tool.getStdout()).doesNotContain(Util.BLUE);
+        assertTrue(tool.getStdout(), CharMatcher.ascii().matchesAllOf(tool.getStdout()));
+        Assertions.assertThat(tool.getStdout()).doesNotContain("Widest Partitions");
+        Assertions.assertThat(tool.getStdout()).contains(sstable.replaceAll("-Data\\.db$", ""));
+        assertTrue(tool.getStderr(), tool.getStderr().isEmpty());
+        assertEquals(0, tool.getExitCode());
+        assertGoodEnvPostTest();
+    }
+
+    @Test
+    public void testColorArg()
     {
         Arrays.asList("-c",
-                      "--colors",
-                      "-s",
-                      "--scan",
-                      "-u",
-                      "--unicode")
+                      "--colors")
+              .stream()
               .forEach(arg -> {
-                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, arg, "ks", "tab");
-                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
-                  Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-                  assertEquals(0,tool.getExitCode());
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, arg, sstable);
+                  Assertions.assertThat(tool.getStdout()).contains(Util.BLUE);
+                  Assertions.assertThat(tool.getStdout()).contains(sstable.replaceAll("-Data\\.db$", ""));
+                  assertTrue("Arg: [" + arg + "]\n" + tool.getStderr(), tool.getStderr().isEmpty());
+                  assertEquals(0, tool.getExitCode());
+                  assertGoodEnvPostTest();
+              });
+    }
+
+    @Test
+    public void testUnicodeArg()
+    {
+        Arrays.asList("-u",
+                      "--unicode")
+              .stream()
+              .forEach(arg -> {
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, arg, sstable);
+                  assertTrue(tool.getStdout(), !CharMatcher.ascii().matchesAllOf(tool.getStdout()));
+                  Assertions.assertThat(tool.getStdout()).contains(sstable.replaceAll("-Data\\.db$", ""));
+                  assertTrue("Arg: [" + arg + "]\n" + tool.getStderr(), tool.getStderr().isEmpty());
+                  assertEquals(0, tool.getExitCode());
                   assertGoodEnvPostTest();
               });
     }
@@ -122,8 +159,7 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
                   ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
                                                            arg.getLeft(),
                                                            arg.getRight(),
-                                                           "ks",
-                                                           "tab");
+                                                           "mockFile");
                   assertEquals(-1, tool.getExitCode());
                   Assertions.assertThat(tool.getStderr()).contains(NumberFormatException.class.getSimpleName());
               });
@@ -132,8 +168,7 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
             ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
                                                             arg.getLeft(),
                                                             arg.getRight(),
-                                                            "ks",
-                                                            "tab");
+                                                            "mockFile");
             assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
             Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
             tool.assertOnExitCode();
@@ -152,8 +187,7 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
                   ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
                                                            arg.getLeft(),
                                                            arg.getRight(),
-                                                           "ks",
-                                                           "tab");
+                                                           "mockFile");
                   assertEquals(-1, tool.getExitCode());
                   Assertions.assertThat(tool.getStderr()).contains(IllegalArgumentException.class.getSimpleName());
               });
@@ -162,13 +196,27 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
             ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class,
                                                        arg.getLeft(),
                                                        arg.getRight(),
-                                                       "ks",
-                                                       "tab");
+                                                       "mockFile");
             assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No such file"));
             Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
             tool.assertOnExitCode();
             assertGoodEnvPostTest();
         });
+    }
+
+    @Test
+    public void testScanArg()
+    {
+        Arrays.asList("-s",
+                      "--scan")
+              .stream()
+              .forEach(arg -> {
+                  ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, arg, sstable);
+                  Assertions.assertThat(tool.getStdout()).contains("Widest Partitions");
+                  Assertions.assertThat(tool.getStdout()).contains(sstable.replaceAll("-Data\\.db$", ""));
+                  assertTrue("Arg: [" + arg + "]\n" + tool.getStderr(), tool.getStderr().isEmpty());
+                  assertEquals(0, tool.getExitCode());
+              });
     }
 
     private void assertGoodEnvPostTest()
