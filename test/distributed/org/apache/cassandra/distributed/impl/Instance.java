@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -134,13 +135,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     // should never be invoked directly, so that it is instantiated on other class loader;
     // only visible for inheritance
-    Instance(IInstanceConfig config, InstanceClassLoader classLoader)
+    Instance(IInstanceConfig config, ClassLoader classLoader)
     {
         super("node" + config.num(), classLoader);
         this.config = config;
-        Object clusterId = config.get("dtest.api.cluster_id");
-        if (clusterId == null)
-            clusterId = classLoader.getClusterGeneration();
+        Object clusterId = Objects.requireNonNull(config.get("dtest.api.cluster_id"), "cluster_id is not defined");
         ClusterIDDefiner.setId("cluster-" + clusterId);
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(config.broadcastAddress().getAddress(),
