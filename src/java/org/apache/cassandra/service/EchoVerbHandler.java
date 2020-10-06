@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
  * 
  */
 
-
 import org.apache.cassandra.gms.EchoMessage;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
@@ -35,8 +34,15 @@ public class EchoVerbHandler implements IVerbHandler<EchoMessage>
 
     public void doVerb(MessageIn<EchoMessage> message, int id)
     {
-        MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.REQUEST_RESPONSE, EchoMessage.instance, EchoMessage.serializer);
-        logger.trace("Sending a EchoMessage reply {}", message.from);
-        MessagingService.instance().sendReply(echoMessage, id, message.from);
+        if (!StorageService.instance.isShutdown())
+        {
+            logger.trace("Sending a EchoMessage reply {}", message.from);
+            MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.REQUEST_RESPONSE, EchoMessage.instance, EchoMessage.serializer);
+            MessagingService.instance().sendReply(echoMessage, id, message.from);
+        }
+        else
+        {
+            logger.trace("Not sending EchoMessage reply to {} - we are shutdown", message.from);
+        }
     }
 }
