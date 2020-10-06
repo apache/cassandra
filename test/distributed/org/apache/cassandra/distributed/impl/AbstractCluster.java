@@ -22,16 +22,20 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -61,6 +65,7 @@ import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
@@ -118,6 +123,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // mutated by user-facing API
     private final MessageFilters filters;
     private final BiConsumer<ClassLoader, Integer> instanceInitializer;
+    private final int datadirCount;
+    private volatile BiPredicate<Integer, Throwable> ignoreUncaughtThrowable = null;
+    private final List<Throwable> uncaughtExceptions = new CopyOnWriteArrayList<>();
 
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
 
@@ -267,6 +275,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.initialVersion = builder.getVersion();
         this.filters = new MessageFilters();
         this.instanceInitializer = builder.getInstanceInitializer();
+        this.datadirCount = builder.getDatadirCount();
 
         int generation = GENERATION.incrementAndGet();
         for (int i = 0; i < builder.getNodeCount(); ++i)
@@ -297,7 +306,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         NetworkTopology topology = NetworkTopology.build(ipPrefix, broadcastPort, nodeIdTopology);
 
-        InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp);
+        InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp, datadirCount);
         if (configUpdater != null)
             configUpdater.accept(config);
 
@@ -610,8 +619,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 handler.uncaughtException(thread, error);
             return;
         }
+
         InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
         get(cl.getInstanceId()).uncaughtException(thread, error);
+
+        BiPredicate<Integer, Throwable> ignore = ignoreUncaughtThrowable;
+        I instance = get(cl.getInstanceId());
+        if ((ignore == null || !ignore.test(cl.getInstanceId(), error)) && instance != null && !instance.isShutdown())
+            uncaughtExceptions.add(error);
+    }
+
+    @Override
+    public void setUncaughtExceptionsFilter(BiPredicate<Integer, Throwable> ignoreUncaughtThrowable)
+    {
+        this.ignoreUncaughtThrowable = ignoreUncaughtThrowable;
     }
     
     @Override
@@ -630,8 +651,21 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             FileUtils.deleteRecursive(root);
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
         previousHandler = null;
+        checkAndResetUncaughtExceptions();
 
         //withThreadLeakCheck(futures);
+    }
+
+    @Override
+    public void checkAndResetUncaughtExceptions()
+    {
+        List<Throwable> drain = new ArrayList<>(uncaughtExceptions.size());
+        uncaughtExceptions.removeIf(e -> {
+            drain.add(e);
+            return true;
+        });
+        if (!drain.isEmpty())
+            throw new ShutdownException(drain);
     }
 
     // We do not want this check to run every time until we fix problems with tread stops
