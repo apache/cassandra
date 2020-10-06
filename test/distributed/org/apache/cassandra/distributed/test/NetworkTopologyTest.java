@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -42,7 +43,7 @@ public class NetworkTopologyTest extends TestBaseImpl
                                                     .withRack("elsewhere", "firstrack", 1)
                                                     .withRack("elsewhere", "secondrack", 2)
                                                     .withDC("nearthere", 4)
-                                                    .start())
+                                                    .createWithoutStarting())
         {
             Assert.assertEquals(1, cluster.stream("somewhere").count());
             Assert.assertEquals(1, cluster.stream("elsewhere", "firstrack").count());
@@ -63,7 +64,7 @@ public class NetworkTopologyTest extends TestBaseImpl
 
     {
         try (ICluster cluster = builder().withRacks(2, 1, 3)
-                                         .start())
+                                         .createWithoutStarting())
         {
             Assert.assertEquals(6, cluster.stream().count());
             Assert.assertEquals(3, cluster.stream("datacenter1").count());
@@ -72,16 +73,18 @@ public class NetworkTopologyTest extends TestBaseImpl
     }
 
     @Test(expected = IllegalStateException.class)
-    public void noCountsAfterNamingDCsTest()
+    public void noCountsAfterNamingDCsTest() throws IOException
     {
         builder().withDC("nameddc", 1)
-                 .withDCs(1);
+                 .withDCs(1)
+                 .createWithoutStarting();
     }
 
     @Test(expected = IllegalStateException.class)
-    public void mustProvideNodeCountBeforeWithDCsTest()
+    public void mustProvideNodeCountBeforeWithDCsTest() throws IOException
     {
-        builder().withDCs(1);
+        builder().withDCs(1)
+                 .createWithoutStarting();
     }
 
     @Test(expected = IllegalStateException.class)
