@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  * {
  *     table.add(row);
  * }
- * table.print(System.out);
+ * table.print(probe.outStream());
  * }
  * </pre>
  */

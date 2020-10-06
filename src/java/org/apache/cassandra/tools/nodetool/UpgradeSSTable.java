@@ -51,7 +51,7 @@ public class UpgradeSSTable extends NodeToolCmd
         {
             try
             {
-                probe.upgradeSSTables(System.out, keyspace, !includeAll, jobs, tableNames);
+                probe.upgradeSSTables(probe.output().out, keyspace, !includeAll, jobs, tableNames);
             }
             catch (Exception e)
             {

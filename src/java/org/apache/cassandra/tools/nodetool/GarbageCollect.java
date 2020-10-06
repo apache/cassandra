@@ -56,7 +56,7 @@ public class GarbageCollect extends NodeToolCmd
         {
             try
             {
-                probe.garbageCollect(System.out, tombstoneOption, jobs, keyspace, tableNames);
+                probe.garbageCollect(probe.output().out, tombstoneOption, jobs, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during garbage collection", e);

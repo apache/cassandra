@@ -15,19 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+package org.apache.cassandra.tools;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import java.io.PrintStream;
 
-@Command(name = "gettraceprobability", description = "Print the current trace probability value")
-public class GetTraceProbability extends NodeToolCmd
+public class Output
 {
-    @Override
-    public void execute(NodeProbe probe)
+    public final static Output CONSOLE = new Output(System.out, System.err);
+
+    public final PrintStream out;
+    public final PrintStream err;
+
+    public Output(PrintStream out, PrintStream err)
     {
-        probe.output().out.println("Current trace probability: " + probe.getTraceProbability());
+        this.out = out;
+        this.err = err;
     }
 }

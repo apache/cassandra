@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
+import java.io.PrintStream;
 import java.util.Set;
 
 import org.apache.cassandra.io.util.FileUtils;
@@ -41,22 +42,23 @@ public class NetStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.printf("Mode: %s%n", probe.getOperationMode());
+        PrintStream out = probe.output().out;
+        out.printf("Mode: %s%n", probe.getOperationMode());
         Set<StreamState> statuses = probe.getStreamStatus();
         if (statuses.isEmpty())
-            System.out.println("Not sending any streams.");
+            out.println("Not sending any streams.");
         for (StreamState status : statuses)
         {
-            System.out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
+            out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
             for (SessionInfo info : status.sessions)
             {
-                System.out.printf("    %s", info.peer.toString(printPort));
+                out.printf("    %s", info.peer.toString(printPort));
                 // print private IP when it is used
                 if (!info.peer.equals(info.connecting))
                 {
-                    System.out.printf(" (using %s)", info.connecting.toString(printPort));
+                    out.printf(" (using %s)", info.connecting.toString(printPort));
                 }
-                System.out.printf("%n");
+                out.printf("%n");
                 if (!info.receivingSummaries.isEmpty())
                 {
                     long totalFilesToReceive = info.getTotalFilesToReceive();
@@ -67,24 +69,24 @@ public class NetStats extends NodeToolCmd
                     double percentageSizesReceived = ((double) totalSizeReceived / totalBytesToReceive) * 100;
 
                     if (humanReadable)
-                        System.out.printf("        Receiving %d files, %s total. Already received %d files (%.2f%%), %s total (%.2f%%)%n",
-                                          totalFilesToReceive,
-                                          FileUtils.stringifyFileSize(totalBytesToReceive),
-                                          totalFilesReceived,
-                                          percentageFilesReceived,
-                                          FileUtils.stringifyFileSize(totalSizeReceived),
-                                          percentageSizesReceived);
+                        out.printf("        Receiving %d files, %s total. Already received %d files (%.2f%%), %s total (%.2f%%)%n",
+                                   totalFilesToReceive,
+                                   FileUtils.stringifyFileSize(totalBytesToReceive),
+                                   totalFilesReceived,
+                                   percentageFilesReceived,
+                                   FileUtils.stringifyFileSize(totalSizeReceived),
+                                   percentageSizesReceived);
                     else
-                        System.out.printf("        Receiving %d files, %d bytes total. Already received %d files (%.2f%%), %d bytes total (%.2f%%)%n",
-                                          totalFilesToReceive,
-                                          totalBytesToReceive,
-                                          totalFilesReceived,
-                                          percentageFilesReceived,
-                                          totalSizeReceived,
-                                          percentageSizesReceived);
+                        out.printf("        Receiving %d files, %d bytes total. Already received %d files (%.2f%%), %d bytes total (%.2f%%)%n",
+                                   totalFilesToReceive,
+                                   totalBytesToReceive,
+                                   totalFilesReceived,
+                                   percentageFilesReceived,
+                                   totalSizeReceived,
+                                   percentageSizesReceived);
                     for (ProgressInfo progress : info.getReceivingFiles())
                     {
-                        System.out.printf("            %s%n", progress.toString(printPort));
+                        out.printf("            %s%n", progress.toString(printPort));
                     }
                 }
                 if (!info.sendingSummaries.isEmpty())
@@ -97,24 +99,24 @@ public class NetStats extends NodeToolCmd
                     double percentageSizeSent = ((double) totalSizeSent / totalSizeToSend) * 100;
 
                     if (humanReadable)
-                        System.out.printf("        Sending %d files, %s total. Already sent %d files (%.2f%%), %s total (%.2f%%)%n",
-                                          totalFilesToSend,
-                                          FileUtils.stringifyFileSize(totalSizeToSend),
-                                          totalFilesSent,
-                                          percentageFilesSent,
-                                          FileUtils.stringifyFileSize(totalSizeSent),
-                                          percentageSizeSent);
+                        out.printf("        Sending %d files, %s total. Already sent %d files (%.2f%%), %s total (%.2f%%)%n",
+                                   totalFilesToSend,
+                                   FileUtils.stringifyFileSize(totalSizeToSend),
+                                   totalFilesSent,
+                                   percentageFilesSent,
+                                   FileUtils.stringifyFileSize(totalSizeSent),
+                                   percentageSizeSent);
                     else
-                        System.out.printf("        Sending %d files, %d bytes total. Already sent %d files (%.2f%%), %d bytes total (%.2f%%) %n",
-                                          totalFilesToSend,
-                                          totalSizeToSend,
-                                          totalFilesSent,
-                                          percentageFilesSent,
-                                          totalSizeSent,
-                                          percentageSizeSent);
+                        out.printf("        Sending %d files, %d bytes total. Already sent %d files (%.2f%%), %d bytes total (%.2f%%) %n",
+                                   totalFilesToSend,
+                                   totalSizeToSend,
+                                   totalFilesSent,
+                                   percentageFilesSent,
+                                   totalSizeSent,
+                                   percentageSizeSent);
                     for (ProgressInfo progress : info.getSendingFiles())
                     {
-                        System.out.printf("            %s%n", progress.toString(printPort));
+                        out.printf("            %s%n", progress.toString(printPort));
                     }
                 }
             }
@@ -122,14 +124,14 @@ public class NetStats extends NodeToolCmd
 
         if (!probe.isStarting())
         {
-            System.out.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
+            out.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
 
             MessagingServiceMBean ms = probe.getMessagingServiceProxy();
-            System.out.printf("%-25s", "Pool Name");
-            System.out.printf("%10s", "Active");
-            System.out.printf("%10s", "Pending");
-            System.out.printf("%15s", "Completed");
-            System.out.printf("%10s%n", "Dropped");
+            out.printf("%-25s", "Pool Name");
+            out.printf("%10s", "Active");
+            out.printf("%10s", "Pending");
+            out.printf("%15s", "Completed");
+            out.printf("%10s%n", "Dropped");
 
             int pending;
             long completed;
@@ -144,7 +146,7 @@ public class NetStats extends NodeToolCmd
             dropped = 0;
             for (long n : ms.getLargeMessageDroppedTasksWithPort().values())
                 dropped += n;
-            System.out.printf("%-25s%10s%10s%15s%10s%n", "Large messages", "n/a", pending, completed, dropped);
+            out.printf("%-25s%10s%10s%15s%10s%n", "Large messages", "n/a", pending, completed, dropped);
 
             pending = 0;
             for (int n : ms.getSmallMessagePendingTasksWithPort().values())
@@ -155,7 +157,7 @@ public class NetStats extends NodeToolCmd
             dropped = 0;
             for (long n : ms.getSmallMessageDroppedTasksWithPort().values())
                 dropped += n;
-            System.out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
+            out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
 
             pending = 0;
             for (int n : ms.getGossipMessagePendingTasksWithPort().values())
@@ -166,7 +168,7 @@ public class NetStats extends NodeToolCmd
             dropped = 0;
             for (long n : ms.getGossipMessageDroppedTasksWithPort().values())
                 dropped += n;
-            System.out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
+            out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
         }
     }
 }

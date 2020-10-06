@@ -22,6 +22,8 @@ import java.io.ByteArrayOutputStream;
 
 import org.apache.cassandra.distributed.api.NodeToolResult;
 
+// Perfer the NodeToolResult that includes output since version 0.0.5
+// CASSANDRA-16057
 public class NodeToolResultWithOutput
 {
     private final NodeToolResult result;

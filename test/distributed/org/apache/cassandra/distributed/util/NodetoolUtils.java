@@ -25,7 +25,10 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.NodeToolResultWithOutput;
+import org.apache.cassandra.tools.Output;
 
+// Prefer to use the NodeToolResult that includes output since version 0.0.5
+// CASSANDRA-16057
 public final class NodetoolUtils
 {
     private NodetoolUtils()
@@ -53,7 +56,7 @@ public final class NodetoolUtils
             {
                 System.setOut(newOut);
                 System.setErr(newErr);
-                Instance.DTestNodeTool nodetool = new Instance.DTestNodeTool(withNotifications);
+                Instance.DTestNodeTool nodetool = new Instance.DTestNodeTool(withNotifications, new Output(newOut, newErr));
                 int rc = nodetool.execute(args);
                 NodeToolResult result = new NodeToolResult(args, rc, nodetool.getNotifications(), nodetool.getLatestError());
                 return new NodeToolResultWithOutput(result, toolOut, toolErr);

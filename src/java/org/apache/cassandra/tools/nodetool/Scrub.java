@@ -69,7 +69,7 @@ public class Scrub extends NodeToolCmd
         {
             try
             {
-                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, reinsertOverflowedTTL, jobs, keyspace, tableNames);
+                probe.scrub(probe.output().out, disableSnapshot, skipCorrupted, !noValidation, reinsertOverflowedTTL, jobs, keyspace, tableNames);
             }
             catch (IllegalArgumentException e)
             {

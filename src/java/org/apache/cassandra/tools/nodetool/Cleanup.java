@@ -52,7 +52,7 @@ public class Cleanup extends NodeToolCmd
 
             try
             {
-                probe.forceKeyspaceCleanup(System.out, jobs, keyspace, tableNames);
+                probe.forceKeyspaceCleanup(probe.output().out, jobs, keyspace, tableNames);
             }
             catch (Exception e)
             {

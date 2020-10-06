@@ -59,7 +59,6 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
@@ -135,6 +134,7 @@ public class NodeProbe implements AutoCloseable
     protected HintsServiceMBean hsProxy;
     protected BatchlogManagerMBean bmProxy;
     protected ActiveRepairServiceMBean arsProxy;
+    protected Output output;
     private boolean failed;
 
     /**
@@ -153,6 +153,7 @@ public class NodeProbe implements AutoCloseable
         this.port = port;
         this.username = username;
         this.password = password;
+        this.output = Output.CONSOLE;
         connect();
     }
 
@@ -167,6 +168,7 @@ public class NodeProbe implements AutoCloseable
     {
         this.host = host;
         this.port = port;
+        this.output = Output.CONSOLE;
         connect();
     }
 
@@ -180,6 +182,7 @@ public class NodeProbe implements AutoCloseable
     {
         this.host = host;
         this.port = defaultPort;
+        this.output = Output.CONSOLE;
         connect();
     }
 
@@ -188,6 +191,7 @@ public class NodeProbe implements AutoCloseable
         // this constructor is only used for extensions to rewrite their own connect method
         this.host = "";
         this.port = 0;
+        this.output = Output.CONSOLE;
     }
 
     /**
@@ -268,6 +272,16 @@ public class NodeProbe implements AutoCloseable
             // result of 'stopdaemon' command - i.e. if close() call fails, the daemon is shutdown
             System.out.println("Cassandra has shutdown.");
         }
+    }
+
+    public void setOutput(Output output)
+    {
+        this.output = output;
+    }
+
+    public Output output()
+    {
+        return output;
     }
 
     public int forceKeyspaceCleanup(int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException

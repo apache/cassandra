@@ -18,17 +18,15 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
 import org.apache.commons.lang3.StringUtils;
 
 import io.airlift.airline.Arguments;
@@ -36,10 +34,8 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.repair.consistent.LocalSessionInfo;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
-import org.apache.cassandra.repair.consistent.admin.PendingStat;
 import org.apache.cassandra.repair.consistent.admin.PendingStats;
 import org.apache.cassandra.repair.consistent.admin.RepairStats;
-import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,11 +59,11 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
 
         protected void execute(NodeProbe probe)
         {
+            PrintStream out = probe.output().out;
             List<Map<String, String>> sessions = probe.getRepairServiceProxy().getSessions(all, getRangeString(startToken, endToken));
             if (sessions.isEmpty())
             {
-                System.out.println("no sessions");
-
+                out.println("no sessions");
             }
             else
             {
@@ -91,7 +87,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
                     rows.add(values);
                 }
 
-                printTable(rows);
+                printTable(rows, out);
             }
         }
     }
@@ -150,7 +146,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
                 rows.add(row);
             }
 
-            printTable(rows);
+            printTable(rows, probe.output().out);
         }
     }
 
@@ -172,11 +168,12 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
 
         protected void execute(NodeProbe probe)
         {
+            PrintStream out = probe.output().out;
             List<CompositeData> compositeData = probe.getRepairServiceProxy().getRepairStats(schemaArgs, getRangeString(startToken, endToken));
 
             if (compositeData.isEmpty())
             {
-                System.out.println("no stats");
+                out.println("no stats");
                 return;
             }
 
@@ -211,7 +208,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
                 rows.add(row);
             }
 
-            printTable(rows);
+            printTable(rows, out);
         }
     }
 
@@ -235,7 +232,8 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
 
         protected void execute(NodeProbe probe)
         {
-            System.out.println("Cleaning up data from completed sessions...");
+            PrintStream out = probe.output().out;
+            out.println("Cleaning up data from completed sessions...");
             List<CompositeData> compositeData = probe.getRepairServiceProxy().cleanupPending(schemaArgs, getRangeString(startToken, endToken), force);
 
             List<CleanupSummary> summaries = new ArrayList<>(compositeData.size());
@@ -266,9 +264,9 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
             }
 
             if (hasFailures)
-                System.out.println("Some tables couldn't be cleaned up completely");
+                out.println("Some tables couldn't be cleaned up completely");
 
-            printTable(rows);
+            printTable(rows, out);
         }
     }
 
@@ -289,7 +287,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
         }
     }
 
-    private static void printTable(List<List<String>> rows)
+    private static void printTable(List<List<String>> rows, PrintStream out)
     {
         if (rows.isEmpty())
             return;
@@ -319,7 +317,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
             {
                 formatted.add(String.format(fmts.get(i), row.get(i)));
             }
-            System.out.println(Joiner.on(" | ").join(formatted));
+            out.println(Joiner.on(" | ").join(formatted));
         }
     }
 

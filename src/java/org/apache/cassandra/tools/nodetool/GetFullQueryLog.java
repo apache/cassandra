@@ -43,6 +43,6 @@ public class GetFullQueryLog extends NodeToolCmd
         tableBuilder.add("max_queue_weight", Integer.toString(options.max_queue_weight));
         tableBuilder.add("max_archive_retries", Long.toString(options.max_archive_retries));
 
-        tableBuilder.printTo(System.out);
+        tableBuilder.printTo(probe.output().out);
     }
 }

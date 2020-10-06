@@ -45,6 +45,6 @@ public class TpStats extends NodeToolCmd
 
         StatsHolder data = new TpStatsHolder(probe);
         StatsPrinter printer = TpStatsPrinter.from(outputFormat);
-        printer.print(data, System.out);
+        printer.print(data, probe.output().out);
     }
 }

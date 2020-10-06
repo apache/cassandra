@@ -54,7 +54,7 @@ public class SetConcurrency extends NodeToolCmd
         catch (IllegalArgumentException e)
         {
             String message = e.getMessage() != null ? e.getMessage() : "invalid pool size";
-            System.out.println("Unable to set concurrency: " + message);
+            probe.output().out.println("Unable to set concurrency: " + message);
             System.exit(1);
         }
     }
