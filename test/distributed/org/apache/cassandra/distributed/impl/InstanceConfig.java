@@ -271,7 +271,8 @@ public class InstanceConfig implements IInstanceConfig
                                           INodeProvisionStrategy provisionStrategy,
                                           NetworkTopology networkTopology,
                                           File root,
-                                          String token)
+                                          String token,
+                                          int datadirCount)
     {
         return new InstanceConfig(nodeNum,
                                   networkTopology,
@@ -282,13 +283,22 @@ public class InstanceConfig implements IInstanceConfig
                                   provisionStrategy.seedIp(),
                                   provisionStrategy.seedPort(),
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
-                                  new String[] { String.format("%s/node%d/data", root, nodeNum) },
+                                  datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
                                   token,
                                   provisionStrategy.storagePort(nodeNum),
                                   provisionStrategy.nativeTransportPort(nodeNum));
+    }
+
+    private static String[] datadirs(int datadirCount, File root, int nodeNum)
+    {
+        String datadirFormat = String.format("%s/node%d/data%%d", root.getPath(), nodeNum);
+        String [] datadirs = new String[datadirCount];
+        for (int i = 0; i < datadirs.length; i++)
+            datadirs[i] = String.format(datadirFormat, i);
+        return datadirs;
     }
 
     public InstanceConfig forVersion(Versions.Major major)

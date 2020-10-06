@@ -16,20 +16,15 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test;
+package org.apache.cassandra.distributed.shared;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import java.util.List;
 
-import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
-import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
-
-@RunWith(Parameterized.class)
-public class FullRepairCoordinatorFastTest extends RepairCoordinatorFast
+public class ShutdownException extends RuntimeException
 {
-    public FullRepairCoordinatorFastTest(RepairParallelism parallelism, boolean withNotifications)
+    public ShutdownException(List<Throwable> uncaughtExceptions)
     {
-        super(RepairType.FULL, parallelism, withNotifications);
-        CLUSTER.setUncaughtExceptionsFilter((instance, ex) -> true);
+        super("Uncaught exceptions were thrown during test");
+        uncaughtExceptions.forEach(super::addSuppressed);
     }
 }
