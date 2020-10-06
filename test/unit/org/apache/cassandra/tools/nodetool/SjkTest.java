@@ -17,17 +17,16 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+import org.junit.Test;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.ToolRunner;
 
-@Command(name = "gettraceprobability", description = "Print the current trace probability value")
-public class GetTraceProbability extends NodeToolCmd
+public class SjkTest
 {
-    @Override
-    public void execute(NodeProbe probe)
+    @Test
+    public void sjkHelpReturnsRc0()
     {
-        probe.output().out.println("Current trace probability: " + probe.getTraceProbability());
+        ToolRunner.ToolResult result = ToolRunner.invokeNodetool("sjk", "--help");
+        result.assertOnExitCode();
     }
 }
