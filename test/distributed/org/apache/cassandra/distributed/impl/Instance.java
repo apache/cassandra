@@ -713,3 +713,4 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return accumulate;
     }
 }
+

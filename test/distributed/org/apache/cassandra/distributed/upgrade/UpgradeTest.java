@@ -34,6 +34,10 @@ public class UpgradeTest extends UpgradeTestBase
         .upgrade(Versions.Major.v22, Versions.Major.v30, Versions.Major.v3X)
         .upgrade(Versions.Major.v30, Versions.Major.v3X, Versions.Major.v4)
         .setup((cluster) -> {
+            //TODO fix - this is a jvm-dtest bug where we get null when we want the NoPayload object
+            cluster.setUncaughtExceptionsFilter(t ->
+                                                t instanceof IllegalArgumentException 
+                                                && t.getStackTrace()[0].getClassName().startsWith("org.apache.cassandra.net.NoPayload"));
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
