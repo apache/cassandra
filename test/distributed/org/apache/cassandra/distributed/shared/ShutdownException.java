@@ -15,19 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+package org.apache.cassandra.distributed.shared;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import java.util.List;
 
-@Command(name = "gettraceprobability", description = "Print the current trace probability value")
-public class GetTraceProbability extends NodeToolCmd
+public class ShutdownException extends RuntimeException
 {
-    @Override
-    public void execute(NodeProbe probe)
+    public ShutdownException(List<Throwable> uncaughtExceptions)
     {
-        probe.output().out.println("Current trace probability: " + probe.getTraceProbability());
+        super("Uncaught exceptions were thrown during test");
+        uncaughtExceptions.forEach(super::addSuppressed);
     }
 }

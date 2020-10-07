@@ -15,19 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+package org.apache.cassandra.distributed.impl;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import java.util.Objects;
 
-@Command(name = "gettraceprobability", description = "Print the current trace probability value")
-public class GetTraceProbability extends NodeToolCmd
+import ch.qos.logback.core.PropertyDefinerBase;
+
+/**
+ * Used by logback to find/define property value, see logback-dtest.xml
+ */
+public class ClusterIDDefiner extends PropertyDefinerBase
 {
-    @Override
-    public void execute(NodeProbe probe)
+    private static volatile String ID = "<main>";
+
+    public static void setId(String id)
     {
-        probe.output().out.println("Current trace probability: " + probe.getTraceProbability());
+        ID = Objects.requireNonNull(id);
+    }
+
+    public static String getId()
+    {
+        return ID;
+    }
+
+    @Override
+    public String getPropertyValue()
+    {
+        return ID;
     }
 }

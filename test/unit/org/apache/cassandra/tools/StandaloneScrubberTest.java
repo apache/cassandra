@@ -101,7 +101,7 @@ public class StandaloneScrubberTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "system_schema", "tables");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Pre-scrub sstables snapshotted into snapshot"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
-        assertEquals(0,tool.getExitCode());
+        assertEquals(0, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
 

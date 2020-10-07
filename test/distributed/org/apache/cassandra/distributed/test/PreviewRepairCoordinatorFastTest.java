@@ -30,5 +30,7 @@ public class PreviewRepairCoordinatorFastTest extends RepairCoordinatorFast
     public PreviewRepairCoordinatorFastTest(RepairParallelism parallelism, boolean withNotifications)
     {
         super(RepairType.PREVIEW, parallelism, withNotifications);
+        CLUSTER.setUncaughtExceptionsFilter((throwable) -> throwable.getMessage().contains("prepare fail") ||
+                                                           throwable.getMessage().contains("snapshot fail"));
     }
 }

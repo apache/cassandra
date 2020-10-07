@@ -87,6 +87,7 @@ class OutboundMessageQueue
     {
         maybePruneExpired();
         externalQueue.offer(m);
+        // Known race here. See CASSANDRAi-15958
         nextExpirationDeadlineUpdater.accumulateAndGet(this,
                                                        maybeUpdateEarliestExpiresAt(clock.now(), m.expiresAtNanos()),
                                                        Math::min);
