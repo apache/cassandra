@@ -843,7 +843,7 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
+    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java,rat-report"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
@@ -1197,6 +1197,24 @@
           </gzipresource>
         </tarfileset>
       </rat:report>
+    </target>
+
+    <target name="rat-report" depends="rat-init" description="License checks on source" >
+      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                  reportFile="${build.dir}/src.rat.txt">
+        <fileset dir="src/java"/>
+        <fileset dir="test/unit"/>
+        <fileset dir="test/distributed"/>
+      </rat:report>
+      <fail message="Some files have missing or incorrect license information. Check RAT report in ${build.dir}/src.rat.txt for more details!">
+        <condition>
+          <and>
+            <not>
+              <resourcecontains resource="${build.dir}/src.rat.txt" substring="0 Unknown Licenses" casesensitive="false" />
+            </not>
+          </and>
+        </condition>
+      </fail>
     </target>
 
   <target name="build-jmh" depends="build-test" description="Create JMH uber jar">
@@ -1626,6 +1644,8 @@
   <target name="rat-init" depends="maven-ant-tasks-init">
     <artifact:dependencies pathId="rat.classpath">
       <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
+      <remoteRepository refid="central"/>
+      <remoteRepository refid="apache"/>
     </artifact:dependencies>
     <typedef uri="antlib:org.apache.rat.anttasks" classpathref="rat.classpath"/>
   </target>
