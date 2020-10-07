@@ -224,7 +224,7 @@ public class Frame
                 return null;
 
             ClientRequestSizeMetrics.totalBytesRead.inc(frameLength);
-            ClientRequestSizeMetrics.bytesRecievedPerFrame.update(frameLength);
+            ClientRequestSizeMetrics.bytesReceivedPerFrame.update(frameLength);
 
             // extract body
             ByteBuf body = buffer.slice(idx, (int) bodyLength);
