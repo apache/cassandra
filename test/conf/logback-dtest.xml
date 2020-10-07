@@ -18,35 +18,18 @@
 -->
 
 <configuration debug="false" scan="true" scanPeriod="60 seconds">
+  <define name="cluster_id" class="org.apache.cassandra.distributed.impl.ClusterIDDefiner" />
   <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner" />
 
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
-  <appender name="INSTANCEFILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-
-    <file>./build/test/logs/${cassandra.testtag}/TEST-${suitename}.log</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-      <fileNamePattern>./build/test/logs/${cassandra.testtag}/TEST-${suitename}.log.%i.gz</fileNamePattern>
-      <minIndex>1</minIndex>
-      <maxIndex>20</maxIndex>
-    </rollingPolicy>
-
-    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
-      <maxFileSize>20MB</maxFileSize>
-    </triggeringPolicy>
-
+  <appender name="INSTANCEFILE" class="ch.qos.logback.core.FileAppender">
+    <file>./build/test/logs/${cassandra.testtag}/${suitename}/${cluster_id}/${instance_id}/system.log</file>
     <encoder>
       <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %msg%n</pattern>
     </encoder>
-    <immediateFlush>false</immediateFlush>
-  </appender>
-
-  <appender name="INSTANCEASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
-    <discardingThreshold>0</discardingThreshold>
-    <maxFlushTime>0</maxFlushTime>
-    <queueSize>1024</queueSize>
-    <appender-ref ref="INSTANCEFILE"/>
+    <immediateFlush>true</immediateFlush>
   </appender>
 
   <appender name="INSTANCESTDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
@@ -79,7 +62,7 @@
   <logger name="org.apache.hadoop" level="WARN"/>
 
   <root level="DEBUG">
-    <appender-ref ref="INSTANCEASYNCFILE" />
+    <appender-ref ref="INSTANCEFILE" /> <!-- use blocking to avoid race conditions with appending and searching -->
     <appender-ref ref="INSTANCESTDERR" />
     <appender-ref ref="INSTANCESTDOUT" />
   </root>
