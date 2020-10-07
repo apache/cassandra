@@ -29,9 +29,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.apache.cassandra.repair.RepairRunnable.LiveNeighborsAndRanges;
+import static org.apache.cassandra.repair.RepairRunnable.NeighborsAndRanges;
 
-public class LiveNeighborsAndRangesTest extends AbstractRepairTest
+public class NeighborsAndRangesTest extends AbstractRepairTest
 {
     /**
      * For non-forced repairs, common ranges should be passed through as-is
@@ -40,7 +40,7 @@ public class LiveNeighborsAndRangesTest extends AbstractRepairTest
     public void filterCommonIncrementalRangesNotForced()
     {
         CommonRange cr = new CommonRange(PARTICIPANTS, Collections.emptySet(), ALL_RANGES);
-        LiveNeighborsAndRanges nr = new LiveNeighborsAndRanges(false, PARTICIPANTS, Collections.singletonList(cr));
+        NeighborsAndRanges nr = new NeighborsAndRanges(false, PARTICIPANTS, Collections.singletonList(cr));
         List<CommonRange> expected = Lists.newArrayList(cr);
         List<CommonRange> actual = nr.filterCommonRanges(null, null);
 
@@ -59,7 +59,7 @@ public class LiveNeighborsAndRangesTest extends AbstractRepairTest
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE3), true),
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE2), false));
 
-        LiveNeighborsAndRanges nr = new LiveNeighborsAndRanges(true, liveEndpoints, initial);
+        NeighborsAndRanges nr = new NeighborsAndRanges(true, liveEndpoints, initial);
         List<CommonRange> actual = nr.filterCommonRanges(null, null);
 
         Assert.assertEquals(expected, actual);

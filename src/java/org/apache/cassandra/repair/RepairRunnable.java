@@ -256,13 +256,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         notifyStarting();
 
-        LiveNeighborsAndRanges liveNeighborsAndRanges = getLiveNeighborsAndRanges();
+        NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
 
         maybeStoreParentRepairStart(cfnames);
 
-        prepare(columnFamilies, liveNeighborsAndRanges.allNeighbors, liveNeighborsAndRanges.force);
+        prepare(columnFamilies, neighborsAndRanges.participants, neighborsAndRanges.shouldExcludeDeadParticipants);
 
-        repair(cfnames, liveNeighborsAndRanges);
+        repair(cfnames, neighborsAndRanges);
     }
 
     private List<ColumnFamilyStore> getColumnFamilies() throws IOException
@@ -306,7 +306,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         fireProgressEvent(new ProgressEvent(ProgressEventType.START, 0, 100, message));
     }
 
-    private LiveNeighborsAndRanges getLiveNeighborsAndRanges()
+    private NeighborsAndRanges getNeighborsAndRanges()
     {
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
@@ -345,15 +345,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         progressCounter.incrementAndGet();
 
-        boolean force = options.isForcedRepair();
+        boolean shouldExcludeDeadParticipants = options.isForcedRepair();
 
-        if (force)
+        if (shouldExcludeDeadParticipants)
         {
             Set<InetAddressAndPort> actualNeighbors = Sets.newHashSet(Iterables.filter(allNeighbors, FailureDetector.instance::isAlive));
-            force = !allNeighbors.equals(actualNeighbors);
+            shouldExcludeDeadParticipants = !allNeighbors.equals(actualNeighbors);
             allNeighbors = actualNeighbors;
         }
-        return new LiveNeighborsAndRanges(force, allNeighbors, commonRanges);
+        return new NeighborsAndRanges(shouldExcludeDeadParticipants, allNeighbors, commonRanges);
     }
 
     private void maybeStoreParentRepairStart(String[] cfnames)
@@ -389,19 +389,19 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    private void repair(String[] cfnames, LiveNeighborsAndRanges liveNeighborsAndRanges)
+    private void repair(String[] cfnames, NeighborsAndRanges neighborsAndRanges)
     {
         if (options.isPreview())
         {
-            previewRepair(parentSession, creationTimeMillis, liveNeighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
+            previewRepair(parentSession, creationTimeMillis, neighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
         }
         else if (options.isIncremental())
         {
-            incrementalRepair(parentSession, creationTimeMillis, traceState, liveNeighborsAndRanges, cfnames);
+            incrementalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges, cfnames);
         }
         else
         {
-            normalRepair(parentSession, creationTimeMillis, traceState, liveNeighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
+            normalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
         }
     }
 
@@ -453,18 +453,18 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private void incrementalRepair(UUID parentSession,
                                    long startTime,
                                    TraceState traceState,
-                                   LiveNeighborsAndRanges liveNeighborsAndRanges,
+                                   NeighborsAndRanges neighborsAndRanges,
                                    String... cfnames)
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
-                                                  .addAll(liveNeighborsAndRanges.allNeighbors)
+                                                  .addAll(neighborsAndRanges.participants)
                                                   .add(FBUtilities.getBroadcastAddressAndPort())
                                                   .build();
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
-        List<CommonRange> allRanges = liveNeighborsAndRanges.filterCommonRanges(keyspace, cfnames);
+        List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, cfnames);
 
-        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, liveNeighborsAndRanges.force);
+        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
         ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
         ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, allRanges, cfnames),
@@ -813,16 +813,16 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         }
     }
 
-    static final class LiveNeighborsAndRanges
+    static final class NeighborsAndRanges
     {
-        private final boolean force;
-        private final Set<InetAddressAndPort> allNeighbors;
+        private final boolean shouldExcludeDeadParticipants;
+        private final Set<InetAddressAndPort> participants;
         private final List<CommonRange> commonRanges;
 
-        LiveNeighborsAndRanges(boolean force, Set<InetAddressAndPort> allNeighbors, List<CommonRange> commonRanges)
+        NeighborsAndRanges(boolean shouldExcludeDeadParticipants, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
         {
-            this.force = force;
-            this.allNeighbors = allNeighbors;
+            this.shouldExcludeDeadParticipants = shouldExcludeDeadParticipants;
+            this.participants = participants;
             this.commonRanges = commonRanges;
         }
 
@@ -833,7 +833,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
          */
         List<CommonRange> filterCommonRanges(String keyspace, String[] tableNames)
         {
-            if (!force)
+            if (!shouldExcludeDeadParticipants)
             {
                 return commonRanges;
             }
@@ -845,21 +845,20 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
                 for (CommonRange commonRange : commonRanges)
                 {
-                    Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, allNeighbors::contains));
-                    Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, allNeighbors::contains));
+                    Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, participants::contains));
+                    Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, participants::contains));
                     Preconditions.checkState(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
 
                     // this node is implicitly a participant in this repair, so a single endpoint is ok here
                     if (!endpoints.isEmpty())
                     {
-                        Set<InetAddressAndPort> skippedReplicas = Sets.union(Sets.difference(commonRange.endpoints, endpoints),
-                                                                             Sets.difference(commonRange.transEndpoints, transEndpoints));
+                        Set<InetAddressAndPort> skippedReplicas = Sets.difference(commonRange.endpoints, endpoints);
                         skippedReplicas.forEach(endpoint -> logger.info("Removing a dead node {} from repair for ranges {} due to -force", endpoint, commonRange.ranges));
                         filtered.add(new CommonRange(endpoints, transEndpoints, commonRange.ranges, !skippedReplicas.isEmpty()));
                     }
                     else
                     {
-                        logger.warn("Unable to repair ranges {} for tables {} in keyspace {}, as no neighbor nodes are live.",
+                        logger.warn("Skipping forced repair for ranges {} of tables {} in keyspace {}, as no neighbor nodes are live.",
                                     commonRange.ranges, Arrays.asList(tableNames), keyspace);
                     }
                 }

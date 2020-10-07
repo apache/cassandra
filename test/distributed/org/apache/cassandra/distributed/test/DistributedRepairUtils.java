@@ -119,6 +119,7 @@ public final class DistributedRepairUtils
 
     public static void assertParentRepairSuccess(ICluster<IInvokableInstance> cluster, int coordinator, String ks, String table, Consumer<Row> moreSuccessCriteria)
     {
+        Assert.assertNotNull("Invalid null value for moreSuccessCriteria", moreSuccessCriteria);
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
