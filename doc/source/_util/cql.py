@@ -26,7 +26,6 @@ from pygments.lexer import Lexer, RegexLexer, do_insertions, bygroups, words
 from pygments.token import Punctuation, Whitespace, Error, \
     Text, Comment, Operator, Keyword, Name, String, Number, Generic, Literal
 from pygments.lexers import get_lexer_by_name, ClassNotFound
-from pygments.util import iteritems
 
 __all__ = [ 'CQLLexer' ]
 
