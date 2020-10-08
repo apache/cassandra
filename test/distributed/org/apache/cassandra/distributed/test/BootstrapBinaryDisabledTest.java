@@ -38,6 +38,9 @@ import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.Shared;
 
+/**
+ * Replaces python dtest bootstrap_test.py::TestBootstrap::test_bootstrap_binary_disabled
+ */
 public class BootstrapBinaryDisabledTest extends TestBaseImpl
 {
     @Test
