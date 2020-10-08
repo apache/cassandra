@@ -106,6 +106,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -141,7 +142,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // Set the config at instance creation, possibly before startup() has run on all other instances.
         // setMessagingVersions below will call runOnInstance which will instantiate
         // the MessagingService and dependencies preventing later changes to network parameters.
-        Config.setOverrideLoadConfig(() -> loadConfig(config));
+        Config single = loadConfig(config);
+        Config.setOverrideLoadConfig(() -> single);
     }
 
     @Override
@@ -535,6 +537,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
 
                 // TODO: this is more than just gossip
+                StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
@@ -549,11 +552,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 SystemKeyspace.finishStartup();
 
+                CassandraDaemon.getInstanceForTesting().setupCompleted();
+
                 if (config.has(NATIVE_PROTOCOL))
                 {
-                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
-                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
-                    StorageService.instance.setRpcReady(true);
+                    CassandraDaemon.getInstanceForTesting().initializeClientTransports();
+                    CassandraDaemon.getInstanceForTesting().start();
                 }
 
                 if (!FBUtilities.getBroadcastAddress().equals(broadcastAddress().getAddress()))
@@ -657,7 +661,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor,
                     () -> StorageService.instance.setRpcReady(false),
-                    CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
+                    CassandraDaemon.getInstanceForTesting()::destroyClientTransports);
 
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
@@ -683,7 +687,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             );
             error = parallelRun(error, executor,
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
-                                MessagingService.instance()::shutdown
+                                (IgnoreThrowingRunnable) MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,
                                 () -> StageManager.shutdownAndWait(1L, MINUTES),
@@ -820,5 +824,24 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
         }
         return accumulate;
+    }
+
+    @FunctionalInterface
+    private interface IgnoreThrowingRunnable extends ThrowingRunnable
+    {
+        void doRun() throws Throwable;
+
+        @Override
+        default void run()
+        {
+            try
+            {
+                doRun();
+            }
+            catch (Throwable e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+            }
+        }
     }
 }

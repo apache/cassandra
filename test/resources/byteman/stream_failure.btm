@@ -1,0 +1,14 @@
+#
+# Inject streaming failure
+#
+# Before start streaming files in `StreamSession#prepare()` method,
+# interrupt streaming by throwing RuntimeException.
+#
+RULE inject stream failure
+CLASS org.apache.cassandra.streaming.StreamSession
+METHOD prepare
+AT INVOKE maybeCompleted
+IF org.apache.cassandra.distributed.test.BootstrapBinaryDisabledTest$RewriteEnabled.isEnabled()
+DO
+   throw new java.lang.RuntimeException("Triggering network failure")
+ENDRULE
