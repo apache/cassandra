@@ -18,26 +18,20 @@
 
 package org.apache.cassandra.distributed.shared;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
 /**
- * used by BootstrapBinaryDisabledTest to have a class in the shared class loader;
- * used by byteman to figure out if a rule is enabled or not.
+ * Tells jvm-dtest that a class should be shared accross all {@link ClassLoader}s.
+ *
+ * Jvm-dtest relies on classloader isolation to run multiple cassandra instances in the same JVM, this makes it
+ * so some classes do not get shared (outside a blesssed set of classes/packages). When the default behavior
+ * is not desirable, this annotation will tell jvm-dtest to share the class accross all class loaders.
  */
-public class BootstrapBinaryDisabledTestRewriteEnabled
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.TYPE })
+public @interface Shared
 {
-    private static volatile boolean enabled = false;
-
-    public static boolean isEnabled()
-    {
-        return enabled;
-    }
-
-    public static void enable()
-    {
-        enabled = true;
-    }
-
-    public static void disable()
-    {
-        enabled = false;
-    }
 }

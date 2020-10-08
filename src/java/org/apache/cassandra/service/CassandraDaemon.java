@@ -530,6 +530,8 @@ public class CassandraDaemon
      */
     public void start()
     {
+        // check to see if transports may start else return without starting.  This is needed when in survey mode or
+        // when bootstrap has not completed.
         try
         {
             validateTransportsCanStart();
@@ -540,7 +542,7 @@ public class CassandraDaemon
             logger.info(isx.getMessage());
             return;
         }
-        // client transports are expected to call validateTransportsCanStart before starting, so not needed here.
+
         startClientTransports();
     }
 

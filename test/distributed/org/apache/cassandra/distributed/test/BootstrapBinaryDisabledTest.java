@@ -34,9 +34,9 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.shared.BootstrapBinaryDisabledTestRewriteEnabled;
 import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Shared;
 
 public class BootstrapBinaryDisabledTest extends TestBaseImpl
 {
@@ -93,7 +93,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
         if (isWriteSurvey)
             System.setProperty("cassandra.write_survey", "true");
 
-        BootstrapBinaryDisabledTestRewriteEnabled.enable();
+        RewriteEnabled.enable();
         cluster.bootstrap(nodeConfig).startup();
         IInvokableInstance node = cluster.get(cluster.size());
         assertLogHas(node, "Some data streaming failed");
@@ -105,7 +105,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
              .failure()
              .errorContains("Cannot join the ring until bootstrap completes");
 
-        BootstrapBinaryDisabledTestRewriteEnabled.disable();
+        RewriteEnabled.disable();
         node.nodetoolResult("bootstrap", "resume").asserts().success();
         if (isWriteSurvey)
             assertLogHas(node, "Not starting client transports in write_survey mode as it's bootstrapping or auth is enabled");
@@ -137,5 +137,26 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
     {
         for (int i = 0; i < 10; i++)
             inst.executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", Integer.toString(i));
+    }
+
+    @Shared
+    public static final class RewriteEnabled
+    {
+        private static volatile boolean enabled = false;
+
+        public static boolean isEnabled()
+        {
+            return enabled;
+        }
+
+        public static void enable()
+        {
+            enabled = true;
+        }
+
+        public static void disable()
+        {
+            enabled = false;
+        }
     }
 }
