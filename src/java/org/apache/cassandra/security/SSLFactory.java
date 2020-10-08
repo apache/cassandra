@@ -31,29 +31,29 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
-import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
@@ -164,7 +164,6 @@ public final class SSLFactory
     /**
      * Create a JSSE {@link SSLContext}.
      */
-    @SuppressWarnings("resource")
     public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
         TrustManager[] trustManagers = null;
@@ -175,7 +174,13 @@ public final class SSLFactory
 
         try
         {
-            SSLContext ctx = SSLContext.getInstance(options.protocol);
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            String[] acceptedProtocols = options.acceptedProtocolsArray();
+            if (acceptedProtocols != null)
+            {
+                SSLParameters sslParameters = ctx.getDefaultSSLParameters();
+                sslParameters.setProtocols(acceptedProtocols);
+            }
             ctx.init(kmf.getKeyManagers(), trustManagers, null);
             return ctx;
         }
@@ -233,21 +238,6 @@ public final class SSLFactory
         }
     }
 
-    public static String[] filterCipherSuites(String[] supported, String[] desired)
-    {
-        if (Arrays.equals(supported, desired))
-            return desired;
-        List<String> ldesired = Arrays.asList(desired);
-        ImmutableSet<String> ssupported = ImmutableSet.copyOf(supported);
-        String[] ret = Iterables.toArray(Iterables.filter(ldesired, Predicates.in(ssupported)), String.class);
-        if (desired.length > ret.length && logger.isWarnEnabled())
-        {
-            Iterable<String> missing = Iterables.filter(ldesired, Predicates.not(Predicates.in(Sets.newHashSet(ret))));
-            logger.warn("Filtering out {} as it isn't supported by the socket", Iterables.toString(missing));
-        }
-        return ret;
-    }
-
     /**
      * get a netty {@link SslContext} instance
      */
@@ -289,6 +279,16 @@ public final class SSLFactory
     static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore,
                                             SocketType socketType, boolean useOpenSsl) throws IOException
     {
+        return createNettySslContext(options, buildTruststore, socketType, useOpenSsl,
+                                     LoggingCipherSuiteFilter.QUIET_FILTER);
+    }
+
+    /**
+     * Create a Netty {@link SslContext} with a supplied cipherFilter
+     */
+    static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore,
+                                            SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws IOException
+    {
         /*
             There is a case where the netty/openssl combo might not support using KeyManagerFactory. specifically,
             I've seen this with the netty-tcnative dynamic openssl implementation. using the netty-tcnative static-boringssl
@@ -311,10 +311,12 @@ public final class SSLFactory
 
         builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK);
 
+        builder.protocols(options.acceptedProtocols());
+
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
         if (options.cipher_suites != null && !options.cipher_suites.isEmpty())
-            builder.ciphers(options.cipher_suites, SupportedCipherSuiteFilter.INSTANCE);
+            builder.ciphers(options.cipher_suites, cipherFilter);
 
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory(options));
@@ -366,8 +368,6 @@ public final class SSLFactory
 
         logger.debug("Initializing hot reloading SSLContext");
 
-        validateSslCerts(serverOpts, clientOpts);
-
         List<HotReloadableFile> fileList = new ArrayList<>();
 
         if (serverOpts != null && serverOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
@@ -397,39 +397,119 @@ public final class SSLFactory
         isHotReloadingInitialized = true;
     }
 
+    // Non-logging
+    /*
+     * This class will filter all requested ciphers out that are not supported by the current {@link SSLEngine},
+     * logging messages for all dropped ciphers, and throws an exception if no ciphers are supported
+     */
+    public static final class LoggingCipherSuiteFilter implements CipherSuiteFilter
+    {
+        // Version without logging the ciphers, make sure same filtering logic is used
+        // all the time, regardless of user output.
+        public static final CipherSuiteFilter QUIET_FILTER = new LoggingCipherSuiteFilter();
+        final String settingDescription;
+
+        private LoggingCipherSuiteFilter()
+        {
+            this.settingDescription = null;
+        }
+
+        public LoggingCipherSuiteFilter(String settingDescription)
+        {
+            this.settingDescription = settingDescription;
+        }
+
+
+        @Override
+        public String[] filterCipherSuites(Iterable<String> ciphers, List<String> defaultCiphers,
+                                           Set<String> supportedCiphers)
+        {
+            Objects.requireNonNull(defaultCiphers, "defaultCiphers");
+            Objects.requireNonNull(supportedCiphers, "supportedCiphers");
+
+            final List<String> newCiphers;
+            if (ciphers == null)
+            {
+                newCiphers = new ArrayList<>(defaultCiphers.size());
+                ciphers = defaultCiphers;
+            }
+            else
+            {
+                newCiphers = new ArrayList<>(supportedCiphers.size());
+            }
+            for (String c : ciphers)
+            {
+                if (c == null)
+                {
+                    break;
+                }
+                if (supportedCiphers.contains(c))
+                {
+                    newCiphers.add(c);
+                }
+                else
+                {
+                    if (settingDescription != null)
+                    {
+                        logger.warn("Dropping unsupported cipher_suite {} from {} configuration",
+                                    c, settingDescription.toLowerCase());
+                    }
+                }
+            }
+            if (newCiphers.isEmpty())
+            {
+                throw new IllegalStateException("No ciphers left after filtering supported cipher suite");
+            }
+
+            return newCiphers.toArray(new String[0]);
+        }
+    }
+
+    public static void validateSslContext(String contextDescription, EncryptionOptions options, boolean buildTrustStore, boolean logProtocolAndCiphers) throws IOException
+    {
+        if (options != null && options.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+        {
+            try
+            {
+                CipherSuiteFilter loggingCipherSuiteFilter =logProtocolAndCiphers ?  new LoggingCipherSuiteFilter(contextDescription)
+                                                                                  : LoggingCipherSuiteFilter.QUIET_FILTER;
+                SslContext sslContext = createNettySslContext(options, buildTrustStore, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
+                SSLEngine engine = sslContext.newEngine(ByteBufAllocator.DEFAULT);
+
+                if (logProtocolAndCiphers)
+                {
+                    String[] supportedProtocols = engine.getSupportedProtocols();
+                    String[] supportedCiphers = engine.getSupportedCipherSuites();
+                    String[] enabledProtocols = engine.getEnabledProtocols();
+                    String[] enabledCiphers = engine.getEnabledCipherSuites();
+
+                    logger.debug("{} supported TLS protocols: {}", contextDescription,
+                                 supportedProtocols == null ? "system default" : String.join(", ", supportedProtocols));
+                    logger.info("{} enabled TLS protocols: {}", contextDescription,
+                                enabledProtocols == null ? "system default" : String.join(", ", enabledProtocols));
+                    logger.debug("{} supported cipher suites: {}", contextDescription,
+                                 supportedCiphers == null ? "system default" : String.join(", ", supportedCiphers));
+                    logger.info("{} enabled cipher suites: {}", contextDescription,
+                                enabledCiphers == null ? "system default" : String.join(", ", enabledCiphers));
+                }
+
+                // Make sure it is possible to build the client context too
+                createNettySslContext(options, buildTrustStore, SocketType.CLIENT, openSslIsAvailable());
+            }
+            catch (Exception e)
+            {
+                throw new IOException("Failed to create SSL context using " + contextDescription, e);
+            }
+        }
+    }
 
     /**
      * Sanity checks all certificates to ensure we can actually load them
      */
     public static void validateSslCerts(EncryptionOptions.ServerEncryptionOptions serverOpts, EncryptionOptions clientOpts) throws IOException
     {
-        try
-        {
-            // Ensure we're able to create both server & client SslContexts if they might ever be needed
-            if (serverOpts != null && serverOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-            {
-                createNettySslContext(serverOpts, true, SocketType.SERVER, openSslIsAvailable());
-                createNettySslContext(serverOpts, true, SocketType.CLIENT, openSslIsAvailable());
-            }
-        }
-        catch (Exception e)
-        {
-            throw new IOException("Failed to create SSL context using server_encryption_options!", e);
-        }
-
-        try
-        {
-            // Ensure we're able to create both server & client SslContexts if they might ever be needed
-            if (clientOpts != null && clientOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-            {
-                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, openSslIsAvailable());
-                createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, openSslIsAvailable());
-            }
-        }
-        catch (Exception e)
-        {
-            throw new IOException("Failed to create SSL context using client_encryption_options!", e);
-        }
+        validateSslContext("server_encryption_options", serverOpts, true, false);
+        validateSslContext("client_encryption_options", clientOpts, clientOpts.require_client_auth, false);
     }
 
     static class CacheKey

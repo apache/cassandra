@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.net.InetAddress;
+import java.util.Collections;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -35,10 +36,9 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.of("enabled", true,
-                                   "optional", true,
-                                   "keystore", "/path/to/bad/keystore/that/should/not/exist",
-                                   "truststore", "/path/to/bad/truststore/that/should/not/exist"));
+                  ImmutableMap.of("optional", true,
+                                  "keystore", "/path/to/bad/keystore/that/should/not/exist",
+                                  "truststore", "/path/to/bad/truststore/that/should/not/exist"));
         }).createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
@@ -131,6 +131,91 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
                               .build());
         }).createWithoutStarting())
         {
+            assertCannotStartDueToConfigurationException(cluster);
+        }
+    }
+
+
+    @Test
+    public void negotiatedProtocolMustBeAcceptedProtocolTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("enabled", true)
+                              .put("accepted_protocols", Collections.singletonList("TLSv1.1"))
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+            int port = (int) cluster.get(1).config().get("native_transport_port");
+
+            TlsConnection tls10Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1"));
+            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, tls10Connection.connect());
+            tls10Connection.assertReceivedHandshakeException();
+
+            TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
+            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
+                                ConnectResult.NEGOTIATED, tls11Connection.connect());
+            Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
+
+            TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
+            Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, tls12Connection.connect());
+            tls12Connection.assertReceivedHandshakeException();
+        }
+    }
+
+    @Test
+    public void connectionCannotAgreeOnClientAndServerTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("enabled", true)
+                              .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
+                              .put("cipher_suites", Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"))
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+            int port = (int) cluster.get(1).config().get("native_transport_port");
+
+            TlsConnection connection = new TlsConnection(address.getHostAddress(), port,
+                                                         Collections.singletonList("TLSv1.2"),
+                                                         Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"));
+            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, connection.connect());
+            connection.assertReceivedHandshakeException();
+        }
+    }
+
+    @Test
+    public void nodeMustNotStartWithNonExistantProtocolTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.<String,Object>builder().putAll(nonExistantProtocol).put("enabled", true).build());
+        }).createWithoutStarting())
+        {
+            assertCannotStartDueToConfigurationException(cluster);
+        }
+    }
+
+    @Test
+    public void nodeMustNotStartWithNonExistantCiphersTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.<String,Object>builder().putAll(nonExistantCipher).put("enabled", true).build());
+        }).createWithoutStarting())
+        {
+            // Should also log "Dropping unsupported cipher_suite NoCipherIKnow from from native transport configuration"
             assertCannotStartDueToConfigurationException(cluster);
         }
     }

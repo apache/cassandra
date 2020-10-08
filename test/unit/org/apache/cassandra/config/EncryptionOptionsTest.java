@@ -56,16 +56,16 @@ public class EncryptionOptionsTest
         public static EncryptionOptionsTestCase of(Boolean optional, String keystorePath, Boolean enabled, EncryptionOptions.TlsEncryptionPolicy expected)
         {
             return new EncryptionOptionsTestCase(new EncryptionOptions(keystorePath, "dummypass", "dummytruststore", "dummypass",
-                                                                       Collections.emptyList(), "TLS", null, "JKS", false, false, enabled, optional)
+                                                                       Collections.emptyList(), null, null, null, "JKS", false, false, enabled, optional)
                                                  .applyConfig(),
                                                  expected,
                                                  String.format("optional=%s keystore=%s enabled=%s", optional, keystorePath, enabled));
         }
     }
 
-    static String absentKeystore = "test/conf/missing-keystore-is-not-here";
-    static String presentKeystore = "test/conf/keystore.jks";
-    EncryptionOptionsTestCase[] encryptionOptionTestCases = {
+    static final String absentKeystore = "test/conf/missing-keystore-is-not-here";
+    static final String presentKeystore = "test/conf/keystore.jks";
+    final EncryptionOptionsTestCase[] encryptionOptionTestCases = {
         //                         Optional    Keystore     Enabled  Expected
         EncryptionOptionsTestCase.of(null, absentKeystore,  false, UNENCRYPTED),
         EncryptionOptionsTestCase.of(null, absentKeystore,  true,  ENCRYPTED),
@@ -106,7 +106,7 @@ public class EncryptionOptionsTest
                                                          EncryptionOptions.TlsEncryptionPolicy expected)
         {
             return new ServerEncryptionOptionsTestCase(new EncryptionOptions.ServerEncryptionOptions(keystorePath, "dummypass", "dummytruststore", "dummypass",
-                                                                                               Collections.emptyList(), "TLS", null, "JKS", false, false, optional, internodeEncryption, false)
+                                                                                               Collections.emptyList(), null, null, null, "JKS", false, false, optional, internodeEncryption, false)
                                                        .applyConfig(),
                                                  expected,
                                                  String.format("optional=%s keystore=%s internode=%s", optional, keystorePath, internodeEncryption));
@@ -141,7 +141,7 @@ public class EncryptionOptionsTest
                   .hasMessage("Invalid yaml. Please remove properties [isOptional] from your cassandra.yaml");
     }
 
-    ServerEncryptionOptionsTestCase[] serverEncryptionOptionTestCases = {
+    final ServerEncryptionOptionsTestCase[] serverEncryptionOptionTestCases = {
 
         //                               Optional    Keystore    Internode  Expected
         ServerEncryptionOptionsTestCase.of(null, absentKeystore, none, UNENCRYPTED),

@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLSession;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -51,15 +55,28 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 public class AbstractEncryptionOptionsImpl extends TestBaseImpl
 {
-    Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
+    final Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
     final static String validKeyStorePath = "test/conf/cassandra_ssl_test.keystore";
     final static String validKeyStorePassword = "cassandra";
     final static String validTrustStorePath = "test/conf/cassandra_ssl_test.truststore";
     final static String validTrustStorePassword = "cassandra";
+
+    // Base configuration map for a valid keystore that can be opened
     final static Map<String,Object> validKeystore = ImmutableMap.of("keystore", validKeyStorePath,
-                                                                   "keystore_password", validKeyStorePassword,
-                                                                   "truststore", validTrustStorePath,
-                                                                   "truststore_password", validTrustStorePassword);
+                                                                    "keystore_password", validKeyStorePassword,
+                                                                    "truststore", validTrustStorePath,
+                                                                    "truststore_password", validTrustStorePassword);
+
+    // Configuration with a valid keystore, but an unknown protocol
+    final static Map<String,Object> nonExistantProtocol = ImmutableMap.<String,Object>builder()
+                                                                           .putAll(validKeystore)
+                                                                           .put("accepted_protocols", Collections.singletonList("NoProtocolIKnow"))
+                                                                           .build();
+    // Configuration with a valid keystore, but an unknown protocol
+    final static Map<String,Object> nonExistantCipher = ImmutableMap.<String,Object>builder()
+                                                                           .putAll(validKeystore)
+                                                                           .put("cipher_suites", Collections.singletonList("NoCipherIKnow"))
+                                                                           .build();
 
     // Result of a TlsConnection.connect call.  The result is updated as the TLS connection
     // sequence takes place.  The nextOnFailure/nextOnSuccess allows the discard handler
@@ -91,16 +108,32 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
     {
         final String host;
         final int port;
+        final List<String> acceptedProtocols;
+        final List<String> cipherSuites;
         final EncryptionOptions encryptionOptions = new EncryptionOptions()
                                                     .withEnabled(true)
                                                     .withKeyStore(validKeyStorePath).withKeyStorePassword(validKeyStorePassword)
                                                     .withTrustStore(validTrustStorePath).withTrustStorePassword(validTrustStorePassword);
         private Throwable lastThrowable;
+        private String lastProtocol;
+        private String lastCipher;
 
         public TlsConnection(String host, int port)
         {
+            this(host, port, null, null);
+        }
+
+        public TlsConnection(String host, int port, List<String> acceptedProtocols)
+        {
+            this(host, port, acceptedProtocols, null);
+        }
+
+        public TlsConnection(String host, int port, List<String> acceptedProtocols, List<String> cipherSuites)
+        {
             this.host = host;
             this.port = port;
+            this.acceptedProtocols = acceptedProtocols;
+            this.cipherSuites = cipherSuites;
         }
 
         public synchronized Throwable lastThrowable()
@@ -110,6 +143,20 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
         private synchronized void setLastThrowable(Throwable cause)
         {
             lastThrowable = cause;
+        }
+
+        public synchronized String lastProtocol()
+        {
+            return lastProtocol;
+        }
+        public synchronized String lastCipher()
+        {
+            return lastCipher;
+        }
+        private synchronized void setProtocolAndCipher(String protocol, String cipher)
+        {
+            lastProtocol = protocol;
+            lastCipher = cipher;
         }
 
         final AtomicReference<ConnectResult> result = new AtomicReference<>(ConnectResult.UNINITIALIZED);
@@ -144,9 +191,11 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             AtomicInteger connectAttempts = new AtomicInteger(0);
             result.set(ConnectResult.UNINITIALIZED);
             setLastThrowable(null);
+            setProtocolAndCipher(null, null);
 
-            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, true,
-                                                                     SSLFactory.SocketType.CLIENT);
+            SslContext sslContext = SSLFactory.getOrCreateSslContext(
+                encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
+                true, SSLFactory.SocketType.CLIENT);
 
             EventLoopGroup workerGroup = new NioEventLoopGroup();
             Bootstrap b = new Bootstrap();
@@ -160,7 +209,11 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
                 try
                 {
                     logger.debug("handshakeFuture() listener called");
-                    channelFuture.get();
+                    Channel channel = channelFuture.get();
+                    SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
+                    SSLSession session = sslHandler.engine().getSession();
+                    setProtocolAndCipher(session.getProtocol(), session.getCipherSuite());
+
                     successProgress();
                 }
                 catch (Throwable cause)
@@ -267,6 +320,14 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             {
                 // verify it was not possible to connect before starting the server
             }
+        }
+
+        void assertReceivedHandshakeException()
+        {
+            Assert.assertTrue("Expected a J8 handshake_failure or J11 protocol_version exception: " + lastThrowable.getMessage(),
+                              lastThrowable().getMessage().contains("Received fatal alert: handshake_failure") ||
+                              lastThrowable().getMessage().contains("Received fatal alert: protocol_version") ||
+                              lastThrowable.getCause() instanceof  SSLHandshakeException);
         }
     }
 

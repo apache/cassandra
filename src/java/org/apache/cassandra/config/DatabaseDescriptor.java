@@ -360,7 +360,7 @@ public class DatabaseDescriptor
 
         applyEncryptionContext();
 
-        applySslContextHotReload();
+        applySslContext();
     }
 
     private static void applySimpleConfig()
@@ -991,15 +991,17 @@ public class DatabaseDescriptor
         encryptionContext = new EncryptionContext(conf.transparent_data_encryption_options);
     }
 
-    public static void applySslContextHotReload()
+    public static void applySslContext()
     {
         try
         {
+            SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, true, true);
+            SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.require_client_auth, true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
         }
-        catch(IOException e)
+        catch (IOException e)
         {
-            throw new ConfigurationException("Failed to initialize SSL hot reloading", e);
+            throw new ConfigurationException("Failed to initialize SSL", e);
         }
     }
 
