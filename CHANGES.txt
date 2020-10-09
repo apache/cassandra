@@ -18,6 +18,7 @@
  * NPE thrown while updating speculative execution time if keyspace is removed during task execution (CASSANDRA-15949)
  * Show the progress of data streaming and index build (CASSANDRA-15406)
  * Add flag to disable chunk cache and disable by default (CASSANDRA-16036)
+ * Upgrade to snakeyaml >= 1.26 version for CVE-2017-18640 fix (CASSANDRA-16150)
 Merged from 3.11:
  * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
