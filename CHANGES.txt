@@ -6,6 +6,8 @@
 Merged from 3.0:
  * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
+Merged from 2.2:
+ * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
 
 3.11.8
  * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)
