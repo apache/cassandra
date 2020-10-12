@@ -3,6 +3,8 @@
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
+Merged from 2.2:
+ * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
 
 3.0.22:
  * Fix gossip shutdown order (CASSANDRA-15816)

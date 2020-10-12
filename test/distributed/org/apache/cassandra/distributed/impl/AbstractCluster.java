@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,12 +66,14 @@ import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.reflections.Reflections;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -105,6 +108,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // before we instantiate any for a new instance
     private static final Logger logger = LoggerFactory.getLogger(AbstractCluster.class);
     private static final AtomicInteger GENERATION = new AtomicInteger();
+
+    // include byteman so tests can use
+    private static final Set<String> SHARED_CLASSES = findClassesMarkedForSharedClassLoader();
+    private static final Predicate<String> SHARED_PREDICATE = s ->
+                                                              SHARED_CLASSES.contains(s) ||
+                                                              InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
+                                                              s.startsWith("org.jboss.byteman");
 
     private final UUID clusterId = UUID.randomUUID();
     private final File root;
@@ -163,7 +173,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader);
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, SHARED_PREDICATE);
             if (instanceInitializer != null)
                 instanceInitializer.accept(classLoader, config.num());
             return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, IInvokableInstance>)Instance::new, classLoader)
@@ -718,5 +728,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                .collect(Collectors.toList());
     }
 
+    private static Set<String> findClassesMarkedForSharedClassLoader()
+    {
+        return new Reflections("org.apache.cassandra").getTypesAnnotatedWith(Shared.class).stream()
+                                                      .map(Class::getName)
+                                                      .collect(Collectors.toSet());
+    }
 }
 
