@@ -24,6 +24,7 @@ import com.google.common.collect.Iterators;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.Versions;
 
 import junit.framework.Assert;
@@ -83,6 +84,29 @@ public class UpgradeTest extends UpgradeTestBase
                                                                                       pageSize, i);
                     Assert.assertEquals(180, Iterators.size(res));
                 }
+            }
+        }).run();
+    }
+
+    @Test
+    public void simpleUpgradeWithNetworkAndGossipTest() throws Throwable
+    {
+        new TestCase()
+        .nodes(2)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .setup((cluster) -> {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+        })
+        .runAfterNodeUpgrade((cluster, node) -> {
+            for (int i : new int[]{ 1, 2 })
+            {
+                assertRows(cluster.coordinator(i).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+                                                          ConsistencyLevel.ALL,
+                                                          1),
+                           row(1, 1, 1));
             }
         }).run();
     }
