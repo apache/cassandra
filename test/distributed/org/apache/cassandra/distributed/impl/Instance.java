@@ -152,7 +152,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // Set the config at instance creation, possibly before startup() has run on all other instances.
         // setMessagingVersions below will call runOnInstance which will instantiate
         // the MessagingService and dependencies preventing later changes to network parameters.
-        Config.setOverrideLoadConfig(() -> loadConfig(config));
+        Config single = loadConfig(config);
+        Config.setOverrideLoadConfig(() -> single);
 
         // Enable streaming inbound handler tracking so they can be closed properly without leaking
         // the blocking IO thread.
@@ -405,6 +406,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw e;
                 }
 
+                // Start up virtual table support
+                CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
+
                 Keyspace.setInitialized();
 
                 // Replay any CommitLogSegments found on disk
@@ -436,6 +440,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
 
                 // TODO: this is more than just gossip
+                StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
@@ -451,14 +456,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 SystemKeyspace.finishStartup();
 
+                CassandraDaemon.getInstanceForTesting().setupCompleted();
+
                 if (config.has(NATIVE_PROTOCOL))
                 {
-                    // Start up virtual table support
-                    CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
-
-                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
-                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
-                    StorageService.instance.setRpcReady(true);
+                    CassandraDaemon.getInstanceForTesting().initializeClientTransports();
+                    CassandraDaemon.getInstanceForTesting().start();
                 }
 
                 if (!FBUtilities.getBroadcastAddressAndPort().address.equals(broadcastAddress().getAddress()) ||
@@ -564,7 +567,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor,
                     () -> StorageService.instance.setRpcReady(false),
-                    CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
+                    CassandraDaemon.getInstanceForTesting()::destroyClientTransports);
 
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
@@ -595,7 +598,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
-                                () -> MessagingService.instance().shutdown(1L, MINUTES, false, true)
+                                // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
+                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, false, true)
             );
             error = parallelRun(error, executor,
                                 () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
@@ -783,5 +787,24 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
         }
         return accumulate;
+    }
+
+    @FunctionalInterface
+    private interface IgnoreThrowingRunnable extends ThrowingRunnable
+    {
+        void doRun() throws Throwable;
+
+        @Override
+        default void run()
+        {
+            try
+            {
+                doRun();
+            }
+            catch (Throwable e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+            }
+        }
     }
 }
