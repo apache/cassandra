@@ -29,23 +29,27 @@ import java.rmi.AlreadyBoundException;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.addthis.metrics3.reporter.config.ReporterConfig;
 import com.codahale.metrics.Meter;
@@ -55,18 +59,18 @@ import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SizeEstimatesRecorder;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
@@ -78,7 +82,14 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Mx4jTool;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.RMIServerSocketFactoryImpl;
+import org.apache.cassandra.utils.WindowsTimer;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -154,8 +165,8 @@ public class CassandraDaemon
 
     private static final CassandraDaemon instance = new CassandraDaemon();
 
-    public Server thriftServer;
-    public Server nativeServer;
+    private volatile Server thriftServer;
+    private volatile Server nativeServer;
 
     private final boolean runManaged;
     protected final StartupChecks startupChecks;
@@ -377,12 +388,12 @@ public class CassandraDaemon
         if (sizeRecorderInterval > 0)
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
-        initializeNativeTransport();
+        initializeClientTransports();
 
         completeSetup();
     }
 
-    public void initializeNativeTransport()
+    public synchronized void initializeClientTransports()
     {
         // Thrift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
@@ -394,22 +405,6 @@ public class CassandraDaemon
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
-    }
-
-    public void startNativeTransport()
-    {
-        validateTransportsCanStart();
-
-        if (nativeServer == null)
-            throw new IllegalStateException("native transport should be set up before it can be started");
-
-        nativeServer.start();
-        logger.info("Native server running on {}", new InetSocketAddress(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getNativeTransportPort()));
-
-        if (thriftServer == null)
-            throw new IllegalStateException("thrift transport should be set up before it can be started");
-        thriftServer.start();
-        logger.info("Thrift server running on {}", new InetSocketAddress(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getRpcPort()));
     }
 
     private void validateTransportsCanStart()
@@ -512,6 +507,8 @@ public class CassandraDaemon
      */
     public void start()
     {
+        // check to see if transports may start else return without starting.  This is needed when in survey mode or
+        // when bootstrap has not completed.
         try
         {
             validateTransportsCanStart();
@@ -519,10 +516,15 @@ public class CassandraDaemon
         catch (IllegalStateException isx)
         {
             // If there are any errors, we just log and return in this case
-            logger.info(isx.getMessage());
+            logger.warn(isx.getMessage());
             return;
         }
 
+        startClientTransports();
+    }
+
+    private void startClientTransports()
+    {
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
@@ -533,7 +535,7 @@ public class CassandraDaemon
 
         String rpcFlag = System.getProperty("cassandra.start_rpc");
         if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc()))
-            thriftServer.start();
+            startThriftServer();
         else
             logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) or nodetool (enablethrift) to start it");
     }
@@ -548,8 +550,7 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        thriftServer.stop();
-        nativeServer.stop();
+        destroyClientTransports();
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node
@@ -570,23 +571,13 @@ public class CassandraDaemon
     }
 
     @VisibleForTesting
-    public void destroyNativeTransport() throws InterruptedException
+    public void destroyClientTransports()
     {
         // In 2.2, just stopping the server works. Future versions require `destroy` to be called
         // so we maintain the name for consistency
-        if (nativeServer != null)
-        {
-            nativeServer.stopAndAwaitTermination();
-            nativeServer = null;
-        }
-
-        if (thriftServer != null)
-        {
-            thriftServer.stopAndAwaitTermination();
-            thriftServer = null;
-        }
+        stopThriftServer();
+        stopNativeTransport();
     }
-
 
     /**
      * Clean up all resources obtained during the lifetime of the daemon. This
@@ -638,6 +629,8 @@ public class CassandraDaemon
             }
 
             start();
+
+            logger.info("Startup complete");
         }
         catch (Throwable e)
         {
@@ -663,6 +656,52 @@ public class CassandraDaemon
                 exitOrFail(3, "Exception encountered during startup: " + e.getMessage());
             }
         }
+    }
+
+    public void startNativeTransport()
+    {
+        validateTransportsCanStart();
+
+        if (nativeServer == null)
+            throw new IllegalStateException("setup() must be called first for CassandraDaemon");
+
+        nativeServer.start();
+        logger.info("Native server running on {}", new InetSocketAddress(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getNativeTransportPort()));
+    }
+
+    public void stopNativeTransport()
+    {
+        if (nativeServer != null)
+        {
+            nativeServer.stopAndAwaitTermination();
+        }
+    }
+
+    public boolean isNativeTransportRunning()
+    {
+        return nativeServer != null && nativeServer.isRunning();
+    }
+
+    public void startThriftServer()
+    {
+        validateTransportsCanStart();
+
+        if (thriftServer == null)
+            throw new IllegalStateException("setup() must be called first for CassandraDaemon");
+        thriftServer.start();
+    }
+
+    public void stopThriftServer()
+    {
+        if (thriftServer != null)
+        {
+            thriftServer.stopAndAwaitTermination();
+        }
+    }
+
+    public boolean isThriftServerRunning()
+    {
+        return thriftServer != null && thriftServer.isRunning();
     }
 
     /**
