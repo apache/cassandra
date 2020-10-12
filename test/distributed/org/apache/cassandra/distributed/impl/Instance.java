@@ -83,7 +83,6 @@ import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.IMessageSink;
@@ -106,6 +105,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
@@ -582,6 +582,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
 
                 // TODO: this is more than just gossip
+                StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
                     StorageService.instance.initServer();
@@ -596,11 +597,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 SystemKeyspace.finishStartup();
 
+                CassandraDaemon.getInstanceForTesting().setupCompleted();
+
                 if (config.has(NATIVE_PROTOCOL))
                 {
-                    CassandraDaemon.getInstanceForTesting().initializeNativeTransport();
-                    CassandraDaemon.getInstanceForTesting().startNativeTransport();
-                    StorageService.instance.setRpcReady(true);
+                    CassandraDaemon.getInstanceForTesting().initializeClientTransports();
+                    CassandraDaemon.getInstanceForTesting().start();
                 }
 
                 if (!FBUtilities.getBroadcastAddress().equals(broadcastAddress().getAddress()))
@@ -703,7 +705,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor,
                     () -> StorageService.instance.setRpcReady(false),
-                    CassandraDaemon.getInstanceForTesting()::destroyNativeTransport);
+                    CassandraDaemon.getInstanceForTesting()::destroyClientTransports);
 
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
@@ -733,7 +735,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             );
             error = parallelRun(error, executor,
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
-                                MessagingService.instance()::shutdown
+                                (IgnoreThrowingRunnable) MessagingService.instance()::shutdown
             );
             error = parallelRun(error, executor,
                                 () -> StageManager.shutdownAndWait(1L, MINUTES),
@@ -870,5 +872,24 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
         }
         return accumulate;
+    }
+
+    @FunctionalInterface
+    private interface IgnoreThrowingRunnable extends ThrowingRunnable
+    {
+        void doRun() throws Throwable;
+
+        @Override
+        default void run()
+        {
+            try
+            {
+                doRun();
+            }
+            catch (Throwable e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+            }
+        }
     }
 }
