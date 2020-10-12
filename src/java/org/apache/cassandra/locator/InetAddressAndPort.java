@@ -177,11 +177,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     public static List<InetAddressAndPort> getAllByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
     {
         HostAndPort hap = HostAndPort.fromString(name);
-        if (hap.hasPort())
-        {
-            port = hap.getPort();
-        }
-        Integer finalPort = port;
+        Integer finalPort = hap.getPortOrDefault(port);
 
         return Stream.of(InetAddress.getAllByName(hap.getHost())).map((address) -> getByAddressOverrideDefaults(address, finalPort)).collect(Collectors.toList());
     }
