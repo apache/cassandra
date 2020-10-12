@@ -179,7 +179,9 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         HostAndPort hap = HostAndPort.fromString(name);
         Integer finalPort = hap.getPortOrDefault(port);
 
-        return Stream.of(InetAddress.getAllByName(hap.getHost())).map((address) -> getByAddressOverrideDefaults(address, finalPort)).collect(Collectors.toList());
+        return Stream.of(InetAddress.getAllByName(hap.getHost()))
+                     .map((address) -> getByAddressOverrideDefaults(address, finalPort))
+                     .collect(Collectors.toList());
     }
 
     /**
