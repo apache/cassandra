@@ -28,6 +28,6 @@ public class GetBatchlogReplayTrottle extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Batchlog replay throttle: " + probe.getBatchlogReplayThrottle() + " KB/s");
+        probe.output().out.println("Batchlog replay throttle: " + probe.getBatchlogReplayThrottle() + " KB/s");
     }
 }

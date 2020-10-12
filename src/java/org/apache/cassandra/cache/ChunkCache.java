@@ -42,7 +42,7 @@ public class ChunkCache
     public static final long cacheSize = 1024L * 1024L * Math.max(0, DatabaseDescriptor.getFileCacheSizeInMB() - RESERVED_POOL_SPACE_IN_MB);
     public static final boolean roundUp = DatabaseDescriptor.getFileCacheRoundUp();
 
-    private static boolean enabled = cacheSize > 0;
+    private static boolean enabled = DatabaseDescriptor.getFileCacheEnabled() && cacheSize > 0;
     public static final ChunkCache instance = enabled ? new ChunkCache() : null;
 
     private final LoadingCache<Key, Buffer> cache;
@@ -166,7 +166,7 @@ public class ChunkCache
         cache.invalidateAll();
     }
 
-    public RebuffererFactory wrap(ChunkReader file)
+    private RebuffererFactory wrap(ChunkReader file)
     {
         return new CachingRebufferer(file);
     }

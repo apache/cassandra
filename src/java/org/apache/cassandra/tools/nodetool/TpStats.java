@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import javax.management.MBeanServerConnection;
-
 import io.airlift.airline.Command;
 
 import io.airlift.airline.Option;
@@ -47,6 +45,6 @@ public class TpStats extends NodeToolCmd
 
         StatsHolder data = new TpStatsHolder(probe);
         StatsPrinter printer = TpStatsPrinter.from(outputFormat);
-        printer.print(data, System.out);
+        printer.print(data, probe.output().out);
     }
 }

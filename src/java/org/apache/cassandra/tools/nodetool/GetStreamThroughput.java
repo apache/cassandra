@@ -28,6 +28,6 @@ public class GetStreamThroughput extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Current stream throughput: " + probe.getStreamThroughput() + " Mb/s");
+        probe.output().out.println("Current stream throughput: " + probe.getStreamThroughput() + " Mb/s");
     }
 }

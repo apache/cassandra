@@ -24,6 +24,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueComparators;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,20 +39,20 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
     private static final ConcurrentMap<TypeSerializer<?>, SetSerializer> instances = new ConcurrentHashMap<TypeSerializer<?>, SetSerializer>();
 
     public final TypeSerializer<T> elements;
-    private final Comparator<ByteBuffer> comparator;
+    private final ValueComparators comparators;
 
-    public static <T> SetSerializer<T> getInstance(TypeSerializer<T> elements, Comparator<ByteBuffer> elementComparator)
+    public static <T> SetSerializer<T> getInstance(TypeSerializer<T> elements, ValueComparators comparators)
     {
         SetSerializer<T> t = instances.get(elements);
         if (t == null)
-            t = instances.computeIfAbsent(elements, k -> new SetSerializer<>(k, elementComparator) );
+            t = instances.computeIfAbsent(elements, k -> new SetSerializer<>(k, comparators) );
         return t;
     }
 
-    private SetSerializer(TypeSerializer<T> elements, Comparator<ByteBuffer> comparator)
+    public SetSerializer(TypeSerializer<T> elements, ValueComparators comparators)
     {
         this.elements = elements;
-        this.comparator = comparator;
+        this.comparators = comparators;
     }
 
     public List<ByteBuffer> serializeValues(Set<T> values)
@@ -56,7 +60,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         List<ByteBuffer> buffers = new ArrayList<>(values.size());
         for (T value : values)
             buffers.add(elements.serialize(value));
-        Collections.sort(buffers, comparator);
+        Collections.sort(buffers, comparators.buffer);
         return buffers;
     }
 
@@ -65,33 +69,36 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         return value.size();
     }
 
-    public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
+    public <V> void validateForNativeProtocol(V input, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         try
         {
-            if (bytes.remaining() == 0)
-            {
-                return;
-            }
-            ByteBuffer input = bytes.duplicate();
-            int n = readCollectionSize(input, version);
+            // Empty values are still valid.
+            if (accessor.isEmpty(input)) return;
+            
+            int n = readCollectionSize(input, accessor, version);
+            int offset = sizeOfCollectionSize(n, version);
             for (int i = 0; i < n; i++)
-                elements.validate(readValue(input, version));
-            if (input.hasRemaining())
+            {
+                V value = readValue(input, accessor, offset, version);
+                offset += sizeOfValue(value, accessor, version);
+                elements.validate(value, accessor);
+            }
+            if (!accessor.isEmptyFromOffset(input, offset))
                 throw new MarshalException("Unexpected extraneous bytes after set value");
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a set");
         }
     }
 
-    public Set<T> deserializeForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
+    public <V> Set<T> deserializeForNativeProtocol(V input, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         try
         {
-            ByteBuffer input = bytes.duplicate();
-            int n = readCollectionSize(input, version);
+            int n = readCollectionSize(input, accessor, version);
+            int offset = sizeOfCollectionSize(n, version);
 
             if (n < 0)
                 throw new MarshalException("The data cannot be deserialized as a set");
@@ -104,15 +111,16 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer databb = readValue(input, version);
-                elements.validate(databb);
-                l.add(elements.deserialize(databb));
+                V value = readValue(input, accessor, offset, version);
+                offset += sizeOfValue(value, accessor, version);
+                elements.validate(value, accessor);
+                l.add(elements.deserialize(value, accessor));
             }
-            if (input.hasRemaining())
+            if (!accessor.isEmptyFromOffset(input, offset))
                 throw new MarshalException("Unexpected extraneous bytes after set value");
             return l;
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a set");
         }
@@ -145,15 +153,17 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
     }
 
     @Override
-    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
+    public ByteBuffer getSerializedValue(ByteBuffer input, ByteBuffer key, AbstractType<?> comparator)
     {
         try
         {
-            ByteBuffer input = collection.duplicate();
             int n = readCollectionSize(input, ProtocolVersion.V3);
+            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
+
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer value = readValue(input, ProtocolVersion.V3);
+                ByteBuffer value = readValue(input, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
+                offset += sizeOfValue(value, ByteBufferAccessor.instance, ProtocolVersion.V3);
                 int comparison = comparator.compareForCQL(value, key);
                 if (comparison == 0)
                     return value;
@@ -164,7 +174,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             }
             return null;
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a set");
         }
@@ -184,6 +194,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         {
             ByteBuffer input = collection.duplicate();
             int n = readCollectionSize(input, ProtocolVersion.V3);
+            input.position(input.position() + sizeOfCollectionSize(n, ProtocolVersion.V3));
             int startPos = input.position();
             int count = 0;
             boolean inSlice = from == ByteBufferUtil.UNSET_BYTE_BUFFER;
@@ -191,7 +202,8 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             for (int i = 0; i < n; i++)
             {
                 int pos = input.position();
-                ByteBuffer value = readValue(input, ProtocolVersion.V3);
+                ByteBuffer value = readValue(input, ByteBufferAccessor.instance, 0, ProtocolVersion.V3);
+                input.position(input.position() + sizeOfValue(value, ByteBufferAccessor.instance, ProtocolVersion.V3));
 
                 // If we haven't passed the start already, check if we have now
                 if (!inSlice)
@@ -232,7 +244,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 
             return copyAsNewCollection(collection, count, startPos, input.position(), ProtocolVersion.V3);
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a set");
         }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.filter.*;
@@ -196,6 +197,16 @@ public class DataRange
     }
 
     /**
+     * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
+     *
+     * @return whether the underlying {@code ClusteringIndexFilter} is reversed or not.
+     */
+    public boolean isReversed()
+    {
+        return clusteringIndexFilter.isReversed();
+    }
+
+    /**
      * The clustering index filter to use for the provided key.
      * <p>
      * This may or may not be the same filter for all keys (that is, paging range
@@ -222,7 +233,7 @@ public class DataRange
      *
      * @return a new {@code DataRange} suitable for paging {@code this} range given the {@code lastRetuned} result of the previous page.
      */
-    public DataRange forPaging(AbstractBounds<PartitionPosition> range, ClusteringComparator comparator, Clustering lastReturned, boolean inclusive)
+    public DataRange forPaging(AbstractBounds<PartitionPosition> range, ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive)
     {
         return new Paging(range, clusteringIndexFilter, comparator, lastReturned, inclusive);
     }
@@ -328,13 +339,13 @@ public class DataRange
     public static class Paging extends DataRange
     {
         private final ClusteringComparator comparator;
-        private final Clustering lastReturned;
+        private final Clustering<?> lastReturned;
         private final boolean inclusive;
 
         private Paging(AbstractBounds<PartitionPosition> range,
                        ClusteringIndexFilter filter,
                        ClusteringComparator comparator,
-                       Clustering lastReturned,
+                       Clustering<?> lastReturned,
                        boolean inclusive)
         {
             super(range, filter);
@@ -370,7 +381,7 @@ public class DataRange
         /**
          * @return the last Clustering that was returned (in the previous page)
          */
-        public Clustering getLastReturned()
+        public Clustering<?> getLastReturned()
         {
             return lastReturned;
         }
@@ -420,7 +431,7 @@ public class DataRange
             if (in.readBoolean())
             {
                 ClusteringComparator comparator = metadata.comparator;
-                Clustering lastReturned = Clustering.serializer.deserialize(in, version, comparator.subtypes());
+                Clustering<byte[]> lastReturned = Clustering.serializer.deserialize(in, version, comparator.subtypes());
                 boolean inclusive = in.readBoolean();
                 return new Paging(range, filter, comparator, lastReturned, inclusive);
             }

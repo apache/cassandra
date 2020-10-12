@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Clusterable;
@@ -27,15 +28,22 @@ import org.apache.cassandra.db.Clusterable;
  * In practice, an Unfiltered is either a row or a range tombstone marker. Unfiltereds
  * are uniquely identified by their clustering information and can be sorted according
  * to those.
+ *
+ * We don't set the type parameter for Clusterable here because it doesn't make sense in
+ * the context of an Unfiltered. Merge iterators can produce rows containing clustering
+ * and cell values with multiple backing types. Also, by the time you're dealing with
+ * Unfiltered objects, the backing type should be considered opaque.
  */
 public interface Unfiltered extends Clusterable
 {
-    public enum Kind { ROW, RANGE_TOMBSTONE_MARKER };
+    public enum Kind { ROW, RANGE_TOMBSTONE_MARKER }
 
     /**
      * The kind of the atom: either row or range tombstone marker.
      */
     public Kind kind();
+
+    ClusteringPrefix<?> clustering();
 
     /**
      * Digest the atom using the provided {@link Digest}.

@@ -99,6 +99,10 @@ public class PreviewRepairTest extends TestBaseImpl
                 cfs.enableAutoCompaction();
                 FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
             });
+
+            //IR and Preview repair can't run concurrently. In case the test is flaky, please check CASSANDRA-15685
+            Thread.sleep(1000);
+
             RepairResult rs = cluster.get(1).callOnInstance(repair(options(true)));
             assertTrue(rs.success); // preview repair should succeed
             assertFalse(rs.wasInconsistent); // and we should see no mismatches
@@ -319,7 +323,7 @@ public class PreviewRepairTest extends TestBaseImpl
         }
     }
 
-    private static void insert(ICoordinator coordinator, int start, int count)
+    static void insert(ICoordinator coordinator, int start, int count)
     {
         insert(coordinator, start, count, "tbl");
     }

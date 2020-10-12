@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
@@ -224,9 +225,61 @@ public final class IndexMetadata
                .build();
     }
 
-    public String toCQLString()
+    public String toCqlString(TableMetadata table, boolean ifNotExists)
     {
-        return ColumnIdentifier.maybeQuote(name);
+        CqlBuilder builder = new CqlBuilder();
+        appendCqlTo(builder, table, ifNotExists);
+        return builder.toString();
+    }
+
+    /**
+     * Appends to the specified builder the CQL used to create this index.
+     * @param builder the builder to which the CQL myst be appended
+     * @param table the parent table
+     * @param ifNotExists includes "IF NOT EXISTS" into statement
+     */
+    public void appendCqlTo(CqlBuilder builder, TableMetadata table, boolean ifNotExists)
+    {
+        if (isCustom())
+        {
+            Map<String, String> copyOptions = new HashMap<>(options);
+
+            builder.append("CREATE CUSTOM INDEX ");
+
+            if (ifNotExists)
+            {
+                builder.append("IF NOT EXISTS ");
+            }
+
+            builder.appendQuotingIfNeeded(name)
+                   .append(" ON ")
+                   .append(table.toString())
+                   .append(" (")
+                   .append(copyOptions.remove(IndexTarget.TARGET_OPTION_NAME))
+                   .append(") USING ")
+                   .appendWithSingleQuotes(copyOptions.remove(IndexTarget.CUSTOM_INDEX_OPTION_NAME));
+
+            if (!copyOptions.isEmpty())
+                builder.append(" WITH OPTIONS = ")
+                       .append(options);
+        }
+        else
+        {
+            builder.append("CREATE INDEX ");
+
+            if (ifNotExists)
+            {
+                builder.append("IF NOT EXISTS ");
+            }
+
+            builder.appendQuotingIfNeeded(name)
+                   .append(" ON ")
+                   .append(table.toString())
+                   .append(" (")
+                   .append(options.get(IndexTarget.TARGET_OPTION_NAME))
+                   .append(')');
+        }
+        builder.append(';');
     }
 
     public static class Serializer

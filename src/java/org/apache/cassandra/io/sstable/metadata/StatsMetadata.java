@@ -23,14 +23,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -248,6 +251,8 @@ public class StatsMetadata extends MetadataComponent
 
     public static class StatsMetadataSerializer implements IMetadataComponentSerializer<StatsMetadata>
     {
+        private static final Logger logger = LoggerFactory.getLogger(StatsMetadataSerializer.class);
+
         public int serializedSize(Version version, StatsMetadata component) throws IOException
         {
             int size = 0;
@@ -340,7 +345,27 @@ public class StatsMetadata extends MetadataComponent
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
             EstimatedHistogram partitionSizes = EstimatedHistogram.serializer.deserialize(in);
+
+            if (partitionSizes.isOverflowed())
+            {
+                logger.warn("Deserialized partition size histogram with {} values greater than the maximum of {}. " +
+                            "Clearing the overflow bucket to allow for degraded mean and percentile calculations...",
+                            partitionSizes.overflowCount(), partitionSizes.getLargestBucketOffset());
+
+                partitionSizes.clearOverflow();
+            }
+
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
+
+            if (columnCounts.isOverflowed())
+            {
+                logger.warn("Deserialized partition cell count histogram with {} values greater than the maximum of {}. " +
+                            "Clearing the overflow bucket to allow for degraded mean and percentile calculations...",
+                            columnCounts.overflowCount(), columnCounts.getLargestBucketOffset());
+
+                columnCounts.clearOverflow();
+            }
+
             CommitLogPosition commitLogLowerBound = CommitLogPosition.NONE, commitLogUpperBound;
             commitLogUpperBound = CommitLogPosition.serializer.deserialize(in);
             long minTimestamp = in.readLong();

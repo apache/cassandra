@@ -27,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.CellPath;
@@ -61,22 +62,22 @@ public final class CounterCacheKey extends CacheKey
         this(tableMetadata, ByteBufferUtil.getArray(partitionKey), ByteBufferUtil.getArray(cellName));
     }
 
-    public static CounterCacheKey create(TableMetadata tableMetadata, ByteBuffer partitionKey, Clustering clustering, ColumnMetadata c, CellPath path)
+    public static CounterCacheKey create(TableMetadata tableMetadata, ByteBuffer partitionKey, Clustering<?> clustering, ColumnMetadata c, CellPath path)
     {
         return new CounterCacheKey(tableMetadata, partitionKey, makeCellName(clustering, c, path));
     }
 
-    private static ByteBuffer makeCellName(Clustering clustering, ColumnMetadata c, CellPath path)
+    private static ByteBuffer makeCellName(Clustering<?> clustering, ColumnMetadata c, CellPath path)
     {
         int cs = clustering.size();
         ByteBuffer[] values = new ByteBuffer[cs + 1 + (path == null ? 0 : path.size())];
         for (int i = 0; i < cs; i++)
-            values[i] = clustering.get(i);
+            values[i] = clustering.bufferAt(i);
         values[cs] = c.name.bytes;
         if (path != null)
             for (int i = 0; i < path.size(); i++)
                 values[cs + 1 + i] = path.get(i);
-        return CompositeType.build(values);
+        return CompositeType.build(ByteBufferAccessor.instance, values);
     }
 
     public ByteBuffer partitionKey()
@@ -99,10 +100,10 @@ public final class CounterCacheKey extends CacheKey
         DecoratedKey key = cfs.decorateKey(partitionKey());
 
         int clusteringSize = metadata.comparator.size();
-        List<ByteBuffer> buffers = CompositeType.splitName(ByteBuffer.wrap(cellName));
+        List<ByteBuffer> buffers = CompositeType.splitName(ByteBuffer.wrap(cellName), ByteBufferAccessor.instance);
         assert buffers.size() >= clusteringSize + 1; // See makeCellName above
 
-        Clustering clustering = Clustering.make(buffers.subList(0, clusteringSize).toArray(new ByteBuffer[clusteringSize]));
+        Clustering<?> clustering = Clustering.make(buffers.subList(0, clusteringSize).toArray(new ByteBuffer[clusteringSize]));
         ColumnMetadata column = metadata.getColumn(buffers.get(clusteringSize));
         // This can theoretically happen if a column is dropped after the cache is saved and we
         // try to load it. Not point if failing in any case, just skip the value.
@@ -125,9 +126,9 @@ public final class CounterCacheKey extends CacheKey
         {
             ByteBuffer value = null;
             if (column.isStatic())
-                value = iter.staticRow().getCell(column).value();
+                value = iter.staticRow().getCell(column).buffer();
             else if (iter.hasNext())
-                value = iter.next().getCell(column).value();
+                value = iter.next().getCell(column).buffer();
 
             return value;
         }
@@ -136,8 +137,8 @@ public final class CounterCacheKey extends CacheKey
     public void write(DataOutputPlus out)
     throws IOException
     {
-        ByteBufferUtil.writeWithLength(partitionKey, out);
-        ByteBufferUtil.writeWithLength(cellName, out);
+        ByteArrayUtil.writeWithLength(partitionKey, out);
+        ByteArrayUtil.writeWithLength(cellName, out);
     }
 
     public static CounterCacheKey read(TableMetadata tableMetadata, DataInputPlus in)

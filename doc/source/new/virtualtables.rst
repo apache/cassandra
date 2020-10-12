@@ -46,7 +46,7 @@ Virtual tables and virtual keyspaces are quite different from regular tables and
 - Virtual tables are managed by Cassandra and a user cannot run  DDL to create new virtual tables or DML to modify existing virtual       tables
 - Virtual tables are created in special keyspaces and not just any keyspace
 - All existing virtual tables use ``LocalPartitioner``. Since a virtual table is not replicated the partitioner sorts in order of     partition   keys instead of by their hash.
-- Making advanced queries with ``ALLOW FILTERING`` and aggregation functions may be used with virtual tables even though in normal  tables we   dont recommend it
+- Making advanced queries with ``ALLOW FILTERING`` and aggregation functions may be used with virtual tables even though in normal  tables we   don't recommend it
 
 Virtual Keyspaces
 ^^^^^^^^^^^^^^^^^
@@ -81,7 +81,6 @@ Virtual tables and virtual keyspaces have some limitations initially though some
 - Conditional ``BATCH`` statements cannot include mutations for virtual tables
 - Cannot include a virtual table statement in a logged batch
 - Mutations for virtual and regular tables cannot exist in the same batch
-- Conditional ``BATCH`` statements cannot include mutations for virtual tables
 - Cannot create aggregates in virtual keyspaces; but may run aggregate functions on select
 
 Listing and Describing Virtual Tables
@@ -232,7 +231,7 @@ The ``settings`` table  is rather useful and lists all the current configuration
    (224 rows)
 
 
-The ``settings`` table can be really useful if yaml file has been changed since startup and dont know running configuration, or to find if they have been modified via jmx/nodetool or virtual tables.
+The ``settings`` table can be really useful if yaml file has been changed since startup and don't know running configuration, or to find if they have been modified via jmx/nodetool or virtual tables.
 
 
 Thread Pools Virtual Table

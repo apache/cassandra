@@ -259,29 +259,29 @@ public abstract class ColumnCondition
         }
     }
 
-    protected static final Cell getCell(Row row, ColumnMetadata column)
+    protected static final Cell<?> getCell(Row row, ColumnMetadata column)
     {
         // If we're asking for a given cell, and we didn't got any row from our read, it's
         // the same as not having said cell.
         return row == null ? null : row.getCell(column);
     }
 
-    protected static final Cell getCell(Row row, ColumnMetadata column, CellPath path)
+    protected static final Cell<?> getCell(Row row, ColumnMetadata column, CellPath path)
     {
         // If we're asking for a given cell, and we didn't got any row from our read, it's
         // the same as not having said cell.
         return row == null ? null : row.getCell(column, path);
     }
 
-    protected static final Iterator<Cell> getCells(Row row, ColumnMetadata column)
+    protected static final Iterator<Cell<?>> getCells(Row row, ColumnMetadata column)
     {
         // If we're asking for a complex cells, and we didn't got any row from our read, it's
         // the same as not having any cells for that column.
         if (row == null)
-            return Collections.<Cell>emptyIterator();
+            return Collections.emptyIterator();
 
         ComplexColumnData complexData = row.getComplexColumnData(column);
-        return complexData == null ? Collections.<Cell>emptyIterator() : complexData.iterator();
+        return complexData == null ? Collections.<Cell<?>>emptyIterator() : complexData.iterator();
     }
 
     protected static final boolean evaluateComparisonWithOperator(int comparison, Operator operator)
@@ -328,8 +328,8 @@ public abstract class ColumnCondition
 
         private ByteBuffer rowValue(Row row)
         {
-            Cell c = getCell(row, column);
-            return c == null ? null : c.value();
+            Cell<?> c = getCell(row, column);
+            return c == null ? null : c.buffer();
         }
 
         private boolean isSatisfiedBy(ByteBuffer rowValue)
@@ -393,14 +393,14 @@ public abstract class ColumnCondition
         {
             if (column.type.isMultiCell())
             {
-                Cell cell = getCell(row, column, CellPath.create(collectionElement));
-                return cell == null ? null : cell.value();
+                Cell<?> cell = getCell(row, column, CellPath.create(collectionElement));
+                return cell == null ? null : cell.buffer();
             }
 
-            Cell cell = getCell(row, column);
+            Cell<?> cell = getCell(row, column);
             return cell == null
                     ? null
-                    : type.getSerializer().getSerializedValue(cell.value(), collectionElement, type.getKeysType());
+                    : type.getSerializer().getSerializedValue(cell.buffer(), collectionElement, type.getKeysType());
         }
 
         private ByteBuffer rowListValue(ListType<?> type, Row row)
@@ -408,17 +408,17 @@ public abstract class ColumnCondition
             if (column.type.isMultiCell())
                 return cellValueAtIndex(getCells(row, column), getListIndex(collectionElement));
 
-            Cell cell = getCell(row, column);
+            Cell<?> cell = getCell(row, column);
             return cell == null
                     ? null
-                    : type.getSerializer().getElement(cell.value(), getListIndex(collectionElement));
+                    : type.getSerializer().getElement(cell.buffer(), getListIndex(collectionElement));
         }
 
-        private static ByteBuffer cellValueAtIndex(Iterator<Cell> iter, int index)
+        private static ByteBuffer cellValueAtIndex(Iterator<Cell<?>> iter, int index)
         {
             int adv = Iterators.advance(iter, index);
             if (adv == index && iter.hasNext())
-                return iter.next().value();
+                return iter.next().buffer();
 
             return null;
         }
@@ -468,7 +468,7 @@ public abstract class ColumnCondition
             // copy iterator contents so that we can properly reuse them for each comparison with an IN value
             for (Term.Terminal value : values)
             {
-                Iterator<Cell> iter = getCells(row, column);
+                Iterator<Cell<?>> iter = getCells(row, column);
                 if (value == null)
                 {
                     if (comparisonOperator == Operator.EQ)
@@ -490,7 +490,7 @@ public abstract class ColumnCondition
             return false;
         }
 
-        private static boolean valueAppliesTo(CollectionType<?> type, Iterator<Cell> iter, Term.Terminal value, Operator operator)
+        private static boolean valueAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, Term.Terminal value, Operator operator)
         {
             if (value == null)
                 return !iter.hasNext();
@@ -510,7 +510,7 @@ public abstract class ColumnCondition
             throw new AssertionError();
         }
 
-        private static boolean setOrListAppliesTo(AbstractType<?> type, Iterator<Cell> iter, Iterator<ByteBuffer> conditionIter, Operator operator, boolean isSet)
+        private static boolean setOrListAppliesTo(AbstractType<?> type, Iterator<Cell<?>> iter, Iterator<ByteBuffer> conditionIter, Operator operator, boolean isSet)
         {
             while(iter.hasNext())
             {
@@ -518,7 +518,7 @@ public abstract class ColumnCondition
                     return (operator == Operator.GT) || (operator == Operator.GTE) || (operator == Operator.NEQ);
 
                 // for lists we use the cell value; for sets we use the cell name
-                ByteBuffer cellValue = isSet ? iter.next().path().get(0) : iter.next().value();
+                ByteBuffer cellValue = isSet ? iter.next().path().get(0) : iter.next().buffer();
                 int comparison = type.compare(cellValue, conditionIter.next());
                 if (comparison != 0)
                     return evaluateComparisonWithOperator(comparison, operator);
@@ -531,19 +531,19 @@ public abstract class ColumnCondition
             return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
         }
 
-        private static boolean listAppliesTo(ListType<?> type, Iterator<Cell> iter, List<ByteBuffer> elements, Operator operator)
+        private static boolean listAppliesTo(ListType<?> type, Iterator<Cell<?>> iter, List<ByteBuffer> elements, Operator operator)
         {
             return setOrListAppliesTo(type.getElementsType(), iter, elements.iterator(), operator, false);
         }
 
-        private static boolean setAppliesTo(SetType<?> type, Iterator<Cell> iter, Set<ByteBuffer> elements, Operator operator)
+        private static boolean setAppliesTo(SetType<?> type, Iterator<Cell<?>> iter, Set<ByteBuffer> elements, Operator operator)
         {
             ArrayList<ByteBuffer> sortedElements = new ArrayList<>(elements);
             Collections.sort(sortedElements, type.getElementsType());
             return setOrListAppliesTo(type.getElementsType(), iter, sortedElements.iterator(), operator, true);
         }
 
-        private static boolean mapAppliesTo(MapType<?, ?> type, Iterator<Cell> iter, Map<ByteBuffer, ByteBuffer> elements, Operator operator)
+        private static boolean mapAppliesTo(MapType<?, ?> type, Iterator<Cell<?>> iter, Map<ByteBuffer, ByteBuffer> elements, Operator operator)
         {
             Iterator<Map.Entry<ByteBuffer, ByteBuffer>> conditionIter = elements.entrySet().iterator();
             while(iter.hasNext())
@@ -552,7 +552,7 @@ public abstract class ColumnCondition
                     return (operator == Operator.GT) || (operator == Operator.GTE) || (operator == Operator.NEQ);
 
                 Map.Entry<ByteBuffer, ByteBuffer> conditionEntry = conditionIter.next();
-                Cell c = iter.next();
+                Cell<?> c = iter.next();
 
                 // compare the keys
                 int comparison = type.getKeysType().compare(c.path().get(0), conditionEntry.getKey());
@@ -560,7 +560,7 @@ public abstract class ColumnCondition
                     return evaluateComparisonWithOperator(comparison, operator);
 
                 // compare the values
-                comparison = type.getValuesType().compare(c.value(), conditionEntry.getValue());
+                comparison = type.getValuesType().compare(c.buffer(), conditionEntry.getValue());
                 if (comparison != 0)
                     return evaluateComparisonWithOperator(comparison, operator);
             }
@@ -608,14 +608,14 @@ public abstract class ColumnCondition
 
             if (column.type.isMultiCell())
             {
-                Cell cell = getCell(row, column, userType.cellPathForField(field));
-                return cell == null ? null : cell.value();
+                Cell<?> cell = getCell(row, column, userType.cellPathForField(field));
+                return cell == null ? null : cell.buffer();
             }
 
-            Cell cell = getCell(row, column);
+            Cell<?> cell = getCell(row, column);
             return cell == null
                       ? null
-                      : userType.split(cell.value())[userType.fieldPosition(field)];
+                      : userType.split(cell.buffer())[userType.fieldPosition(field)];
         }
 
         private boolean isSatisfiedBy(ByteBuffer rowValue)
@@ -670,7 +670,7 @@ public abstract class ColumnCondition
         private final ByteBuffer rowValue(Row row)
         {
             UserType userType = (UserType) column.type;
-            Iterator<Cell> iter = getCells(row, column);
+            Iterator<Cell<?>> iter = getCells(row, column);
             return iter.hasNext() ? userType.serializeForNativeProtocol(iter, protocolVersion) : null;
         }
 

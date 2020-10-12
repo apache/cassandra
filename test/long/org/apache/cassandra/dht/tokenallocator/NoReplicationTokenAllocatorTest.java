@@ -183,7 +183,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
         {
             unitStat.addValue(wu.weight * size / t.tokensInUnits.get(wu.value.unit).size());
         }
-        su.update(unitStat);
+        su.update(unitStat, t.sortedUnits.size());
 
         SummaryStatistics tokenStat = new SummaryStatistics();
         for (PriorityQueue<TokenAllocatorBase.Weighted<TokenAllocatorBase.TokenInfo>> tokens : t.tokensInUnits.values())
@@ -193,7 +193,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
                 tokenStat.addValue(token.weight);
             }
         }
-        st.update(tokenStat);
+        st.update(tokenStat, t.sortedUnits.size());
 
         if (print)
         {

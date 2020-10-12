@@ -32,7 +32,6 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -52,13 +51,7 @@ public class CassandraStreamHeader
     public final SSTableFormat.Type format;
     public final long estimatedKeys;
     public final List<SSTableReader.PartitionPositionBounds> sections;
-    /**
-     * Compression info for SSTable to send. Can be null if SSTable is not compressed.
-     * On sender, this field is always null to avoid holding large number of Chunks.
-     * Use compressionMetadata instead.
-     */
-    private final CompressionMetadata compressionMetadata;
-    public volatile CompressionInfo compressionInfo;
+    public final CompressionInfo compressionInfo;
     public final int sstableLevel;
     public final SerializationHeader.Component serializationHeader;
 
@@ -70,7 +63,7 @@ public class CassandraStreamHeader
     public final ComponentManifest componentManifest;
 
     /* cached size value */
-    private transient final long size;
+    private final long size;
 
     private CassandraStreamHeader(Builder builder)
     {
@@ -78,7 +71,6 @@ public class CassandraStreamHeader
         format = builder.format;
         estimatedKeys = builder.estimatedKeys;
         sections = builder.sections;
-        compressionMetadata = builder.compressionMetadata;
         compressionInfo = builder.compressionInfo;
         sstableLevel = builder.sstableLevel;
         serializationHeader = builder.serializationHeader;
@@ -107,48 +99,22 @@ public class CassandraStreamHeader
         return size;
     }
 
-    private long calculateSize()
+    @VisibleForTesting
+    public long calculateSize()
     {
         if (isEntireSSTable)
             return componentManifest.totalSize();
 
-        long transferSize = 0;
         if (compressionInfo != null)
-        {
-            // calculate total length of transferring chunks
-            for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
-                transferSize += chunk.length + 4; // 4 bytes for CRC
-        }
-        else
-        {
-            for (SSTableReader.PartitionPositionBounds section : sections)
-                transferSize += section.upperPosition - section.lowerPosition;
-        }
+            return compressionInfo.getTotalSize();
+
+        long transferSize = 0;
+        for (SSTableReader.PartitionPositionBounds section : sections)
+            transferSize += section.upperPosition - section.lowerPosition;
         return transferSize;
     }
 
-    public synchronized void calculateCompressionInfo()
-    {
-        if (compressionMetadata != null && compressionInfo == null)
-            compressionInfo = CompressionInfo.fromCompressionMetadata(compressionMetadata, sections);
-    }
-
     @Override
-    public String toString()
-    {
-        return "CassandraStreamHeader{" +
-               "version=" + version +
-               ", format=" + format +
-               ", estimatedKeys=" + estimatedKeys +
-               ", sections=" + sections +
-               ", sstableLevel=" + sstableLevel +
-               ", header=" + serializationHeader +
-               ", isEntireSSTable=" + isEntireSSTable +
-               ", firstKey=" + firstKey +
-               ", tableId=" + tableId +
-               '}';
-    }
-
     public boolean equals(Object o)
     {
         if (this == o) return true;
@@ -167,10 +133,27 @@ public class CassandraStreamHeader
                Objects.equals(tableId, that.tableId);
     }
 
+    @Override
     public int hashCode()
     {
         return Objects.hash(version, format, estimatedKeys, sections, compressionInfo, sstableLevel, serializationHeader, componentManifest,
                             isEntireSSTable, firstKey, tableId);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "CassandraStreamHeader{" +
+               "version=" + version +
+               ", format=" + format +
+               ", estimatedKeys=" + estimatedKeys +
+               ", sections=" + sections +
+               ", sstableLevel=" + sstableLevel +
+               ", header=" + serializationHeader +
+               ", isEntireSSTable=" + isEntireSSTable +
+               ", firstKey=" + firstKey +
+               ", tableId=" + tableId +
+               '}';
     }
 
     public static final IVersionedSerializer<CassandraStreamHeader> serializer = new CassandraStreamHeaderSerializer();
@@ -189,7 +172,6 @@ public class CassandraStreamHeader
                 out.writeLong(section.lowerPosition);
                 out.writeLong(section.upperPosition);
             }
-            header.calculateCompressionInfo();
             CompressionInfo.serializer.serialize(header.compressionInfo, out, version);
             out.writeInt(header.sstableLevel);
 
@@ -275,7 +257,6 @@ public class CassandraStreamHeader
                 size += TypeSizes.sizeof(section.upperPosition);
             }
 
-            header.calculateCompressionInfo();
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
             size += TypeSizes.sizeof(header.sstableLevel);
 
@@ -299,7 +280,6 @@ public class CassandraStreamHeader
         private SSTableFormat.Type format;
         private long estimatedKeys;
         private List<SSTableReader.PartitionPositionBounds> sections;
-        private CompressionMetadata compressionMetadata;
         private CompressionInfo compressionInfo;
         private int sstableLevel;
         private SerializationHeader.Component serializationHeader;
@@ -335,12 +315,6 @@ public class CassandraStreamHeader
         public Builder withSections(List<SSTableReader.PartitionPositionBounds> sections)
         {
             this.sections = sections;
-            return this;
-        }
-
-        public Builder withCompressionMetadata(CompressionMetadata compressionMetadata)
-        {
-            this.compressionMetadata = compressionMetadata;
             return this;
         }
 

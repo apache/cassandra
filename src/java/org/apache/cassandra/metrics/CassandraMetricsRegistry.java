@@ -154,6 +154,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return ret;
     }
 
+    public <T extends Metric> T register(MetricName name, T metric, MetricName... aliases)
+    {
+        T ret = register(name, metric);
+        for (MetricName aliasName : aliases)
+        {
+            registerAlias(name, aliasName);
+        }
+        return ret;
+    }
+
     public boolean remove(MetricName name)
     {
         boolean removed = remove(name.getMetricName());
@@ -162,11 +172,14 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return removed;
     }
 
-    public boolean remove(MetricName name, MetricName alias)
+    public boolean remove(MetricName name, MetricName... aliases)
     {
         if (remove(name))
         {
-            removeAlias(alias);
+            for (MetricName alias : aliases)
+            {
+                removeAlias(alias);
+            }
             return true;
         }
         return false;

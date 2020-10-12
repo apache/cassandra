@@ -67,7 +67,7 @@ public class CommitLog implements CommitLogMBean
     final public AbstractCommitLogSegmentManager segmentManager;
 
     public final CommitLogArchiver archiver;
-    final CommitLogMetrics metrics;
+    public final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
     volatile Configuration configuration;

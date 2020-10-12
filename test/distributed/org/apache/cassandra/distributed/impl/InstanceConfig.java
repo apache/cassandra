@@ -66,12 +66,15 @@ public class InstanceConfig implements IInstanceConfig
                            String broadcast_rpc_address,
                            String rpc_address,
                            String seedIp,
+                           int seedPort,
                            String saved_caches_directory,
                            String[] data_file_directories,
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           String initial_token)
+                           String initial_token,
+                           int storage_port,
+                           int native_transport_port)
     {
         this.num = num;
         this.networkTopology = networkTopology;
@@ -97,10 +100,11 @@ public class InstanceConfig implements IInstanceConfig
                 .set("concurrent_compactors", 1)
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
-                .set("storage_port", 7012)
+                .set("storage_port", storage_port)
+                .set("native_transport_port", native_transport_port)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                             Collections.singletonMap("seeds", seedIp + ":7012")))
+                        Collections.singletonMap("seeds", seedIp + ":" + seedPort)))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
@@ -263,21 +267,38 @@ public class InstanceConfig implements IInstanceConfig
         return (String)params.get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
+    public static InstanceConfig generate(int nodeNum,
+                                          INodeProvisionStrategy provisionStrategy,
+                                          NetworkTopology networkTopology,
+                                          File root,
+                                          String token,
+                                          int datadirCount)
     {
         return new InstanceConfig(nodeNum,
                                   networkTopology,
-                                  ipAddress,
-                                  ipAddress,
-                                  ipAddress,
-                                  ipAddress,
-                                  seedIp,
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.seedIp(),
+                                  provisionStrategy.seedPort(),
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
-                                  new String[] { String.format("%s/node%d/data", root, nodeNum) },
+                                  datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  token);
+                                  token,
+                                  provisionStrategy.storagePort(nodeNum),
+                                  provisionStrategy.nativeTransportPort(nodeNum));
+    }
+
+    private static String[] datadirs(int datadirCount, File root, int nodeNum)
+    {
+        String datadirFormat = String.format("%s/node%d/data%%d", root.getPath(), nodeNum);
+        String [] datadirs = new String[datadirCount];
+        for (int i = 0; i < datadirs.length; i++)
+            datadirs[i] = String.format(datadirFormat, i);
+        return datadirs;
     }
 
     public InstanceConfig forVersion(Versions.Major major)

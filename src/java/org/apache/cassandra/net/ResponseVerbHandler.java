@@ -57,10 +57,5 @@ class ResponseVerbHandler implements IVerbHandler
             MessagingService.instance().latencySubscribers.maybeAdd(cb, message.from(), latencyNanos, NANOSECONDS);
             cb.onResponse(message);
         }
-
-        if (callbackInfo.callback.supportsBackPressure())
-        {
-            MessagingService.instance().updateBackPressureOnReceive(message.from(), cb, false);
-        }
     }
 }

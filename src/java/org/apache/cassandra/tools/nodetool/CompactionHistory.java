@@ -43,6 +43,6 @@ public class CompactionHistory extends NodeToolCmd
         }
         StatsHolder data = new CompactionHistoryHolder(probe);
         StatsPrinter printer = CompactionHistoryPrinter.from(outputFormat);
-        printer.print(data, System.out);
+        printer.print(data, probe.output().out);
     }
 }

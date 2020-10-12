@@ -21,7 +21,7 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
-import java.net.InetAddress;
+import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
 import java.util.Collection;
@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.SortedMap;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -57,6 +56,7 @@ public class Status extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         joiningNodes = probe.getJoiningNodes(printPort);
         leavingNodes = probe.getLeavingNodes(printPort);
         movingNodes = probe.getMovingNodes(printPort);
@@ -84,7 +84,7 @@ public class Status extends NodeToolCmd
         }
         catch (IllegalArgumentException ex)
         {
-            System.out.printf("%nError: %s%n", ex.getMessage());
+            out.printf("%nError: %s%n", ex.getMessage());
             System.exit(1);
         }
 
@@ -118,22 +118,22 @@ public class Status extends NodeToolCmd
         for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
         {
             if (!first) {
-                System.out.println();
+                out.println();
             }
             first = false;
             String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
-            System.out.print(dcHeader);
-            for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
-            System.out.println();
+            out.print(dcHeader);
+            for (int i = 0; i < (dcHeader.length() - 1); i++) out.print('=');
+            out.println();
 
             // Legend
-            System.out.println("Status=Up/Down");
-            System.out.println("|/ State=Normal/Leaving/Joining/Moving");
+            out.println("Status=Up/Down");
+            out.println("|/ State=Normal/Leaving/Joining/Moving");
             TableBuilder dcTable = results.next();
-            dcTable.printTo(System.out);
+            dcTable.printTo(out);
         }
 
-        System.out.printf("%n" + errors);
+        out.printf("%n" + errors);
     }
 
     private void addNodesHeader(boolean hasEffectiveOwns, TableBuilder tableBuilder)

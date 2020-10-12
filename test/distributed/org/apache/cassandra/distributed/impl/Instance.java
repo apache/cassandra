@@ -18,21 +18,24 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import javax.management.ListenerNotFoundException;
@@ -56,6 +59,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -68,10 +72,12 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
-import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -85,6 +91,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -98,6 +105,7 @@ import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
+import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -109,6 +117,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -134,6 +143,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         super("node" + config.num(), classLoader);
         this.config = config;
+        Object clusterId = Objects.requireNonNull(config.get("dtest.api.cluster_id"), "cluster_id is not defined");
+        ClusterIDDefiner.setId("cluster-" + clusterId);
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(config.broadcastAddress().getAddress(),
                                                                                                    config.broadcastAddress().getPort()));
@@ -146,6 +157,24 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // Enable streaming inbound handler tracking so they can be closed properly without leaking
         // the blocking IO thread.
         StreamingInboundHandler.trackInboundHandlers();
+    }
+
+    @Override
+    public boolean getLogsEnabled()
+    {
+        return true;
+    }
+
+    @Override
+    public LogAction logs()
+    {
+        // the path used is defined by test/conf/logback-dtest.xml and looks like the following
+        // ./build/test/logs/${cassandra.testtag}/${suitename}/${cluster_id}/${instance_id}/system.log
+        String tag = System.getProperty("cassandra.testtag", "cassandra.testtag_IS_UNDEFINED");
+        String suite = System.getProperty("suitename", "suitename_IS_UNDEFINED");
+        String clusterId = ClusterIDDefiner.getId();
+        String instanceId = InstanceIDDefiner.getInstanceId();
+        return new FileLogAction(new File(String.format("build/test/logs/%s/%s/%s/%s/system.log", tag, suite, clusterId, instanceId)));
     }
 
     @Override
@@ -169,17 +198,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public InetSocketAddress broadcastAddress() { return config.broadcastAddress(); }
 
     @Override
-    public Object[][] executeInternal(String query, Object... args)
+    public SimpleQueryResult executeInternalWithResult(String query, Object... args)
     {
         return sync(() -> {
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
                                                                      QueryProcessor.makeInternalOptions(prepared.statement, args));
-
-            if (result instanceof ResultMessage.Rows)
-                return RowUtil.toObjects((ResultMessage.Rows)result);
-            else
-                return null;
+            return RowUtil.toQueryResult(result);
         }).call();
     }
 
@@ -263,7 +288,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             int version = MessagingService.instance().versions.get(to);
             Message.serializer.serialize(messageOut, out, version);
-            return new MessageImpl(messageOut.verb().id, out.toByteArray(), messageOut.id(), version, fromCassandraInetAddressAndPort(from));
+            byte[] bytes = out.toByteArray();
+            if (messageOut.serializedSize(version) != bytes.length)
+                throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
+                                                       "expected %s, actual %s", version, version, messageOut.verb(), messageOut.serializer.getClass(),
+                                                       messageOut.serializedSize(version), bytes.length));
+            return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), version, fromCassandraInetAddressAndPort(from));
         }
         catch (IOException e)
         {
@@ -341,8 +371,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
-                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
@@ -358,6 +386,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.daemonInitialization();
+                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CommitLog.instance.start();
 
@@ -387,6 +416,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
+
+                Verb.REQUEST_RSP.unsafeSetSerializer(() -> ReadResponse.serializer);
 
                 if (config.has(NETWORK))
                 {
@@ -558,7 +589,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
-                                () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor)),
+                                () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES)
             );
 
@@ -570,6 +601,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> GlobalEventExecutor.INSTANCE.awaitInactivity(1l, MINUTES),
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
+            );
+            error = parallelRun(error, executor,
+                                () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor))
             );
 
             Throwables.maybeFail(error);
@@ -591,22 +625,78 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
         return sync(() -> {
-            DTestNodeTool nodetool = new DTestNodeTool(withNotifications);
-            int rc =  nodetool.execute(commandAndArgs);
-            return new NodeToolResult(commandAndArgs, rc, new ArrayList<>(nodetool.notifications.notifications), nodetool.latestError);
+            try (CapturingOutput output = new CapturingOutput())
+            {
+                DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate);
+                int rc = nodetool.execute(commandAndArgs);
+                return new NodeToolResult(commandAndArgs, rc,
+                                          new ArrayList<>(nodetool.notifications.notifications),
+                                          nodetool.latestError,
+                                          output.getOutString(),
+                                          output.getErrString());
+            }
         }).call();
     }
 
-    private static class DTestNodeTool extends NodeTool {
+    private static class CapturingOutput implements Closeable
+    {
+        @SuppressWarnings("resource")
+        private final ByteArrayOutputStream outBase = new ByteArrayOutputStream();
+        @SuppressWarnings("resource")
+        private final ByteArrayOutputStream errBase = new ByteArrayOutputStream();
+
+        public final PrintStream out;
+        public final PrintStream err;
+        private final Output delegate;
+
+        public CapturingOutput()
+        {
+            PrintStream out = new PrintStream(outBase, true);
+            PrintStream err = new PrintStream(errBase, true);
+            this.delegate = new Output(out, err);
+            this.out = out;
+            this.err = err;
+        }
+
+        public String getOutString()
+        {
+            out.flush();
+            return outBase.toString();
+        }
+
+        public String getErrString()
+        {
+            err.flush();
+            return errBase.toString();
+        }
+
+        public void close()
+        {
+            out.close();
+            err.close();
+        }
+    }
+
+    public static class DTestNodeTool extends NodeTool {
         private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
 
         private Throwable latestError;
 
-        DTestNodeTool(boolean withNotifications) {
-            super(new InternalNodeProbeFactory(withNotifications));
+        public DTestNodeTool(boolean withNotifications, Output output) {
+            super(new InternalNodeProbeFactory(withNotifications), output);
             storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
+        }
+
+        public List<Notification> getNotifications()
+        {
+            return new ArrayList<>(notifications.notifications);
+        }
+
+        public Throwable getLatestError()
+        {
+            return latestError;
         }
 
         public int execute(String... args)

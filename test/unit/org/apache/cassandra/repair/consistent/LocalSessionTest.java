@@ -72,6 +72,8 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 
 public class LocalSessionTest extends AbstractRepairTest
 {
+    private static final UUID TID1 = UUIDGen.getTimeUUID();
+    private static final UUID TID2 = UUIDGen.getTimeUUID();
 
     static LocalSession.Builder createBuilder()
     {
@@ -79,7 +81,7 @@ public class LocalSessionTest extends AbstractRepairTest
         builder.withState(PREPARING);
         builder.withSessionID(UUIDGen.getTimeUUID());
         builder.withCoordinator(COORDINATOR);
-        builder.withUUIDTableIds(Sets.newHashSet(UUIDGen.getTimeUUID(), UUIDGen.getTimeUUID()));
+        builder.withUUIDTableIds(Sets.newHashSet(TID1, TID2));
         builder.withRepairedAt(System.currentTimeMillis());
         builder.withRanges(Sets.newHashSet(RANGE1, RANGE2, RANGE3));
         builder.withParticipants(Sets.newHashSet(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
@@ -870,6 +872,7 @@ public class LocalSessionTest extends AbstractRepairTest
     {
         LocalSession.Builder builder = createBuilder();
         builder.withStartedAt(started);
+        builder.withRepairedAt(started);
         builder.withLastUpdate(updated);
         return builder.build();
     }
@@ -940,11 +943,26 @@ public class LocalSessionTest extends AbstractRepairTest
 
         sessions.cleanup();
 
+        // failed session should be gone, but finalized should not, since it hasn't been superseded
         Assert.assertNull(sessions.getSession(failed.sessionID));
-        Assert.assertNull(sessions.getSession(finalized.sessionID));
+        Assert.assertNotNull(sessions.getSession(finalized.sessionID));
 
         Assert.assertNull(sessions.loadUnsafe(failed.sessionID));
+        Assert.assertNotNull(sessions.loadUnsafe(finalized.sessionID));
+
+        // add a finalized superseding session
+        LocalSession superseding = sessionWithTime(time, time + 1);
+        superseding.setState(FINALIZED);
+        sessions.putSessionUnsafe(superseding);
+
+        sessions.cleanup();
+
+        // old finalized should be removed, superseding should still be there
+        Assert.assertNull(sessions.getSession(finalized.sessionID));
+        Assert.assertNotNull(sessions.getSession(superseding.sessionID));
+
         Assert.assertNull(sessions.loadUnsafe(finalized.sessionID));
+        Assert.assertNotNull(sessions.loadUnsafe(superseding.sessionID));
     }
 
     /**

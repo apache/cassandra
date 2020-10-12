@@ -24,7 +24,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
@@ -47,12 +50,12 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         this.elements = elements;
     }
 
-    public List<ByteBuffer> serializeValues(List<T> values)
+    protected List<ByteBuffer> serializeValues(List<T> values)
     {
-        List<ByteBuffer> buffers = new ArrayList<>(values.size());
-        for (T value : values)
-            buffers.add(elements.serialize(value));
-        return buffers;
+        List<ByteBuffer> output = new ArrayList<>(values.size());
+        for (T value: values)
+            output.add(elements.serialize(value));
+        return output;
     }
 
     public int getElementCount(List<T> value)
@@ -60,30 +63,34 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return value.size();
     }
 
-    public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
+    public <V> void validateForNativeProtocol(V input, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         try
         {
-            ByteBuffer input = bytes.duplicate();
-            int n = readCollectionSize(input, version);
+            int n = readCollectionSize(input, accessor, version);
+            int offset = sizeOfCollectionSize(n, version);
             for (int i = 0; i < n; i++)
-                elements.validate(readValue(input, version));
+            {
+                V value = readValue(input, accessor, offset, version);
+                offset += sizeOfValue(value, accessor, version);
+                elements.validate(value, accessor);
+            }
 
-            if (input.hasRemaining())
+            if (!accessor.isEmptyFromOffset(input, offset))
                 throw new MarshalException("Unexpected extraneous bytes after list value");
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a list");
         }
     }
 
-    public List<T> deserializeForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
+    public <V> List<T> deserializeForNativeProtocol(V input, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         try
         {
-            ByteBuffer input = bytes.duplicate();
-            int n = readCollectionSize(input, version);
+            int n = readCollectionSize(input, accessor, version);
+            int offset = sizeOfCollectionSize(n, version);
 
             if (n < 0)
                 throw new MarshalException("The data cannot be deserialized as a list");
@@ -96,11 +103,12 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             for (int i = 0; i < n; i++)
             {
                 // We can have nulls in lists that are used for IN values
-                ByteBuffer databb = readValue(input, version);
+                V databb = readValue(input, accessor, offset, version);
+                offset += sizeOfValue(databb, accessor, version);
                 if (databb != null)
                 {
-                    elements.validate(databb);
-                    l.add(elements.deserialize(databb));
+                    elements.validate(databb, accessor);
+                    l.add(elements.deserialize(databb, accessor));
                 }
                 else
                 {
@@ -108,12 +116,12 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 }
             }
 
-            if (input.hasRemaining())
+            if (!accessor.isEmptyFromOffset(input, offset))
                 throw new MarshalException("Unexpected extraneous bytes after list value");
 
             return l;
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a list");
         }
@@ -121,30 +129,35 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
 
     /**
      * Returns the element at the given index in a list.
-     * @param serializedList a serialized list
+     * @param input a serialized list
      * @param index the index to get
      * @return the serialized element at the given index, or null if the index exceeds the list size
      */
-    public ByteBuffer getElement(ByteBuffer serializedList, int index)
+    public <V> V getElement(V input, ValueAccessor<V> accessor, int index)
     {
         try
         {
-            ByteBuffer input = serializedList.duplicate();
-            int n = readCollectionSize(input, ProtocolVersion.V3);
+            int n = readCollectionSize(input, accessor, ProtocolVersion.V3);
+            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
             if (n <= index)
                 return null;
 
             for (int i = 0; i < index; i++)
             {
-                int length = input.getInt();
-                input.position(input.position() + length);
+                int length = accessor.getInt(input, offset);
+                offset += TypeSizes.INT_SIZE + length;
             }
-            return readValue(input, ProtocolVersion.V3);
+            return readValue(input, accessor, offset, ProtocolVersion.V3);
         }
-        catch (BufferUnderflowException e)
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
             throw new MarshalException("Not enough bytes to read a list");
         }
+    }
+
+    public ByteBuffer getElement(ByteBuffer input, int index)
+    {
+        return getElement(input, ByteBufferAccessor.instance, index);
     }
 
     public String toString(List<T> value)

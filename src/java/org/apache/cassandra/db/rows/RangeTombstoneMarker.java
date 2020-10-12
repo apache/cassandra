@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
@@ -31,7 +30,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
 public interface RangeTombstoneMarker extends Unfiltered
 {
     @Override
-    public ClusteringBoundOrBoundary clustering();
+    public ClusteringBoundOrBoundary<?> clustering();
 
     public boolean isBoundary();
 
@@ -43,8 +42,8 @@ public interface RangeTombstoneMarker extends Unfiltered
     public boolean openIsInclusive(boolean reversed);
     public boolean closeIsInclusive(boolean reversed);
 
-    public ClusteringBound openBound(boolean reversed);
-    public ClusteringBound closeBound(boolean reversed);
+    public ClusteringBound<?> openBound(boolean reversed);
+    public ClusteringBound<?> closeBound(boolean reversed);
 
     public RangeTombstoneMarker copy(AbstractAllocator allocator);
 
@@ -74,7 +73,7 @@ public interface RangeTombstoneMarker extends Unfiltered
         private final DeletionTime partitionDeletion;
         private final boolean reversed;
 
-        private ClusteringBoundOrBoundary bound;
+        private ClusteringBoundOrBoundary<?> bound;
         private final RangeTombstoneMarker[] markers;
 
         // For each iterator, what is the currently open marker deletion time (or null if there is no open marker on that iterator)
@@ -125,25 +124,24 @@ public interface RangeTombstoneMarker extends Unfiltered
             if (reversed)
                 isBeforeClustering = !isBeforeClustering;
 
-            ByteBuffer[] values = bound.getRawValues();
             RangeTombstoneMarker merged;
             if (previousDeletionTimeInMerged.isLive())
             {
                 merged = isBeforeClustering
-                       ? RangeTombstoneBoundMarker.inclusiveOpen(reversed, values, newDeletionTimeInMerged)
-                       : RangeTombstoneBoundMarker.exclusiveOpen(reversed, values, newDeletionTimeInMerged);
+                       ? RangeTombstoneBoundMarker.inclusiveOpen(reversed, bound, newDeletionTimeInMerged)
+                       : RangeTombstoneBoundMarker.exclusiveOpen(reversed, bound, newDeletionTimeInMerged);
             }
             else if (newDeletionTimeInMerged.isLive())
             {
                 merged = isBeforeClustering
-                       ? RangeTombstoneBoundMarker.exclusiveClose(reversed, values, previousDeletionTimeInMerged)
-                       : RangeTombstoneBoundMarker.inclusiveClose(reversed, values, previousDeletionTimeInMerged);
+                       ? RangeTombstoneBoundMarker.exclusiveClose(reversed, bound, previousDeletionTimeInMerged)
+                       : RangeTombstoneBoundMarker.inclusiveClose(reversed, bound, previousDeletionTimeInMerged);
             }
             else
             {
                 merged = isBeforeClustering
-                       ? RangeTombstoneBoundaryMarker.exclusiveCloseInclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged)
-                       : RangeTombstoneBoundaryMarker.inclusiveCloseExclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged);
+                       ? RangeTombstoneBoundaryMarker.exclusiveCloseInclusiveOpen(reversed, bound, previousDeletionTimeInMerged, newDeletionTimeInMerged)
+                       : RangeTombstoneBoundaryMarker.inclusiveCloseExclusiveOpen(reversed, bound, previousDeletionTimeInMerged, newDeletionTimeInMerged);
             }
 
             return merged;

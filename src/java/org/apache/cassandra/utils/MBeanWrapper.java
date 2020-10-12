@@ -21,11 +21,14 @@ package org.apache.cassandra.utils;
 import java.lang.management.ManagementFactory;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
 
 /**
  * Helper class to avoid catching and rethrowing checked exceptions on MBean and
@@ -35,7 +38,7 @@ public interface MBeanWrapper
 {
     static final Logger logger = LoggerFactory.getLogger(MBeanWrapper.class);
 
-    static final MBeanWrapper instance = Boolean.getBoolean("org.apache.cassandra.disable_mbean_registration") ?
+    static final MBeanWrapper instance = IS_DISABLED_MBEAN_REGISTRATION.getBoolean() ?
                                          new NoOpMBeanWrapper() :
                                          new PlatformMBeanWrapper();
 

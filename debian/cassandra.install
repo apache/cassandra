@@ -21,6 +21,9 @@ bin/sstablescrub usr/bin
 bin/sstableupgrade usr/bin
 bin/sstableverify usr/bin
 tools/bin/cassandra-stress usr/bin
+tools/bin/fqltool usr/bin
+tools/bin/auditlogviewer usr/bin
+tools/bin/jmxtool usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/sigar-bin/* usr/share/cassandra/lib/sigar-bin

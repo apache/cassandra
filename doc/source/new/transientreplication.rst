@@ -33,7 +33,7 @@ Certain nodes act as full replicas (storing all the data for a given token range
 
 The optimization that is made possible with transient replication is called "Cheap quorums", which implies that data redundancy is increased without corresponding increase in storage usage.
 
-Transient replication is useful when sufficient full replicas are unavailable to receive and store all the data.
+Transient replication is useful when sufficient full replicas are available to receive and store all the data.
 Transient replication allows you to configure a subset of replicas to only replicate data that hasn't been incrementally repaired.
 As an optimization, we can avoid writing data to a transient replica if we have successfully written data to the full replicas.
 
@@ -55,7 +55,7 @@ As an example, create a keyspace with replication factor (RF) 3.
 ::
 
  CREATE KEYSPACE CassandraKeyspaceSimple WITH replication = {'class': 'SimpleStrategy',
- 'replication_factor' : 4/1};
+ 'replication_factor' : 3/1};
 
 
 As another example, ``some_keysopace keyspace`` will have 3 replicas in DC1, 1 of which is transient, and 5 replicas in DC2, 2 of which are transient:

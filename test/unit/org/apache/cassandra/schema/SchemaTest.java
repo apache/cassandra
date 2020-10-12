@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.gms.Gossiper;
 
 import static org.junit.Assert.assertNotNull;
@@ -43,6 +44,7 @@ public class SchemaTest
     @Test
     public void testTransKsMigration() throws IOException
     {
+        CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
         Schema.instance.loadFromDisk();
         assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());

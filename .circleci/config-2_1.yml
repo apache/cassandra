@@ -65,40 +65,35 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     # Java 11 unit tests (on request, currently not working)
     - start_j11_unit_tests:
         type: approval
-        requires:
-          - j8_build
     - j11_unit_tests:
         requires:
           - start_j11_unit_tests
+          - j8_build
     # specialized unit tests (all run on request using Java 8)
     - start_utests_long:
         type: approval
-        requires:
-          - j8_build
     - utests_long:
         requires:
           - start_utests_long
+          - j8_build
     - start_utests_compression:
         type: approval
-        requires:
-          - j8_build
     - utests_compression:
         requires:
           - start_utests_compression
+          - j8_build
     - start_utests_stress:
         type: approval
-        requires:
-          - j8_build
     - utests_stress:
         requires:
           - start_utests_stress
+          - j8_build
     - start_utests_fqltool:
         type: approval
-        requires:
-          - j8_build
     - utests_fqltool:
         requires:
           - start_utests_fqltool
+          - j8_build
     - start_jvm_upgrade_dtest:
         type: approval
     - j8_dtest_jars_build:
@@ -111,85 +106,88 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
     # Java 8 dtests (on request)
     - start_j8_dtests:
         type: approval
-        requires:
-          - j8_build
     - j8_dtests-with-vnodes:
         requires:
           - start_j8_dtests
+          - j8_build
     - j8_dtests-no-vnodes:
         requires:
           - start_j8_dtests
+          - j8_build
     # Java 11 dtests (on request)
     - start_j11_dtests:
         type: approval
-        requires:
-          - j8_build
     - j11_dtests-with-vnodes:
         requires:
         - start_j11_dtests
+        - j8_build
     - j11_dtests-no-vnodes:
         requires:
         - start_j11_dtests
+        - j8_build
     # Java 8 upgrade tests
     - start_upgrade_tests:
         type: approval
-        requires:
-          - j8_build
     - j8_upgradetests-no-vnodes:
         requires:
           - start_upgrade_tests
+          - j8_build
     - start_j8_cqlsh_tests-with-vnodes:
         type: approval
-        requires:
-        - j8_build
     - j8_cqlsh-dtests-py2-with-vnodes:
         requires:
         - start_j8_cqlsh_tests-with-vnodes
+        - j8_build
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j8_cqlsh_tests-with-vnodes
+        - j8_build
     - j8_cqlsh-dtests-py38-with-vnodes:
         requires:
         - start_j8_cqlsh_tests-with-vnodes
+        - j8_build
     - start_j8_cqlsh_tests-no-vnodes:
         type: approval
-        requires:
-        - j8_build
     - j8_cqlsh-dtests-py2-no-vnodes:
         requires:
         - start_j8_cqlsh_tests-no-vnodes
+        - j8_build
     - j8_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j8_cqlsh_tests-no-vnodes
+        - j8_build
     - j8_cqlsh-dtests-py38-no-vnodes:
         requires:
           - start_j8_cqlsh_tests-no-vnodes
+          - j8_build
     - start_j11_cqlsh_tests-with-vnodes:
         type: approval
-        requires:
-        - j8_build
     - j11_cqlsh-dtests-py2-with-vnodes:
         requires:
         - start_j11_cqlsh_tests-with-vnodes
+        - j8_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j11_cqlsh_tests-with-vnodes
+        - j8_build
     - j11_cqlsh-dtests-py38-with-vnodes:
         requires:
           - start_j11_cqlsh_tests-with-vnodes
+          - j8_build
     - start_j11_cqlsh_tests-no-vnodes:
         type: approval
-        requires:
-        - j8_build
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
         - start_j11_cqlsh_tests-no-vnodes
+        - j8_build
     - j11_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j11_cqlsh_tests-no-vnodes
+        - j8_build
     - j11_cqlsh-dtests-py38-no-vnodes:
         requires:
           - start_j11_cqlsh_tests-no-vnodes
+          - j8_build
 
 j11_with_dtests_jobs: &j11_with_dtests_jobs
   jobs:
@@ -197,51 +195,52 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
     # Java 11 unit tests (on request, currently not working)
     - start_j11_unit_tests:
         type: approval
-        requires:
-          - j11_build
     - j11_unit_tests:
         requires:
           - start_j11_unit_tests
+          - j11_build
     - j11_jvm_dtests:
         requires:
           - j11_build
     # Java 11 dtests (on request)
     - start_j11_dtests:
         type: approval
-        requires:
-          - j11_build
     - j11_dtests-with-vnodes:
         requires:
           - start_j11_dtests
+          - j11_build
     - j11_dtests-no-vnodes:
         requires:
           - start_j11_dtests
+          - j11_build
     - start_j11_cqlsh_tests-with-vnodes:
         type: approval
-        requires:
-        - j11_build
     - j11_cqlsh-dtests-py2-with-vnodes:
         requires:
         - start_j11_cqlsh_tests-with-vnodes
+        - j11_build
     - j11_cqlsh-dtests-py3-with-vnodes:
         requires:
         - start_j11_cqlsh_tests-with-vnodes
+        - j11_build
     - j11_cqlsh-dtests-py38-with-vnodes:
         requires:
           - start_j11_cqlsh_tests-with-vnodes
+          - j11_build
     - start_j11_cqlsh_tests-no-vnodes:
         type: approval
-        requires:
-        - j11_build
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
         - start_j11_cqlsh_tests-no-vnodes
+        - j11_build
     - j11_cqlsh-dtests-py3-no-vnodes:
         requires:
         - start_j11_cqlsh_tests-no-vnodes
+        - j11_build
     - j11_cqlsh-dtests-py38-no-vnodes:
         requires:
           - start_j11_cqlsh_tests-no-vnodes
+          - j11_build
 
 j8_with_dtest_jobs_only: &j8_with_dtest_jobs_only
         jobs:
@@ -277,7 +276,7 @@ executors:
         type: string
         default: medium
     docker:
-      - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200406
+      - image: nastra/cassandra-testing-ubuntu1910-java11-w-dependencies:20200603
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -292,7 +291,7 @@ executors:
         type: string
         default: medium
     docker:
-    - image: nastra/cassandra-testing-ubuntu1910-java11:20200406
+    - image: nastra/cassandra-testing-ubuntu1910-java11:20200603
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -760,6 +759,7 @@ commands:
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           cd ~/cassandra
+          mkdir ~/dtest_jars
           git remote add apache git://github.com/apache/cassandra.git
           for branch in cassandra-2.2 cassandra-3.0 cassandra-3.11 trunk; do
             # check out the correct cassandra version:
@@ -768,9 +768,10 @@ commands:
             git checkout $branch
             # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
             for x in $(seq 1 3); do
-                ${ANT_HOME}/bin/ant clean jar dtest-jar
+                ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
                 RETURN="$?"
                 if [ "${RETURN}" -eq "0" ]; then
+                    cp build/dtest*.jar ~/dtest_jars
                     break
                 fi
             done
@@ -783,14 +784,18 @@ commands:
           # and build the dtest-jar for the branch under test
           git checkout origin/$CIRCLE_BRANCH
           for x in $(seq 1 3); do
-              ${ANT_HOME}/bin/ant clean jar dtest-jar
+              ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
               RETURN="$?"
               if [ "${RETURN}" -eq "0" ]; then
+                  cp build/dtest*.jar ~/dtest_jars
                   break
               fi
           done
-          mkdir ~/dtest_jars
-          cp build/dtest*.jar ~/dtest_jars
+          # Exit, if we didn't build successfully
+          if [ "${RETURN}" -ne "0" ]; then
+              echo "Build failed with exit code: ${RETURN}"
+              exit ${RETURN}
+          fi
           ls -l ~/dtest_jars
         no_output_timeout: 15m
 
@@ -914,7 +919,7 @@ commands:
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
           source ~/env<<parameters.python_version>>/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          pip3 install --upgrade -r ~/cassandra-dtest/requirements.txt
+          pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
           pip3 freeze
 

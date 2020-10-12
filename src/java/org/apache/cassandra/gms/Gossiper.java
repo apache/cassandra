@@ -54,6 +54,7 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
@@ -170,9 +171,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             CassandraVersion version = getReleaseVersion(host);
 
-            //Raced with changes to gossip state
+            //Raced with changes to gossip state, wait until next iteration
             if (version == null)
-                continue;
+                return true;
 
             if (referenceVersion == null)
                 referenceVersion = version;
@@ -883,13 +884,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                     Map<InetAddressAndPort, EndpointState> epStates)
     {
         EndpointState epState = epStates.get(endpoint);
-        // if there's no previous state, or the node was previously removed from the cluster, we're good
-        if (epState == null || isDeadState(epState))
+        // if there's no previous state, we're good
+        if (epState == null)
+            return true;
+
+        String status = getGossipStatus(epState);
+
+        if (status.equals(VersionedValue.HIBERNATE)
+            && !SystemKeyspace.bootstrapComplete())
+        {
+            logger.warn("A node with the same IP in hibernate status was detected. Was a replacement already attempted?");
+            return false;
+        }
+
+        //the node was previously removed from the cluster
+        if (isDeadState(epState))
             return true;
 
         if (isBootstrapping)
         {
-            String status = getGossipStatus(epState);
             // these states are not allowed to join the cluster as it would not be safe
             final List<String> unsafeStatuses = new ArrayList<String>()
             {{
@@ -1936,7 +1949,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 hosts = new ArrayList<>();
                 results.put(stringVersion, hosts);
             }
-            hosts.add(host.getHostAddress(true));
+            hosts.add(host.getHostAddressAndPort());
         }
 
         return results;

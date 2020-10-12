@@ -530,17 +530,17 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 
         // Finds the index of the first block containing the provided bound, starting at the provided index.
         // Will be -1 if the bound is before any block, and blocksCount() if it is after every block.
-        public int findBlockIndex(ClusteringBound bound, int fromIdx) throws IOException
+        public int findBlockIndex(ClusteringBound<?> bound, int fromIdx) throws IOException
         {
-            if (bound == ClusteringBound.BOTTOM)
+            if (bound.isBottom())
                 return -1;
-            if (bound == ClusteringBound.TOP)
+            if (bound.isTop())
                 return blocksCount();
 
             return indexFor(bound, fromIdx);
         }
 
-        public int indexFor(ClusteringPrefix name, int lastIndex) throws IOException
+        public int indexFor(ClusteringPrefix<?> name, int lastIndex) throws IOException
         {
             IndexInfo target = new IndexInfo(name, name, 0, 0, null);
             /*

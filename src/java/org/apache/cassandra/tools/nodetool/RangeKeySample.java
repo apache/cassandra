@@ -30,11 +30,11 @@ public class RangeKeySample extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("RangeKeySample: ");
+        probe.output().out.println("RangeKeySample: ");
         List<String> tokenStrings = probe.sampleKeyRange();
         for (String tokenString : tokenStrings)
         {
-            System.out.println("\t" + tokenString);
+            probe.output().out.println("\t" + tokenString);
         }
     }
 }

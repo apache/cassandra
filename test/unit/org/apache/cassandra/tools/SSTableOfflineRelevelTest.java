@@ -22,14 +22,23 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class SSTableOfflineRelevelTest extends ToolsTester
+public class SSTableOfflineRelevelTest extends OfflineToolUtils
 {
     @Test
-    public void testSSTableOfflineRelevel_NoArgs()
+    public void testNoArgsPrintsHelp()
     {
-        runTool(1, "org.apache.cassandra.tools.SSTableOfflineRelevel");
+        ToolResult tool = ToolRunner.invokeClass(SSTableOfflineRelevel.class);
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(1, tool.getExitCode());
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -39,12 +48,32 @@ public class SSTableOfflineRelevelTest extends ToolsTester
     }
 
     @Test
-    public void testSSTableOfflineRelevel_WithArgs()
+    public void testMaybeChangeDocs()
     {
-        // Note: SSTableOfflineRelevel exits with code 1 if no sstables to relevel have been found
-        runTool(1, "org.apache.cassandra.tools.SSTableOfflineRelevel", "system_schema", "tables");
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
-        assertSchemaLoaded();
-        assertServerNotLoaded();
+        // If you added, modified options or help, please update docs if necessary
+        ToolResult tool = ToolRunner.invokeClass(SSTableOfflineRelevel.class, "-h");
+        String help = "This command should be run with Cassandra stopped!\n" + 
+                      "Usage: sstableofflinerelevel [--dry-run] <keyspace> <columnfamily>\n";
+        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+    }
+
+    @Test
+    public void testDefaultCall()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableOfflineRelevel.class, "system_schema", "tables");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No sstables to relevel for system_schema.tables"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(1, tool.getExitCode());
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testDryrunArg()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableOfflineRelevel.class, "--dry-run", "system_schema", "tables");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No sstables to relevel for system_schema.tables"));
+        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertEquals(1, tool.getExitCode());
+        assertCorrectEnvPostTest();
     }
 }
