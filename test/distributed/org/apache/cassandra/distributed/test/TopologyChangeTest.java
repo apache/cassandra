@@ -19,11 +19,11 @@
 package org.apache.cassandra.distributed.test;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -103,7 +103,7 @@ public class TopologyChangeTest extends TestBaseImpl
             }
         }
 
-        private List<Event> events = new ArrayList<>();
+        private final List<Event> events = new CopyOnWriteArrayList<>();
 
         public void onAdd(Host host)
         {
@@ -148,35 +148,33 @@ public class TopologyChangeTest extends TestBaseImpl
     @Test
     public void testDecommission() throws Throwable
     {
-        try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy).withConfig(
-        config -> {
-            config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL);
-        }).start()))
+        try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy)
+                                           .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)).start());
+             com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+             Session session = cluster.connect())
         {
-            final com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
-            Session session = cluster.connect();
             EventStateListener eventStateListener = new EventStateListener();
             session.getCluster().register(eventStateListener);
-            control.get(3).nodetool("disablebinary");
-            control.get(3).nodetool("decommission", "-f");
+
+            control.get(3).nodetoolResult("disablebinary").asserts().success();
+            control.get(3).nodetoolResult("decommission", "-f").asserts().success();
             await().atMost(5, TimeUnit.SECONDS)
                    .untilAsserted(() -> Assert.assertEquals(2, cluster.getMetadata().getAllHosts().size()));
-            assertThat(eventStateListener.events).containsExactly(new Event(Remove, control.get(3)));
-            session.close();
-            cluster.close();
+            session.getCluster().unregister(eventStateListener);
+            // DOWN UP can also be seen if the jvm is slow and connections are closed; to avoid this make sure to use
+            // containsSequence to check that down/remove happen in this order
+            assertThat(eventStateListener.events).containsSequence(new Event(Down, control.get(3)), new Event(Remove, control.get(3)));
         }
     }
 
     @Test
     public void testRestartNode() throws Throwable
     {
-        try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy).withConfig(
-        config -> {
-            config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL);
-        }).start()))
+        try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy)
+                                           .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)).start());
+             com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+             Session session = cluster.connect())
         {
-            final com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
-            Session session = cluster.connect();
             EventStateListener eventStateListener = new EventStateListener();
             session.getCluster().register(eventStateListener);
 
@@ -188,11 +186,10 @@ public class TopologyChangeTest extends TestBaseImpl
             await().atMost(30, TimeUnit.SECONDS)
                    .untilAsserted(() -> Assert.assertEquals(3, cluster.getMetadata().getAllHosts().stream().filter(h -> h.isUp()).count()));
 
-            assertThat(eventStateListener.events).containsExactly(new Event(Down, control.get(3)),
-                                                                  new Event(Up, control.get(3)));
-
-            session.close();
-            cluster.close();
+            // DOWN UP can also be seen if the jvm is slow and connections are closed, but make sure it at least happens once
+            // given the node restarts
+            assertThat(eventStateListener.events).containsSequence(new Event(Down, control.get(3)),
+                                                                   new Event(Up, control.get(3)));
         }
     }
 }

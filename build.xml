@@ -589,6 +589,7 @@
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.5" />
+          <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
@@ -732,6 +733,7 @@
         <dependency groupId="junit" artifactId="junit"/>
         <dependency groupId="org.mockito" artifactId="mockito-core" />
         <dependency groupId="org.quicktheories" artifactId="quicktheories" />
+        <dependency groupId="org.reflections" artifactId="reflections" />
         <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
         <dependency groupId="org.apache.cassandra" artifactId="dtest-api" />
         <dependency groupId="org.psjava" artifactId="psjava" version="0.1.19" />
@@ -770,6 +772,7 @@
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
         <dependency groupId="org.mockito" artifactId="mockito-core" />
+        <dependency groupId="org.reflections" artifactId="reflections" />
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
         <dependency groupId="io.netty" artifactId="netty-all"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>

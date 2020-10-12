@@ -29,6 +29,8 @@ Merged from 3.11:
 Merged from 3.0:
  * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
+Merged from 2.2:
+ * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
 
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
