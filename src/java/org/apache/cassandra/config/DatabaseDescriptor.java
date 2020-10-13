@@ -2825,6 +2825,8 @@ public class DatabaseDescriptor
         return conf.gc_warn_threshold_in_ms;
     }
 
+    public static boolean useMultiIPsPerDNSRecord() { return conf.resolve_multiple_ip_addresses_per_dns_record; }
+
     public static boolean isCDCEnabled()
     {
         return conf.cdc_enabled;

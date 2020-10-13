@@ -1272,6 +1272,9 @@ compaction_large_partition_warning_threshold_mb: 100
 # will deactivate the feature.
 # gc_warn_threshold_in_ms: 1000
 
+# Allow the SimpleSeedProvider to resolve multiple IP Addresses per DNS record.
+# resolve_multiple_ip_addresses_per_dns_record: true
+
 # Maximum size of any value in SSTables. Safety measure to detect SSTable corruption
 # early. Any value size larger than this threshold will result into marking an SSTable
 # as corrupted. This should be positive and less than 2048.

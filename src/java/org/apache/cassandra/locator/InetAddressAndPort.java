@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -231,7 +232,11 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     public static List<InetAddressAndPort> getAllByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
     {
         HostAndPort hap = HostAndPort.fromString(name);
-        Integer finalPort = hap.getPortOrDefault(port);
+        if (hap.hasPort())
+        {
+            port = hap.getPort();
+        }
+        Integer finalPort = port;
 
         return Stream.of(InetAddress.getAllByName(hap.getHost()))
                      .map((address) -> getByAddressOverrideDefaults(address, finalPort))
