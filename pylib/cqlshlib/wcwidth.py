@@ -315,7 +315,7 @@ def wcwidth(c):
 
 
 def wcswidth(s):
-    return mk_wcswidth(map(ord, s))
+    return mk_wcswidth(list(map(ord, s)))
 
 
 def wcwidth_cjk(c):
@@ -323,7 +323,7 @@ def wcwidth_cjk(c):
 
 
 def wcswidth_cjk(s):
-    return mk_wcswidth_cjk(map(ord, s))
+    return mk_wcswidth_cjk(list(map(ord, s)))
 
 
 if __name__ == "__main__":
@@ -343,7 +343,7 @@ if __name__ == "__main__":
         ('COMBINING PALATALIZED HOOK BELOW', 0),
         ('COMBINING GRAVE ACCENT', 0),
     )
-    nonprinting = u'\r\n\t\a\b\f\v\x7f'
+    nonprinting = '\r\n\t\a\b\f\v\x7f'
 
     import unicodedata
 
@@ -368,13 +368,13 @@ if __name__ == "__main__":
     assert mk_wcwidth(0x10ffff) == 1
     assert mk_wcwidth(0x3fffd) == 2
 
-    teststr = u'B\0ig br\u00f8wn moose\ub143\u200b'
+    teststr = 'B\0ig br\u00f8wn moose\ub143\u200b'
     calculatedwidth = wcswidth(teststr)
     assert calculatedwidth == 17, 'expected 17, got %d' % calculatedwidth
 
     calculatedwidth = wcswidth_cjk(teststr)
     assert calculatedwidth == 18, 'expected 18, got %d' % calculatedwidth
 
-    assert wcswidth(u'foobar\u200b\a') < 0
+    assert wcswidth('foobar\u200b\a') < 0
 
-    print 'tests pass.'
+    print('tests pass.')
