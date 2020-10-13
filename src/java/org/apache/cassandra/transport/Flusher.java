@@ -150,7 +150,7 @@ abstract class Flusher implements Runnable
     private void processFramedResponse(FlushItem.Framed flush)
     {
         Frame outbound = flush.response;
-        if (frameSize(outbound.header) >= FrameEncoder.Payload.MAX_SIZE)
+        if (frameSize(outbound.header) >= MAX_FRAMED_PAYLOAD_SIZE)
         {
             flushLargeMessage(flush.channel, outbound, flush.allocator);
         }
@@ -280,8 +280,8 @@ abstract class Flusher implements Runnable
             FrameEncoder.Payload payload = allocator.allocate(true, bufferSize);
             // BufferPool may give us a buffer larger than we asked for.
             // FrameEncoder may object if buffer.remaining is >= MAX_SIZE.
-            if (bufferSize >= MAX_FRAMED_PAYLOAD_SIZE)
-                payload.buffer.limit(bufferSize);
+            if (payload.remaining() >= MAX_FRAMED_PAYLOAD_SIZE)
+                payload.buffer.limit(payload.buffer.position() + bufferSize);
 
             if (logger.isTraceEnabled())
             {
@@ -294,18 +294,21 @@ abstract class Flusher implements Runnable
 
         public void finish()
         {
+            int frameSize = 0;
             int writtenBytes = 0;
             int framesToWrite = this.size();
             FrameEncoder.Payload sending = allocate(sizeInBytes, framesToWrite);
             for (Frame f : this)
             {
-                if (sending.remaining() < frameSize(f.header))
+                frameSize = frameSize(f.header);
+                if (sending.remaining() < frameSize)
                 {
                     writeAndFlush(channel, sending);
                     sending = allocate(sizeInBytes - writtenBytes, framesToWrite);
                 }
+
                 f.encodeInto(sending.buffer);
-                writtenBytes += frameSize(f.header);
+                writtenBytes += frameSize;
                 framesToWrite--;
             }
             writeAndFlush(channel, sending);
