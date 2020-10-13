@@ -50,12 +50,6 @@ import static org.apache.cassandra.schema.IndexMetadata.isNameValid;
 @Unmetered
 public final class TableMetadata implements SchemaElement
 {
-    public static final String COMPACT_STORAGE_HALT_MESSAGE =
-            "Detected table %s.%s with COMPACT STORAGE flags (%s). " +
-            "Compact Tables are not supported in Cassandra starting with version 4.0. " +
-            "Use the `ALTER ... DROP COMPACT STORAGE` command supplied in 3.x/3.11 Cassandra " +
-            "in order to migrate off Compact Storage before upgrading.";
-
     // Please note that currently the only one truly useful flag is COUNTER, as the rest of the flags were about
     // differencing between CQL tables and the various types of COMPACT STORAGE tables (pre-4.0). As those "compact"
     // tables are not supported anymore, no tables should be either SUPER or DENSE, and they should all be COMPOUND.
@@ -134,12 +128,6 @@ public final class TableMetadata implements SchemaElement
 
     private TableMetadata(Builder builder)
     {
-        if (Flag.isLegacyCompactTable(builder.flags))
-            throw new IllegalStateException(format(COMPACT_STORAGE_HALT_MESSAGE,
-                                                   builder.keyspace,
-                                                   builder.name,
-                                                   builder.flags));
-
         flags = Sets.immutableEnumSet(builder.flags);
         keyspace = builder.keyspace;
         name = builder.name;

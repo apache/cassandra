@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -53,6 +54,7 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
+import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
@@ -855,6 +857,36 @@ public final class SchemaKeyspace
     static Keyspaces fetchNonSystemKeyspaces()
     {
         return fetchKeyspacesWithout(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
+    }
+
+    public static void validateNonCompact() throws StartupException
+    {
+        String query = String.format("SELECT keyspace_name, table_name, flags FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
+
+        StringBuilder messages = new StringBuilder();
+        for (UntypedResultSet.Row row : query(query))
+        {
+            if (SchemaConstants.isLocalSystemKeyspace(row.getString("keyspace_name")))
+                continue;
+
+            Set<String> flags = row.getFrozenSet("flags", UTF8Type.instance);
+            if (TableMetadata.Flag.isLegacyCompactTable(TableMetadata.Flag.fromStringSet(flags)))
+            {
+                messages.append(String.format("ALTER TABLE %s.%s DROP COMPACT STORAGE;\n",
+                                              maybeQuote(row.getString("keyspace_name")),
+                                              maybeQuote(row.getString("table_name"))));
+            }
+        }
+
+        if (messages.length() != 0)
+        {
+            throw new StartupException(StartupException.ERR_OUTDATED_SCHEMA,
+                                       String.format("Compact Tables are not allowed in Cassandra starting with 4.0 version. " +
+                                                     "In order to migrate off Compact Storage, downgrade to the latest Cassandra version, " +
+                                                     "and run the following CQL commands: \n\n%s\n" +
+                                                     "Then restart the node with the new Cassandra version.",
+                                                     messages));
+        }
     }
 
     private static Keyspaces fetchKeyspacesWithout(Set<String> excludedKeyspaceNames)
