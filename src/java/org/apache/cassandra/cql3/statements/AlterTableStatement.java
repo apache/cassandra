@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableParams;
@@ -285,6 +286,14 @@ public class AlterTableStatement extends SchemaAlteringStatement
             case DROP_COMPACT_STORAGE:
                 if (!meta.isCompactTable())
                     throw new InvalidRequestException("Cannot DROP COMPACT STORAGE on table without COMPACT STORAGE");
+
+                // TODO: Global check of the sstables to be added as part of CASSANDRA-15897.
+                // Currently this is only a local check of the SSTables versions
+                for (SSTableReader ssTableReader : Keyspace.open(keyspace()).getColumnFamilyStore(columnFamily()).getLiveSSTables())
+                {
+                    if (!ssTableReader.descriptor.version.isLatestVersion())
+                        throw new InvalidRequestException("Cannot DROP COMPACT STORAGE until all SSTables are upgraded, please run `nodetool upgradesstables` first.");
+                }
 
                 cfm = meta.asNonCompact();
                 break;
