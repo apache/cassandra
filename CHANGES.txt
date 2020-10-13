@@ -1,4 +1,5 @@
 4.0-beta3
+ * Move compact storage validation earlier in startup process (CASSANDRA-16063)
  * Fix ByteBufferAccessor cast exceptions are thrown when trying to query a virtual table (CASSANDRA-16155)
  * Consolidate node liveness check for forced repair (CASSANDRA-16113)
  * Use unsigned short in ValueAccessor.sliceWithShortLength (CASSANDRA-16147)

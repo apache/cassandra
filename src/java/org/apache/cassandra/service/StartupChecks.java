@@ -39,6 +39,7 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -100,6 +101,7 @@ public class StartupChecks
                                                                       checkMaxMapCount,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
+                                                                      checkOutdatedTables,
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
                                                                       checkRack,
@@ -424,6 +426,8 @@ public class StartupChecks
 
         }
     };
+
+    public static final StartupCheck checkOutdatedTables = SchemaKeyspace::validateNonCompact;
 
     public static final StartupCheck checkSystemKeyspaceState = new StartupCheck()
     {
