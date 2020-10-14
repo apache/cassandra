@@ -68,6 +68,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IListen;
@@ -364,6 +365,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         MessagingService.instance().versions.set(toCassandraInetAddressAndPort(endpoint), version);
     }
 
+    @Override
+    public String getReleaseVersionString()
+    {
+        return callsOnInstance(() -> FBUtilities.getReleaseVersionString()).call();
+    }
+
     public void flush(String keyspace)
     {
         runOnInstance(() -> FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush()));
@@ -519,12 +526,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         List<String> initialTokens = new ArrayList<>();
         List<InetSocketAddress> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
+        List<String> versions = new ArrayList<>();
         for (int i = 1 ; i <= cluster.size() ; ++i)
         {
-            IInstanceConfig config = cluster.get(i).config();
+            IInstance instance = cluster.get(i);
+            IInstanceConfig config = instance.config();
             initialTokens.add(config.getString("initial_token"));
             hosts.add(config.broadcastAddress());
             hostIds.add(config.hostId());
+            versions.add(instance.getReleaseVersionString());
         }
 
         try
@@ -541,11 +551,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 InetAddressAndPort addressAndPort = toCassandraInetAddressAndPort(ep);
                 UUID hostId = hostIds.get(i);
                 Token token = tokens.get(i);
+                String releaseVersion = versions.get(i);
                 Gossiper.runInGossipStageBlocking(() -> {
                     Gossiper.instance.initializeNodeUnsafe(addressAndPort, hostId, 1);
                     Gossiper.instance.injectApplicationState(addressAndPort,
                                                              ApplicationState.TOKENS,
                                                              new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
+                    Gossiper.instance.injectApplicationState(addressAndPort,
+                                                             ApplicationState.RELEASE_VERSION,
+                                                             new VersionedValue.VersionedValueFactory(partitioner).releaseVersion(releaseVersion));
                     storageService.onChange(addressAndPort,
                                             ApplicationState.STATUS_WITH_PORT,
                                             new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));

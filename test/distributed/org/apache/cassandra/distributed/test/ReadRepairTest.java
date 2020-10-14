@@ -52,6 +52,21 @@ public class ReadRepairTest extends TestBaseImpl
 {
 
     @Test
+    // see CASSANDRA-15833 and CASSANDRA-16148
+    // TODO: remove when merging CASSANDRA-15977
+    public void test16148() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(2).start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int PRIMARY KEY, a int, b int)"));
+            cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.t (k, a, b) VALUES (1, 2, 3)"));
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT a FROM %s.t"), ConsistencyLevel.ALL), row(2));
+            assertRows( cluster.get(2).executeInternal(withKeyspace("SELECT * FROM %s.t")), row(1, 2, null));
+        }
+    }
+
+
+    @Test
     public void readRepairTest() throws Throwable
     {
         try (ICluster cluster = init(builder().withNodes(3).start()))
