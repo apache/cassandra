@@ -101,18 +101,18 @@ public class GossiperTest
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
 
 
-        assertTrue(Gossiper.instance.haveMajorVersion3NodesSupplier.get());
+        assertTrue(Gossiper.instance.haveMajorVersion3NodesSupplier.get().value());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
 
 
-        assertTrue(Gossiper.instance.haveMajorVersion3NodesSupplier.get());
+        assertTrue(Gossiper.instance.haveMajorVersion3NodesSupplier.get().value());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
+        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
 
-        assertFalse(Gossiper.instance.haveMajorVersion3NodesSupplier.get());
+        assertFalse(Gossiper.instance.haveMajorVersion3NodesSupplier.get().value());
 
     }
 
