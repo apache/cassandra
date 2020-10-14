@@ -290,7 +290,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         int fromVersion = MessagingService.instance().versions.get(from);
         int toVersion = MessagingService.instance().versions.get(to);
-        
+
+        // If we're re-serializing a pre-4.0 message for filtering purposes, take into account possible empty payload
+        // See CASSANDRA-16207 for details.
         if (fromVersion < MessagingService.current_version &&
             ((messageOut.verb().serializer() == ((IVersionedAsymmetricSerializer) NoPayload.serializer) || messageOut.payload == null)))
         {
