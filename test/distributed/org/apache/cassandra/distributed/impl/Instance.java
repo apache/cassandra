@@ -462,6 +462,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         runOnInstance(() -> MessagingService.instance().setVersion(endpoint.getAddress(), version));
     }
 
+    public String getReleaseVersionString()
+    {
+        return callsOnInstance(() -> FBUtilities.getReleaseVersionString()).call();
+    }
+
     public void flush(String keyspace)
     {
         runOnInstance(() -> FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush()));
