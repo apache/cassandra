@@ -97,6 +97,11 @@ public class BTree
         return new Object[] { value };
     }
 
+    public static <C, K extends C, V extends C> Object[] build(K[] source, int size, UpdateFunction<K, V> updateF)
+    {
+        return buildInternal(source, size, updateF);
+    }
+
     public static <C, K extends C, V extends C> Object[] build(Collection<K> source, UpdateFunction<K, V> updateF)
     {
         return buildInternal(source, source.size(), updateF);
@@ -148,6 +153,34 @@ public class BTree
 
         return btree;
     }
+
+    /**
+     * As build(), except:
+     * @param size    < 0 if size is unknown
+     */
+    private static <C, K extends C, V extends C> Object[] buildInternal(K[] source, int size, UpdateFunction<K, V> updateF)
+    {
+        if ((size >= 0) & (size < FAN_FACTOR))
+        {
+            if (size == 0)
+                return EMPTY_LEAF;
+            // pad to odd length to match contract that all leaf nodes are odd
+            V[] values = (V[]) new Object[size | 1];
+            {
+                for (int i = 0; i < size; i++)
+                    values[i] = updateF.apply(source[i]);
+            }
+            if (updateF != UpdateFunction.noOp())
+                updateF.allocated(ObjectSizes.sizeOfArray(values));
+            return values;
+        }
+
+        TreeBuilder builder = TreeBuilder.newInstance();
+        Object[] btree = builder.build(source, updateF, size);
+
+        return btree;
+    }
+
 
     public static <C, K extends C, V extends C> Object[] update(Object[] btree,
                                                                 Comparator<C> comparator,
@@ -1089,7 +1122,7 @@ public class BTree
         {
             if (auto)
                 autoEnforce();
-            return BTree.build(Arrays.asList(values).subList(0, count), UpdateFunction.noOp());
+            return BTree.build(values, count, UpdateFunction.noOp());
         }
     }
 

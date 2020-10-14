@@ -62,7 +62,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
     public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer();
 
-    private final int createdAtInSec = FBUtilities.nowInSeconds();
+    private final int createdAtInSec;
 
     // Records whether this update is "built", i.e. if the build() method has been called, which
     // happens when the update is read. Further writing is then rejected though a manual call
@@ -82,26 +82,30 @@ public class PartitionUpdate extends AbstractBTreePartition
                             PartitionColumns columns,
                             MutableDeletionInfo deletionInfo,
                             int initialRowCapacity,
-                            boolean canHaveShadowedData)
+                            boolean canHaveShadowedData,
+                            int createdAtInSec)
     {
         super(metadata, key);
         this.deletionInfo = deletionInfo;
         this.holder = new Holder(columns, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
         this.canHaveShadowedData = canHaveShadowedData;
         rowBuilder = builder(initialRowCapacity);
+        this.createdAtInSec = createdAtInSec;
     }
 
     private PartitionUpdate(CFMetaData metadata,
                             DecoratedKey key,
                             Holder holder,
                             MutableDeletionInfo deletionInfo,
-                            boolean canHaveShadowedData)
+                            boolean canHaveShadowedData,
+                            int createdAtInSec)
     {
         super(metadata, key);
         this.holder = holder;
         this.deletionInfo = deletionInfo;
         this.isBuilt = true;
         this.canHaveShadowedData = canHaveShadowedData;
+        this.createdAtInSec = createdAtInSec;
     }
 
     public PartitionUpdate(CFMetaData metadata,
@@ -109,7 +113,16 @@ public class PartitionUpdate extends AbstractBTreePartition
                            PartitionColumns columns,
                            int initialRowCapacity)
     {
-        this(metadata, key, columns, MutableDeletionInfo.live(), initialRowCapacity, true);
+        this(metadata, key, columns, MutableDeletionInfo.live(), initialRowCapacity, true, FBUtilities.nowInSeconds());
+    }
+
+    public PartitionUpdate(CFMetaData metadata,
+                           DecoratedKey key,
+                           PartitionColumns columns,
+                           int initialRowCapacity,
+                           int createdAtInSec)
+    {
+        this(metadata, key, columns, MutableDeletionInfo.live(), initialRowCapacity, true, createdAtInSec);
     }
 
     public PartitionUpdate(CFMetaData metadata,
@@ -135,7 +148,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
         Holder holder = new Holder(PartitionColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
-        return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
+        return new PartitionUpdate(metadata, key, holder, deletionInfo, false, FBUtilities.nowInSeconds());
     }
 
     /**
@@ -152,7 +165,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         MutableDeletionInfo deletionInfo = new MutableDeletionInfo(timestamp, nowInSec);
         Holder holder = new Holder(PartitionColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
-        return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
+        return new PartitionUpdate(metadata, key, holder, deletionInfo, false, FBUtilities.nowInSeconds());
     }
 
     /**
@@ -178,7 +191,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow,
             EncodingStats.NO_STATS
         );
-        return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
+        return new PartitionUpdate(metadata, key, holder, deletionInfo, false, FBUtilities.nowInSeconds());
     }
 
     /**
@@ -245,7 +258,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         iterator = UnfilteredRowIterators.withOnlyQueriedData(iterator, filter);
         Holder holder = build(iterator, 16, ordered, quickResolver);
         MutableDeletionInfo deletionInfo = (MutableDeletionInfo) holder.deletionInfo;
-        return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
+        return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false, FBUtilities.nowInSeconds());
     }
 
     /**
@@ -264,7 +277,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         iterator = RowIterators.withOnlyQueriedData(iterator, filter);
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
         Holder holder = build(iterator, deletionInfo, true, 16);
-        return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
+        return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false, FBUtilities.nowInSeconds());
     }
 
     protected boolean canHaveShadowedData()
@@ -932,7 +945,8 @@ public class PartitionUpdate extends AbstractBTreePartition
                                        header.key,
                                        new Holder(header.sHeader.columns(), rows.build(), deletionInfo, header.staticRow, header.sHeader.stats()),
                                        deletionInfo,
-                                       false);
+                                       false,
+                                       FBUtilities.nowInSeconds());
         }
 
         private static PartitionUpdate deserializePre30(DataInputPlus in, int version, SerializationHelper.Flag flag, ByteBuffer key) throws IOException

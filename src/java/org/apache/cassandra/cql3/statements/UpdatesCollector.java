@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.HashMultiset;
+import com.google.common.collect.Maps;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -39,20 +42,23 @@ final class UpdatesCollector
     private final Map<UUID, PartitionColumns> updatedColumns;
 
     /**
-     * The estimated number of updated row.
+     * The estimated number of updated rows per partition.
      */
-    private final int updatedRows;
+    private final Map<UUID, HashMultiset<ByteBuffer>> partitionCounts;
+
+    public final long createdAt = System.currentTimeMillis();
 
     /**
      * The mutations per keyspace.
      */
-    private final Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
+    private final Map<String, Map<ByteBuffer, IMutation>> mutations;
 
-    public UpdatesCollector(Map<UUID, PartitionColumns> updatedColumns, int updatedRows)
+    public UpdatesCollector(Map<UUID, PartitionColumns> updatedColumns, Map<UUID, HashMultiset<ByteBuffer>> partitionCounts)
     {
         super();
         this.updatedColumns = updatedColumns;
-        this.updatedRows = updatedRows;
+        this.partitionCounts = partitionCounts;
+        mutations = Maps.newHashMapWithExpectedSize(partitionCounts.size()); // most often this is too big - optimised for the single-table case
     }
 
     /**
@@ -72,7 +78,7 @@ final class UpdatesCollector
         {
             PartitionColumns columns = updatedColumns.get(cfm.cfId);
             assert columns != null;
-            upd = new PartitionUpdate(cfm, dk, columns, updatedRows);
+            upd = new PartitionUpdate(cfm, dk, columns, partitionCounts.get(cfm.cfId).count(dk.getKey()), (int)(createdAt / 1000));
             mut.add(upd);
         }
         return upd;
@@ -96,7 +102,7 @@ final class UpdatesCollector
         IMutation mutation = keyspaceMap(ksName).get(dk.getKey());
         if (mutation == null)
         {
-            Mutation mut = new Mutation(ksName, dk);
+            Mutation mut = new Mutation(ksName, dk, createdAt, cfm.params.cdc);
             mutation = cfm.isCounter() ? new CounterMutation(mut, consistency) : mut;
             keyspaceMap(ksName).put(dk.getKey(), mutation);
             return mut;
@@ -114,7 +120,7 @@ final class UpdatesCollector
         if (mutations.size() == 1)
             return mutations.values().iterator().next().values();
 
-        List<IMutation> ms = new ArrayList<>();
+        List<IMutation> ms = new ArrayList<>(mutations.size());
         for (Map<ByteBuffer, IMutation> ksMap : mutations.values())
             ms.addAll(ksMap.values());
 
