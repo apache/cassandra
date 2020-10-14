@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class DelegatingInvokableInstance implements IInvokableInstance
 {
@@ -87,6 +88,12 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public int getMessagingVersion()
     {
         return delegate().getMessagingVersion();
+    }
+
+    @Override
+    public String getReleaseVersionString()
+    {
+        return delegate().getReleaseVersionString();
     }
 
     @Override
