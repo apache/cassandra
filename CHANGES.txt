@@ -1,4 +1,5 @@
 3.11.9
+ * Synchronize Keyspace instance store/clear (CASSANDRA-16210)
  * Fix ColumnFilter to avoid querying cells of unselected complex columns (CASSANDRA-15977)
  * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
