@@ -288,25 +288,30 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static IMessage serializeMessage(InetAddressAndPort from, InetAddressAndPort to, Message<?> messageOut)
     {
-        int version = MessagingService.instance().versions.get(to);
-        if (messageOut.verb().serializer() == ((IVersionedAsymmetricSerializer) NoPayload.serializer) || messageOut.payload == null)
+        int fromVersion = MessagingService.instance().versions.get(from);
+        int toVersion = MessagingService.instance().versions.get(to);
+
+        // If we're re-serializing a pre-4.0 message for filtering purposes, take into account possible empty payload
+        // See CASSANDRA-16207 for details.
+        if (fromVersion < MessagingService.current_version &&
+            ((messageOut.verb().serializer() == ((IVersionedAsymmetricSerializer) NoPayload.serializer) || messageOut.payload == null)))
         {
             return new MessageImpl(messageOut.verb().id,
                                    ByteArrayUtil.EMPTY_BYTE_ARRAY,
                                    messageOut.id(),
-                                   version,
+                                   toVersion,
                                    fromCassandraInetAddressAndPort(from));
         }
 
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            Message.serializer.serialize(messageOut, out, version);
+            Message.serializer.serialize(messageOut, out, toVersion);
             byte[] bytes = out.toByteArray();
-            if (messageOut.serializedSize(version) != bytes.length)
+            if (messageOut.serializedSize(toVersion) != bytes.length)
                 throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
-                                                       "expected %s, actual %s", version, version, messageOut.verb(), messageOut.serializer.getClass(),
-                                                       messageOut.serializedSize(version), bytes.length));
-            return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), version, fromCassandraInetAddressAndPort(from));
+                                                       "expected %s, actual %s", toVersion, toVersion, messageOut.verb(), messageOut.serializer.getClass(),
+                                                       messageOut.serializedSize(toVersion), bytes.length));
+            return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), toVersion, fromCassandraInetAddressAndPort(from));
         }
         catch (IOException e)
         {
