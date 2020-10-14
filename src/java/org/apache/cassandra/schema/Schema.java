@@ -221,10 +221,8 @@ public final class Schema implements SchemaProvider
     @Override
     public void storeKeyspaceInstance(Keyspace keyspace)
     {
-        if (keyspaceInstances.containsKey(keyspace.getName()))
+        if (keyspaceInstances.putIfAbsent(keyspace.getName(), keyspace) != null)
             throw new IllegalArgumentException(String.format("Keyspace %s was already initialized.", keyspace.getName()));
-
-        keyspaceInstances.put(keyspace.getName(), keyspace);
     }
 
     /**
