@@ -49,6 +49,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         }
     };
 
+    private static final TreeMap<ColumnDefinition, SingleRestriction> EMPTY = new TreeMap<>(COLUMN_DEFINITION_COMPARATOR);
+
     /**
      * The restrictions per column.
      */
@@ -59,16 +61,33 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     private final boolean hasMultiColumnRestrictions;
 
+    private final boolean hasIn;
+    private final boolean hasContains;
+    private final boolean hasSlice;
+    private final boolean hasOnlyEqualityRestrictions;
+
     public RestrictionSet()
     {
-        this(new TreeMap<ColumnDefinition, SingleRestriction>(COLUMN_DEFINITION_COMPARATOR), false);
+        this(EMPTY, false,
+             false,
+             false,
+             false,
+             true);
     }
 
     private RestrictionSet(TreeMap<ColumnDefinition, SingleRestriction> restrictions,
-                           boolean hasMultiColumnRestrictions)
+                           boolean hasMultiColumnRestrictions,
+                           boolean hasIn,
+                           boolean hasContains,
+                           boolean hasSlice,
+                           boolean hasOnlyEqualityRestrictions)
     {
         this.restrictions = restrictions;
         this.hasMultiColumnRestrictions = hasMultiColumnRestrictions;
+        this.hasIn = hasIn;
+        this.hasContains = hasContains;
+        this.hasSlice = hasSlice;
+        this.hasOnlyEqualityRestrictions = hasOnlyEqualityRestrictions;
     }
 
     @Override
@@ -127,8 +146,19 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     public RestrictionSet addRestriction(SingleRestriction restriction)
     {
         // RestrictionSet is immutable so we need to clone the restrictions map.
-        TreeMap<ColumnDefinition, SingleRestriction> newRestrictions = new TreeMap<>(this.restrictions);
-        return new RestrictionSet(mergeRestrictions(newRestrictions, restriction), hasMultiColumnRestrictions || restriction.isMultiColumn());
+        TreeMap<ColumnDefinition, SingleRestriction> newRestricitons = new TreeMap<>(this.restrictions);
+
+        boolean newHasIn = hasIn || restriction.isIN();
+        boolean newHasContains = hasContains || restriction.isContains();
+        boolean newHasSlice = hasSlice || restriction.isSlice();
+        boolean newHasOnlyEqualityRestrictions = hasOnlyEqualityRestrictions && (restriction.isEQ() || restriction.isIN());
+
+        return new RestrictionSet(mergeRestrictions(newRestricitons, restriction),
+                                  hasMultiColumnRestrictions || restriction.isMultiColumn(),
+                                  newHasIn,
+                                  newHasContains,
+                                  newHasSlice,
+                                  newHasOnlyEqualityRestrictions);
     }
 
     private TreeMap<ColumnDefinition, SingleRestriction> mergeRestrictions(TreeMap<ColumnDefinition, SingleRestriction> restrictions,
@@ -273,32 +303,17 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     public final boolean hasIN()
     {
-        for (SingleRestriction restriction : this)
-        {
-            if (restriction.isIN())
-                return true;
-        }
-        return false;
+        return hasIn;
     }
 
     public boolean hasContains()
     {
-        for (SingleRestriction restriction : this)
-        {
-            if (restriction.isContains())
-                return true;
-        }
-        return false;
+        return hasContains;
     }
 
     public final boolean hasSlice()
     {
-        for (SingleRestriction restriction : this)
-        {
-            if (restriction.isSlice())
-                return true;
-        }
-        return false;
+        return hasSlice;
     }
 
     /**
@@ -309,12 +324,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     public final boolean hasOnlyEqualityRestrictions()
     {
-        for (SingleRestriction restriction : this)
-        {
-            if (!restriction.isEQ() && !restriction.isIN())
-                return false;
-        }
-        return true;
+        return hasOnlyEqualityRestrictions;
     }
 
     /**

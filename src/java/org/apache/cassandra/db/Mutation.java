@@ -57,7 +57,7 @@ public class Mutation implements IMutation
     private final Map<UUID, PartitionUpdate> modifications;
 
     // Time at which this mutation was instantiated
-    public final long createdAt = System.currentTimeMillis();
+    public final long createdAt;
     // keep track of when mutation has started waiting for a MV partition lock
     public final AtomicLong viewLockAcquireStart = new AtomicLong(0);
 
@@ -68,6 +68,11 @@ public class Mutation implements IMutation
         this(keyspaceName, key, new HashMap<>());
     }
 
+    public Mutation(String keyspaceName, DecoratedKey key, long createdAt, boolean cdcEnabled)
+    {
+        this(keyspaceName, key, new HashMap<>(), createdAt, cdcEnabled);
+    }
+
     public Mutation(PartitionUpdate update)
     {
         this(update.metadata().ksName, update.partitionKey(), Collections.singletonMap(update.metadata().cfId, update));
@@ -75,11 +80,29 @@ public class Mutation implements IMutation
 
     protected Mutation(String keyspaceName, DecoratedKey key, Map<UUID, PartitionUpdate> modifications)
     {
+        this(keyspaceName, key, modifications, System.currentTimeMillis());
+    }
+
+    private Mutation(String keyspaceName, DecoratedKey key, Map<UUID, PartitionUpdate> modifications, long createdAt)
+    {
+        this(keyspaceName, key, modifications, createdAt, cdcEnabled(modifications));
+    }
+
+    private Mutation(String keyspaceName, DecoratedKey key, Map<UUID, PartitionUpdate> modifications, long createdAt, boolean cdcEnabled)
+    {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
+        this.cdcEnabled = cdcEnabled;
+        this.createdAt = createdAt;
+    }
+
+    private static boolean cdcEnabled(Map<UUID, PartitionUpdate> modifications)
+    {
+        boolean cdcEnabled = false;
         for (PartitionUpdate pu : modifications.values())
             cdcEnabled |= pu.metadata().params.cdc;
+        return cdcEnabled;
     }
 
     public Mutation copy()

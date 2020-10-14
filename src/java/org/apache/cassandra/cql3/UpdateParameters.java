@@ -60,13 +60,24 @@ public class UpdateParameters
                             long timestamp,
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows)
+    {
+        this(metadata, updatedColumns, options, timestamp, ttl, prefetchedRows, FBUtilities.nowInSeconds());
+    }
+
+    public UpdateParameters(CFMetaData metadata,
+                            PartitionColumns updatedColumns,
+                            QueryOptions options,
+                            long timestamp,
+                            int ttl,
+                            Map<DecoratedKey, Partition> prefetchedRows,
+                            int nowInSec)
     throws InvalidRequestException
     {
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
         this.options = options;
 
-        this.nowInSec = FBUtilities.nowInSeconds();
+        this.nowInSec = nowInSec;
         this.timestamp = timestamp;
         this.ttl = ttl;
 
