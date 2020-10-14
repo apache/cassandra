@@ -1,4 +1,5 @@
 4.0-beta4
+ * Fix SSTableloader issue when restoring a table named backups (CASSANDRA-16235)
  * Invalid serialized size for responses caused by increasing message time by 1ms which caused extra bytes in size calculation (CASSANDRA-16103)
  * Throw BufferOverflowException from DataOutputBuffer for better visibility (CASSANDRA-16214)
 
