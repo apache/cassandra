@@ -7155,7 +7155,7 @@ org.apache.cassandra.internal:type=ViewBuildExecutor:
   - {access: read/write, name: MaximumPoolSize, type: int}
   - {access: read/write, name: MaximumThreads, type: int}
   operations: []
-org.apache.cassandra.metrics:type=BufferPool,name=Misses:
+org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache,name=Misses:
   attributes:
   - {access: read-only, name: Count, type: long}
   - {access: read-only, name: FifteenMinuteRate, type: double}
@@ -7167,7 +7167,78 @@ org.apache.cassandra.metrics:type=BufferPool,name=Misses:
   - name: objectName
     parameters: []
     returnType: javax.management.ObjectName
-org.apache.cassandra.metrics:type=BufferPool,name=Size:
+org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache,name=Hits:
+  attributes:
+  - {access: read-only, name: Count, type: long}
+  - {access: read-only, name: FifteenMinuteRate, type: double}
+  - {access: read-only, name: FiveMinuteRate, type: double}
+  - {access: read-only, name: MeanRate, type: double}
+  - {access: read-only, name: OneMinuteRate, type: double}
+  - {access: read-only, name: RateUnit, type: java.lang.String}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache,name=Size:
+  attributes:
+  - {access: read-only, name: Value, type: java.lang.Object}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache,name=UsedSize:
+  attributes:
+  - {access: read-only, name: Value, type: java.lang.Object}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache,name=OverflowSize:
+  attributes:
+  - {access: read-only, name: Value, type: java.lang.Object}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=networking,name=Misses:
+  attributes:
+  - {access: read-only, name: Count, type: long}
+  - {access: read-only, name: FifteenMinuteRate, type: double}
+  - {access: read-only, name: FiveMinuteRate, type: double}
+  - {access: read-only, name: MeanRate, type: double}
+  - {access: read-only, name: OneMinuteRate, type: double}
+  - {access: read-only, name: RateUnit, type: java.lang.String}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=networking,name=Hits:
+  attributes:
+  - {access: read-only, name: Count, type: long}
+  - {access: read-only, name: FifteenMinuteRate, type: double}
+  - {access: read-only, name: FiveMinuteRate, type: double}
+  - {access: read-only, name: MeanRate, type: double}
+  - {access: read-only, name: OneMinuteRate, type: double}
+  - {access: read-only, name: RateUnit, type: java.lang.String}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=networking,name=Size:
+  attributes:
+  - {access: read-only, name: Value, type: java.lang.Object}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=networking,name=UsedSize:
+  attributes:
+  - {access: read-only, name: Value, type: java.lang.Object}
+  operations:
+  - name: objectName
+    parameters: []
+    returnType: javax.management.ObjectName
+org.apache.cassandra.metrics:type=BufferPool,scope=networking,name=OverflowSize:
   attributes:
   - {access: read-only, name: Value, type: java.lang.Object}
   operations:

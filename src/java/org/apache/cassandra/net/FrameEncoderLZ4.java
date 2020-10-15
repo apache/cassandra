@@ -27,7 +27,6 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.BufferPool;
 
 import static org.apache.cassandra.net.Crc.*;
 
@@ -74,7 +73,7 @@ class FrameEncoderLZ4 extends FrameEncoder
                 throw new IllegalArgumentException("Maximum uncompressed payload size is 128KiB");
 
             int maxOutputLength = compressor.maxCompressedLength(uncompressedLength);
-            frame = BufferPool.getAtLeast(HEADER_AND_TRAILER_LENGTH + maxOutputLength, BufferType.OFF_HEAP);
+            frame = bufferPool.getAtLeast(HEADER_AND_TRAILER_LENGTH + maxOutputLength, BufferType.OFF_HEAP);
 
             int compressedLength = compressor.compress(in, in.position(), uncompressedLength, frame, HEADER_LENGTH, maxOutputLength);
 
@@ -101,18 +100,18 @@ class FrameEncoderLZ4 extends FrameEncoder
             frame.putInt(frameCrc);
             frame.position(0);
 
-            BufferPool.putUnusedPortion(frame);
+            bufferPool.putUnusedPortion(frame);
             return GlobalBufferPoolAllocator.wrap(frame);
         }
         catch (Throwable t)
         {
             if (frame != null)
-                BufferPool.put(frame);
+                bufferPool.put(frame);
             throw t;
         }
         finally
         {
-            BufferPool.put(in);
+            bufferPool.put(in);
         }
     }
 }

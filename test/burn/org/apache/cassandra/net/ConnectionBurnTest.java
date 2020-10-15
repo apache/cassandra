@@ -59,7 +59,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageGenerator.UniformPayloadGenerator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MonotonicClock;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Math.min;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -435,7 +435,7 @@ public class ConnectionBurnTest
                                         checkStoppedTo  .accept(endpoint, getConnections(endpoint, true ));
                                         checkStoppedFrom.accept(endpoint, getConnections(endpoint, false));
                                     }
-                                    long inUse = BufferPool.unsafeGetBytesInUse();
+                                    long inUse = BufferPools.forNetworking().usedSizeInBytes();
                                     if (inUse > 0)
                                     {
 //                                        try

@@ -32,7 +32,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
@@ -135,7 +135,7 @@ class HandshakeProtocol
 
         ByteBuf encode()
         {
-            ByteBuffer buffer = BufferPool.get(MAX_LENGTH, BufferType.OFF_HEAP);
+            ByteBuffer buffer = BufferPools.forNetworking().get(MAX_LENGTH, BufferType.OFF_HEAP);
             try (DataOutputBufferFixed out = new DataOutputBufferFixed(buffer))
             {
                 out.writeInt(Message.PROTOCOL_MAGIC);
@@ -347,7 +347,7 @@ class HandshakeProtocol
 
         ByteBuf encode()
         {
-            ByteBuffer buffer = BufferPool.get(MAX_LENGTH, BufferType.OFF_HEAP);
+            ByteBuffer buffer = BufferPools.forNetworking().get(MAX_LENGTH, BufferType.OFF_HEAP);
             try (DataOutputBufferFixed out = new DataOutputBufferFixed(buffer))
             {
                 out.writeInt(maxMessagingVersion);

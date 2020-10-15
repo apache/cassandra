@@ -20,10 +20,10 @@ package org.apache.cassandra.net;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 /**
- * A wrapper for possibly sharing portions of a single, {@link BufferPool} managed, {@link ByteBuffer};
+ * A wrapper for possibly sharing portions of a single, {@link BufferPools#forNetworking()} managed, {@link ByteBuffer};
  * optimised for the case where no sharing is necessary.
  *
  * When sharing is necessary, {@link #share()} method must be invoked by the owning thread
@@ -136,7 +136,7 @@ class ShareableBytes
             throw new IllegalStateException("Already released");
 
         if (count == RELEASED)
-            BufferPool.put(bytes);
+            BufferPools.forNetworking().put(bytes);
     }
 
     boolean isReleased()
