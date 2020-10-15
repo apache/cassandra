@@ -25,7 +25,7 @@ index ab621241a4..9c11f60d5d 100644
 -    #exec_resource_class: xlarge
 -  parallelism: 1
 +    exec_resource_class: large
-+  parallelism: 10
++  parallelism: 4
 +
 +j8_large_par_executor: &j8_large_par_executor
 +  executor:
