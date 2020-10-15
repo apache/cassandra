@@ -25,9 +25,12 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
 {
+    protected static final BufferPool bufferPool = BufferPools.forNetworking();
+
     /**
      * An abstraction useful for transparently allocating buffers that can be written to upstream
      * of the {@code FrameEncoder} without knowledge of the encoder's frame layout, while ensuring
@@ -57,7 +60,7 @@ abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
             this.headerLength = headerLength;
             this.trailerLength = trailerLength;
 
-            buffer = BufferPool.getAtLeast(payloadCapacity + headerLength + trailerLength, BufferType.OFF_HEAP);
+            buffer = bufferPool.getAtLeast(payloadCapacity + headerLength + trailerLength, BufferType.OFF_HEAP);
             assert buffer.capacity() >= payloadCapacity + headerLength + trailerLength;
             buffer.position(headerLength);
             buffer.limit(buffer.capacity() - trailerLength);
@@ -103,12 +106,12 @@ abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
             isFinished = true;
             buffer.limit(buffer.position() + trailerLength);
             buffer.position(0);
-            BufferPool.putUnusedPortion(buffer);
+            bufferPool.putUnusedPortion(buffer);
         }
 
         void release()
         {
-            BufferPool.put(buffer);
+            bufferPool.put(buffer);
         }
     }
 

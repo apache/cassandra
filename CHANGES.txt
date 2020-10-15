@@ -1,4 +1,5 @@
 4.0-beta3
+ * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)
  * Fail truncation requests when they fail on a replica (CASSANDRA-16208)
  * Move compact storage validation earlier in startup process (CASSANDRA-16063)
  * Fix ByteBufferAccessor cast exceptions are thrown when trying to query a virtual table (CASSANDRA-16155)

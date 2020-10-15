@@ -41,7 +41,7 @@ import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 
@@ -152,7 +152,7 @@ public class CassandraStreamWriter
 
         // this buffer will hold the data from disk. as it will be compressed on the fly by
         // AsyncChannelCompressedStreamWriter.write(ByteBuffer), we can release this buffer as soon as we can.
-        ByteBuffer buffer = BufferPool.get(minReadable, BufferType.OFF_HEAP);
+        ByteBuffer buffer = BufferPools.forNetworking().get(minReadable, BufferType.OFF_HEAP);
         try
         {
             int readCount = proxy.read(buffer, start);
@@ -171,7 +171,7 @@ public class CassandraStreamWriter
         }
         finally
         {
-            BufferPool.put(buffer);
+            BufferPools.forNetworking().put(buffer);
         }
 
         return toTransfer;

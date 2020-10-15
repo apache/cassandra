@@ -120,8 +120,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -617,7 +617,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
-                                () -> BufferPool.shutdownLocalCleaner(1L, MINUTES),
+                                () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),
                                 () -> Ref.shutdownReferenceReaper(1L, MINUTES),
                                 () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
