@@ -83,19 +83,19 @@ public class GossiperTest
     public void testHaveVersion3Nodes() throws Exception
     {
         VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.0-SNAPSHOT"));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
 
 
-        es = new EndpointState(null);
+        es = new EndpointState((HeartBeatState) null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.11.3"));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
 
 
-        es = new EndpointState(null);
+        es = new EndpointState((HeartBeatState) null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.0.0"));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));

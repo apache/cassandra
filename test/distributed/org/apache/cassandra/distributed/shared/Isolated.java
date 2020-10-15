@@ -24,16 +24,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Tells jvm-dtest that a class should be shared accross all {@link ClassLoader}s.
+ * Tells jvm-dtest that a class should be isolated and loaded into the instance class loader.
  *
  * Jvm-dtest relies on classloader isolation to run multiple cassandra instances in the same JVM, this makes it
  * so some classes do not get shared (outside a blesssed set of classes/packages). When the default behavior
- * is not desirable, this annotation will tell jvm-dtest to share the class accross all class loaders.
+ * is not desirable, this annotation will tell jvm-dtest to isolate the class accross all class loaders.
  *
- * This is the oposite of {@link Isolated}.
+ * This is the oposite of {@link Shared}.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE })
-public @interface Shared
+public @interface Isolated
 {
 }
