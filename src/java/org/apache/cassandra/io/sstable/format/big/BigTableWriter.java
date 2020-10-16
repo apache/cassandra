@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.*;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -233,6 +234,10 @@ public class BigTableWriter extends SSTableWriter
             metadataCollector.addPartitionSizeInBytes(rowSize);
             afterAppend(key, endPosition, entry, columnIndexWriter.buffer());
             return entry;
+        }
+        catch (BufferOverflowException boe)
+        {
+            throw new PartitionSerializationException(iterator, boe);
         }
         catch (IOException e)
         {

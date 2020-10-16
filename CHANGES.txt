@@ -1,3 +1,6 @@
+4.0-beta4
+ * Throw BufferOverflowException from DataOutputBuffer for better visibility (CASSANDRA-16214)
+
 4.0-beta3
  * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)
  * Fail truncation requests when they fail on a replica (CASSANDRA-16208)
