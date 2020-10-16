@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
 import java.io.IOError;
+import java.nio.BufferOverflowException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,7 +90,14 @@ public class UnfilteredRowIteratorSerializer
                                                              iterator.columns(),
                                                              iterator.stats());
 
-        serialize(iterator, header, selection, out, version, rowEstimate);
+        try
+        {
+            serialize(iterator, header, selection, out, version, rowEstimate);
+        }
+        catch (BufferOverflowException boe)
+        {
+            throw new PartitionSerializationException(iterator, boe);
+        }
     }
 
     // Should only be used for the on-wire format.
