@@ -20,9 +20,11 @@ package org.apache.cassandra.distributed.test;
 
 import java.net.InetAddress;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 
@@ -34,11 +36,9 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
             c.set("server_encryption_options",
-                  "optional: true\n" +
-                  "keystore: /path/to/bad/keystore/that/should/not/exist\n" +
-                  "keystore_password: cassandra\n" +
-                  "truststore: /path/to/bad/truststore/that/should/not/exist\n" +
-                  "truststore_password: cassandra\n");
+                  ImmutableMap.of("optional", true,
+                                  "keystore", "/path/to/bad/keystore/that/should/not/exist",
+                                  "truststore", "/path/to/bad/truststore/that/should/not/exist"));
         }).createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
@@ -50,8 +50,9 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
     {
         try (Cluster cluster = builder().withNodes(2).withConfig(c ->
                                                                  c.set("server_encryption_options",
-                                                                       "enabled: false\n" +
-                                                                       validKeystoreYaml)).createWithoutStarting())
+                                                                       ImmutableMap.builder().putAll(validKeystore)
+                                                                                   .put("enabled", false).build()))
+                                        .createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
         }
@@ -64,10 +65,11 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
             c.with(Feature.NETWORK);
             c.set("ssl_storage_port", 7013);
             c.set("server_encryption_options",
-                  "internode_encryption: none\n" +
-                  "optional: false\n" +
-                  "enable_legacy_ssl_storage_port: true\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                  .put("internode_encryption", "none")
+                  .put("optional", false)
+                  .put("enable_legacy_ssl_storage_port", "true")
+                  .build());
         }).createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
@@ -97,7 +99,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
-            c.set("server_encryption_options", validKeystoreYaml);
+            c.set("server_encryption_options", validKeystore);
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -121,10 +123,11 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
             c.set("storage_port", 7012);
             c.set("ssl_storage_port", 7013);
             c.set("server_encryption_options",
-                  "internode_encryption: none\n" +
-                  "optional: true\n" +
-                  "enable_legacy_ssl_storage_port: true\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("internode_encryption", "none")
+                              .put("optional", true)
+                              .put("enable_legacy_ssl_storage_port", "true")
+                              .build());
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -155,10 +158,11 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
             c.set("storage_port", 7012); // must match in-jvm dtest assigned ports
             c.set("ssl_storage_port", 7012);
             c.set("server_encryption_options",
-                  "internode_encryption: none\n" +
-                  "optional: true\n" +
-                  "enable_legacy_ssl_storage_port: true\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("internode_encryption", "none")
+                              .put("optional", true)
+                              .put("enable_legacy_ssl_storage_port", "true")
+                              .build());
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -182,9 +186,10 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
         try (Cluster  cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NETWORK);
             c.set("server_encryption_options",
-                  "internode_encryption: none\n" +
-                  "optional: false\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("internode_encryption", "none")
+                              .put("optional", false)
+                              .build());
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -209,8 +214,9 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTes
              .with(Feature.GOSSIP) // To make sure AllMembersAliveMonitor checks gossip (which uses internode conns)
              .with(Feature.NATIVE_PROTOCOL); // For virtual tables
             c.set("server_encryption_options",
-                  "internode_encryption: all\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("internode_encryption", "all")
+                              .build());
         }).start())
         {
             // Just check startup - cluster should not be able to establish internode connections xwithout encrypted connections

@@ -19,10 +19,12 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,10 +56,10 @@ public class AbstractEncryptionOptionsTest extends TestBaseImpl
     final static String validKeyStorePassword = "cassandra";
     final static String validTrustStorePath = "test/conf/cassandra_ssl_test.truststore";
     final static String validTrustStorePassword = "cassandra";
-    final static String validKeystoreYaml = "keystore: " + validKeyStorePath + '\n' +
-                                            "keystore_password: " + validKeyStorePassword + '\n' +
-                                            "truststore: " + validTrustStorePath + '\n' +
-                                            "truststore_password: " + validTrustStorePassword + '\n';
+    final static Map<String,Object> validKeystore = ImmutableMap.of("keystore", validKeyStorePath,
+                                                                   "keystore_password", validKeyStorePassword,
+                                                                   "truststore", validTrustStorePath,
+                                                                   "truststore_password", validTrustStorePassword);
 
     // Result of a TlsConnection.connect call.  The result is updated as the TLS connection
     // sequence takes place.  The nextOnFailure/nextOnSuccess allows the discard handler

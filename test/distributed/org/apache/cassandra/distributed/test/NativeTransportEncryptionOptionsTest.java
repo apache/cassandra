@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.net.InetAddress;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,11 +35,10 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  "optional: true\n" +
-                  "keystore: /path/to/bad/keystore/that/should/not/exist\n" +
-                  "keystore_password: cassandra\n" +
-                  "truststore: /path/to/bad/truststore/that/should/not/exist\n" +
-                  "truststore_password: cassandra\n");
+                  ImmutableMap.of("enabled", true,
+                                   "optional", true,
+                                   "keystore", "/path/to/bad/keystore/that/should/not/exist",
+                                   "truststore", "/path/to/bad/truststore/that/should/not/exist"));
         }).createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
@@ -69,8 +69,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
-            c.set("client_encryption_options",
-                  validKeystoreYaml);
+            c.set("client_encryption_options", validKeystore);
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -93,9 +92,10 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("native_transport_port_ssl", 9043);
             c.set("client_encryption_options",
-                  "enabled: false\n" +
-                  "optional: true\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("enabled", false)
+                              .put("optional", true)
+                              .build());
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -125,9 +125,10 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("native_transport_port_ssl", 9043);
             c.set("client_encryption_options",
-                  "enabled: false\n" +
-                  "optional: false\n" +
-                  validKeystoreYaml);
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("enabled", false)
+                              .put("optional", false)
+                              .build());
         }).createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
