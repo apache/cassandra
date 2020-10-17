@@ -244,9 +244,7 @@ public class Ring extends NodeToolCmd
 
         for (HostStatWithPort stat : hoststats)
         {
-            // Remove extra '/' from address
-            String addressNPort = stat.endpointWithPort.toString().replaceAll("^/", "");
-            tokens.addAll(endpointsToTokens.get(addressNPort));
+            tokens.addAll(endpointsToTokens.get(stat.endpoint.toString()));
             lastToken = tokens.get(tokens.size() - 1);
         }
 

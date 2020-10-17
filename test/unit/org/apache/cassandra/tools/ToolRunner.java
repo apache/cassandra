@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Throwables;
@@ -43,11 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.tools.OfflineToolUtils.SystemExitException;
-import org.apache.cassandra.utils.Pair;
-import org.assertj.core.util.Lists;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -243,51 +238,6 @@ public class ToolRunner
         allArgs.add(klass);
         allArgs.addAll(Arrays.asList(args));
         
-        Supplier<Integer> runMe = new Supplier<Integer>()
-        {
-            @Override
-            public Integer get()
-            {
-                return runClassAsTool(klass, args);
-            }
-        };
-
-        Pair<Integer, ToolResult> res = invokeSupplier(runMe, stdin);
-        return new ToolResult(allArgs,
-                              res.right.getExitCode() == -1 ? -1 : res.left,
-                              res.right.getStdout(),
-                              res.right.getStderr(),
-                              res.right.getException());
-
-    }
-    
-    public static ToolResult invokeNodetoolJvmDtest(IInstance node, String... args)
-    {
-        Supplier<NodeToolResult> runMe = new Supplier<NodeToolResult>()
-        {
-            @Override
-            public NodeToolResult get()
-            {
-                return node.nodetoolResult(args);
-            }
-        };
-
-        Pair<NodeToolResult, ToolResult> res = invokeSupplier(runMe);
-        return new ToolResult(Arrays.asList(args),
-                              res.left,
-                              res.right.getExitCode() == -1 ? -1 : res.left.getRc(),
-                              res.right.getStdout(),
-                              res.right.getStderr(),
-                              res.right.getException());
-    }
-
-    public static <T> Pair<T, ToolResult> invokeSupplier(Supplier<T> runMe)
-    {
-        return invokeSupplier(runMe, null);
-    }
-
-    public static <T> Pair<T, ToolResult> invokeSupplier(Supplier<T> runMe, InputStream stdin)
-    {
         PrintStream originalSysOut = System.out;
         PrintStream originalSysErr = System.err;
         InputStream originalSysIn = System.in;
@@ -298,24 +248,23 @@ public class ToolRunner
 
         System.setIn(stdin == null ? originalSysIn : stdin);
 
-        T res = null;
-        try(PrintStream newOut = new PrintStream(out); PrintStream newErr = new PrintStream(err))
+        try (PrintStream newOut = new PrintStream(out);
+             PrintStream newErr = new PrintStream(err))
         {
             System.setOut(newOut);
             System.setErr(newErr);
-            res = runMe.get();
+            int rc = runClassAsTool(klass, args);
             out.flush();
             err.flush();
-            return Pair.create(res, new ToolResult(Lists.emptyList(), 0, out.toString(), err.toString(), null));
+            return new ToolResult(allArgs, rc, out.toString(), err.toString(), null);
         }
-        catch(Exception e)
+        catch (Exception e)
         {
-            return Pair.create(res,
-                               new ToolResult(Lists.emptyList(),
-                                              -1,
-                                              out.toString(),
-                                              err.toString() + "\n" + Throwables.getStackTraceAsString(e),
-                                              e));
+            return new ToolResult(allArgs,
+                                  -1,
+                                  out.toString(),
+                                  err.toString() + "\n" + Throwables.getStackTraceAsString(e),
+                                  e);
         }
         finally
         {
@@ -337,7 +286,6 @@ public class ToolRunner
         private final String stdout;
         private final String stderr;
         private final Exception e;
-        private final NodeToolResult ntRes;
 
         private ToolResult(List<String> allArgs, int exitCode, String stdout, String stderr, Exception e)
         {
@@ -346,22 +294,6 @@ public class ToolRunner
             this.stdout = stdout;
             this.stderr = stderr;
             this.e = e;
-            this.ntRes = null;
-        }
-        
-        private ToolResult(List<String> allArgs, NodeToolResult ntRes, int exitCode, String stdout, String stderr, Exception e)
-        {
-            this.allArgs = allArgs;
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-            this.e = e;
-            this.ntRes = ntRes;
-        }
-        
-        public NodeToolResult getNodeToolResult()
-        {
-            return ntRes;
         }
 
         public int getExitCode()
