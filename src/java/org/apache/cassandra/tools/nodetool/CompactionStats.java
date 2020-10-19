@@ -21,6 +21,7 @@ import static java.lang.String.format;
 import io.airlift.command.Command;
 import io.airlift.command.Option;
 
+import java.io.PrintStream;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,8 +46,9 @@ public class CompactionStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
-        System.out.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
+        out.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
         long remainingBytes = 0;
         List<Map<String, String>> compactions = cm.getCompactions();
         if (!compactions.isEmpty())
@@ -85,7 +87,7 @@ public class CompactionStats extends NodeToolCmd
 
             for (String[] line : lines)
             {
-                System.out.printf(format, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
+                out.printf(format, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
             }
 
             String remainingTime = "n/a";
@@ -94,7 +96,7 @@ public class CompactionStats extends NodeToolCmd
                 long remainingTimeInSecs = remainingBytes / (1024L * 1024L * compactionThroughput);
                 remainingTime = format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60));
             }
-            System.out.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
+            out.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
         }
     }
 

@@ -24,6 +24,7 @@ import io.airlift.command.Command;
 import io.airlift.command.Option;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,6 +49,7 @@ public class Snapshot extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         try
         {
             StringBuilder sb = new StringBuilder();
@@ -67,9 +69,9 @@ public class Snapshot extends NodeToolCmd
                 }
                 if (!snapshotName.isEmpty())
                     sb.append(" with snapshot name [").append(snapshotName).append("]");
-                System.out.println(sb.toString());
+                out.println(sb.toString());
                 probe.takeMultipleTableSnapshot(snapshotName, ktList.split(","));
-                System.out.println("Snapshot directory: " + snapshotName);
+                out.println("Snapshot directory: " + snapshotName);
             }
             else
             {
@@ -81,10 +83,10 @@ public class Snapshot extends NodeToolCmd
                 if (!snapshotName.isEmpty())
                     sb.append(" with snapshot name [").append(snapshotName).append("]");
 
-                System.out.println(sb.toString());
+                out.println(sb.toString());
 
                 probe.takeSnapshot(snapshotName, table, toArray(keyspaces, String.class));
-                System.out.println("Snapshot directory: " + snapshotName);
+                out.println("Snapshot directory: " + snapshotName);
             }
         }
         catch (IOException e)

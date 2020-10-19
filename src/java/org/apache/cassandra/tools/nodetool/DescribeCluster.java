@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import static java.lang.String.format;
 import io.airlift.command.Command;
 
+import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
 
@@ -32,18 +33,19 @@ public class DescribeCluster extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         // display cluster name, snitch and partitioner
-        System.out.println("Cluster Information:");
-        System.out.println("\tName: " + probe.getClusterName());
-        System.out.println("\tSnitch: " + probe.getEndpointSnitchInfoProxy().getSnitchName());
-        System.out.println("\tPartitioner: " + probe.getPartitioner());
+        out.println("Cluster Information:");
+        out.println("\tName: " + probe.getClusterName());
+        out.println("\tSnitch: " + probe.getEndpointSnitchInfoProxy().getSnitchName());
+        out.println("\tPartitioner: " + probe.getPartitioner());
 
         // display schema version for each node
-        System.out.println("\tSchema versions:");
+        out.println("\tSchema versions:");
         Map<String, List<String>> schemaVersions = probe.getSpProxy().getSchemaVersions();
         for (String version : schemaVersions.keySet())
         {
-            System.out.println(format("\t\t%s: %s%n", version, schemaVersions.get(version)));
+            out.println(format("\t\t%s: %s%n", version, schemaVersions.get(version)));
         }
     }
 }

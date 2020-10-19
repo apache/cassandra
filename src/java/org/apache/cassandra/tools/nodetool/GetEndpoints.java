@@ -45,7 +45,7 @@ public class GetEndpoints extends NodeToolCmd
         List<InetAddress> endpoints = probe.getEndpoints(ks, table, key);
         for (InetAddress endpoint : endpoints)
         {
-            System.out.println(endpoint.getHostAddress());
+            probe.output().out.println(endpoint.getHostAddress());
         }
     }
 }
