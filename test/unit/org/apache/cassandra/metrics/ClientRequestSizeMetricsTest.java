@@ -53,42 +53,39 @@ public class ClientRequestSizeMetricsTest extends CQLTester
         clearMetrics();
 
         executeNet("SELECT * from system.peers");
-        assertThat(ClientRequestSizeMetrics.totalBytesRead.getCount()).isGreaterThan(0);
-        assertThat(ClientRequestSizeMetrics.totalBytesWritten.getCount()).isGreaterThan(0);
-
-        // The request fit in one single frame so we know the new number of received frames
-        assertEquals(1, ClientRequestSizeMetrics.bytesReceivedPerFrame.getCount());
 
         long requestLength = ClientRequestSizeMetrics.totalBytesRead.getCount();
         long responseLength = ClientRequestSizeMetrics.totalBytesWritten.getCount();
 
-        Snapshot snapshot = ClientRequestSizeMetrics.bytesReceivedPerFrame.getSnapshot();
-        assertMin(snapshot, requestLength);
-        assertMax(snapshot, requestLength);
+        assertThat(requestLength).isGreaterThan(0);
+        assertThat(responseLength).isGreaterThan(0);
 
-        // The response fit in one single frame so we know the new number of received frames
-        assertEquals(1, ClientRequestSizeMetrics.bytesTransmittedPerFrame.getCount());
-
-        snapshot = ClientRequestSizeMetrics.bytesTransmittedPerFrame.getSnapshot();
-        assertMin(snapshot, responseLength);
-        assertMax(snapshot, responseLength);
+        checkMetrics(1, requestLength, responseLength);
 
         // Let's fire the same request again and test that the changes are the same that previously
         executeNet("SELECT * from system.peers");
 
-        long expectedTotalBytesRead = 2 * requestLength;
+        checkMetrics(2, requestLength, responseLength);
+    }
+
+    private void checkMetrics(int numberOfRequests, long requestLength, long responseLength)
+    {
+        Snapshot snapshot;
+        long expectedTotalBytesRead = numberOfRequests * requestLength;
         assertEquals(expectedTotalBytesRead, ClientRequestSizeMetrics.totalBytesRead.getCount());
 
-        long expectedTotalBytesWritten = 2 * responseLength;
+        long expectedTotalBytesWritten = numberOfRequests * responseLength;
         assertEquals(expectedTotalBytesWritten, ClientRequestSizeMetrics.totalBytesWritten.getCount());
 
-        assertEquals(2, ClientRequestSizeMetrics.bytesReceivedPerFrame.getCount());
+        // The request fit in one single frame so we know the new number of received frames
+        assertEquals(numberOfRequests, ClientRequestSizeMetrics.bytesReceivedPerFrame.getCount());
 
         snapshot = ClientRequestSizeMetrics.bytesReceivedPerFrame.getSnapshot();
         assertMin(snapshot, requestLength);
         assertMax(snapshot, requestLength);
 
-        assertEquals(2, ClientRequestSizeMetrics.bytesTransmittedPerFrame.getCount());
+        // The response fit in one single frame so we know the new number of received frames
+        assertEquals(numberOfRequests, ClientRequestSizeMetrics.bytesTransmittedPerFrame.getCount());
 
         snapshot = ClientRequestSizeMetrics.bytesTransmittedPerFrame.getSnapshot();
         assertMin(snapshot, responseLength);
