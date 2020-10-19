@@ -28,6 +28,6 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Current inter-datacenter stream throughput: " + probe.getInterDCStreamThroughput() + " Mb/s");
+        probe.output().out.println("Current inter-datacenter stream throughput: " + probe.getInterDCStreamThroughput() + " Mb/s");
     }
 }
