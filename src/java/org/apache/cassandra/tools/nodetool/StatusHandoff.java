@@ -28,7 +28,7 @@ public class StatusHandoff extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(
+        probe.output().out.println(
                 probe.isHandoffEnabled()
                 ? "running"
                 : "not running");

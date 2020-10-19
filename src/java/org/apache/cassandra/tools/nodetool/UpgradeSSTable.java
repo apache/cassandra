@@ -51,7 +51,7 @@ public class UpgradeSSTable extends NodeToolCmd
         {
             try
             {
-                probe.upgradeSSTables(System.out, keyspace, !includeAll, jobs, cfnames);
+                probe.upgradeSSTables(probe.output().out, keyspace, !includeAll, jobs, cfnames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during enabling auto-compaction", e);

@@ -123,7 +123,7 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.HOSTS_KEY, StringUtils.join(specificHosts, ","));
             try
             {
-                probe.repairAsync(System.out, keyspace, options);
+                probe.repairAsync(probe.output().out, keyspace, options);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during repair", e);

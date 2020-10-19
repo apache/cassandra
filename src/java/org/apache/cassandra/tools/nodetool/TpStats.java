@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.command.Command;
 
+import java.io.PrintStream;
 import java.util.Map;
 
 import com.google.common.collect.Multimap;
@@ -32,13 +33,14 @@ public class TpStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.printf("%-25s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
+        PrintStream out = probe.output().out;
+        out.printf("%-25s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
         Multimap<String, String> threadPools = probe.getThreadPools();
 
         for (Map.Entry<String, String> tpool : threadPools.entries())
         {
-            System.out.printf("%-25s%10s%10s%15s%10s%18s%n",
+            out.printf("%-25s%10s%10s%15s%10s%18s%n",
                               tpool.getValue(),
                               probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "ActiveTasks"),
                               probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "PendingTasks"),
@@ -47,8 +49,8 @@ public class TpStats extends NodeToolCmd
                               probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "TotalBlockedTasks"));
         }
 
-        System.out.printf("%n%-20s%10s%n", "Message type", "Dropped");
+        out.printf("%n%-20s%10s%n", "Message type", "Dropped");
         for (Map.Entry<String, Integer> entry : probe.getDroppedMessages().entrySet())
-            System.out.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
+            out.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
     }
 }

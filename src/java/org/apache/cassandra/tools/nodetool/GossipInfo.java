@@ -28,6 +28,6 @@ public class GossipInfo extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(probe.getGossipInfo());
+        probe.output().out.println(probe.getGossipInfo());
     }
 }
