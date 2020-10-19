@@ -23,6 +23,7 @@ import io.airlift.command.Arguments;
 import io.airlift.command.Command;
 import io.airlift.command.Option;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,6 +58,7 @@ public class TopPartitions extends NodeToolCmd
     {
         checkArgument(args.size() == 3, "toppartitions requires keyspace, column family name, and duration");
         checkArgument(topCount < size, "TopK count (-k) option must be smaller then the summary capacity (-s)");
+        PrintStream out = probe.output().out;
         String keyspace = args.get(0);
         String cfname = args.get(1);
         Integer duration = Integer.valueOf(args.get(2));
@@ -95,21 +97,21 @@ public class TopPartitions extends NodeToolCmd
                 }
             });
             if(!first)
-                System.out.println();
-            System.out.println(result.getKey().toString()+ " Sampler:");
-            System.out.printf("  Cardinality: ~%d (%d capacity)%n", sampling.get("cardinality"), size);
-            System.out.printf("  Top %d partitions:%n", topCount);
+                out.println();
+            out.println(result.getKey().toString()+ " Sampler:");
+            out.printf("  Cardinality: ~%d (%d capacity)%n", sampling.get("cardinality"), size);
+            out.printf("  Top %d partitions:%n", topCount);
             if (topk.size() == 0)
             {
-                System.out.println("\tNothing recorded during sampling period...");
+                out.println("\tNothing recorded during sampling period...");
             } else
             {
                 int offset = 0;
                 for (CompositeData entry : topk)
                     offset = Math.max(offset, entry.get("string").toString().length());
-                System.out.printf("\t%-" + offset + "s%10s%10s%n", "Partition", "Count", "+/-");
+                out.printf("\t%-" + offset + "s%10s%10s%n", "Partition", "Count", "+/-");
                 for (CompositeData entry : topk)
-                    System.out.printf("\t%-" + offset + "s%10d%10d%n", entry.get("string").toString(), entry.get("count"), entry.get("error"));
+                    out.printf("\t%-" + offset + "s%10d%10d%n", entry.get("string").toString(), entry.get("count"), entry.get("error"));
             }
             first = false;
         }

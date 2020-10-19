@@ -42,7 +42,7 @@ public class GetTimeout extends NodeToolCmd
         checkArgument(args.size() == 1, "gettimeout requires a timeout type, one of (" + TIMEOUT_TYPES + ")");
         try
         {
-            System.out.println("Current timeout for type " + args.get(0) + ": " + probe.getTimeout(args.get(0)) + " ms");
+            probe.output().out.println("Current timeout for type " + args.get(0) + ": " + probe.getTimeout(args.get(0)) + " ms");
         } catch (Exception e)
         {
             throw new IllegalArgumentException(e.getMessage());

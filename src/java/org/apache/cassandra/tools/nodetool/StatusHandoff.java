@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
+
 import io.airlift.command.Command;
 
 import org.apache.cassandra.tools.NodeProbe;
@@ -28,12 +30,13 @@ public class StatusHandoff extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(String.format("Hinted handoff is %s",
+        PrintStream out = probe.output().out;
+        out.println(String.format("Hinted handoff is %s",
                 probe.isHandoffEnabled()
                 ? "running"
                 : "not running"));
 
         for (String dc : probe.getHintedHandoffDisabledDCs())
-            System.out.println(String.format("Data center %s is disabled", dc));
+            out.println(String.format("Data center %s is disabled", dc));
     }
 }

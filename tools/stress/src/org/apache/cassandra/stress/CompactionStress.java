@@ -256,7 +256,7 @@ public abstract class CompactionStress implements Runnable
     {
         System.out.println("========");
         System.out.println(String.format("Pending compactions: %d\n", CompactionManager.instance.getPendingTasks()));
-        CompactionStats.reportCompactionTable(CompactionManager.instance.getCompactions(), 0, true);
+        CompactionStats.reportCompactionTable(CompactionManager.instance.getCompactions(), 0, true, System.out);
     }
 
 
