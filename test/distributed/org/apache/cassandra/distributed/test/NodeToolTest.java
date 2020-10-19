@@ -21,19 +21,33 @@ package org.apache.cassandra.distributed.test;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 
 import static org.junit.Assert.assertEquals;
 
 public class NodeToolTest extends TestBaseImpl
 {
     @Test
-    public void test() throws Throwable
+    public void testCommands() throws Throwable
     {
         try (Cluster cluster = init(Cluster.create(1)))
         {
             assertEquals(0, cluster.get(1).nodetool("help"));
             assertEquals(0, cluster.get(1).nodetool("flush"));
             assertEquals(1, cluster.get(1).nodetool("not_a_legal_command"));
+        }
+    }
+
+    @Test
+    public void testCaptureConsoleOutput() throws Throwable
+    {
+        try (ICluster cluster = init(builder().withNodes(1).start()))
+        {
+            NodeToolResult ringResult = cluster.get(1).nodetoolResult("ring");
+            ringResult.asserts().stdoutContains("Datacenter: datacenter0");
+            ringResult.asserts().stdoutContains("127.0.0.1  rack0       Up     Normal");
+            assertEquals("Non-empty error output", "", ringResult.getStderr());
         }
     }
 }

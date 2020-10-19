@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
+
 import static java.lang.String.format;
 import io.airlift.command.Command;
 
@@ -33,20 +35,21 @@ public class ProxyHistograms extends NodeToolCmd
         double[] readLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Read"));
         double[] writeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Write"));
         double[] rangeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("RangeSlice"));
+        PrintStream out = probe.output().out;
 
-        System.out.println("proxy histograms");
-        System.out.println(format("%-10s%18s%18s%18s",
+        out.println("proxy histograms");
+        out.println(format("%-10s%18s%18s%18s",
                 "Percentile", "Read Latency", "Write Latency", "Range Latency"));
-        System.out.println(format("%-10s%18s%18s%18s",
+        out.println(format("%-10s%18s%18s%18s",
                 "", "(micros)", "(micros)", "(micros)"));
         for (int i = 0; i < percentiles.length; i++)
         {
-            System.out.println(format("%-10s%18.2f%18.2f%18.2f",
+            out.println(format("%-10s%18.2f%18.2f%18.2f",
                     percentiles[i],
                     readLatency[i],
                     writeLatency[i],
                     rangeLatency[i]));
         }
-        System.out.println();
+        out.println();
     }
 }

@@ -23,7 +23,8 @@ import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.function.Consumer;
+import java.util.Scanner;
+import java.util.SortedMap;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
@@ -48,20 +49,22 @@ public class NodeTool
     private static final String HISTORYFILE = "nodetool.history";
 
     private final INodeProbeFactory nodeProbeFactory;
+    private final Output output;
 
     public static void main(String... args)
     {
-        System.exit(new NodeTool(new NodeProbeFactory()).execute(args));
+        System.exit(new NodeTool(new NodeProbeFactory(), Output.CONSOLE).execute(args));
     }
 
-    public NodeTool(INodeProbeFactory nodeProbeFactory)
+    public NodeTool(INodeProbeFactory nodeProbeFactory, Output output)
     {
         this.nodeProbeFactory = nodeProbeFactory;
+        this.output = output;
     }
 
     public int execute(String... args)
     {
-        List<Class<? extends Consumer<INodeProbeFactory>>> commands = newArrayList(
+        List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
                 CassHelp.class,
                 Info.class,
                 Ring.class,
@@ -149,7 +152,7 @@ public class NodeTool
                 RefreshSizeEstimates.class
         );
 
-        Cli.CliBuilder<Consumer<INodeProbeFactory>> builder = Cli.builder("nodetool");
+        Cli.CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");
 
         builder.withDescription("Manage your Cassandra cluster")
                  .withDefaultCommand(CassHelp.class)
@@ -161,14 +164,14 @@ public class NodeTool
                 .withDefaultCommand(CassHelp.class)
                 .withCommand(BootstrapResume.class);
 
-        Cli<Consumer<INodeProbeFactory>> parser = builder.build();
+        Cli<NodeToolCmdRunnable> parser = builder.build();
 
         int status = 0;
         try
         {
-            Consumer<INodeProbeFactory> parse = parser.parse(args);
+            NodeToolCmdRunnable parse = parser.parse(args);
             printHistory(args);
-            parse.accept(nodeProbeFactory);
+            parse.run(nodeProbeFactory, output);
         } catch (IllegalArgumentException |
                 IllegalStateException |
                 ParseArgumentsMissingException |
@@ -212,26 +215,31 @@ public class NodeTool
 
     protected void badUse(Exception e)
     {
-        System.out.println("nodetool: " + e.getMessage());
-        System.out.println("See 'nodetool help' or 'nodetool help <command>'.");
+        output.out.println("nodetool: " + e.getMessage());
+        output.out.println("See 'nodetool help' or 'nodetool help <command>'.");
     }
 
     protected void err(Throwable e)
     {
-        System.err.println("error: " + e.getMessage());
-        System.err.println("-- StackTrace --");
-        System.err.println(getStackTraceAsString(e));
+        output.err.println("error: " + e.getMessage());
+        output.err.println("-- StackTrace --");
+        output.err.println(getStackTraceAsString(e));
     }
 
-    public static class CassHelp extends Help implements Consumer<INodeProbeFactory>
+    public static class CassHelp extends Help implements NodeToolCmdRunnable
     {
-        public void accept(INodeProbeFactory nodeProbeFactory)
+        public void run(INodeProbeFactory nodeProbeFactory, Output output)
         {
             run();
         }
     }
 
-    public static abstract class NodeToolCmd implements Consumer<INodeProbeFactory>
+    interface NodeToolCmdRunnable
+    {
+        void run(INodeProbeFactory nodeProbeFactory, Output output);
+    }
+
+    public static abstract class NodeToolCmd implements NodeToolCmdRunnable
     {
 
         @Option(type = OptionType.GLOBAL, name = {"-h", "--host"}, description = "Node hostname or ip address")
@@ -250,14 +258,17 @@ public class NodeTool
         private String passwordFilePath = EMPTY;
 
         private INodeProbeFactory nodeProbeFactory;
+        protected Output output;
 
-        public void accept(INodeProbeFactory nodeProbeFactory)
+        @Override
+        public void run(INodeProbeFactory nodeProbeFactory, Output output)
         {
             this.nodeProbeFactory = nodeProbeFactory;
-            run();
+            this.output = output;
+            runInternal();
         }
 
-        public void run()
+        public void runInternal()
         {
             if (isNotEmpty(username)) {
                 if (isNotEmpty(passwordFilePath))
@@ -330,10 +341,11 @@ public class NodeTool
                     nodeClient = nodeProbeFactory.create(host, parseInt(port));
                 else
                     nodeClient = nodeProbeFactory.create(host, parseInt(port), username, password);
+                nodeClient.setOutput(output);
             } catch (IOException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
-                System.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));
+                output.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));
                 System.exit(1);
             }
 
