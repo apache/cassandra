@@ -18,14 +18,11 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import com.datastax.driver.core.Session;
@@ -34,6 +31,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
@@ -128,26 +126,10 @@ public class ClientNetworkStopStartTest extends TestBaseImpl
 
     private static void assertNodetoolStdout(IInvokableInstance node, String expectedStatus, String notExpected, String... nodetool)
     {
-        // without CASSANDRA-16057 need this hack
-        PrintStream previousStdout = System.out;
-        try
-        {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            PrintStream stdout = new PrintStream(out, true);
-            System.setOut(stdout);
-
-            node.nodetoolResult(nodetool).asserts().success();
-
-            stdout.flush();
-            String output = out.toString();
-            Assert.assertThat(output, new StringContains(expectedStatus));
-            if (notExpected != null)
-                Assert.assertThat(output, new StringNotContains(notExpected));
-        }
-        finally
-        {
-            System.setOut(previousStdout);
-        }
+        NodeToolResult.Asserts asserts = node.nodetoolResult(nodetool).asserts();
+        asserts.stdoutContains(expectedStatus);
+        if (notExpected != null)
+            asserts.stdoutNotContains(notExpected);
     }
 
     private static final class StringContains extends BaseMatcher<String>

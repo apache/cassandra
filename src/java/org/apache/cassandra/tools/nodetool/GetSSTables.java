@@ -44,7 +44,7 @@ public class GetSSTables extends NodeToolCmd
         List<String> sstables = probe.getSSTables(ks, cf, key);
         for (String sstable : sstables)
         {
-            System.out.println(sstable);
+            probe.output().out.println(sstable);
         }
     }
 }

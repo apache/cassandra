@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.command.Command;
 
+import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,14 +36,15 @@ public class ListSnapshots extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         try
         {
-            System.out.println("Snapshot Details: ");
+            out.println("Snapshot Details: ");
 
             final Map<String,TabularData> snapshotDetails = probe.getSnapshotDetails();
             if (snapshotDetails.isEmpty())
             {
-                System.out.println("There are no snapshots");
+                out.println("There are no snapshots");
                 return;
             }
 
@@ -50,7 +52,7 @@ public class ListSnapshots extends NodeToolCmd
             final String format = "%-40s %-29s %-29s %-19s %-19s%n";
             // display column names only once
             final List<String> indexNames = snapshotDetails.entrySet().iterator().next().getValue().getTabularType().getIndexNames();
-            System.out.printf(format, (Object[]) indexNames.toArray(new String[indexNames.size()]));
+            out.printf(format, (Object[]) indexNames.toArray(new String[indexNames.size()]));
 
             for (final Map.Entry<String, TabularData> snapshotDetail : snapshotDetails.entrySet())
             {
@@ -58,11 +60,11 @@ public class ListSnapshots extends NodeToolCmd
                 for (Object eachValue : values)
                 {
                     final List<?> value = (List<?>) eachValue;
-                    System.out.printf(format, value.toArray(new Object[value.size()]));
+                    out.printf(format, value.toArray(new Object[value.size()]));
                 }
             }
 
-            System.out.println("\nTotal TrueDiskSpaceUsed: " + FileUtils.stringifyFileSize(trueSnapshotsSize) + "\n");
+            out.println("\nTotal TrueDiskSpaceUsed: " + FileUtils.stringifyFileSize(trueSnapshotsSize) + "\n");
         }
         catch (Exception e)
         {
