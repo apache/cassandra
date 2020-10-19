@@ -1316,63 +1316,63 @@ class Shell(cmd.Cmd):
         out.write("\n")
 
     def describe_keyspaces(self):
-        print
+        print('')
         cmd.Cmd.columnize(self, protect_names(self.get_keyspace_names()))
-        print
+        print('')
 
     def describe_keyspace(self, ksname):
-        print
+        print('')
         self.print_recreate_keyspace(self.get_keyspace_meta(ksname), sys.stdout)
-        print
+        print('')
 
     def describe_columnfamily(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
-        print
+        print('')
 
     def describe_index(self, ksname, idxname):
-        print
+        print('')
         self.print_recreate_index(ksname, idxname, sys.stdout)
-        print
+        print('')
 
     def describe_materialized_view(self, ksname, viewname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         self.print_recreate_materialized_view(ksname, viewname, sys.stdout)
-        print
+        print('')
 
     def describe_object(self, ks, name):
-        print
+        print('')
         self.print_recreate_object(ks, name, sys.stdout)
-        print
+        print('')
 
     def describe_columnfamilies(self, ksname):
         print
         if ksname is None:
             for k in self.get_keyspaces():
                 name = protect_name(k.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(k.name)))
-                print
+                print('')
         else:
             cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
-            print
+            print('')
 
     def describe_functions(self, ksname):
-        print
+        print('')
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 self._columnize_unicode(ksmeta.functions.keys())
         else:
             ksmeta = self.get_keyspace_meta(ksname)
@@ -1388,16 +1388,16 @@ class Shell(cmd.Cmd):
         functions = filter(lambda f: f.name == functionname, ksmeta.functions.values())
         if len(functions) == 0:
             raise FunctionNotFound("User defined function %r not found" % functionname)
-        print "\n\n".join(func.export_as_string() for func in functions)
-        print
+        print("\n\n".join(func.export_as_string() for func in functions))
+        print('')
 
     def describe_aggregates(self, ksname):
-        print
+        print('')
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 self._columnize_unicode(ksmeta.aggregates.keys())
         else:
             ksmeta = self.get_keyspace_meta(ksname)
@@ -1408,21 +1408,21 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         ksmeta = self.get_keyspace_meta(ksname)
         aggregates = filter(lambda f: f.name == aggregatename, ksmeta.aggregates.values())
         if len(aggregates) == 0:
             raise FunctionNotFound("User defined aggregate %r not found" % aggregatename)
-        print "\n\n".join(aggr.export_as_string() for aggr in aggregates)
-        print
+        print("\n\n".join(aggr.export_as_string() for aggr in aggregates))
+        print('')
 
     def describe_usertypes(self, ksname):
-        print
+        print('')
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 self._columnize_unicode(ksmeta.user_types.keys(), quote=True)
         else:
             ksmeta = self.get_keyspace_meta(ksname)
@@ -1433,13 +1433,13 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         ksmeta = self.get_keyspace_meta(ksname)
         try:
             usertype = ksmeta.user_types[typename]
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
-        print usertype.export_as_string()
+        print(usertype.export_as_string())
 
     def _columnize_unicode(self, name_list):
         """
@@ -1450,25 +1450,25 @@ class Shell(cmd.Cmd):
         print('')
 
     def describe_cluster(self):
-        print '\nCluster: %s' % self.get_cluster_name()
+        print('\nCluster: %s' % self.get_cluster_name())
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
-        print 'Partitioner: %s\n' % p
+        print('Partitioner: %s\n' % p)
         # TODO: snitch?
         # snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
-        # print 'Snitch: %s\n' % snitch
+        # print('Snitch: %s\n' % snitch)
         if self.current_keyspace is not None and self.current_keyspace != 'system':
-            print "Range ownership:"
+            print("Range ownership:")
             ring = self.get_ring(self.current_keyspace)
             for entry in ring.items():
-                print ' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]]))
-            print
+                print(' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]])))
+            print('')
 
     def describe_schema(self, include_system=False):
-        print
+        print('')
         for k in self.get_keyspaces():
             if include_system or k.name not in cql3handling.SYSTEM_KEYSPACES:
                 self.print_recreate_keyspace(k, sys.stdout)
-                print
+                print('')
 
     def do_describe(self, parsed):
         """

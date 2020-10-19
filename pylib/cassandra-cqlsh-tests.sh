@@ -8,6 +8,7 @@
 
 WORKSPACE=$1
 PYTHON_VERSION=$2
+JAVA_HOME=$3
 
 if [ "${WORKSPACE}" = "" ]; then
     echo "Specify Cassandra source directory"
@@ -33,6 +34,7 @@ export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
 export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
+export JAVA_HOME=$JAVA_HOME
 
 if [ -z "$CASSANDRA_USE_JDK11" ]; then
     export CASSANDRA_USE_JDK11=false

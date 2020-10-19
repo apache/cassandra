@@ -19,9 +19,8 @@ import cProfile
 import codecs
 import pstats
 
-from itertools import izip
 from datetime import timedelta, tzinfo
-from StringIO import StringIO
+from six import StringIO
 
 try:
     from line_profiler import LineProfiler

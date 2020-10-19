@@ -405,7 +405,7 @@ class ParsingRuleSet:
 
     @classmethod
     def read_rule_tokens_until(cls, endtoks, tokeniter):
-        if isinstance(endtoks, basestring):
+        if isinstance(endtoks, str):
             endtoks = (endtoks,)
         counttarget = None
         if isinstance(endtoks, int):

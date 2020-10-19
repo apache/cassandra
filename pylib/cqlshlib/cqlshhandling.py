@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import os
-import cqlhandling
+from cqlshlib import cqlhandling
 
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (

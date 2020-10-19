@@ -20,7 +20,6 @@
 from __future__ import with_statement
 
 import re
-from itertools import izip
 from .basecase import (BaseTestCase, cqlshlog, dedent, at_a_time, cqlsh,
                        TEST_HOST, TEST_PORT)
 from .cassconnect import (get_keyspace, testrun_cqlsh, testcall_cqlsh,

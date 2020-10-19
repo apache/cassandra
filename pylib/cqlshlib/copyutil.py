@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ConfigParser
 import csv
 import datetime
 import json
@@ -36,9 +35,8 @@ from bisect import bisect_right
 from calendar import timegm
 from collections import defaultdict, namedtuple
 from decimal import Decimal
-from Queue import Queue
 from random import randint
-from StringIO import StringIO
+from io import BytesIO, StringIO
 from select import select
 from uuid import UUID
 from .util import profile_on, profile_off
@@ -56,10 +54,10 @@ from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRo
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
 from cassandra.util import Date, Time
 
-from cql3handling import CqlRuleSet
-from displaying import NO_COLOR_MAP
-from formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter, BlobType
-from sslhandling import ssl_settings
+from cqlshlib.cql3handling import CqlRuleSet
+from cqlshlib.displaying import NO_COLOR_MAP
+from cqlshlib.formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter, BlobType
+from cqlshlib.sslhandling import ssl_settings
 
 PROFILE_ON = False
 STRACE_ON = False

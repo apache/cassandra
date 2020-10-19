@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cqlshlib.displaying import MAGENTA
 from datetime import datetime, timedelta
-from formatting import CqlType
 import time
+
 from cassandra.query import QueryTrace, TraceUnavailable
+from cqlshlib.displaying import MAGENTA
+from cqlshlib.formatting import CqlType
 
 
 def print_trace_session(shell, session, session_id, partial_session=False):

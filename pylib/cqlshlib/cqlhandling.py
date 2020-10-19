@@ -19,7 +19,7 @@
 
 import traceback
 from cassandra.metadata import cql_keywords_reserved
-from . import pylexotron, util
+from cqlshlib import pylexotron, util
 
 Hint = pylexotron.Hint
 
@@ -108,12 +108,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             # operations on tokens (like .lower()).  See CASSANDRA-9083
             # for one example of this.
             str_token = t[1]
-            if isinstance(str_token, unicode):
-                try:
-                    str_token = str_token.encode('ascii')
-                    t = (t[0], str_token) + t[2:]
-                except UnicodeEncodeError:
-                    pass
 
             curstmt.append(t)
             if t[0] == 'endtoken':
