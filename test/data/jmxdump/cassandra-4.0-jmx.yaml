@@ -60287,18 +60287,6 @@ org.apache.cassandra.metrics:type=ReadRepair,name=ReconcileRead:
   - name: objectName
     parameters: []
     returnType: javax.management.ObjectName
-org.apache.cassandra.metrics:type=ReadRepair,name=RepairedAsync:
-  attributes:
-  - {access: read-only, name: Count, type: long}
-  - {access: read-only, name: FifteenMinuteRate, type: double}
-  - {access: read-only, name: FiveMinuteRate, type: double}
-  - {access: read-only, name: MeanRate, type: double}
-  - {access: read-only, name: OneMinuteRate, type: double}
-  - {access: read-only, name: RateUnit, type: java.lang.String}
-  operations:
-  - name: objectName
-    parameters: []
-    returnType: javax.management.ObjectName
 org.apache.cassandra.metrics:type=ReadRepair,name=RepairedBackground:
   attributes:
   - {access: read-only, name: Count, type: long}

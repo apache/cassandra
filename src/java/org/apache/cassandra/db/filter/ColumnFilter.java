@@ -234,7 +234,12 @@ public class ColumnFilter
     public boolean fetchedCellIsQueried(ColumnMetadata column, CellPath path)
     {
         assert path != null;
-        if (!fetchAllRegulars || subSelections == null)
+
+        // first verify that the column to which the cell belongs is queried
+        if (!fetchedColumnIsQueried(column))
+            return false;
+
+        if (subSelections == null)
             return true;
 
         SortedSet<ColumnSubselection> s = subSelections.get(column.name);

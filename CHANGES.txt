@@ -25,6 +25,7 @@
  * Add flag to disable chunk cache and disable by default (CASSANDRA-16036)
  * Upgrade to snakeyaml >= 1.26 version for CVE-2017-18640 fix (CASSANDRA-16150)
 Merged from 3.11:
+ * Fix ColumnFilter to avoid querying cells of unselected complex columns (CASSANDRA-15977)
  * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
