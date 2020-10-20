@@ -25,6 +25,7 @@ import com.google.common.base.Predicates;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.repair.PreviewRepairConflictWithIncrementalRepairException;
 import org.apache.cassandra.repair.consistent.ConsistentSession;
 import org.apache.cassandra.repair.consistent.LocalSession;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -92,7 +93,7 @@ public enum PreviewKind
                 else if (session.getState() == ConsistentSession.State.FINALIZED)
                     return true;
                 else if (session.getState() != ConsistentSession.State.FAILED)
-                    throw new IllegalStateException(String.format("SSTable %s is marked pending for non-finalized incremental repair session %s, failing preview repair", sstable, sstableMetadata.pendingRepair));
+                    throw new PreviewRepairConflictWithIncrementalRepairException(String.format("SSTable %s is marked pending for non-finalized incremental repair session %s, failing preview repair", sstable, sstableMetadata.pendingRepair));
             }
             return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
         }
