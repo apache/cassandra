@@ -32,6 +32,7 @@ public class SimpleCondition implements Condition
     private volatile WaitQueue waiting;
     private volatile boolean signaled = false;
 
+    @Override
     public void await() throws InterruptedException
     {
         if (isSignaled())
@@ -90,12 +91,14 @@ public class SimpleCondition implements Condition
         throw new UnsupportedOperationException();
     }
 
-    public long awaitNanos(long nanosTimeout) throws InterruptedException
+    @Override
+    public long awaitNanos(long nanosTimeout)
     {
         throw new UnsupportedOperationException();
     }
 
-    public boolean awaitUntil(Date deadline) throws InterruptedException
+    @Override
+    public boolean awaitUntil(Date deadline)
     {
         throw new UnsupportedOperationException();
     }
