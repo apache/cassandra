@@ -191,6 +191,16 @@ public abstract class AbstractReadCommandBuilder
 
     protected ClusteringIndexFilter makeFilter()
     {
+        if (cfs.metadata().isCompactTable())
+        {
+            TableMetadata.CompactTableMetadata metadata = (TableMetadata.CompactTableMetadata) cfs.metadata();
+            // StatementRestrictions.isColumnRange() returns false for static compact tables, which means
+            // SelectStatement.makeClusteringIndexFilter uses a names filter with no clusterings for static
+            // compact tables, here we reproduce this behavior (CASSANDRA-11223). Note that this code is only
+            // called by tests.
+            if (metadata.isStaticCompactTable())
+                return new ClusteringIndexNamesFilter(new TreeSet<>(cfs.metadata().comparator), reversed);
+        }
         if (clusterings != null)
         {
             return new ClusteringIndexNamesFilter(clusterings, reversed);

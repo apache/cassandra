@@ -414,13 +414,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 DatabaseDescriptor.createAllDirectories();
                 CommitLog.instance.start();
 
-                try
-                {
-                    new StartupChecks().withDefaultTests().verify();
-                } catch (StartupException e)
-                {
-                    throw e;
-                }
+                CassandraDaemon.getInstanceForTesting().runStartupChecks();
 
                 // We need to persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)

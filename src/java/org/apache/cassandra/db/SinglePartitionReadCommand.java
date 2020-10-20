@@ -998,6 +998,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     public boolean selectsFullPartition()
     {
+        if (metadata().isCompactTable())
+        {
+            if (((TableMetadata.CompactTableMetadata) metadata()).isStaticCompactTable())
+                return true;
+        }
+
         return clusteringIndexFilter.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
     }
 

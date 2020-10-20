@@ -24,8 +24,6 @@ import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 
-import com.kenai.jffi.Platform;
-
 /**
  * An implementation similar to Guava's Suppliers.memoizeWithExpiration(Supplier)
  * but allowing for memoization to be skipped.
