@@ -171,6 +171,15 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire("Secondary indexes are not supported on duration columns");
         }
 
+        if (table.isCompactTable())
+        {
+            TableMetadata.CompactTableMetadata compactTable = (TableMetadata.CompactTableMetadata) table;
+            if (column.isPrimaryKeyColumn())
+                throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
+            if (compactTable.compactValueColumn.equals(column))
+                throw new InvalidRequestException("Secondary indexes are not supported on compact value column of COMPACT STORAGE tables");
+        }
+
         if (column.isPartitionKey() && table.partitionKeyColumns().size() == 1)
             throw ire("Cannot create secondary index on the only partition key column %s", column);
 

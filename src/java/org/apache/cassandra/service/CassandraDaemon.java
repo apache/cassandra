@@ -239,14 +239,7 @@ public class CassandraDaemon
 
         CommitLog.instance.start();
 
-        try
-        {
-            startupChecks.verify();
-        }
-        catch (StartupException e)
-        {
-            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
-        }
+        runStartupChecks();
 
         try
         {
@@ -467,6 +460,18 @@ public class CassandraDaemon
         completeSetup();
     }
 
+    public void runStartupChecks()
+    {
+        try
+        {
+            startupChecks.verify();
+        }
+        catch (StartupException e)
+        {
+            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
+        }
+
+    }
     public void setupVirtualKeyspaces()
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
