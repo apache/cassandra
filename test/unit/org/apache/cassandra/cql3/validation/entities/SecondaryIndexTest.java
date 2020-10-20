@@ -68,7 +68,7 @@ import static org.junit.Assert.fail;
 
 public class SecondaryIndexTest extends CQLTester
 {
-    private static final int TOO_BIG = 1024 * 65;
+    public static final int TOO_BIG = 1024 * 65;
 
     @Test
     public void testCreateAndDropIndex() throws Throwable

@@ -342,7 +342,7 @@ public abstract class SimpleBuilders
                 return;
 
             // Adds the row liveness
-            if (!noPrimaryKeyLivenessInfo)
+            if (!metadata.isCompactTable() && !noPrimaryKeyLivenessInfo)
                 builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
 
             initiated = true;
