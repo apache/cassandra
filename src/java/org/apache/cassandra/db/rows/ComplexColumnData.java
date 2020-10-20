@@ -146,17 +146,24 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
     public ComplexColumnData filter(ColumnFilter filter, DeletionTime activeDeletion, CFMetaData.DroppedColumn dropped, LivenessInfo rowLiveness)
     {
         ColumnFilter.Tester cellTester = filter.newTester(column);
-        if (cellTester == null && activeDeletion.isLive() && dropped == null)
+        boolean isQueriedColumn = filter.fetchedColumnIsQueried(column);
+        if (cellTester == null && activeDeletion.isLive() && dropped == null && isQueriedColumn)
             return this;
 
         DeletionTime newDeletion = activeDeletion.supersedes(complexDeletion) ? DeletionTime.LIVE : complexDeletion;
         return transformAndFilter(newDeletion, (cell) ->
         {
+            CellPath path = cell.path();
             boolean isForDropped = dropped != null && cell.timestamp() <= dropped.droppedTime;
             boolean isShadowed = activeDeletion.deletes(cell);
-            boolean isSkippable = cellTester != null && (!cellTester.fetches(cell.path())
-                                                         || (!cellTester.fetchedCellIsQueried(cell.path()) && cell.timestamp() < rowLiveness.timestamp()));
-            return isForDropped || isShadowed || isSkippable ? null : cell;
+            boolean isFetchedCell = cellTester == null || cellTester.fetches(path);
+            boolean isQueriedCell = isQueriedColumn && isFetchedCell && (cellTester == null || cellTester.fetchedCellIsQueried(path));
+            boolean isSkippableCell = !isFetchedCell || (!isQueriedCell && cell.timestamp() < rowLiveness.timestamp());
+            if (isForDropped || isShadowed || isSkippableCell)
+                return null;
+            // We should apply the same "optimization" as in Cell.deserialize to avoid discrepances
+            // between sstables and memtables data, i.e resulting in a digest mismatch.
+            return isQueriedCell ? cell : cell.withSkippedValue();
         });
     }
 
