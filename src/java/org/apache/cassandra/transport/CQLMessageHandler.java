@@ -32,7 +32,6 @@ import io.netty.channel.Channel;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.AbstractMessageHandler;
-import org.apache.cassandra.net.Crc;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameEncoder;
@@ -52,7 +51,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
 
     public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
-    private static final int UNKNOWN_STREAM_ID = 0;
 
     private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
     private final Message.Decoder<M> messageDecoder;
@@ -107,58 +105,54 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve)
     {
-        Frame frame = toCqlFrame(bytes);
-        // null indicates a failure to extract the CQL frame. This will trigger a protocol exception
-        // and closing the connection.
-        if (null == frame)
+        Frame.Header header = extractHeader(bytes);
+        // null indicates a failure to extract the CQL message header.
+        // This will trigger a protocol exception and closing of the connection.
+        if (null == header)
             return false;
 
         // max (CQL) frame size defaults to 256mb, so should be safe to downcast
-        int frameSize = Ints.checkedCast(frame.header.bodySizeInBytes);
+        int frameSize = Ints.checkedCast(header.bodySizeInBytes);
 
         if (throwOnOverload)
         {
-            if (!acquireCapacity(frame.header, endpointReserve, globalReserve))
+            if (!acquireCapacity(header, endpointReserve, globalReserve))
             {
                 // discard the request and throw an exception
                 ClientMetrics.instance.markRequestDiscarded();
-                logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
+                logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, " +
+                             "InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
                              frameSize,
                              channelPayloadBytesInFlight,
                              endpointReserve.using(),
                              globalReserve.using(),
-                             frame.header);
+                             header);
 
                 handleError(new OverloadedException("Server is in overloaded state. " +
-                                                    "Cannot accept more requests at this point"),
-                            frame.header);
+                                                    "Cannot accept more requests at this point"), header);
 
-                frame.release();
                 // Don't stop processing incoming frames, rely on the client to apply
                 // backpressure when it receives OverloadedException
+                receivedCount++;
+                receivedBytes += frameSize + Frame.Header.LENGTH;
+
+                //discard this message as we're responding with the overloaded error
+                ByteBuffer buf = bytes.get();
+                buf.position(buf.position() + Frame.Header.LENGTH + frameSize);
                 return true;
             }
         }
-        else if (!acquireCapacityAndQueueOnFailure(frame.header, endpointReserve, globalReserve))
+        else if (!acquireCapacityAndQueueOnFailure(header, endpointReserve, globalReserve))
         {
-            // force overallocation so we can process this one message, then return false
-            // so that we stop processing further frames from the decoder
-            forceOverAllocation(endpointReserve, globalReserve, frameSize);
+            // set backpressure on the channel, queuing the request until we have capacity
             ClientMetrics.instance.pauseConnection();
-            channelPayloadBytesInFlight += frameSize;
-
-            // we're over allocated here, but process the message
-            // anyway because we didn't throw any exception
-            receivedCount++;
-            receivedBytes += frameSize;
-            processFrame(frameSize, frame);
             return false;
         }
 
         channelPayloadBytesInFlight += frameSize;
         receivedCount++;
-        receivedBytes += frameSize;
-        processFrame(frameSize, frame);
+        receivedBytes += frameSize + Frame.Header.LENGTH;
+        processFrame(frameSize, composeCqlFrame(header, bytes));
         return true;
     }
 
@@ -176,21 +170,16 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         new LargeMessage(frame.header, ShareableBytes.wrap(frame.body.nioBuffer())).onComplete();
     }
 
-    private Frame toCqlFrame(ShareableBytes bytes)
+    private Frame.Header extractHeader(ShareableBytes bytes)
     {
-        ByteBuffer buf = bytes.get();
-        final int begin = buf.position();
-        ByteBuf buffer = Unpooled.wrappedBuffer(buf);
         try
         {
-            Frame f = cqlFrameDecoder.decodeFrame(buffer);
-            buf.position(begin + buffer.readerIndex());
-            return f;
+            return cqlFrameDecoder.extractHeader(bytes.get());
         }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t, false);
-            logger.error("{} unexpected exception caught while deserializing a message", id(), t);
+            logger.error("{} unexpected exception caught while deserializing a message header", id(), t);
             // Ideally we would recover from this as we could simply drop the messaging frame.
             // However, we have no good way to communicate this back to the client as we don't
             // yet know the stream id. So this will trigger an Error response and the connection
@@ -198,6 +187,19 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             handleError(new ProtocolException("Deserialization error processing CQL payload"));
             return null;
         }
+    }
+
+    private Frame composeCqlFrame(Frame.Header header, ShareableBytes bytes)
+    {
+        // extract body
+        ByteBuffer buf = bytes.get();
+        int idx = buf.position() + Frame.Header.LENGTH;
+        final int end = idx + Ints.checkedCast(header.bodySizeInBytes);
+        ByteBuf body = Unpooled.wrappedBuffer(buf.slice());
+        body.readerIndex(Frame.Header.LENGTH);
+        body.retain();
+        buf.position(end);
+        return new Frame(header, body);
     }
 
     protected void processCqlFrame(Frame frame)
@@ -297,7 +299,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ByteBuffer buf = bytes.get();
         try
         {
-            Frame.Header header = cqlFrameDecoder.decodeHeader(Unpooled.wrappedBuffer(buf));
+            Frame.Header header = cqlFrameDecoder.extractHeader(buf);
             // max (CQL) frame size defaults to 256mb, so should be safe to downcast
             int frameSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedCount++;
@@ -310,7 +312,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 {
                     // discard the request and throw an exception
                     ClientMetrics.instance.markRequestDiscarded();
-                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
+                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, " +
+                                 "InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
                                  frameSize,
                                  channelPayloadBytesInFlight,
                                  endpointReserve.using(),
@@ -425,14 +428,15 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             super(frameSize(header), header, EXPIRES_AT, bytes);
         }
 
-        private Frame assembleFrame() throws Exception
+        private Frame assembleFrame()
         {
-            // TODO we already have the frame header, so we could skip HEADER_LENGTH
-            // and go straight to message decoding
-            ByteBuf concat = Unpooled.wrappedBuffer(buffers.stream()
-                                                           .map(ShareableBytes::get)
-                                                           .toArray(ByteBuffer[]::new));
-            return cqlFrameDecoder.decodeFrame(concat);
+            ByteBuf body = Unpooled.wrappedBuffer(buffers.stream()
+                                                          .map(ShareableBytes::get)
+                                                          .toArray(ByteBuffer[]::new));
+
+            body.readerIndex(Frame.Header.LENGTH);
+            body.retain();
+            return new Frame(header, body);
         }
 
         /**
@@ -452,13 +456,14 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         {
             if (overloaded)
             {
-                handleErrorAndRelease(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
-                                      header);
+                handleErrorAndRelease(new OverloadedException("Server is in overloaded state. " +
+                                                              "Cannot accept more requests at this point"), header);
             }
             else if (!isCorrupt)
             {
                 try
                 {
+                    logger.info("XXX PROCESSING LARGE MESSAGE");
                     processCqlFrame(assembleFrame());
                 }
                 catch (Exception e)

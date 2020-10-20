@@ -24,6 +24,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -56,7 +57,7 @@ public class Frame
      *   |                length                 |
      *   +---------+---------+---------+---------+
      */
-    private Frame(Header header, ByteBuf body)
+    public Frame(Header header, ByteBuf body)
     {
         this.header = header;
         this.body = body;
@@ -172,7 +173,58 @@ public class Frame
         private long bytesToDiscard;
         private int tooLongStreamId;
 
-        Frame.Header decodeHeader(ByteBuf buffer) throws Exception
+        /**
+         * Used by protocol V5 and later to extract a CQL message header from the buffer containing
+         * it, without modifying the position of the underlying buffer. This essentially mirrors the
+         * pre-V5 code in decodeFrame, with two differences:
+         *  The input is a ByteBuffer rather than a ByteBuf
+         *  This cannot return null, as V5 always deals with entire CQL messages. Coalescing of bytes
+         *  off the wire happens at the layer below, in {@link org.apache.cassandra.net.FrameDecoder}
+         *
+         * @param buffer ByteBuffer containing the frame header
+         * @return CQL Message header
+         * @throws Exception
+         */
+        Frame.Header extractHeader(ByteBuffer buffer) throws Exception
+        {
+            Preconditions.checkArgument(buffer.remaining() >= Header.LENGTH,
+                                        "Undersized buffer supplied. Expected %s, actual %s",
+                                        Header.LENGTH,
+                                        buffer.remaining());
+
+            int idx = buffer.position();
+            int firstByte = buffer.get(idx++);
+            Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
+            int versionNum = firstByte & PROTOCOL_VERSION_MASK;
+            ProtocolVersion version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
+
+            int flags = buffer.get(idx++);
+            EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
+
+            if (version.isBeta() && !decodedFlags.contains(Header.Flag.USE_BETA))
+                throw new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
+                                            version);
+
+            int streamId = buffer.getShort(idx);
+            idx += 2;
+
+            // This throws a protocol exceptions if the opcode is unknown
+            Message.Type type;
+            try
+            {
+                type = Message.Type.fromOpcode(buffer.get(idx++), direction);
+            }
+            catch (ProtocolException e)
+            {
+                throw ErrorMessage.wrap(e, streamId);
+            }
+
+            long bodyLength = buffer.getInt(idx);
+            return new Header(version, decodedFlags, streamId, type, bodyLength);
+        }
+
+        @VisibleForTesting
+        Frame decodeFrame(ByteBuf buffer) throws Exception
         {
             if (discardingTooLongFrame)
             {
@@ -222,34 +274,14 @@ public class Frame
             }
 
             long bodyLength = buffer.getUnsignedInt(idx);
-            return new Header(version, decodedFlags, streamId, type, bodyLength);
-        }
+            idx += Header.BODY_LENGTH_SIZE;
 
-        @VisibleForTesting
-        Frame decodeFrame(ByteBuf buffer) throws Exception
-        {
-            if (discardingTooLongFrame)
-            {
-                bytesToDiscard = discard(buffer, bytesToDiscard);
-                // If we have discarded everything, throw the exception
-                if (bytesToDiscard <= 0)
-                    fail();
-                return null;
-            }
-            int idx = buffer.readerIndex();
-
-            Frame.Header header = decodeHeader(buffer);
-            if (header == null)
-                return null;
-
-            idx += Header.LENGTH;
-
-            long frameLength = header.bodySizeInBytes + Header.LENGTH;
+            long frameLength = bodyLength + Header.LENGTH;
             if (frameLength > MAX_FRAME_LENGTH)
             {
                 // Enter the discard mode and discard everything received so far.
                 discardingTooLongFrame = true;
-                tooLongStreamId = header.streamId;
+                tooLongStreamId = streamId;
                 tooLongFrameLength = frameLength;
                 bytesToDiscard = discard(buffer, frameLength);
                 if (bytesToDiscard <= 0)
@@ -264,13 +296,13 @@ public class Frame
             ClientRequestSizeMetrics.bytesRecievedPerFrame.update(frameLength);
 
             // extract body
-            ByteBuf body = buffer.slice(idx, (int) header.bodySizeInBytes);
+            ByteBuf body = buffer.slice(idx, (int) bodyLength);
             body.retain();
 
-            idx += header.bodySizeInBytes;
+            idx += bodyLength;
             buffer.readerIndex(idx);
 
-            return new Frame(header, body);
+            return new Frame(new Header(version, decodedFlags, streamId, type, bodyLength), body);
         }
 
         @Override

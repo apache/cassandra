@@ -478,20 +478,6 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         return ResourceLimits.Outcome.SUCCESS;
     }
 
-    /**
-     * Used to deliberately exceed resource limits (temporarily) in order to allow processing
-     * of incoming messages that can't reasonably be discarded. For example, used in
-     * CQLMessageHandler to overallocate when limits are reached so that we can process the
-     * current message before applying backpressure to the channel.
-     */
-    protected void forceOverAllocation(Limit endpointReserve, Limit globalReserve, int bytes)
-    {
-        long oldQueueSize = queueSizeUpdater.getAndAdd(this, bytes);
-        long excess = bytes - (queueCapacity - oldQueueSize);
-        endpointReserve.allocate(excess);
-        globalReserve.allocate(excess);
-    }
-
     public void releaseCapacity(int bytes)
     {
         long oldQueueSize = queueSizeUpdater.getAndAdd(this, -bytes);
