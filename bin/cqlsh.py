@@ -39,6 +39,7 @@ import getpass
 import optparse
 import os
 import platform
+import re
 import sys
 import traceback
 import warnings
