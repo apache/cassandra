@@ -4746,15 +4746,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "shutting down MessageService", false);
 
-            // In-progress writes originating here could generate hints to be written, so shut down MessagingService
-            // before mutation stage, so we can get all the hints saved before shutting down
-            MessagingService.instance().shutdown();
+            // In-progress writes originating here could generate hints to be written,
+            // which is currently scheduled on the mutation stage. So shut down MessagingService
+            // before mutation stage, so we can get all the hints saved before shutting down.
+            try
+            {
+                MessagingService.instance().shutdown();
+            }
+            catch (Throwable t)
+            {
+                // prevent messaging service timing out shutdown from aborting
+                // drain process; otherwise drain and/or shutdown might throw
+                logger.error("Messaging service timed out shutting down", t);
+            }
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "clearing mutation stage", false);
             viewMutationStage.shutdown();
             counterMutationStage.shutdown();
             mutationStage.shutdown();
+
+            // FIXME? should these *really* take up to one hour?
             viewMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
             counterMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
             mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
