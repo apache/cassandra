@@ -311,8 +311,14 @@ public class BTreeRow extends AbstractRow
             // is lower than the row timestamp (see #10657 or SerializationHelper.includes() for details).
             boolean isForDropped = dropped != null && cell.timestamp() <= dropped.droppedTime;
             boolean isShadowed = mayHaveShadowed && activeDeletion.deletes(cell);
-            boolean isSkippable = !queriedByUserTester.test(column) && cell.timestamp() < rowLiveness.timestamp();
-            return isForDropped || isShadowed || isSkippable ? null : cell;
+            boolean isSkippable = !queriedByUserTester.test(column);
+
+            if (isForDropped || isShadowed || (isSkippable && cell.timestamp() < rowLiveness.timestamp()))
+                return null;
+
+            // We should apply the same "optimization" as in Cell.deserialize to avoid discrepances
+            // between sstables and memtables data, i.e resulting in a digest mismatch.
+            return isSkippable ? cell.withSkippedValue() : cell;
         });
     }
 
