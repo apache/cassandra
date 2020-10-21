@@ -687,7 +687,8 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             return ticket;
         }
 
-        private void signal()
+        @VisibleForTesting
+        public void signal()
         {
             if (queue.relaxedIsEmpty())
                 return; // we can return early if no handlers have registered with the wait queue
