@@ -22,9 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +42,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.service.*;
@@ -302,77 +299,6 @@ public class Server implements CassandraDaemon.Server
             return result;
         }
 
-    }
-
-    // global inflight payload across all channels across all endpoints
-    private static final ResourceLimits.Concurrent globalRequestPayloadInFlight = new ResourceLimits.Concurrent(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
-
-    public static class EndpointPayloadTracker
-    {
-        // inflight payload per endpoint across corresponding channels
-        private static final ConcurrentMap<InetAddress, EndpointPayloadTracker> requestPayloadInFlightPerEndpoint = new ConcurrentHashMap<>();
-
-        private final AtomicInteger refCount = new AtomicInteger(0);
-        private final InetAddress endpoint;
-
-        final ResourceLimits.EndpointAndGlobal endpointAndGlobalPayloadsInFlight = new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Concurrent(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp()),
-                                                                                                                         globalRequestPayloadInFlight);
-
-        private EndpointPayloadTracker(InetAddress endpoint)
-        {
-            this.endpoint = endpoint;
-        }
-
-        public static EndpointPayloadTracker get(InetAddress endpoint)
-        {
-            while (true)
-            {
-                EndpointPayloadTracker result = requestPayloadInFlightPerEndpoint.computeIfAbsent(endpoint, EndpointPayloadTracker::new);
-                if (result.acquire())
-                    return result;
-
-                requestPayloadInFlightPerEndpoint.remove(endpoint, result);
-            }
-        }
-
-        public static long getGlobalLimit()
-        {
-            return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes();
-        }
-
-        public static void setGlobalLimit(long newLimit)
-        {
-            DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(newLimit);
-            long existingLimit = globalRequestPayloadInFlight.setLimit(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
-
-            logger.info("Changed native_max_transport_requests_in_bytes from {} to {}", existingLimit, newLimit);
-        }
-
-        public static long getEndpointLimit()
-        {
-            return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
-        }
-
-        public static void setEndpointLimit(long newLimit)
-        {
-            long existingLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
-            DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(newLimit); // ensure new trackers get the new limit
-            for (EndpointPayloadTracker tracker : requestPayloadInFlightPerEndpoint.values())
-                existingLimit = tracker.endpointAndGlobalPayloadsInFlight.endpoint().setLimit(newLimit);
-
-            logger.info("Changed native_max_transport_requests_in_bytes_per_ip from {} to {}", existingLimit, newLimit);
-        }
-
-        private boolean acquire()
-        {
-            return 0 < refCount.updateAndGet(i -> i < 0 ? i : i + 1);
-        }
-
-        public void release()
-        {
-            if (-1 == refCount.updateAndGet(i -> i == 1 ? -1 : i - 1))
-                requestPayloadInFlightPerEndpoint.remove(endpoint, this);
-        }
     }
 
     private static class LatestEvent

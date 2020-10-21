@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -30,6 +31,8 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.net.AbstractMessageHandler;
+import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -111,5 +114,40 @@ public class BurnTestUtil
         byte[] bytes = new byte[rnd.nextInt(maxSize) + minSize];
         rnd.nextBytes(bytes);
         return ByteBuffer.wrap(bytes);
+    }
+
+    public static Function<ClientResourceLimits.Allocator, ClientResourceLimits.ResourceProvider> observableResourceProvider(final CQLConnectionTest.AllocationObserver observer)
+    {
+        return allocator ->
+        {
+            final ClientResourceLimits.ResourceProvider.Default delegate = new ClientResourceLimits.ResourceProvider.Default(allocator);
+            return new ClientResourceLimits.ResourceProvider()
+            {
+                public ResourceLimits.Limit globalLimit()
+                {
+                    return observer.global(delegate.globalLimit());
+                }
+
+                public AbstractMessageHandler.WaitQueue globalWaitQueue()
+                {
+                    return delegate.globalWaitQueue();
+                }
+
+                public ResourceLimits.Limit endpointLimit()
+                {
+                    return observer.endpoint(delegate.endpointLimit());
+                }
+
+                public AbstractMessageHandler.WaitQueue endpointWaitQueue()
+                {
+                    return delegate.endpointWaitQueue();
+                }
+
+                public void release()
+                {
+                    delegate.release();
+                }
+            };
+        };
     }
 }

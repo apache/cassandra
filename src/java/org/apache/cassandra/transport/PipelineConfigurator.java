@@ -50,16 +50,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.Version;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.net.AbstractMessageHandler;
-import org.apache.cassandra.net.BufferPoolAllocator;
-import org.apache.cassandra.net.FrameDecoder;
-import org.apache.cassandra.net.FrameDecoderCrc;
-import org.apache.cassandra.net.FrameDecoderLZ4;
-import org.apache.cassandra.net.FrameEncoder;
-import org.apache.cassandra.net.FrameEncoderCrc;
-import org.apache.cassandra.net.FrameEncoderLZ4;
-import org.apache.cassandra.net.GlobalBufferPoolAllocator;
-import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
@@ -265,7 +256,7 @@ public class PipelineConfigurator
     }
 
     public void configureModernPipeline(ChannelHandlerContext ctx,
-                                        Server.EndpointPayloadTracker tracker,
+                                        ClientResourceLimits.Allocator resourceAllocator,
                                         ProtocolVersion version,
                                         Map<String, String> options)
     {
@@ -294,8 +285,8 @@ public class PipelineConfigurator
 
         // Capacity tracking and resource management
         int queueCapacity = DatabaseDescriptor.getNativeTransportReceiveQueueCapacityInBytes();
-        ResourceLimits.Limit endpointReserve = endpointReserve(tracker);
-        ResourceLimits.Limit globalReserve = globalReserve(tracker);
+        ClientResourceLimits.ResourceProvider resourceProvider = resourceProvider(resourceAllocator);
+        AbstractMessageHandler.OnHandlerClosed onClosed = handler -> resourceProvider.release();
         boolean throwOnOverload = "1".equals(options.get(StartupMessage.THROW_ON_OVERLOAD));
 
         CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer = messageConsumer();
@@ -307,11 +298,8 @@ public class PipelineConfigurator
                                     messageConsumer,
                                     payloadAllocator,
                                     queueCapacity,
-                                    endpointReserve,
-                                    globalReserve,
-                                    AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
-                                    AbstractMessageHandler.WaitQueue.global(globalReserve),
-                                    handler -> {},
+                                    resourceProvider,
+                                    onClosed,
                                     errorHandler,
                                     throwOnOverload);
 
@@ -327,14 +315,9 @@ public class PipelineConfigurator
     protected void onInitialPipelineReady(ChannelPipeline pipeline) {}
     protected void onNegotiationComplete(ChannelPipeline pipeline) {}
 
-    protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
+    protected ClientResourceLimits.ResourceProvider resourceProvider(ClientResourceLimits.Allocator allocator)
     {
-        return tracker.endpointAndGlobalPayloadsInFlight.endpoint();
-    }
-
-    protected ResourceLimits.Limit globalReserve(Server.EndpointPayloadTracker tracker)
-    {
-        return tracker.endpointAndGlobalPayloadsInFlight.global();
+        return new ClientResourceLimits.ResourceProvider.Default(allocator);
     }
 
     protected Dispatcher dispatcher(boolean useLegacyFlusher)
@@ -370,8 +353,7 @@ public class PipelineConfigurator
         throw new ProtocolException("Unsupported compression type: " + compression);
     }
 
-    public void configureLegacyPipeline(ChannelHandlerContext ctx,
-                                        Server.EndpointPayloadTracker tracker)
+    public void configureLegacyPipeline(ChannelHandlerContext ctx, ClientResourceLimits.Allocator limits)
     {
         ChannelPipeline pipeline = ctx.channel().pipeline();
         pipeline.addBefore(CQL_FRAME_ENCODER, CQL_FRAME_DECODER, new Frame.Decoder());
@@ -379,7 +361,7 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, CQL_FRAME_COMPRESSOR, Frame.Compressor.instance);
         pipeline.addBefore(INITIAL_HANDLER, CQL_MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
         pipeline.addBefore(INITIAL_HANDLER, CQL_MESSAGE_ENCODER, PreV5Handlers.ProtocolEncoder.instance);
-        pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, tracker));
+        pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, limits));
         pipeline.remove(INITIAL_HANDLER);
         onNegotiationComplete(pipeline);
     }

@@ -24,7 +24,9 @@ import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -138,9 +140,6 @@ public class CQLConnectionTest
 
         // the failure happens before any capacity is allocated
         observer.verifier().accept(0);
-        Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
-        assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
-        assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);;
     }
 
     @Test
@@ -189,9 +188,6 @@ public class CQLConnectionTest
 
         // the failure happens before any capacity is allocated
         observer.verifier().accept(0);
-        Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
-        assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
-        assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);;
 
         server.stop();
     }
@@ -266,9 +262,6 @@ public class CQLConnectionTest
         assertTrue(((ErrorMessage)response).error.getMessage().contains("unrecoverable CRC mismatch detected in frame"));
         // total capacity is aquired when the first frame is read
         observer.verifier().accept(totalBytes);
-        Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
-        assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
-        assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);
     }
 
     @Test
@@ -375,11 +368,6 @@ public class CQLConnectionTest
 
             // verify that we did have to acquire some resources from the global/endpoint reserves
             allocationVerifier.accept(totalBytes);
-
-            // assert that we definitely have no outstanding resources acquired from the reserves
-            Server.EndpointPayloadTracker tracker = Server.EndpointPayloadTracker.get(FBUtilities.getJustLocalAddress());
-            assertThat(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using()).isEqualTo(0);
-            assertThat(tracker.endpointAndGlobalPayloadsInFlight.global().using()).isEqualTo(0);
         }
         catch (Throwable t)
         {
@@ -551,14 +539,41 @@ public class CQLConnectionTest
             return pipelineReady.await(10, TimeUnit.SECONDS);
         }
 
-        protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
+        protected ClientResourceLimits.ResourceProvider resourceProvider(ClientResourceLimits.Allocator limits)
         {
-            return allocationObserver == null ? super.endpointReserve(tracker) : allocationObserver.endpoint(tracker);
-        }
+            final ClientResourceLimits.ResourceProvider.Default delegate =
+                new ClientResourceLimits.ResourceProvider.Default(limits);
 
-        protected ResourceLimits.Limit globalReserve(Server.EndpointPayloadTracker tracker)
-        {
-            return allocationObserver == null ? super.globalReserve(tracker) : allocationObserver.global(tracker);
+            if (null == allocationObserver)
+                return delegate;
+
+            return new ClientResourceLimits.ResourceProvider()
+            {
+                public ResourceLimits.Limit globalLimit()
+                {
+                    return allocationObserver.global(delegate.globalLimit());
+                }
+
+                public AbstractMessageHandler.WaitQueue globalWaitQueue()
+                {
+                    return delegate.globalWaitQueue();
+                }
+
+                public ResourceLimits.Limit endpointLimit()
+                {
+                    return allocationObserver.endpoint(delegate.endpointLimit());
+                }
+
+                public AbstractMessageHandler.WaitQueue endpointWaitQueue()
+                {
+                    return delegate.endpointWaitQueue();
+                }
+
+                public void release()
+                {
+                    delegate.release();
+                }
+            };
         }
 
         protected MessageConsumer<Message.Request> messageConsumer()
@@ -592,17 +607,17 @@ public class CQLConnectionTest
             return global == null ? 0 : global.totalReleased.get();
         }
 
-        synchronized InstrumentedLimit endpoint(Server.EndpointPayloadTracker tracker)
+        synchronized InstrumentedLimit endpoint(ResourceLimits.Limit delegate)
         {
             if (endpoint == null)
-                endpoint = new InstrumentedLimit(tracker.endpointAndGlobalPayloadsInFlight.endpoint());
+                endpoint = new InstrumentedLimit(delegate);
             return endpoint;
         }
 
-        synchronized InstrumentedLimit global(Server.EndpointPayloadTracker tracker)
+        synchronized InstrumentedLimit global(ResourceLimits.Limit delegate)
         {
             if (global == null)
-                global = new InstrumentedLimit(tracker.endpointAndGlobalPayloadsInFlight.global());
+                global = new InstrumentedLimit(delegate);
             return global;
         }
 
@@ -615,6 +630,11 @@ public class CQLConnectionTest
                 // and that we released it all
                 assertThat(endpointReleaseTotal()).isEqualTo(totalBytes);
                 assertThat(globalReleaseTotal()).isEqualTo(totalBytes);
+                // assert that we definitely have no outstanding resources acquired from the reserves
+                ClientResourceLimits.Allocator tracker =
+                    ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());
+                assertThat(tracker.endpointUsing()).isEqualTo(0);
+                assertThat(tracker.globallyUsing()).isEqualTo(0);
             };
         }
     }
@@ -640,7 +660,6 @@ public class CQLConnectionTest
             totalReleased.addAndGet(amount);
             return super.release(amount);
         }
-
     }
 
     static class DelegatingLimit implements ResourceLimits.Limit

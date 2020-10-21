@@ -95,14 +95,9 @@ public class SimpleClientBurnTest
         CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
         PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED)
         {
-            protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
+            protected ClientResourceLimits.ResourceProvider resourceProvider(ClientResourceLimits.Allocator allocator)
             {
-                return allocationObserver.endpoint(tracker);
-            }
-
-            protected ResourceLimits.Limit globalReserve(Server.EndpointPayloadTracker tracker)
-            {
-                return allocationObserver.global(tracker);
+                return BurnTestUtil.observableResourceProvider(allocationObserver).apply(allocator);
             }
         };
 

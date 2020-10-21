@@ -33,19 +33,14 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.OverloadedException;
-import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.QueryMessage;
-import org.apache.cassandra.utils.FBUtilities;
-
-import static org.assertj.core.api.Fail.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InflightRequestPayloadTrackerTest extends CQLTester
 {
 
-    private static long LOW_LIMIT = 600L;
-    private static long HIGH_LIMIT = 5000000000L;
-    private static ResourceLimits.Limit GLOBAL_LIMITS;
+    private static final long LOW_LIMIT = 600L;
+    private static final long HIGH_LIMIT = 5000000000L;
 
     @BeforeClass
     public static void setUp()
@@ -54,15 +49,6 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(LOW_LIMIT);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(LOW_LIMIT);
         requireNetwork();
-        try
-        {
-            GLOBAL_LIMITS = (ResourceLimits.Limit)FBUtilities.getProtectedField(Server.class, "globalRequestPayloadInFlight").get(null);
-        }
-        catch (IllegalAccessException e)
-        {
-            e.printStackTrace();
-            fail("Unable to access global resource limits during test testup");
-        }
     }
 
     @AfterClass
@@ -75,8 +61,8 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     @Before
     public void setLimits()
     {
-        Server.EndpointPayloadTracker.setGlobalLimit(LOW_LIMIT);
-        Server.EndpointPayloadTracker.setEndpointLimit(LOW_LIMIT);
+        ClientResourceLimits.setGlobalLimit(LOW_LIMIT);
+        ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
     }
 
     @After
@@ -163,7 +149,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     public void testQueryExecutionWithoutThrowOnOverloadAndInflightLimitedExceeded() throws Throwable
     {
         // Make sure we can only exceed the per-endpoint limit
-        Server.EndpointPayloadTracker.setGlobalLimit(HIGH_LIMIT);
+        ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
 
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
@@ -202,7 +188,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     public void testOverloadedExceptionForEndpointInflightLimit() throws Throwable
     {
         // Make sure we can only exceed the per-endpoint limit
-        Server.EndpointPayloadTracker.setGlobalLimit(HIGH_LIMIT);
+        ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
 
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
@@ -249,7 +235,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     public void testOverloadedExceptionForOverallInflightLimit() throws Throwable
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
-        Server.EndpointPayloadTracker.setEndpointLimit(HIGH_LIMIT);
+        ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
 
         SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(),
                                                nativePort,
@@ -296,7 +282,7 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
     public void testOverloadedExceptionForOverallInflightLimitAndLargeMessage() throws Throwable
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
-        Server.EndpointPayloadTracker.setEndpointLimit(HIGH_LIMIT);
+        ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
 
         try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
                                                .protocolVersion(ProtocolVersion.V5)
@@ -375,8 +361,8 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
 
 
             // change global limit, query will still fail because endpoint limit
-            Server.EndpointPayloadTracker.setGlobalLimit(HIGH_LIMIT);
-            Assert.assertEquals("new global limit not returned by EndpointPayloadTrackers", HIGH_LIMIT, Server.EndpointPayloadTracker.getGlobalLimit());
+            ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
+            Assert.assertEquals("new global limit not returned by EndpointPayloadTrackers", HIGH_LIMIT, ClientResourceLimits.getGlobalLimit());
             Assert.assertEquals("new global limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
@@ -392,8 +378,8 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             }
 
             // change endpoint limit, query will still now succeed
-            Server.EndpointPayloadTracker.setEndpointLimit(HIGH_LIMIT);
-            Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", HIGH_LIMIT, Server.EndpointPayloadTracker.getEndpointLimit());
+            ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
+            Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", HIGH_LIMIT, ClientResourceLimits.getEndpointLimit());
             Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", HIGH_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
@@ -414,8 +400,8 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             client.execute(queryMessage);
 
             // lower the global limit and ensure the query fails again
-            Server.EndpointPayloadTracker.setGlobalLimit(LOW_LIMIT);
-            Assert.assertEquals("new global limit not returned by EndpointPayloadTrackers", LOW_LIMIT, Server.EndpointPayloadTracker.getGlobalLimit());
+            ClientResourceLimits.setGlobalLimit(LOW_LIMIT);
+            Assert.assertEquals("new global limit not returned by EndpointPayloadTrackers", LOW_LIMIT, ClientResourceLimits.getGlobalLimit());
             Assert.assertEquals("new global limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
 
             queryMessage = new QueryMessage(String.format("INSERT INTO %s.atable (pk, v) VALUES (1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')", KEYSPACE),
@@ -431,8 +417,8 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             }
 
             // lower the endpoint limit and ensure existing clients also have requests that fail
-            Server.EndpointPayloadTracker.setEndpointLimit(60);
-            Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", 60, Server.EndpointPayloadTracker.getEndpointLimit());
+            ClientResourceLimits.setEndpointLimit(60);
+            Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", 60, ClientResourceLimits.getEndpointLimit());
             Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", 60, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
 
             queryMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
@@ -469,8 +455,8 @@ public class InflightRequestPayloadTrackerTest extends CQLTester
             }
 
             // put the test state back
-            Server.EndpointPayloadTracker.setEndpointLimit(LOW_LIMIT);
-            Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", LOW_LIMIT, Server.EndpointPayloadTracker.getEndpointLimit());
+            ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
+            Assert.assertEquals("new endpoint limit not returned by EndpointPayloadTrackers", LOW_LIMIT, ClientResourceLimits.getEndpointLimit());
             Assert.assertEquals("new endpoint limit not returned by DatabaseDescriptor", LOW_LIMIT, DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp());
 
         }

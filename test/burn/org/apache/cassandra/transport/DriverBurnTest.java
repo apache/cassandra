@@ -35,6 +35,7 @@ import com.datastax.driver.core.*;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.service.QueryState;
@@ -50,21 +51,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class DriverBurnTest extends CQLTester
 {
-    private CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
+    private final CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
 
     @Before
     public void setup()
     {
         PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED)
         {
-            protected ResourceLimits.Limit endpointReserve(Server.EndpointPayloadTracker tracker)
+            protected ClientResourceLimits.ResourceProvider resourceProvider(ClientResourceLimits.Allocator allocator)
             {
-                return allocationObserver.endpoint(tracker);
-            }
-
-            protected ResourceLimits.Limit globalReserve(Server.EndpointPayloadTracker tracker)
-            {
-                return allocationObserver.global(tracker);
+                return BurnTestUtil.observableResourceProvider(allocationObserver).apply(allocator);
             }
         };
 

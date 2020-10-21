@@ -428,8 +428,6 @@ public class SimpleClient implements Closeable
             Channel channel = ctx.channel();
             channel.config().setOption(ChannelOption.ALLOCATOR, allocator);
             int queueCapacity = 1 << 20;  // 1MiB
-            ResourceLimits.Limit endpointReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
-            ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
 
             Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
             Message.Decoder<Message.Response> messageDecoder = Message.responseDecoder();
@@ -445,6 +443,36 @@ public class SimpleClient implements Closeable
                 throw new RuntimeException("Unexpected error", error);
             };
 
+            ClientResourceLimits.ResourceProvider resources = new ClientResourceLimits.ResourceProvider()
+            {
+                ResourceLimits.Limit endpointReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
+                ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
+
+                public ResourceLimits.Limit globalLimit()
+                {
+                    return globalReserve;
+                }
+
+                public AbstractMessageHandler.WaitQueue globalWaitQueue()
+                {
+                    return null;
+                }
+
+                public ResourceLimits.Limit endpointLimit()
+                {
+                    return endpointReserve;
+                }
+
+                public AbstractMessageHandler.WaitQueue endpointWaitQueue()
+                {
+                    return null;
+                }
+
+                public void release()
+                {
+                }
+            };
+
             CQLMessageHandler<Message.Response> processor =
                 new CQLMessageHandler<Message.Response>(ctx.channel(),
                                         messageFrameDecoder,
@@ -453,10 +481,7 @@ public class SimpleClient implements Closeable
                                         responseConsumer,
                                         payloadAllocator,
                                         queueCapacity,
-                                        endpointReserve,
-                                        globalReserve,
-                                        AbstractMessageHandler.WaitQueue.endpoint(endpointReserve),
-                                        AbstractMessageHandler.WaitQueue.global(globalReserve),
+                                        resources,
                                         handler -> {},
                                         errorHandler,
                                         ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())

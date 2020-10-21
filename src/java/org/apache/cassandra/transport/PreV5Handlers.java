@@ -51,7 +51,7 @@ public class PreV5Handlers
         private static final Logger logger = LoggerFactory.getLogger(LegacyDispatchHandler.class);
 
         private final Dispatcher dispatcher;
-        private final Server.EndpointPayloadTracker endpointPayloadTracker;
+        private final ClientResourceLimits.Allocator endpointPayloadTracker;
 
         /**
          * Current count of *request* bytes that are live on the channel.
@@ -61,7 +61,7 @@ public class PreV5Handlers
         private long channelPayloadBytesInFlight;
         private boolean paused;
 
-        LegacyDispatchHandler(Dispatcher dispatcher, Server.EndpointPayloadTracker endpointPayloadTracker)
+        LegacyDispatchHandler(Dispatcher dispatcher, ClientResourceLimits.Allocator endpointPayloadTracker)
         {
             this.dispatcher = dispatcher;
             this.endpointPayloadTracker = endpointPayloadTracker;
@@ -91,7 +91,7 @@ public class PreV5Handlers
 
             // since the request has been processed, decrement inflight payload at channel, endpoint and global levels
             channelPayloadBytesInFlight -= itemSize;
-            ResourceLimits.Outcome endpointGlobalReleaseOutcome = endpointPayloadTracker.endpointAndGlobalPayloadsInFlight.release(itemSize);
+            ResourceLimits.Outcome endpointGlobalReleaseOutcome = endpointPayloadTracker.release(itemSize);
 
             // now check to see if we need to reenable the channel's autoRead.
             // If the current payload side is zero, we must reenable autoread as
@@ -124,20 +124,17 @@ public class PreV5Handlers
         {
             long frameSize = request.getSourceFrame().header.bodySizeInBytes;
 
-            ResourceLimits.EndpointAndGlobal endpointAndGlobalPayloadsInFlight = endpointPayloadTracker.endpointAndGlobalPayloadsInFlight;
-
             // check for overloaded state by trying to allocate framesize to inflight payload trackers
-            if (endpointAndGlobalPayloadsInFlight.tryAllocate(frameSize) != ResourceLimits.Outcome.SUCCESS)
+            if (endpointPayloadTracker.tryAllocate(frameSize) != ResourceLimits.Outcome.SUCCESS)
             {
                 if (request.connection.isThrowOnOverload())
                 {
                     // discard the request and throw an exception
                     ClientMetrics.instance.markRequestDiscarded();
-                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Request: {}",
+                    logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, {}, Request: {}",
                                  frameSize,
                                  channelPayloadBytesInFlight,
-                                 endpointAndGlobalPayloadsInFlight.endpoint().using(),
-                                 endpointAndGlobalPayloadsInFlight.global().using(),
+                                 endpointPayloadTracker.toString(),
                                  request);
                     throw ErrorMessage.wrap(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
                                             request.getSourceFrame().header.streamId);
@@ -145,7 +142,7 @@ public class PreV5Handlers
                 else
                 {
                     // set backpressure on the channel, and handle the request
-                    endpointAndGlobalPayloadsInFlight.allocate(frameSize);
+                    endpointPayloadTracker.allocate(frameSize);
                     ctx.channel().config().setAutoRead(false);
                     ClientMetrics.instance.pauseConnection();
                     paused = true;
@@ -154,6 +151,19 @@ public class PreV5Handlers
 
             channelPayloadBytesInFlight += frameSize;
             return true;
+        }
+
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx)
+        {
+            endpointPayloadTracker.release();
+            if (paused)
+            {
+                paused = false;
+                ClientMetrics.instance.unpauseConnection();
+            }
+            ctx.fireChannelInactive();
         }
     }
 

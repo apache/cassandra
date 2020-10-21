@@ -78,10 +78,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                       MessageConsumer<M> dispatcher,
                       FrameEncoder.PayloadAllocator payloadAllocator,
                       int queueCapacity,
-                      Limit endpointReserve,
-                      Limit globalReserve,
-                      WaitQueue endpointWaitQueue,
-                      WaitQueue globalWaitQueue,
+                      ClientResourceLimits.ResourceProvider resources,
                       OnHandlerClosed onClosed,
                       ErrorHandler errorHandler,
                       boolean throwOnOverload)
@@ -90,10 +87,10 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
               channel,
               LARGE_MESSAGE_THRESHOLD,
               queueCapacity,
-              endpointReserve,
-              globalReserve,
-              endpointWaitQueue,
-              globalWaitQueue,
+              resources.endpointLimit(),
+              resources.globalLimit(),
+              resources.endpointWaitQueue(),
+              resources.globalWaitQueue(),
               onClosed);
         this.cqlFrameDecoder    = cqlFrameDecoder;
         this.messageDecoder     = messageDecoder;

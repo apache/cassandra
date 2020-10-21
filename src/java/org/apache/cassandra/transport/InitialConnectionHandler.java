@@ -105,7 +105,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
                     StartupMessage startup = (StartupMessage) Message.Decoder.decodeMessage(ctx.channel(), inbound);
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
-                    final Server.EndpointPayloadTracker payloadTracker = Server.EndpointPayloadTracker.get(remoteAddress);
+                    final ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(remoteAddress);
 
                     ChannelPromise promise;
                     if (inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
@@ -113,13 +113,13 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         // in this case we need to defer configuring the pipeline until after the response
                         // has been sent, as the frame encoding specified in v5 should not be applied to
                         // the STARTUP response.
-                        payloadTracker.endpointAndGlobalPayloadsInFlight.allocate(inbound.header.bodySizeInBytes);
+                        allocator.allocate(inbound.header.bodySizeInBytes);
                         promise = AsyncChannelPromise.withListener(ctx, future -> {
                             if (future.isSuccess())
                             {
                                 logger.debug("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
-                                configurator.configureModernPipeline(ctx, payloadTracker, inbound.header.version, startup.options);
-                                payloadTracker.endpointAndGlobalPayloadsInFlight.release(inbound.header.bodySizeInBytes);
+                                configurator.configureModernPipeline(ctx, allocator, inbound.header.version, startup.options);
+                                allocator.release(inbound.header.bodySizeInBytes);
                             }
                             else
                             {
@@ -139,7 +139,10 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     else
                     {
                         // no need to configure the pipeline asynchronously in this case
-                        configurator.configureLegacyPipeline(ctx, payloadTracker);
+                        // the capacity obtained from allocator for the STARTUP message
+                        // is released when flushed by the legacy dispatcher/flusher so
+                        // there's no need to explicitly release that here either.
+                        configurator.configureLegacyPipeline(ctx, allocator);
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
