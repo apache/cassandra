@@ -34,6 +34,7 @@ Merged from 3.0:
  * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
 Merged from 2.2:
+ * Package tools/bin scripts as executable (CASSANDRA-16151)
  * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
  * Automatically drop compact storage on tables for which it is safe (CASSANDRA-16048)
 
