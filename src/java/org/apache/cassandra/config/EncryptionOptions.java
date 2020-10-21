@@ -65,6 +65,7 @@ public class EncryptionOptions
     protected Boolean enabled;
     protected Boolean optional;
 
+    // Calculated by calling applyConfig() after populating/parsing
     protected Boolean isEnabled = null;
     protected Boolean isOptional = null;
 
@@ -122,10 +123,7 @@ public class EncryptionOptions
      */
     public EncryptionOptions applyConfig()
     {
-        if (isEnabled != null || isOptional != null)
-        {
-            throw new IllegalStateException("EncryptionOptions.applyConfig called multiple times");
-        }
+        ensureConfigNotApplied();
 
         isEnabled = this.enabled != null && enabled;
 
@@ -151,8 +149,9 @@ public class EncryptionOptions
     private void ensureConfigApplied()
     {
         if (isEnabled == null || isOptional == null)
-            throw new IllegalStateException("EncryptionOptions.applyConfig must be called before isEnabled");
+            throw new IllegalStateException("EncryptionOptions.applyConfig must be called first");
     }
+
     private void ensureConfigNotApplied()
     {
         if (isEnabled != null || isOptional != null)
@@ -161,7 +160,7 @@ public class EncryptionOptions
 
     /**
      * Indicates if the channel should be encrypted. Client and Server uses different logic to determine this
-     *
+     * 
      * @return if the channel should be encrypted
      */
     public boolean isEnabled() {
@@ -175,7 +174,7 @@ public class EncryptionOptions
      * is probably a bad idea.
      * @param enabled value to set
      */
-    public void setEnabled(boolean enabled) {
+    public void setEnabled(Boolean enabled) {
         ensureConfigNotApplied();
         this.enabled = enabled;
     }
@@ -185,9 +184,11 @@ public class EncryptionOptions
      * Explicitly providing a value in the configuration take precedent.
      * If no optional value is set and !isEnabled(), then optional connections are allowed
      * if a keystore exists. Without it, it would be impossible to establish the connections.
+     *
+     * Return type is Boolean even though it can never be null so that snakeyaml can find it
      * @return if the channel may be encrypted
      */
-    public boolean isOptional()
+    public Boolean isOptional()
     {
         ensureConfigApplied();
         return isOptional;

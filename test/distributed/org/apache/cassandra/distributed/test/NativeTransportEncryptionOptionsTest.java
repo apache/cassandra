@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 
-public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOptionsTest
+public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
     @Test
     public void nodeWillNotStartWithBadKeystore() throws Throwable

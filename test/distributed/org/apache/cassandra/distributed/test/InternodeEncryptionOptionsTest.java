@@ -24,11 +24,10 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 
-public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsTest
+public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
     @Test
     public void nodeWillNotStartWithBadKeystoreTest() throws Throwable

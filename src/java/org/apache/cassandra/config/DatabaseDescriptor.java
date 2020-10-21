@@ -763,12 +763,13 @@ public class DatabaseDescriptor
         if (conf.client_encryption_options != null)
         {
             conf.client_encryption_options.applyConfig();
-        }
-        if (conf.native_transport_port_ssl != null
-            && conf.native_transport_port_ssl != conf.native_transport_port
-            && conf.client_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-        {
-            throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+
+            if (conf.native_transport_port_ssl != null
+                && conf.native_transport_port_ssl != conf.native_transport_port
+                && conf.client_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+            {
+                throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+            }
         }
 
         if (conf.max_value_size_in_mb <= 0)

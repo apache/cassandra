@@ -49,7 +49,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-public class AbstractEncryptionOptionsTest extends TestBaseImpl
+public class AbstractEncryptionOptionsImpl extends TestBaseImpl
 {
     Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
     final static String validKeyStorePath = "test/conf/cassandra_ssl_test.keystore";

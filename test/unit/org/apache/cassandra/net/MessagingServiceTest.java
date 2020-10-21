@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
 import java.util.regex.Matcher;
 
-import com.google.common.collect.Iterables;
 import com.google.common.net.InetAddresses;
 
 import com.codahale.metrics.Timer;
