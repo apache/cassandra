@@ -1271,14 +1271,14 @@
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
           <include name="bin/*.in.sh" />
+          <include name="tools/bin/*.in.sh" />
         </tarfileset>
         <!-- Executable scripts in bin/ -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
           <include name="bin/*"/>
           <include name="tools/bin/*"/>
-          <not>
-                <filename name="bin/*.in.sh" />
-          </not>
+          <exclude name="bin/*.in.sh" />
+          <exclude name="tools/bin/*.in.sh" />
         </tarfileset>
       </tar>
 
@@ -1296,6 +1296,7 @@
           <exclude name="conf/hotspot_compiler" />
           <exclude name="doc/cql3/CQL.html" />
           <exclude name="bin/*" /> <!-- handled separately below -->
+          <exclude name="tools/bin/*" /> <!-- handled separately below -->
           <!-- exclude Eclipse files -->
           <exclude name=".project" />
           <exclude name=".classpath" />
@@ -1303,16 +1304,21 @@
           <exclude name=".externalToolBuilders/**" />
         </tarfileset>
 
-        <!-- Shell includes and batch files in bin/ -->
+        <!-- Shell includes and batch files in bin/ and tools/bin/ -->
         <tarfileset dir="${basedir}" prefix="${final.name}-src">
           <include name="bin/*.in.sh" />
           <include name="bin/*.bat" />
+          <include name="tools/bin/*.in.sh" />
+          <include name="tools/bin/*.bat" />
         </tarfileset>
         <!-- Everything else (assumed to be scripts), is executable -->
         <tarfileset dir="${basedir}" prefix="${final.name}-src" mode="755">
           <include name="bin/*"/>
           <exclude name="bin/*.in.sh" />
           <exclude name="bin/*.bat" />
+          <include name="tools/bin/*"/>
+          <exclude name="tools/bin/*.in.sh" />
+          <exclude name="tools/bin/*.bat" />
         </tarfileset>
       </tar>
 
