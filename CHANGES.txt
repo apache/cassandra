@@ -5,6 +5,7 @@
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
 Merged from 2.2:
+ * Package tools/bin scripts as executable (CASSANDRA-16151)
  * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
 
 3.0.22:
