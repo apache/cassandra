@@ -20,9 +20,14 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.OPTIONAL;
@@ -106,6 +111,49 @@ public class EncryptionOptionsTest
                                                  expected,
                                                  String.format("optional=%s keystore=%s internode=%s", optional, keystorePath, internodeEncryption));
         }
+    }
+
+    @Test
+    public void serverEnabled()
+    {
+        Map<String, Object> yaml = ImmutableMap.of(
+        "server_encryption_options", ImmutableMap.of(
+            "enabled", false
+            )
+        );
+
+        EncryptionOptions.ServerEncryptionOptions options = YamlConfigurationLoader.fromMap(yaml, Config.class).server_encryption_options;
+        Assertions.assertThatThrownBy(() -> options.applyConfig())
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessageContaining("enabled should not be configured");
+    }
+
+    @Test
+    public void isEnabledServer()
+    {
+        Map<String, Object> yaml = ImmutableMap.of(
+        "server_encryption_options", ImmutableMap.of(
+            "isEnabled", false
+            )
+        );
+
+        Assertions.assertThatThrownBy(() -> YamlConfigurationLoader.fromMap(yaml, Config.class))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("Invalid yaml. Please remove properties [isEnabled] from your cassandra.yaml");
+    }
+
+    @Test
+    public void isOptionalServer()
+    {
+        Map<String, Object> yaml = ImmutableMap.of(
+        "server_encryption_options", ImmutableMap.of(
+            "isOptional", false
+            )
+        );
+
+        Assertions.assertThatThrownBy(() -> YamlConfigurationLoader.fromMap(yaml, Config.class))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessage("Invalid yaml. Please remove properties [isOptional] from your cassandra.yaml");
     }
 
     ServerEncryptionOptionsTestCase[] serverEncryptionOptionTestCases = {
