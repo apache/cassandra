@@ -28,6 +28,11 @@ public class ParameterizedClass
     public String class_name;
     public Map<String, String> parameters;
 
+    public ParameterizedClass()
+    {
+        // for snakeyaml
+    }
+
     public ParameterizedClass(String class_name, Map<String, String> parameters)
     {
         this.class_name = class_name;

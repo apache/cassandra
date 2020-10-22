@@ -24,11 +24,15 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,10 +40,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.composer.Composer;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.nodes.Node;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
@@ -116,6 +124,61 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         catch (YAMLException e)
         {
             throw new ConfigurationException("Invalid yaml: " + url, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked") //getSingleData returns Object, not T
+    public static <T> T fromMap(Map<String,Object> map, Class<T> klass)
+    {
+        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        YamlConfigurationLoader.MissingPropertiesChecker propertiesChecker = new YamlConfigurationLoader.MissingPropertiesChecker();
+        constructor.setPropertyUtils(propertiesChecker);
+        Yaml yaml = new Yaml(constructor);
+        Node node = yaml.represent(map);
+        constructor.setComposer(new Composer(null, null)
+        {
+            @Override
+            public Node getSingleNode()
+            {
+                return node;
+            }
+        });
+        return (T) constructor.getSingleData(klass);
+    }
+
+    static class CustomConstructor extends CustomClassLoaderConstructor
+    {
+        CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
+        {
+            super(theRoot, classLoader);
+
+            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
+            seedDesc.putMapPropertyType("parameters", String.class, String.class);
+            addTypeDescription(seedDesc);
+        }
+
+        @Override
+        protected List<Object> createDefaultList(int initSize)
+        {
+            return Lists.newCopyOnWriteArrayList();
+        }
+
+        @Override
+        protected Map<Object, Object> createDefaultMap()
+        {
+            return Maps.newConcurrentMap();
+        }
+
+        @Override
+        protected Set<Object> createDefaultSet(int initSize)
+        {
+            return Sets.newConcurrentHashSet();
+        }
+
+        @Override
+        protected Set<Object> createDefaultSet()
+        {
+            return Sets.newConcurrentHashSet();
         }
     }
 
