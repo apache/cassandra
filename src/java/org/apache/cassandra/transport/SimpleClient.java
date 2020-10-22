@@ -299,7 +299,6 @@ public class SimpleClient implements Closeable
             request.attach(connection);
             lastWriteFuture = channel.writeAndFlush(Collections.singletonList(request));
             Message.Response msg = responseHandler.responses.poll(10, TimeUnit.SECONDS);
-
             if (msg == null)
                 throw new RuntimeException("timeout");
             if (msg instanceof ErrorMessage)
@@ -445,8 +444,11 @@ public class SimpleClient implements Closeable
 
             ClientResourceLimits.ResourceProvider resources = new ClientResourceLimits.ResourceProvider()
             {
-                ResourceLimits.Limit endpointReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
-                ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
+                final ResourceLimits.Limit endpointReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
+                final AbstractMessageHandler.WaitQueue endpointQueue = AbstractMessageHandler.WaitQueue.endpoint(endpointReserve);
+
+                final ResourceLimits.Limit globalReserve = new ResourceLimits.Basic(1024 * 1024 * 64);
+                final AbstractMessageHandler.WaitQueue globalQueue = AbstractMessageHandler.WaitQueue.global(endpointReserve);
 
                 public ResourceLimits.Limit globalLimit()
                 {
@@ -455,7 +457,7 @@ public class SimpleClient implements Closeable
 
                 public AbstractMessageHandler.WaitQueue globalWaitQueue()
                 {
-                    return null;
+                    return globalQueue;
                 }
 
                 public ResourceLimits.Limit endpointLimit()
@@ -465,7 +467,7 @@ public class SimpleClient implements Closeable
 
                 public AbstractMessageHandler.WaitQueue endpointWaitQueue()
                 {
-                    return null;
+                    return endpointQueue;
                 }
 
                 public void release()
@@ -624,7 +626,6 @@ public class SimpleClient implements Closeable
 
                 if (r instanceof EventMessage)
                 {
-
                     if (eventHandler != null)
                         eventHandler.onEvent(((EventMessage) r).event);
                 }
