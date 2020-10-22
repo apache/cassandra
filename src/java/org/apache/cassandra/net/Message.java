@@ -717,7 +717,7 @@ public class Message<T>
             long size = 0;
             size += sizeofUnsignedVInt(header.id);
             size += CREATION_TIME_SIZE;
-            size += sizeofUnsignedVInt(1 + NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
+            size += sizeofUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
             size += sizeofUnsignedVInt(header.verb.id);
             size += sizeofUnsignedVInt(header.flags);
             size += serializedParamsSize(header.params, version);
