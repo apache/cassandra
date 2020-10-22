@@ -141,7 +141,7 @@ public interface FrameCompressor
             decompressor = lz4Factory.decompressor();
         }
 
-        public Frame compress(Frame frame) throws IOException
+        public Frame compress(Frame frame)
         {
             byte[] input = CBUtil.readRawBytes(frame.body);
 
@@ -151,7 +151,7 @@ public interface FrameCompressor
             byte[] output = outputBuf.array();
             int outputOffset = outputBuf.arrayOffset();
 
-            output[outputOffset + 0] = (byte) (input.length >>> 24);
+            output[outputOffset    ] = (byte) (input.length >>> 24);
             output[outputOffset + 1] = (byte) (input.length >>> 16);
             output[outputOffset + 2] = (byte) (input.length >>>  8);
             output[outputOffset + 3] = (byte) (input.length);

@@ -24,8 +24,6 @@ package org.apache.cassandra.stress.settings;
 import java.io.Serializable;
 import java.util.*;
 
-import com.datastax.driver.core.Metadata;
-import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;

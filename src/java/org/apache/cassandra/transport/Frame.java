@@ -185,7 +185,7 @@ public class Frame
          * @return CQL Message header
          * @throws Exception
          */
-        Frame.Header extractHeader(ByteBuffer buffer) throws Exception
+        Frame.Header extractHeader(ByteBuffer buffer)
         {
             Preconditions.checkArgument(buffer.remaining() >= Header.LENGTH,
                                         "Undersized buffer supplied. Expected %s, actual %s",
@@ -224,7 +224,7 @@ public class Frame
         }
 
         @VisibleForTesting
-        Frame decodeFrame(ByteBuf buffer) throws Exception
+        Frame decodeFrame(ByteBuf buffer)
         {
             if (discardingTooLongFrame)
             {
@@ -339,7 +339,7 @@ public class Frame
     public static class Encoder extends MessageToMessageEncoder<Frame>
     {
         public static final Encoder instance = new Frame.Encoder();
-        private Encoder(){};
+        private Encoder(){}
 
         public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException

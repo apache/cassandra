@@ -18,7 +18,6 @@
 package org.apache.cassandra.auth;
 
 
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
 import com.google.common.collect.Iterables;

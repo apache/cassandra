@@ -41,7 +41,7 @@ public class ProtocolNegotiationTest extends CQLTester
     }
 
     @Test
-    public void serverSupportsV3AndV4ByDefault() throws Throwable
+    public void serverSupportsV3AndV4ByDefault()
     {
         reinitializeNetwork();
         // client can explicitly request either V3 or V4
@@ -54,7 +54,7 @@ public class ProtocolNegotiationTest extends CQLTester
     }
 
     @Test
-    public void supportV5ConnectionWithBetaOption() throws Throwable
+    public void supportV5ConnectionWithBetaOption()
     {
         reinitializeNetwork();
         testConnection(ProtocolVersion.V5, ProtocolVersion.V5);
@@ -62,7 +62,7 @@ public class ProtocolNegotiationTest extends CQLTester
     }
 
     @Test
-    public void olderVersionsAreUnsupported() throws Throwable
+    public void olderVersionsAreUnsupported()
     {
         reinitializeNetwork();
         testConnection(ProtocolVersion.V1, ProtocolVersion.V4);

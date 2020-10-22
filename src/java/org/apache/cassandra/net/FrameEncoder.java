@@ -73,13 +73,6 @@ public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
         }
 
         // do not invoke after finish()
-        boolean isEmpty()
-        {
-            assert !isFinished;
-            return buffer.position() == headerLength;
-        }
-
-        // do not invoke after finish()
         int length()
         {
             assert !isFinished;

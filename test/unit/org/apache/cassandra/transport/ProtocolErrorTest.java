@@ -156,7 +156,7 @@ public class ProtocolErrorTest {
     }
 
     @Test
-    public void testErrorMessageWithNullString() throws Exception
+    public void testErrorMessageWithNullString()
     {
         // test for CASSANDRA-11167
         ErrorMessage msg = ErrorMessage.fromException(new ServerError((String) null));

@@ -426,7 +426,6 @@ public class CQLConnectionTest
         final Message.Response fixedResponse;
         final Frame responseTemplate;
         final FrameEncoder frameEncoder;
-        final AtomicBoolean scheduled = new AtomicBoolean(false);
         SimpleClient.FrameAccumulator accumulator;
 
         TestConsumer(Message.Response fixedResponse, FrameEncoder frameEncoder)
