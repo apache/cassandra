@@ -160,10 +160,10 @@ public class EncryptionOptions
 
     /**
      * Indicates if the channel should be encrypted. Client and Server uses different logic to determine this
-     * 
+     *
      * @return if the channel should be encrypted
      */
-    public boolean isEnabled() {
+    public Boolean isEnabled() {
         ensureConfigApplied();
         return isEnabled;
     }
@@ -180,7 +180,7 @@ public class EncryptionOptions
     }
 
     /**
-     * Indicates if the channel may be encrypted (but is not requried to be).
+     * Indicates if the channel may be encrypted (but is not required to be).
      * Explicitly providing a value in the configuration take precedent.
      * If no optional value is set and !isEnabled(), then optional connections are allowed
      * if a keystore exists. Without it, it would be impossible to establish the connections.
