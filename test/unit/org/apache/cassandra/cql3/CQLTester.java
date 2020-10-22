@@ -194,7 +194,7 @@ public abstract class CQLTester
         }
     }
 
-    public static ResultMessage lastSchemaChangeResult;
+    public static volatile ResultMessage recordedSchemaChangeResult;
 
     private List<String> keyspaces = new ArrayList<>();
     private List<String> tables = new ArrayList<>();
@@ -426,19 +426,19 @@ public abstract class CQLTester
                 try
                 {
                     for (int i = tablesToDrop.size() - 1; i >= 0; i--)
-                        schemaChange(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, tablesToDrop.get(i)));
+                        schemaChange(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, tablesToDrop.get(i)), false);
 
                     for (int i = aggregatesToDrop.size() - 1; i >= 0; i--)
-                        schemaChange(String.format("DROP AGGREGATE IF EXISTS %s", aggregatesToDrop.get(i)));
+                        schemaChange(String.format("DROP AGGREGATE IF EXISTS %s", aggregatesToDrop.get(i)), false);
 
                     for (int i = functionsToDrop.size() - 1; i >= 0; i--)
-                        schemaChange(String.format("DROP FUNCTION IF EXISTS %s", functionsToDrop.get(i)));
+                        schemaChange(String.format("DROP FUNCTION IF EXISTS %s", functionsToDrop.get(i)), false);
 
                     for (int i = typesToDrop.size() - 1; i >= 0; i--)
-                        schemaChange(String.format("DROP TYPE IF EXISTS %s.%s", KEYSPACE, typesToDrop.get(i)));
+                        schemaChange(String.format("DROP TYPE IF EXISTS %s.%s", KEYSPACE, typesToDrop.get(i)), false);
 
                     for (int i = keyspacesToDrop.size() - 1; i >= 0; i--)
-                        schemaChange(String.format("DROP KEYSPACE IF EXISTS %s", keyspacesToDrop.get(i)));
+                        schemaChange(String.format("DROP KEYSPACE IF EXISTS %s", keyspacesToDrop.get(i)), false);
 
                     // Dropping doesn't delete the sstables. It's not a huge deal but it's cleaner to cleanup after us
                     // Thas said, we shouldn't delete blindly before the TransactionLogs.SSTableTidier for the table we drop
@@ -949,8 +949,9 @@ public abstract class CQLTester
                                           String keyspace, String name,
                                           String... argTypes)
     {
-        Assert.assertTrue(lastSchemaChangeResult instanceof ResultMessage.SchemaChange);
-        ResultMessage.SchemaChange schemaChange = (ResultMessage.SchemaChange) lastSchemaChangeResult;
+        ResultMessage schemaChangeRes = recordedSchemaChangeResult;
+        Assert.assertTrue(schemaChangeRes instanceof ResultMessage.SchemaChange);
+        ResultMessage.SchemaChange schemaChange = (ResultMessage.SchemaChange) schemaChangeRes;
         Assert.assertSame(change, schemaChange.change.change);
         Assert.assertSame(target, schemaChange.change.target);
         Assert.assertEquals(keyspace, schemaChange.change.keyspace);
@@ -959,6 +960,11 @@ public abstract class CQLTester
     }
 
     protected static void schemaChange(String query)
+    {
+        schemaChange(query, true);
+    }
+
+    protected static void schemaChange(String query, boolean recordSchemaChange)
     {
         try
         {
@@ -970,7 +976,8 @@ public abstract class CQLTester
 
             QueryOptions options = QueryOptions.forInternalCalls(Collections.<ByteBuffer>emptyList());
 
-            lastSchemaChangeResult = statement.executeLocally(queryState, options);
+            ResultMessage result = statement.executeLocally(queryState, options);
+            recordedSchemaChangeResult = recordSchemaChange ? result : recordedSchemaChangeResult;
         }
         catch (Exception e)
         {
