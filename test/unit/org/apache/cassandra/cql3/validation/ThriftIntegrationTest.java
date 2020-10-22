@@ -936,7 +936,7 @@ public class ThriftIntegrationTest extends ThriftCQLTester
 
     private void flushAll()
     {
-        for (String cfName : new String[]{ currentTable(), currentSparseTable(), currentCounterTable() })
-            Keyspace.open(KEYSPACE).getColumnFamilyStore(cfName);
+        for (String cfName : new String[]{ currentTable(), currentSparseTable(), currentCounterTable(), currentDenseTable() })
+            Keyspace.open(KEYSPACE).getColumnFamilyStore(cfName).forceBlockingFlush();
     }
 }
