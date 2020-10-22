@@ -27,6 +27,7 @@ import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -177,21 +178,28 @@ public final class Generators
     // all time is boxed in the future around 50 years from today: Aug 20th, 2020 UTC
     public static final Gen<Timestamp> TIMESTAMP_GEN;
     public static final Gen<Date> DATE_GEN;
+    public static final Gen<Long> TIMESTAMP_NANOS;
+    public static final Gen<Long> SMALL_TIME_SPAN_GEN;
 
     static
     {
+        long secondInNanos = 1_000_000_000L;
         ZonedDateTime now = ZonedDateTime.of(2020, 8, 20,
                                              0, 0, 0, 0, ZoneOffset.UTC);
         ZonedDateTime startOfTime = now.minusYears(50);
         ZonedDateTime endOfDays = now.plusYears(50);
         Constraint millisConstraint = Constraint.between(startOfTime.toInstant().toEpochMilli(), endOfDays.toInstant().toEpochMilli());
-        Constraint nanosInSecondConstraint = Constraint.between(0, 999999999);
+        Constraint nanosInSecondConstraint = Constraint.between(0, secondInNanos - 1);
+        // Represents the timespan based on the most of the default request timeouts. See DatabaseDescriptor
+        Constraint smallTimeSpanNanosConstraint = Constraint.between(-1 * secondInNanos, 10 * secondInNanos);
         TIMESTAMP_GEN = rnd -> {
             Timestamp ts = new Timestamp(rnd.next(millisConstraint));
             ts.setNanos((int) rnd.next(nanosInSecondConstraint));
             return ts;
         };
         DATE_GEN = TIMESTAMP_GEN.map(t -> new Date(t.getTime()));
+        TIMESTAMP_NANOS = TIMESTAMP_GEN.map(t -> TimeUnit.MILLISECONDS.toNanos(t.getTime()) + t.getNanos());
+        SMALL_TIME_SPAN_GEN = rnd -> rnd.next(smallTimeSpanNanosConstraint);
     }
 
     private Generators()

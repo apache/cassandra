@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils;
 
 import java.lang.reflect.Modifier;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,6 +53,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -67,6 +69,8 @@ import org.quicktheories.impl.Constraint;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.allowReversed;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
+import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_GEN;
+import static org.apache.cassandra.utils.Generators.TIMESTAMP_NANOS;
 
 public final class CassandraGenerators
 {
@@ -75,6 +79,11 @@ public final class CassandraGenerators
     // utility generators for creating more complex types
     private static final Gen<Integer> SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 30);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
+
+    public static final Gen<InetAddressAndPort> INET_ADDRESS_AND_PORT_GEN = rnd -> {
+        InetAddress address = Generators.INET_ADDRESS_GEN.generate(rnd);
+        return InetAddressAndPort.getByAddressOverrideDefaults(address, SMALL_POSITIVE_SIZE_GEN.generate(rnd));
+    };
 
     private static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
                                                                                         ByteOrderedPartitioner.instance,
@@ -105,8 +114,26 @@ public final class CassandraGenerators
                                                                                        .<Message<? extends ReadCommand>>map(c -> Message.builder(Verb.READ_REQ, c).build())
                                                                                        .describedAs(CassandraGenerators::toStringRecursive);
 
+    private static Gen<Message<NoPayload>> responseGen(Verb verb)
+    {
+        return gen(rnd -> {
+            long timeSpan = SMALL_TIME_SPAN_GEN.generate(rnd);
+            long createdAt = TIMESTAMP_NANOS.generate(rnd);
+            return Message.builder(verb, NoPayload.noPayload)
+                          .withCreatedAt(createdAt)
+                          .withExpiresAt(createdAt + timeSpan)
+                          .from(INET_ADDRESS_AND_PORT_GEN.generate(rnd))
+                          .build();
+        }).describedAs(CassandraGenerators::toStringRecursive);
+    }
+
+    public static final Gen<Message<NoPayload>> MUTATION_RSP_GEN = responseGen(Verb.MUTATION_RSP);
+    public static final Gen<Message<NoPayload>> READ_REPAIR_RSP_GEN = responseGen(Verb.READ_REPAIR_RSP);
+
     public static final Gen<Message<?>> MESSAGE_GEN = Generate.oneOf(cast(MESSAGE_PING_GEN),
-                                                                     cast(MESSAGE_READ_COMMAND_GEN))
+                                                                     cast(MESSAGE_READ_COMMAND_GEN),
+                                                                     cast(MUTATION_RSP_GEN),
+                                                                     cast(READ_REPAIR_RSP_GEN))
                                                               .describedAs(CassandraGenerators::toStringRecursive);
 
     private CassandraGenerators()
