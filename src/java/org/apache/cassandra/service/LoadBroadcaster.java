@@ -87,6 +87,8 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
         {
             public void run()
             {
+                if (!Gossiper.instance.isEnabled())
+                    return;
                 if (logger.isTraceEnabled())
                     logger.trace("Disseminating load info ...");
                 Gossiper.instance.addLocalApplicationState(ApplicationState.LOAD,
